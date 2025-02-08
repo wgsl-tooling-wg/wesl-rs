@@ -331,7 +331,7 @@ impl Eval for FunctionCall {
                     .inspect_err(|_| ctx.set_err_decl_ctx(decl.ident.to_string()))?;
 
                 for (a, p) in zip(args, &decl.parameters) {
-                    ctx.scope.add(p.ident.to_string(), a);
+                    ctx.scope.add(p.ident.to_string(), Some(a));
                 }
 
                 // the arguments must be in the same scope as the function body.
@@ -366,15 +366,17 @@ impl Eval for FunctionCall {
 
 impl Eval for TypeExpression {
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E> {
-        if self.template_args.is_none() {
-            if let Some(r) = ctx.scope.get(&*self.ident.name()) {
-                Ok(r.clone())
+        if let Some(inst) = ctx.scope.get(&*self.ident.name()) {
+            if self.template_args.is_some() {
+                Err(E::UnexpectedTemplate(self.ident.to_string()))
+            } else if let Some(inst) = inst {
+                Ok(inst.clone())
             } else {
-                let ty = self.ident.name().eval_ty(ctx)?;
-                Ok(ty.into())
+                Err(E::NotAccessible(self.ident.to_string(), ctx.stage))
             }
         } else {
-            Ok(self.eval_ty(ctx)?.into())
+            let ty = self.eval_ty(ctx)?;
+            Ok(ty.into())
         }
     }
 }

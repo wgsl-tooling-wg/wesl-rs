@@ -287,6 +287,20 @@ impl Diagnostic<Error> {
                 Expression::TypeOrIdentifier(ty) => unmangle_id(&mut ty.ident, sourcemap, mangler),
             }
         }
+        #[cfg(feature = "eval")]
+        fn unmangle_ty(
+            mangled: &mut crate::eval::Type,
+            sourcemap: Option<&impl SourceMap>,
+            mangler: Option<&impl Mangler>,
+        ) {
+            match mangled {
+                crate::eval::Type::Struct(name) => unmangle_name(name, sourcemap, mangler),
+                crate::eval::Type::Array(_, ty) => unmangle_ty(&mut *ty, sourcemap, mangler),
+                crate::eval::Type::Atomic(ty) => unmangle_ty(&mut *ty, sourcemap, mangler),
+                crate::eval::Type::Ptr(_, ty) => unmangle_ty(&mut *ty, sourcemap, mangler),
+                _ => (),
+            }
+        }
         match &mut *self.error {
             Error::ParseError(_) => {}
             Error::ValidateError(e) => match e {
@@ -306,17 +320,66 @@ impl Diagnostic<Error> {
             Error::GenericsError(_) => {}
             #[cfg(feature = "eval")]
             Error::EvalError(e) => match e {
-                EvalError::UnknownFunction(name) => unmangle_name(name, sourcemap, mangler),
-                EvalError::NoDecl(name) => unmangle_name(name, sourcemap, mangler),
-                EvalError::Component(_, name) => unmangle_name(name, sourcemap, mangler),
-                EvalError::Signature(ty, _) => unmangle_id(&mut ty.ident, sourcemap, mangler),
+                EvalError::NotScalar(ty) => unmangle_ty(ty, sourcemap, mangler),
+                EvalError::NotConstructible(ty) => unmangle_ty(ty, sourcemap, mangler),
+                EvalError::Type(ty1, ty2) => {
+                    unmangle_ty(ty1, sourcemap, mangler);
+                    unmangle_ty(ty2, sourcemap, mangler);
+                }
+                EvalError::NotType(name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::UnknownType(name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::NotAccessible(name, _) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UnexpectedTemplate(name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::View(ty, _) => unmangle_ty(ty, sourcemap, mangler),
+                EvalError::RefType(ty1, ty2) => {
+                    unmangle_ty(ty1, sourcemap, mangler);
+                    unmangle_ty(ty2, sourcemap, mangler);
+                }
+                EvalError::WriteRefType(ty1, ty2) => {
+                    unmangle_ty(ty1, sourcemap, mangler);
+                    unmangle_ty(ty2, sourcemap, mangler);
+                }
+                EvalError::Conversion(ty1, ty2) => {
+                    unmangle_ty(ty1, sourcemap, mangler);
+                    unmangle_ty(ty2, sourcemap, mangler);
+                }
+                EvalError::ConvOverflow(_, ty) => unmangle_ty(ty, sourcemap, mangler),
+                EvalError::Component(_, name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::Index(ty) => unmangle_ty(ty, sourcemap, mangler),
+                EvalError::NotIndexable(ty) => unmangle_ty(ty, sourcemap, mangler),
+                EvalError::OutOfBounds(_, ty, _) => unmangle_ty(ty, sourcemap, mangler),
+                EvalError::Unary(_, ty) => unmangle_ty(ty, sourcemap, mangler),
+                EvalError::Binary(_, ty1, ty2) => {
+                    unmangle_ty(ty1, sourcemap, mangler);
+                    unmangle_ty(ty2, sourcemap, mangler);
+                }
+                EvalError::CompwiseBinary(ty1, ty2) => {
+                    unmangle_ty(ty1, sourcemap, mangler);
+                    unmangle_ty(ty2, sourcemap, mangler);
+                }
+                EvalError::UnknownFunction(name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::Signature(ty, args) => {
+                    unmangle_id(&mut ty.ident, sourcemap, mangler);
+                    for arg in args {
+                        unmangle_ty(arg, sourcemap, mangler);
+                    }
+                }
                 EvalError::ParamCount(name, _, _) => unmangle_name(name, sourcemap, mangler),
+                EvalError::ParamType(ty1, ty2) => {
+                    unmangle_ty(ty1, sourcemap, mangler);
+                    unmangle_ty(ty2, sourcemap, mangler);
+                }
                 EvalError::NotConst(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UninitConst(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UninitLet(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UninitOverride(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::DuplicateDecl(name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::AssignType(ty1, ty2) => {
+                    unmangle_ty(ty1, sourcemap, mangler);
+                    unmangle_ty(ty2, sourcemap, mangler);
+                }
+                EvalError::IncrType(ty) => unmangle_ty(ty, sourcemap, mangler),
+                EvalError::DecrType(ty) => unmangle_ty(ty, sourcemap, mangler),
                 EvalError::ConstAssertFailure(expr) => unmangle_expr(expr, sourcemap, mangler),
                 _ => {}
             },

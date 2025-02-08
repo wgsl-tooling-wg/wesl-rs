@@ -36,7 +36,8 @@ alias mat4x2h = mat4x2<f16>;
 alias mat4x3h = mat4x3<f16>;
 alias mat4x4h = mat4x4<f16>;
 
-// @internal declarations become prefixed with __
+// @internal declarations become prefixed with __, which is not representable in WGSL source
+// therefore it avoids name collisions.
 @internal struct frexp_result_f32 { fract: f32, exp: i32 }
 @internal struct frexp_result_f16 { fract: f16, exp: i32 }
 @internal struct frexp_result_abstract { fract: AbstractFloat, exp: AbstractInt }
@@ -62,26 +63,6 @@ alias mat4x4h = mat4x4<f16>;
 @internal struct modf_result_vec3_abstract { fract: vec3<AbstractFloat>, whole: vec3<AbstractFloat> }
 @internal struct modf_result_vec4_abstract { fract: vec4<AbstractFloat>, whole: vec4<AbstractFloat> }
 @internal @generic(T) struct atomic_compare_exchange_result { old_value: T, exchanged: bool }
-
-// constructors
-@const @must_use fn array() @intrinsic {}
-@const @must_use fn bool() @intrinsic {}
-@const @must_use fn i32() @intrinsic {}
-@const @must_use fn u32() @intrinsic {}
-@const @must_use fn f32() @intrinsic {}
-@const @must_use fn f16() @intrinsic {}
-@const @must_use fn mat2x2() @intrinsic {}
-@const @must_use fn mat2x3() @intrinsic {}
-@const @must_use fn mat2x4() @intrinsic {}
-@const @must_use fn mat3x2() @intrinsic {}
-@const @must_use fn mat3x3() @intrinsic {}
-@const @must_use fn mat3x4() @intrinsic {}
-@const @must_use fn mat4x2() @intrinsic {}
-@const @must_use fn mat4x3() @intrinsic {}
-@const @must_use fn mat4x4() @intrinsic {}
-@const @must_use fn vec2() @intrinsic {}
-@const @must_use fn vec3() @intrinsic {}
-@const @must_use fn vec4() @intrinsic {}
 
 // bitcast
 @const @must_use fn bitcast() @intrinsic {}
@@ -157,6 +138,47 @@ alias mat4x4h = mat4x4<f16>;
 @const @must_use fn transpose() @intrinsic {}
 @const @must_use fn trunc() @intrinsic {}
 
+// derivative
+@must_use fn dpdx() @intrinsic {}
+@must_use fn dpdxCoarse() @intrinsic {}
+@must_use fn dpdxFine() @intrinsic {}
+@must_use fn dpdy() @intrinsic {}
+@must_use fn dpdyCoarse() @intrinsic {}
+@must_use fn dpdyFine() @intrinsic {}
+@must_use fn fwidth() @intrinsic {}
+@must_use fn fwidthCoarse() @intrinsic {}
+@must_use fn fwidthFine() @intrinsic {}
+
+// texture
+@must_use fn textureDimensions() @intrinsic {}
+@must_use fn textureGather() @intrinsic {}
+@must_use fn textureGatherCompare() @intrinsic {}
+@must_use fn textureLoad() @intrinsic {}
+@must_use fn textureNumLayers() @intrinsic {}
+@must_use fn textureNumLevels() @intrinsic {}
+@must_use fn textureNumSamples() @intrinsic {}
+@must_use fn textureSample() @intrinsic {}
+@must_use fn textureSampleBias() @intrinsic {}
+@must_use fn textureSampleCompare() @intrinsic {}
+@must_use fn textureSampleCompareLevel() @intrinsic {}
+@must_use fn textureSampleGrad() @intrinsic {}
+@must_use fn textureSampleLevel() @intrinsic {}
+@must_use fn textureSampleBaseClampToEdge() @intrinsic {}
+fn textureStore() @intrinsic {}
+
+// atomic
+fn atomicLoad() @intrinsic {}
+fn atomicStore() @intrinsic {}
+fn atomicAdd() @intrinsic {}
+fn atomicSub() @intrinsic {}
+fn atomicMax() @intrinsic {}
+fn atomicMin() @intrinsic {}
+fn atomicAnd() @intrinsic {}
+fn atomicOr() @intrinsic {}
+fn atomicXor() @intrinsic {}
+fn atomicExchange() @intrinsic {}
+fn atomicCompareExchangeWeak() @intrinsic {}
+
 // packing
 @const @must_use fn pack4x8snorm() @intrinsic { }
 @const @must_use fn pack4x8unorm() @intrinsic {}
@@ -174,3 +196,38 @@ alias mat4x4h = mat4x4<f16>;
 @const @must_use fn unpack2x16snorm() @intrinsic {}
 @const @must_use fn unpack2x16unorm() @intrinsic {}
 @const @must_use fn unpack2x16float() @intrinsic {}
+
+// synchronization
+fn storageBarrier() @intrinsic {}
+fn textureBarrier() @intrinsic {}
+fn workgroupBarrier() @intrinsic {}
+@must_use fn workgroupUniformLoad() @intrinsic {}
+
+// subgroup
+@must_use fn subgroupAdd() @intrinsic {}
+@must_use fn subgroupExclusiveAdd() @intrinsic {}
+@must_use fn subgroupInclusiveAdd() @intrinsic {}
+@must_use fn subgroupAll() @intrinsic {}
+@must_use fn subgroupAnd() @intrinsic {}
+@must_use fn subgroupAny() @intrinsic {}
+@must_use fn subgroupBallot() @intrinsic {}
+@must_use fn subgroupBroadcast() @intrinsic {}
+@must_use fn subgroupBroadcastFirst() @intrinsic {}
+@must_use fn subgroupElect() @intrinsic {}
+@must_use fn subgroupMax() @intrinsic {}
+@must_use fn subgroupMin() @intrinsic {}
+@must_use fn subgroupMul() @intrinsic {}
+@must_use fn subgroupExclusiveMul() @intrinsic {}
+@must_use fn subgroupInclusiveMul() @intrinsic {}
+@must_use fn subgroupOr() @intrinsic {}
+@must_use fn subgroupShuffle() @intrinsic {}
+@must_use fn subgroupShuffleDown() @intrinsic {}
+@must_use fn subgroupShuffleUp() @intrinsic {}
+@must_use fn subgroupShuffleXor() @intrinsic {}
+@must_use fn subgroupXor() @intrinsic {}
+
+// quad
+@must_use fn quadBroadcast() @intrinsic {}
+@must_use fn quadSwapDiagonal() @intrinsic {}
+@must_use fn quadSwapX() @intrinsic {}
+@must_use fn quadSwapY() @intrinsic {}

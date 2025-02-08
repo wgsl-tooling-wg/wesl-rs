@@ -180,7 +180,7 @@ pub enum DeclarationKind {
     Const,
     Override,
     Let,
-    Var(Option<AddressSpace>),
+    Var(Option<AddressSpace>), // "None" corresponds to handle space if it is a module-scope declaration, otherwise function space.
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -190,9 +190,8 @@ pub enum AddressSpace {
     Private,
     Workgroup,
     Uniform,
-    // TODO: move access mode out of here
     Storage(Option<AccessMode>),
-    Handle,
+    Handle, // the handle address space cannot be spelled in WGSL.
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

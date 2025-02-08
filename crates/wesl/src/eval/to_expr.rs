@@ -1,6 +1,6 @@
 use super::{
     builtin_ident, ArrayInstance, LiteralInstance, MatInstance, SamplerType, StructInstance,
-    SyntaxUtil, TextureType, Ty, Type, VecInstance,
+    SyntaxUtil, TextureType, Type, VecInstance,
 };
 use crate::eval::{Context, EvalError, Instance};
 use wgsl_parse::{span::Spanned, syntax::*};
@@ -22,7 +22,8 @@ impl ToExpr for Instance {
             Instance::Mat(inst) => inst.to_expr(ctx),
             Instance::Type(inst) => inst.to_expr(ctx),
             Instance::Atomic(_) | Instance::Ptr(_) | Instance::Ref(_) | Instance::Void => {
-                Err(E::NotConstructible(self.ty()))
+                // Err(E::NotConstructible(self.ty()))
+                todo!()
             }
         }
     }

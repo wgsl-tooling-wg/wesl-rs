@@ -26,7 +26,9 @@ pub enum Instance {
     Ptr(PtrInstance),
     Ref(RefInstance),
     Atomic(AtomicInstance),
+    /// type instances can only appear in template arguments.
     Type(Type),
+    /// the void type does not exist in WGSL, here it can be the result of evaluating a call expression.
     Void,
 }
 
@@ -336,58 +338,6 @@ impl From<RefInstance> for PtrInstance {
     }
 }
 
-// #[derive(Clone, Debug, From, PartialEq)]
-// pub struct Mem<T> {
-//     bytes: Rc<RefCell<[u8]>>,
-//     _ty: PhantomData<T>,
-// }
-
-// impl<T> Mem<T> {
-//     pub fn get<'a>(&'a self) -> Ref<'a, T> {
-//         Ref::<'_, [u8]>::map(self.bytes.borrow(), |bytes| unsafe {
-//             std::ptr::read(bytes.as_ptr() as *const &T)
-//         })
-//     }
-
-//     pub fn get_mut<'a>(&'a self) -> RefMut<'a, T> {
-//         RefMut::<'_, [u8]>::map(self.bytes.borrow_mut(), |bytes| unsafe {
-//             std::ptr::read(bytes.as_ptr() as *const &mut T)
-//         })
-//     }
-// }
-
-// impl<'a, T> Deref for Mem<T>
-// where
-//     Self: 'a,
-// {
-//     type Target = Ref<'a, T>;
-
-//     fn deref(&'a self) -> &Self::Target {
-//         &self.get()
-//     }
-// }
-
-// impl<'a, T> AsRef<Ref<'a, T>> for Mem<T> {
-//     fn as_ref(&self) -> &Ref<'a, T> {
-//         todo!()
-//     }
-// }
-
-// impl<T: Copy> Mem<T> {
-//     pub fn val(&self) -> T {
-//         *self.get()
-//     }
-// }
-
-// #[derive(Clone, Debug, PartialEq)]
-// pub enum RefData {
-//     Internal {
-//         ptr: Rc<RefCell<Instance>>,
-//         view: MemView,
-//     },
-//     HostShared(Bytes),
-// }
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct RefInstance {
     pub ty: Type,
@@ -398,7 +348,7 @@ pub struct RefInstance {
 }
 
 impl RefInstance {
-    pub fn from_instance(inst: Instance, space: AddressSpace, access: AccessMode) -> Self {
+    pub fn new(inst: Instance, space: AddressSpace, access: AccessMode) -> Self {
         let ty = inst.ty();
         Self {
             ty,

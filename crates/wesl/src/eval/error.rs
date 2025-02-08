@@ -2,26 +2,34 @@ use itertools::Itertools;
 use thiserror::Error;
 use wgsl_parse::syntax::*;
 
-use super::{Flow, Instance, LiteralInstance, MemView, ScopeKind, Ty, Type};
+use super::{EvalStage, Flow, Instance, LiteralInstance, MemView, ScopeKind, Type};
 
 #[derive(Clone, Debug, Error)]
 pub enum EvalError {
     #[error("not implemented: `{0}`")]
     Todo(String),
-    #[error("expected type `{0}`, got `{1}`")]
-    Type(Type, Type),
-    #[error("unknown type or variable `{0}`")]
-    UnknownType(String),
-    #[error("unknown function `{0}`")]
-    UnknownFunction(String),
-    #[error("no declaration named `{0}` in scope")]
-    NoDecl(String),
-    #[error("`{0}` is not constructible")]
-    NotConstructible(Type),
+
+    // types & templates
     #[error("expected a scalar type, got `{0}`")]
     NotScalar(Type),
-    #[error("expected a type, got `{0}`")]
-    NotType(Instance),
+    #[error("`{0}` is not constructible")]
+    NotConstructible(Type),
+    #[error("expected type `{0}`, got `{1}`")]
+    Type(Type, Type),
+    #[error("expected a type, got declaration `{0}`")]
+    NotType(String),
+    #[error("unknown type or variable `{0}`")]
+    UnknownType(String),
+    #[error("declaration `{0}` is not accessible at {} time", match .1 {
+        EvalStage::Const => "shader-module-creation",
+        EvalStage::Override => "pipeline-creation",
+        EvalStage::Exec => "shader-execution"
+    })]
+    NotAccessible(String, EvalStage),
+    #[error("type `{0}` does not take any template arguments")]
+    UnexpectedTemplate(String),
+    #[error("missing template arguments for type `{0}`")]
+    MissingTemplate(&'static str),
 
     // references
     #[error("invalid reference to memory view `{0}{1}`")]
@@ -80,19 +88,14 @@ pub enum EvalError {
     ShrOverflow(u32),
 
     // functions
-    #[error(
-        "invalid function call signature: `{0}({})`",
-        (.1).iter().map(Ty::ty).format(", "),
-    )]
-    Signature(TypeExpression, Vec<Instance>),
+    #[error("unknown function `{0}`")]
+    UnknownFunction(String),
+    #[error("invalid function call signature: `{0}({})`", (.1).iter().format(", "))]
+    Signature(TypeExpression, Vec<Type>),
     #[error("{0}")]
     Builtin(&'static str),
     #[error("invalid template arguments to `{0}`")]
     TemplateArgs(&'static str),
-    #[error("type `{0}` does not take any template arguments")]
-    UnexpectedTemplate(String),
-    #[error("missing template arguments for type `{0}`")]
-    MissingTemplate(&'static str),
     #[error("incorrect number of arguments to `{0}`, expected `{1}`, got `{2}`")]
     ParamCount(String, usize, usize),
     #[error("invalid parameter type, expected `{0}`, got `{1}`")]
@@ -115,6 +118,8 @@ pub enum EvalError {
     UninitLet(String),
     #[error("uninitialized override-declaration `{0}` with no override")]
     UninitOverride(String),
+    #[error("initializer are not allowed in `{0}` address space")]
+    ForbiddenInitializer(AddressSpace),
     #[error("duplicate declaration of `{0}` in the current scope")]
     DuplicateDecl(String),
     #[error("a declaration must have an explicit type or an initializer")]

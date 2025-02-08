@@ -143,7 +143,8 @@ pub enum ResourceKind {
 // TODO: should we remove the source from the Context struct?
 pub struct Context<'s> {
     pub(crate) source: &'s TranslationUnit,
-    pub(crate) scope: Scope<Instance>,
+    // the instance is None if not accessible in the EvalStage
+    pub(crate) scope: Scope<Option<Instance>>,
     pub(crate) resources: HashMap<(u32, u32), RefInstance>,
     pub(crate) overrides: HashMap<String, Instance>,
     pub(crate) kind: ScopeKind,
@@ -238,6 +239,7 @@ pub trait SyntaxUtil {
 
 impl SyntaxUtil for TranslationUnit {
     fn decl(&self, name: &str) -> Option<&GlobalDeclaration> {
+        // note: declarations in PRELUDE can be shadowed by user-defined declarations.
         self.global_declarations
             .iter()
             .chain(PRELUDE.global_declarations.iter())
@@ -288,10 +290,6 @@ impl SyntaxUtil for TranslationUnit {
     }
 
     fn resolve_ty<'a>(&'a self, ty: &'a TypeExpression) -> &'a TypeExpression {
-        if ty.template_args.is_none() {
-            self.resolve_alias(&*ty.ident.name()).unwrap_or(ty)
-        } else {
-            ty
-        }
+        self.resolve_alias(&*ty.ident.name()).unwrap_or(ty)
     }
 }

@@ -28,8 +28,11 @@ pub trait Convert: Sized + Clone + Ty {
     /// convert an abstract instance to a concrete type.
     ///
     /// e.g. `array<vec<AbstractInt>>` becomes `array<vec<i32>>`
-    fn concretize(&self) -> Option<Self> {
+    ///
+    /// concretization is supposed to never fail.
+    fn concretize(&self) -> Self {
         self.convert_to(&self.ty().concretize())
+            .expect("failed to concretize a type")
     }
 }
 
@@ -168,7 +171,7 @@ impl Convert for Instance {
             Self::Mat(m) => m.convert_to(ty).map(Self::Mat),
             Self::Ptr(_) => None,
             Self::Ref(r) => r.read().ok().and_then(|r| r.convert_to(ty)), // this is the "load rule". Also performed by `eval_value`.
-            Instance::Atomic(_) => None,
+            Self::Atomic(_) => None,
             Self::Type(_) => None,
             Self::Void => None,
         }
@@ -183,7 +186,7 @@ impl Convert for Instance {
             Self::Mat(m) => m.convert_inner_to(ty).map(Self::Mat),
             Self::Ptr(_) => None,
             Self::Ref(r) => r.read().ok().and_then(|r| r.convert_inner_to(ty)), // this is the "load rule". Also performed by `eval_value`.
-            Instance::Atomic(_) => None,
+            Self::Atomic(_) => None,
             Self::Type(_) => None,
             Self::Void => None,
         }

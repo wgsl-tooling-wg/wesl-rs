@@ -20,12 +20,11 @@ pub enum Flow {
     Return(Instance),
 }
 
-/// careful: do not return in with_stage body!
 macro_rules! with_stage {
     ($ctx:expr, $stage:expr, $body:tt) => {{
         let stage = $ctx.stage;
         $ctx.stage = $stage;
-        let body = $body;
+        let body = (|| $body)();
         $ctx.stage = stage;
         body
     }};
@@ -528,109 +527,73 @@ impl Exec for Declaration {
             return Err(E::DuplicateDecl(self.ident.to_string()));
         }
 
-        match (self.kind, ctx.kind) {
-            (DeclarationKind::Const, _scope) => {
-                let mut inst = self
-                    .initializer
-                    .as_ref()
-                    .ok_or_else(|| E::UninitConst(self.ident.to_string()))?
-                    .eval(ctx)?;
-
-                if let Some(ty) = &self.ty {
-                    let ty = ty.eval_ty(ctx)?;
-                    inst = inst
-                        .convert_to(&ty)
-                        .ok_or_else(|| E::Conversion(inst.ty(), ty))?;
-                }
-
-                ctx.scope.add(self.ident.to_string(), inst);
-                Ok(Flow::Next)
-            }
-            (DeclarationKind::Override, ScopeKind::Function) => Err(E::OverrideInFn),
-            (DeclarationKind::Let, ScopeKind::Function) => {
-                let inst = self
-                    .initializer
-                    .as_ref()
-                    .ok_or_else(|| E::UninitLet(self.ident.to_string()))?
-                    .eval(ctx)?;
-
-                let inst = if let Some(ty) = &self.ty {
-                    let ty = ty.eval_ty(ctx)?;
-                    inst.convert_to(&ty)
-                        .ok_or_else(|| E::Conversion(inst.ty(), ty))?
+        let ty = match (&self.ty, &self.initializer) {
+            (None, None) => return Err(E::UntypedDecl),
+            (None, Some(init)) => {
+                let ty = init.eval_ty(ctx)?;
+                if self.kind.is_const() {
+                    ty // only const declarations can be of abstract type.
                 } else {
-                    inst.concretize()
-                        .ok_or_else(|| E::Conversion(inst.ty(), inst.ty().concretize()))?
-                };
+                    ty.concretize()
+                }
+            }
+            (Some(ty), _) => ty.eval_ty(ctx)?,
+        };
 
-                ctx.scope.add(self.ident.to_string(), inst);
-                Ok(Flow::Next)
+        let init = |ctx: &mut Context, stage: EvalStage| {
+            self.initializer
+                .as_ref()
+                .map(|init| {
+                    let inst = with_stage!(ctx, stage, { init.eval_value(ctx) })?;
+                    inst.convert_to(&ty)
+                        .ok_or_else(|| E::Conversion(inst.ty(), ty.clone()))
+                })
+                .transpose()
+        };
+
+        match (self.kind, ctx.kind) {
+            (DeclarationKind::Const, _) => {
+                let inst = init(ctx, EvalStage::Const)?
+                    .ok_or_else(|| E::UninitConst(self.ident.to_string()))?;
+                ctx.scope.add(self.ident.to_string(), Some(inst));
+            }
+            (DeclarationKind::Override, ScopeKind::Function) => return Err(E::OverrideInFn),
+            (DeclarationKind::Let, ScopeKind::Function) => {
+                let inst =
+                    init(ctx, ctx.stage)?.ok_or_else(|| E::UninitLet(self.ident.to_string()))?;
+                ctx.scope.add(self.ident.to_string(), Some(inst));
             }
             (DeclarationKind::Var(space), ScopeKind::Function) => {
-                match space {
-                    Some(AddressSpace::Function) | None => (),
-                    _ => return Err(E::ForbiddenDecl(self.kind, ctx.kind)),
+                if !matches!(space, Some(AddressSpace::Function) | None) {
+                    return Err(E::ForbiddenDecl(self.kind, ctx.kind));
                 }
-                let inst = match (&self.ty, &self.initializer) {
-                    (None, None) => Err(E::UntypedDecl),
-                    (None, Some(init)) => {
-                        let inst = init.eval(ctx)?;
-                        inst.concretize()
-                            .ok_or_else(|| E::Conversion(inst.ty(), inst.ty().concretize()))
-                    }
-                    (Some(ty), None) => {
-                        let ty = ty.eval_ty(ctx)?;
-                        Instance::zero_value(&ty, ctx)
-                    }
-                    (Some(ty), Some(init)) => {
-                        let inst = init.eval(ctx)?;
-                        let ty = ty.eval_ty(ctx)?;
-                        inst.convert_to(&ty)
-                            .ok_or_else(|| E::Conversion(inst.ty(), ty))
-                    }
-                }?;
+                let inst = init(ctx, ctx.stage)?
+                    .map(Ok)
+                    .unwrap_or_else(|| Instance::zero_value(&ty, ctx))?;
 
-                ctx.scope.add(
-                    self.ident.to_string(),
-                    RefInstance::from_instance(inst, AddressSpace::Function, AccessMode::ReadWrite)
-                        .into(),
-                );
-                Ok(Flow::Next)
+                let inst = RefInstance::new(inst, AddressSpace::Function, AccessMode::ReadWrite);
+                ctx.scope.add(self.ident.to_string(), Some(inst.into()));
             }
             (DeclarationKind::Override, ScopeKind::Module) => {
                 if ctx.stage == EvalStage::Const {
-                    // in const contexts we just ignore var declarations since they cannot be
-                    // used in const eval contexts. But we could at least store the ident to
-                    // provide a better err msg if one is used.
-                    Ok(Flow::Next)
+                    ctx.scope.add(self.ident.to_string(), None);
                 } else {
-                    let inst = ctx
-                        .overridable(&self.ident.name())
-                        .cloned()
-                        .ok_or_else(|| E::UninitOverride(self.ident.to_string()))
-                        .or_else(|e| self.initializer.as_ref().ok_or(e)?.eval(ctx))?;
-
-                    let inst = if let Some(ty) = &self.ty {
-                        let ty = ty.eval_ty(ctx)?;
+                    let inst = if let Some(inst) = ctx.overridable(&self.ident.name()) {
                         inst.convert_to(&ty)
                             .ok_or_else(|| E::Conversion(inst.ty(), ty))?
+                    } else if let Some(inst) = init(ctx, EvalStage::Override)? {
+                        inst
                     } else {
-                        inst.concretize()
-                            .ok_or_else(|| E::Conversion(inst.ty(), inst.ty().concretize()))?
+                        return Err(E::UninitOverride(self.ident.to_string()));
                     };
 
-                    ctx.scope.add(self.ident.to_string(), inst);
-                    Ok(Flow::Next)
+                    ctx.scope.add(self.ident.to_string(), Some(inst));
                 }
             }
-            (DeclarationKind::Let, ScopeKind::Module) => Err(E::LetInMod),
+            (DeclarationKind::Let, ScopeKind::Module) => return Err(E::LetInMod),
             (DeclarationKind::Var(addr_space), ScopeKind::Module) => {
-                // TODO: implement  address space
                 if ctx.stage == EvalStage::Const {
-                    // in const contexts we just ignore var declarations since they cannot be
-                    // used in const eval contexts. But we could at least store the ident to
-                    // provide a better err msg if one is used.
-                    Ok(Flow::Next)
+                    ctx.scope.add(self.ident.to_string(), None);
                 } else {
                     let addr_space = addr_space.unwrap_or(AddressSpace::Handle);
 
@@ -639,54 +602,34 @@ impl Exec for Declaration {
                             return Err(E::ForbiddenDecl(self.kind, ctx.kind))
                         }
                         AddressSpace::Private => {
-                            let inst = match (&self.ty, &self.initializer) {
-                                (None, None) => Err(E::UntypedDecl),
-                                (None, Some(init)) => {
-                                    let inst =
-                                        with_stage!(ctx, EvalStage::Const, { init.eval(ctx) })?;
-                                    inst.concretize().ok_or_else(|| {
-                                        E::Conversion(inst.ty(), inst.ty().concretize())
-                                    })
-                                }
-                                (Some(ty), None) => {
-                                    let ty = ty.eval_ty(ctx)?;
-                                    Instance::zero_value(&ty, ctx)
-                                }
-                                (Some(ty), Some(init)) => {
-                                    let inst =
-                                        with_stage!(ctx, EvalStage::Const, { init.eval(ctx) })?;
-                                    let ty = ty.eval_ty(ctx)?;
-                                    inst.convert_to(&ty)
-                                        .ok_or_else(|| E::Conversion(inst.ty(), ty))
-                                }
-                            }?;
+                            // the initializer for a private variable must be a const- or override-expression
+                            let inst = if let Some(inst) = init(ctx, EvalStage::Override)? {
+                                inst
+                            } else {
+                                Instance::zero_value(&ty, ctx)?
+                            };
 
                             ctx.scope.add(
                                 self.ident.to_string(),
-                                RefInstance::from_instance(
-                                    inst,
-                                    AddressSpace::Private,
-                                    AccessMode::ReadWrite,
-                                )
-                                .into(),
+                                Some(
+                                    RefInstance::new(
+                                        inst,
+                                        AddressSpace::Private,
+                                        AccessMode::ReadWrite,
+                                    )
+                                    .into(),
+                                ),
                             );
                         }
-                        AddressSpace::Workgroup => {
-                            // let Some(ty) = &self.ty else {
-                            //     return Err(E::UntypedDecl);
-                            // };
-                            todo!("workgroup address space")
-                        }
                         AddressSpace::Uniform => {
-                            let Some(ty) = &self.ty else {
-                                return Err(E::UntypedDecl);
-                            };
-                            let ty = ty.eval_ty(ctx)?;
+                            if self.initializer.is_some() {
+                                return Err(E::ForbiddenInitializer(addr_space));
+                            }
                             let (group, binding) = self.attr_group_binding(ctx)?;
                             let inst = ctx
                                 .resource(group, binding)
                                 .ok_or_else(|| E::MissingResource(group, binding))?;
-                            if ty != inst.ty() {
+                            if inst.ty() != ty {
                                 return Err(E::Type(ty, inst.ty()));
                             }
                             if !inst.space.is_uniform() {
@@ -695,9 +638,13 @@ impl Exec for Declaration {
                             if inst.access != AccessMode::Read {
                                 return Err(E::AccessMode(AccessMode::Read, inst.access));
                             }
-                            ctx.scope.add(self.ident.to_string(), inst.clone().into())
+                            ctx.scope
+                                .add(self.ident.to_string(), Some(inst.clone().into()))
                         }
                         AddressSpace::Storage(access_mode) => {
+                            if self.initializer.is_some() {
+                                return Err(E::ForbiddenInitializer(addr_space));
+                            }
                             let Some(ty) = &self.ty else {
                                 return Err(E::UntypedDecl);
                             };
@@ -716,13 +663,15 @@ impl Exec for Declaration {
                             if inst.access != access_mode {
                                 return Err(E::AccessMode(access_mode, inst.access));
                             }
-                            ctx.scope.add(self.ident.to_string(), inst.clone().into())
+                            ctx.scope
+                                .add(self.ident.to_string(), Some(inst.clone().into()))
                         }
+                        AddressSpace::Workgroup => todo!("workgroup address space"),
                         AddressSpace::Handle => todo!("handle address space"),
                     }
-                    Ok(Flow::Next)
                 }
             }
         }
+        Ok(Flow::Next)
     }
 }

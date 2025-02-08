@@ -1,10 +1,12 @@
 use std::str::FromStr;
 
 use super::{
-    ArrayInstance, ArrayTemplate, AtomicInstance, AtomicTemplate, Context, Eval, EvalError,
-    Instance, LiteralInstance, MatInstance, MatTemplate, PtrInstance, PtrTemplate, RefInstance,
+    ArrayInstance, ArrayTemplate, AtomicInstance, AtomicTemplate, Context, EvalError, Instance,
+    LiteralInstance, MatInstance, MatTemplate, PtrInstance, PtrTemplate, RefInstance,
     StructInstance, SyntaxUtil, TextureTemplate, VecInstance, VecTemplate,
 };
+
+type E = EvalError;
 
 use derive_more::derive::{IsVariant, Unwrap};
 use wgsl_parse::syntax::*;
@@ -291,6 +293,21 @@ impl Ty for LiteralInstance {
         }
     }
 }
+
+impl Ty for LiteralExpression {
+    fn ty(&self) -> Type {
+        match self {
+            LiteralExpression::Bool(_) => Type::Bool,
+            LiteralExpression::AbstractInt(_) => Type::AbstractInt,
+            LiteralExpression::AbstractFloat(_) => Type::AbstractFloat,
+            LiteralExpression::I32(_) => Type::I32,
+            LiteralExpression::U32(_) => Type::U32,
+            LiteralExpression::F32(_) => Type::F32,
+            LiteralExpression::F16(_) => Type::F16,
+        }
+    }
+}
+
 impl Ty for StructInstance {
     fn ty(&self) -> Type {
         Type::Struct(self.name().to_string())
@@ -349,83 +366,60 @@ impl Ty for AtomicInstance {
 }
 
 pub trait EvalTy {
-    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, EvalError>;
+    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E>;
 }
 
 impl<T: Ty> EvalTy for T {
-    fn eval_ty(&self, _ctx: &mut Context) -> Result<Type, EvalError> {
+    fn eval_ty(&self, _ctx: &mut Context) -> Result<Type, E> {
         Ok(self.ty())
     }
 }
 
-/// EvalTy only for names with no template args.
-impl EvalTy for str {
-    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, EvalError> {
-        match self {
-            "bool" => Ok(Type::Bool),
-            "i32" => Ok(Type::I32),
-            "u32" => Ok(Type::U32),
-            "f32" => Ok(Type::F32),
-            "f16" => Ok(Type::F16),
-            "texture_depth_2d" => Ok(Type::Texture(TextureType::Depth2D)),
-            "texture_depth_2d_array" => Ok(Type::Texture(TextureType::Depth2DArray)),
-            "texture_depth_cube" => Ok(Type::Texture(TextureType::DepthCube)),
-            "texture_depth_cube_array" => Ok(Type::Texture(TextureType::DepthCubeArray)),
-            "sampler" => Ok(Type::Sampler(SamplerType::Sampler)),
-            "sampler_comparison" => Ok(Type::Sampler(SamplerType::SamplerComparison)),
-            _ => {
-                if let Some(ty) = ctx.source.resolve_alias(self) {
-                    ty.eval_ty(ctx)
-                } else if ctx.source.decl_struct(self).is_some() {
-                    let ty = Type::Struct(self.to_string());
-                    Ok(ty)
-                } else {
-                    Err(EvalError::UnknownType(self.to_string()))
+impl EvalTy for TypeExpression {
+    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
+        let ty = ctx.source.resolve_ty(self);
+        let name = ty.ident.name();
+        let name = name.as_str();
+
+        // structs and aliases are the only user-defined types. We resolved
+        // aliases already. any user-defined declaration can shadow parent-scope
+        // declarations and builtin declarations. even if that declaration is
+        // not a type.
+        if ctx.scope.contains(name) {
+            return Err(E::NotType(name.to_string()));
+        }
+        // same as above
+        if let Some(decl) = ctx.source.decl(name) {
+            match decl {
+                GlobalDeclaration::Struct(_) => {
+                    if ty.template_args.is_some() {
+                        return Err(E::UnexpectedTemplate(name.to_string()));
+                    } else {
+                        let ty = Type::Struct(name.to_string());
+                        return Ok(ty);
+                    }
                 }
+                _ => return Err(E::NotType(name.to_string())),
             }
         }
-    }
-}
 
-impl EvalTy for TypeExpression {
-    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, EvalError> {
-        if let Some(tplt) = &self.template_args {
-            match self.ident.name().as_str() {
+        // for now, only builtin types can be type-generators (have a template)
+        if let Some(tplt) = &ty.template_args {
+            match name {
                 "array" => {
                     let tplt = ArrayTemplate::parse(tplt, ctx)?;
                     Ok(tplt.ty())
                 }
                 "vec2" | "vec3" | "vec4" => {
                     let tplt = VecTemplate::parse(tplt, ctx)?;
-                    let n = self
-                        .ident
-                        .name()
-                        .chars()
-                        .nth(3)
-                        .unwrap()
-                        .to_digit(10)
-                        .unwrap() as u8;
+                    let n = name.chars().nth(3).unwrap().to_digit(10).unwrap() as u8;
                     Ok(tplt.ty(n))
                 }
                 "mat2x2" | "mat2x3" | "mat2x4" | "mat3x2" | "mat3x3" | "mat3x4" | "mat4x2"
                 | "mat4x3" | "mat4x4" => {
                     let tplt = MatTemplate::parse(tplt, ctx)?;
-                    let c = self
-                        .ident
-                        .name()
-                        .chars()
-                        .nth(3)
-                        .unwrap()
-                        .to_digit(10)
-                        .unwrap() as u8;
-                    let r = self
-                        .ident
-                        .name()
-                        .chars()
-                        .nth(5)
-                        .unwrap()
-                        .to_digit(10)
-                        .unwrap() as u8;
+                    let c = name.chars().nth(3).unwrap().to_digit(10).unwrap() as u8;
+                    let r = name.chars().nth(5).unwrap().to_digit(10).unwrap() as u8;
                     Ok(tplt.ty(c, r))
                 }
                 "ptr" => {
@@ -451,19 +445,169 @@ impl EvalTy for TypeExpression {
                     let tplt = TextureTemplate::parse(name, tplt)?;
                     Ok(Type::Texture(tplt.ty()))
                 }
-                _ => Err(EvalError::UnexpectedTemplate(self.ident.to_string())),
+                _ => Err(E::UnexpectedTemplate(name.to_string())),
             }
-        } else {
-            self.ident.name().eval_ty(ctx)
+        }
+        // builtin types without a template
+        else {
+            match name {
+                "bool" => Ok(Type::Bool),
+                "i32" => Ok(Type::I32),
+                "u32" => Ok(Type::U32),
+                "f32" => Ok(Type::F32),
+                "f16" => Ok(Type::F16),
+                "texture_depth_2d" => Ok(Type::Texture(TextureType::Depth2D)),
+                "texture_depth_2d_array" => Ok(Type::Texture(TextureType::Depth2DArray)),
+                "texture_depth_cube" => Ok(Type::Texture(TextureType::DepthCube)),
+                "texture_depth_cube_array" => Ok(Type::Texture(TextureType::DepthCubeArray)),
+                "sampler" => Ok(Type::Sampler(SamplerType::Sampler)),
+                "sampler_comparison" => Ok(Type::Sampler(SamplerType::SamplerComparison)),
+                _ => Err(E::UnknownType(name.to_string())),
+            }
         }
     }
 }
 
 impl EvalTy for Expression {
-    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, EvalError> {
-        self.eval_value(ctx).and_then(|v| match v {
-            Instance::Type(ty) => Ok(ty),
-            _ => Err(EvalError::NotType(v)),
-        })
+    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
+        match self {
+            Expression::Literal(expr) => Ok(expr.ty()),
+            Expression::Parenthesized(expr) => expr.expression.eval_ty(ctx),
+            Expression::NamedComponent(expr) => match expr.base.eval_ty(ctx)? {
+                Type::Struct(name) => {
+                    let decl = ctx.source.decl_struct(&name).unwrap();
+                    let mem = decl
+                        .members
+                        .iter()
+                        .find(|m| *m.ident.name() == *expr.component.name())
+                        .ok_or_else(|| {
+                            E::Component(Type::Struct(name), expr.component.to_string())
+                        })?;
+                    mem.ty.eval_ty(ctx)
+                }
+                Type::Vec(_, ty) => {
+                    // TODO: check valid swizzle
+                    let m = expr.component.name().len();
+                    if m == 1 {
+                        Ok(*ty)
+                    } else if m <= 4 {
+                        Ok(Type::Vec(m as u8, ty))
+                    } else {
+                        Err(E::Swizzle(expr.component.to_string()))
+                    }
+                }
+                ty => Err(E::Component(ty, expr.component.to_string())),
+            },
+            Expression::Indexing(expr) => {
+                let index_ty = expr.index.eval_ty(ctx)?;
+                if index_ty.is_integer() {
+                    match expr.base.eval_ty(ctx)? {
+                        Type::Array(_, ty) => Ok(*ty),
+                        Type::Vec(_, ty) => Ok(*ty),
+                        Type::Mat(c, _, ty) => Ok(Type::Vec(c, ty)),
+                        ty => Err(E::NotIndexable(ty)),
+                    }
+                } else {
+                    Err(E::Index(index_ty))
+                }
+            }
+            Expression::Unary(expr) => {
+                let ty = expr.operand.eval_ty(ctx)?;
+                let inner = ty.inner_ty();
+                if ty != inner
+                    && !ty.is_vec()
+                    && !expr.operator.is_address_of()
+                    && !expr.operator.is_indirection()
+                {
+                    return Err(E::Unary(expr.operator, ty));
+                }
+                match expr.operator {
+                    UnaryOperator::LogicalNegation if inner == Type::Bool => Ok(ty),
+                    UnaryOperator::Negation if inner.is_scalar() && !inner.is_u_32() => Ok(ty),
+                    UnaryOperator::BitwiseComplement if inner.is_integer() => Ok(ty),
+                    UnaryOperator::AddressOf => Ok(Type::Ptr(AddressSpace::Function, Box::new(ty))), // TODO: we don't know the address space
+                    UnaryOperator::Indirection if ty.is_ptr() => Ok(*ty.unwrap_ptr().1),
+                    _ => Err(E::Unary(expr.operator, ty)),
+                }
+            }
+            Expression::Binary(expr) => {
+                let ty1 = expr.left.eval_ty(ctx)?;
+                let ty2 = expr.right.eval_ty(ctx)?;
+                let inner = ty1.inner_ty();
+                if inner != ty2.inner_ty() {
+                    return Err(E::Binary(expr.operator, ty1, ty2));
+                }
+                let is_numeric = (ty1.is_vec() || ty1.is_numeric())
+                    && (ty2.is_vec() || ty2.is_numeric())
+                    && inner.is_numeric();
+                Ok(match expr.operator {
+                    BinaryOperator::ShortCircuitOr | BinaryOperator::ShortCircuitAnd
+                        if ty1.is_bool() && ty1 == ty2 =>
+                    {
+                        Type::Bool
+                    }
+                    BinaryOperator::Addition if is_numeric || ty1.is_mat() && ty1 == ty2 => ty1,
+                    BinaryOperator::Subtraction if is_numeric || ty1.is_mat() && ty1 == ty2 => ty1,
+                    BinaryOperator::Multiplication => match (ty1, ty2) {
+                        (ty1, _) if is_numeric => ty1,
+                        (ty1, ty2) if ty1.is_mat() && ty2.is_float() => ty1,
+                        (ty1, ty2) if ty1.is_float() && ty2.is_mat() => ty2,
+                        (Type::Mat(c, r, _), Type::Vec(n, _)) if n == c => {
+                            Type::Vec(r, Box::new(inner))
+                        }
+                        (Type::Vec(n, _), Type::Mat(c, r, _)) if n == r => {
+                            Type::Vec(c, Box::new(inner))
+                        }
+                        (Type::Mat(k1, r1, _), Type::Mat(c2, k2, _)) if k1 == k2 => {
+                            Type::Mat(c2, r1, Box::new(inner))
+                        }
+                        (ty1, ty2) => return Err(E::Binary(expr.operator, ty1, ty2)),
+                    },
+                    BinaryOperator::Division | BinaryOperator::Remainder if is_numeric => ty1,
+                    BinaryOperator::Equality | BinaryOperator::Inequality if ty1.is_scalar() => {
+                        Type::Bool
+                    }
+                    BinaryOperator::Equality | BinaryOperator::Inequality
+                        if ty1.is_vec() && ty1 == ty2 =>
+                    {
+                        Type::Vec(ty1.unwrap_vec().0, Box::new(Type::Bool))
+                    }
+                    BinaryOperator::LessThan
+                    | BinaryOperator::LessThanEqual
+                    | BinaryOperator::GreaterThan
+                    | BinaryOperator::GreaterThanEqual
+                        if ty1.is_numeric() =>
+                    {
+                        Type::Bool
+                    }
+                    BinaryOperator::LessThan
+                    | BinaryOperator::LessThanEqual
+                    | BinaryOperator::GreaterThan
+                    | BinaryOperator::GreaterThanEqual
+                        if ty1.is_vec() && ty1 == ty2 =>
+                    {
+                        Type::Vec(ty1.unwrap_vec().0, Box::new(Type::Bool))
+                    }
+                    BinaryOperator::BitwiseOr
+                    | BinaryOperator::BitwiseAnd
+                    | BinaryOperator::BitwiseXor
+                    | BinaryOperator::ShiftLeft
+                    | BinaryOperator::ShiftRight
+                        if ty1.is_integer() || ty1.is_vec() && inner.is_integer() && ty2 == ty1 =>
+                    {
+                        ty1
+                    }
+                    _ => return Err(E::Binary(expr.operator, ty1, ty2)),
+                })
+            }
+            Expression::FunctionCall(call) => {
+                let decl = ctx.source.decl_function(&call.ty.ident.name()).unwrap();
+                decl.return_type
+                    .as_ref()
+                    .map(|ty| ty.eval_ty(ctx))
+                    .unwrap_or(Ok(Type::Void))
+            }
+            Expression::TypeOrIdentifier(ty) => ty.eval_ty(ctx),
+        }
     }
 }

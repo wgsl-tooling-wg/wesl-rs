@@ -113,6 +113,7 @@ pub static ATTR_INTRINSIC: LazyLock<Attribute> = LazyLock::new(|| {
 });
 
 pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
+    // TODO: could we parse that at build-time please
     let mut prelude = include_str!("prelude.wgsl")
         .parse::<TranslationUnit>()
         .inspect_err(|e| eprintln!("{e}"))
@@ -300,7 +301,7 @@ pub fn call_builtin(
         ("unpack2x16unorm", None, [a]) => call_unpack2x16unorm(a),
         ("unpack2x16float", None, [a]) => call_unpack2x16float(a),
 
-        _ => Err(E::Signature(ty.clone(), args)),
+        _ => Err(E::Signature(ty.clone(), args.iter().map(Ty::ty).collect())),
     }
 }
 
