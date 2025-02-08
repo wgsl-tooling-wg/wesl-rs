@@ -259,14 +259,14 @@ impl HostShareable for MatInstance {
     }
 }
 
-fn round_up(align: u32, size: u32) -> u32 {
+pub fn round_up(align: u32, size: u32) -> u32 {
     ((size + align - 1) / align) * align
 }
 
 impl Type {
     pub fn size_of(&self, ctx: &mut Context) -> Option<u32> {
         match self {
-            Type::Bool => None,
+            Type::Bool => Some(4),
             Type::AbstractInt => None,
             Type::AbstractFloat => None,
             Type::I32 => Some(4),
@@ -326,7 +326,7 @@ impl Type {
 
     pub fn align_of(&self, ctx: &mut Context) -> Option<u32> {
         match self {
-            Type::Bool => None,
+            Type::Bool => Some(4),
             Type::AbstractInt => None,
             Type::AbstractFloat => None,
             Type::I32 => Some(4),

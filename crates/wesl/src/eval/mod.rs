@@ -76,7 +76,6 @@ impl<T> ScopeInner<T> {
 impl<T> Scope<T> {
     pub fn new() -> Self {
         Self {
-            // stack: vec![Default::default()],
             inner: Rc::new(ScopeInner {
                 local: Default::default(),
                 parent: None,
@@ -85,15 +84,13 @@ impl<T> Scope<T> {
     }
 
     pub fn push(&mut self) {
-        self.inner = self.inner.clone()
+        self.inner = Rc::new(ScopeInner {
+            local: Default::default(),
+            parent: Some(self.inner.clone()),
+        });
     }
     pub fn pop(&mut self) {
-        self.inner = self
-            .inner
-            .parent
-            .as_ref()
-            .expect("failed to pop scope")
-            .clone();
+        self.inner = self.inner.parent.clone().expect("failed to pop scope");
     }
 
     pub fn add(&mut self, name: String, value: T) {

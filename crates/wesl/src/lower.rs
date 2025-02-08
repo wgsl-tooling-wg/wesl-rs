@@ -128,37 +128,6 @@ fn remove_global_consts(wesl: &mut TranslationUnit) {
 //     fn make_explicit(&mut self, scope: &mut Scope);
 // }
 
-// struct Scope {
-//     // TODO: copy on write
-//     stack: Vec<HashMap<String, TypeExpression>>,
-// }
-
-// impl Scope {
-//     fn new() -> Self {
-//         Self {
-//             stack: vec![Default::default()],
-//         }
-//     }
-//     pub fn push(&mut self) {
-//         self.stack.push(Default::default())
-//     }
-//     pub fn pop(&mut self) {
-//         self.stack.pop().expect("failed to pop scope");
-//     }
-//     pub fn insert(&mut self, name: String, ty: TypeExpression) {
-//         self.stack.last_mut().unwrap().insert(name, ty);
-//     }
-//     pub fn contains(&self, name: &str) -> bool {
-//         self.stack
-//             .iter()
-//             .rev()
-//             .any(|scope| scope.contains_key(name))
-//     }
-//     pub fn get(&self, name: &str) -> Option<&TypeExpression> {
-//         self.stack.iter().rev().find_map(|scope| scope.get(name))
-//     }
-// }
-
 // impl MakeExplicit for TranslationUnit {
 //     fn make_explicit(&mut self, scope: &mut Scope) {
 //         for decl in &mut self.global_declarations {

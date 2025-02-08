@@ -143,7 +143,7 @@ impl Display for Type {
             Type::Ptr(a_s, ty) => write!(f, "ptr<{a_s}, {ty}>"),
             Type::Texture(texture_type) => texture_type.fmt(f),
             Type::Sampler(sampler_type) => sampler_type.fmt(f),
-            Type::Void => write!(f, ""),
+            Type::Void => write!(f, "void"),
         }
     }
 }
