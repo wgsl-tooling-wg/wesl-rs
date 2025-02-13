@@ -1,9 +1,9 @@
 use std::iter::zip;
 
 use super::{
-    call_builtin, compound_exec_no_scope, with_scope, Context, Convert, EvalError, EvalStage,
-    EvalTy, Flow, Instance, LiteralInstance, PtrInstance, RefInstance, StructInstance, SyntaxUtil,
-    Ty, Type, VecInstance, ATTR_INTRINSIC,
+    call_builtin, compound_exec_no_scope, is_builtin_fn, with_scope, Context, Convert, EvalError,
+    EvalStage, EvalTy, Flow, Instance, LiteralInstance, PtrInstance, RefInstance, StructInstance,
+    SyntaxUtil, Ty, Type, VecInstance, ATTR_INTRINSIC,
 };
 
 use half::f16;
@@ -295,10 +295,11 @@ impl Eval for FunctionCall {
         }
         // function call
         else if let Some(decl) = ctx.source.decl_function(&fn_name) {
-            if !decl.attributes.contains(&Attribute::Const) && ctx.stage == EvalStage::Const {
+            if ctx.stage == EvalStage::Const && !decl.attributes.contains(&Attribute::Const) {
                 return Err(E::NotConst(decl.ident.to_string()));
             }
 
+            // TODO: this should no longer happen, I deprecated PRELUDE while we stabilize generics and overloads.
             if decl.body.attributes.contains(&ATTR_INTRINSIC) {
                 return call_builtin(&ty, args, ctx);
             }
@@ -356,6 +357,8 @@ impl Eval for FunctionCall {
                     .inspect_err(|_| ctx.set_err_decl_ctx(decl.ident.to_string())),
             };
             inst
+        } else if is_builtin_fn(&fn_name) {
+            call_builtin(&ty, args, ctx)
         }
         // not struct constructor and not function
         else {

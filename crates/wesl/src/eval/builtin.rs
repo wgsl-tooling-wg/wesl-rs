@@ -9,7 +9,7 @@ use wgsl_parse::syntax::{
     LiteralExpression, TemplateArg, TranslationUnit, TypeExpression,
 };
 
-use crate::eval::{Context, Eval};
+use crate::eval::{convert_ty, Context, Eval};
 
 use super::{
     conv::{convert_all, Convert},
@@ -152,6 +152,510 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
 
     prelude
 });
+
+fn array_ctor_ty_t(tplt: ArrayTemplate, args: &[Type]) -> Result<Type, E> {
+    if let Some(arg) = args
+        .iter()
+        .find(|arg| !arg.is_convertible_to(&tplt.inner_ty()))
+    {
+        Err(E::Conversion(arg.clone(), tplt.inner_ty()))
+    } else {
+        Ok(tplt.ty())
+    }
+}
+
+fn array_ctor_ty(args: &[Type]) -> Result<Type, E> {
+    let ty = convert_all_ty(args).ok_or_else(|| E::Builtin("array elements are incompatible"))?;
+    Ok(Type::Array(Some(args.len()), Box::new(ty.clone())))
+}
+
+fn mat_ctor_ty_t(c: u8, r: u8, tplt: MatTemplate, args: &[Type]) -> Result<Type, E> {
+    // overload 1: mat conversion constructor
+    if let [arg] = args {
+        if !arg.is_convertible_to(tplt.inner_ty()) {
+            return Err(E::Conversion(arg.clone(), tplt.ty(c, r)));
+        }
+    } else {
+        if args.is_empty() {
+            return Err(E::Builtin("matrix constructor expects arguments"));
+        }
+        let ty =
+            convert_all_ty(args).ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
+        if !ty.is_convertible_to(tplt.inner_ty()) {
+            return Err(E::Builtin("matrix components are incompatible"));
+        }
+
+        // overload 2: mat from column vectors
+        if ty.is_vec() {
+            if args.len() != c as usize {
+                return Err(E::ParamCount(format!("mat{c}x{r}"), c as usize, args.len()));
+            }
+        }
+        // overload 3: mat from scalar values
+        else if ty.is_scalar() {
+            let n = c as usize * r as usize;
+            if args.len() != n {
+                return Err(E::ParamCount(format!("mat{c}x{r}"), n, args.len()));
+            }
+        } else {
+            return Err(E::Builtin(
+                "matrix constructor expects scalar or vector arguments",
+            ));
+        }
+    }
+
+    Ok(tplt.ty(c, r))
+}
+
+fn mat_ctor_ty(c: u8, r: u8, args: &[Type]) -> Result<Type, E> {
+    // overload 1: mat conversion constructor
+    if let [ty @ Type::Mat(c2, r2, ty2)] = args {
+        if *c2 != c || *r2 != r {
+            return Err(E::Conversion(ty.clone(), Type::Mat(c, r, ty2.clone())));
+        }
+        Ok(ty.clone())
+    } else {
+        let ty =
+            convert_all_ty(args).ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
+        let inner_ty = ty.inner_ty();
+
+        if !inner_ty.is_float() {
+            return Err(E::Builtin(
+                "matrix constructor expects float or vector of float arguments",
+            ));
+        }
+
+        // overload 2: mat from column vectors
+        if ty.is_vec() {
+            if args.len() != c as usize {
+                return Err(E::ParamCount(format!("mat{c}x{r}"), c as usize, args.len()));
+            }
+        }
+        // overload 3: mat from scalar values
+        else if ty.is_scalar() {
+            let n = c as usize * r as usize;
+            if args.len() != n {
+                return Err(E::ParamCount(format!("mat{c}x{r}"), n, args.len()));
+            }
+        } else {
+            return Err(E::Builtin(
+                "matrix constructor expects scalar or vector arguments",
+            ));
+        }
+
+        Ok(Type::Mat(c, r, inner_ty.into()))
+    }
+}
+
+fn vec_ctor_ty_t(n: u8, tplt: VecTemplate, args: &[Type]) -> Result<Type, E> {
+    if let [arg] = args {
+        // overload 1: vec init from single scalar value
+        if arg.is_scalar() {
+            if !arg.is_convertible_to(tplt.inner_ty()) {
+                return Err(E::Conversion(arg.clone(), tplt.inner_ty().clone()));
+            }
+        }
+        // overload 2: vec conversion constructor
+        else if arg.is_convertible_to(&tplt.ty(n)) {
+        } else {
+            return Err(E::Conversion(arg.clone(), tplt.inner_ty().clone()));
+        }
+    }
+    // overload 3: vec init from component values
+    else {
+        // flatten vecN args
+        let n2 = args
+            .iter()
+            .try_fold(0, |acc, arg| match arg {
+                ty if ty.is_scalar() => ty.is_convertible_to(tplt.inner_ty()).then_some(acc + 1),
+                Type::Vec(n, ty) => ty.is_convertible_to(tplt.inner_ty()).then_some(acc + n),
+                _ => None,
+            })
+            .ok_or(E::Builtin(
+                "vector constructor expects scalar or vector arguments",
+            ))?;
+        if n2 != n {
+            return Err(E::ParamCount(format!("vec{n}"), n as usize, args.len()));
+        }
+    }
+
+    Ok(tplt.ty(n))
+}
+
+fn vec_ctor_ty(n: u8, args: &[Type]) -> Result<Type, E> {
+    if let [arg] = args {
+        // overload 1: vec init from single scalar value
+        if arg.is_scalar() {
+        }
+        // overload 2: vec conversion constructor
+        else if arg.is_vec() {
+            // note: `vecN(e: vecN<S>) -> vecN<S>` is no-op
+        } else {
+            return Err(E::Builtin(
+                "vector constructor expects scalar or vector arguments",
+            ));
+        }
+        Ok(Type::Vec(n, arg.inner_ty().into()))
+    }
+    // overload 3: vec init from component values
+    else if !args.is_empty() {
+        // flatten vecN args
+        let n2 = args
+            .iter()
+            .try_fold(0, |acc, arg| match arg {
+                ty if ty.is_scalar() => Some(acc + 1),
+                Type::Vec(n, _) => Some(acc + n),
+                _ => None,
+            })
+            .ok_or(E::Builtin(
+                "vector constructor expects scalar or vector arguments",
+            ))?;
+        if n2 != n {
+            return Err(E::ParamCount(format!("vec{n}"), n as usize, args.len()));
+        }
+
+        let tys = args.iter().map(|arg| arg.inner_ty()).collect_vec();
+        let ty =
+            convert_all_ty(&tys).ok_or_else(|| E::Builtin("vector components are incompatible"))?;
+
+        Ok(Type::Vec(n, ty.clone().into()))
+    }
+    // overload 3: zero-vec
+    else {
+        Ok(Type::Vec(n, Type::AbstractInt.into()))
+    }
+}
+
+pub fn constructor_type(ty: &TypeExpression, args: &[Type], ctx: &mut Context) -> Result<Type, E> {
+    match (ty.ident.name().as_str(), ty.template_args.as_deref(), args) {
+        ("array", Some(t), []) => Ok(ArrayTemplate::parse(t, ctx)?.ty()),
+        ("array", Some(t), _) => array_ctor_ty_t(ArrayTemplate::parse(t, ctx)?, args),
+        ("array", None, _) => array_ctor_ty(args),
+        ("bool", None, []) => Ok(Type::Bool),
+        ("bool", None, [_]) => Ok(Type::Bool),
+        ("i32", None, []) => Ok(Type::I32),
+        ("i32", None, [_]) => Ok(Type::I32),
+        ("u32", None, []) => Ok(Type::U32),
+        ("u32", None, [_]) => Ok(Type::U32),
+        ("f32", None, []) => Ok(Type::F32),
+        ("f32", None, [_]) => Ok(Type::F32),
+        ("f16", None, []) => Ok(Type::F16),
+        ("f16", None, [_]) => Ok(Type::F16),
+        ("mat2x2", Some(t), []) => Ok(MatTemplate::parse(t, ctx)?.ty(2, 2)),
+        ("mat2x2", Some(t), _) => mat_ctor_ty_t(2, 2, MatTemplate::parse(t, ctx)?, args),
+        ("mat2x2", None, _) => mat_ctor_ty(2, 2, args),
+        ("mat2x3", Some(t), []) => Ok(MatTemplate::parse(t, ctx)?.ty(2, 3)),
+        ("mat2x3", Some(t), _) => mat_ctor_ty_t(2, 3, MatTemplate::parse(t, ctx)?, args),
+        ("mat2x3", None, _) => mat_ctor_ty(2, 3, args),
+        ("mat2x4", Some(t), []) => Ok(MatTemplate::parse(t, ctx)?.ty(2, 4)),
+        ("mat2x4", Some(t), _) => mat_ctor_ty_t(2, 4, MatTemplate::parse(t, ctx)?, args),
+        ("mat2x4", None, _) => mat_ctor_ty(2, 4, args),
+        ("mat3x2", Some(t), []) => Ok(MatTemplate::parse(t, ctx)?.ty(3, 2)),
+        ("mat3x2", Some(t), _) => mat_ctor_ty_t(3, 2, MatTemplate::parse(t, ctx)?, args),
+        ("mat3x2", None, _) => mat_ctor_ty(3, 2, args),
+        ("mat3x3", Some(t), []) => Ok(MatTemplate::parse(t, ctx)?.ty(3, 3)),
+        ("mat3x3", Some(t), _) => mat_ctor_ty_t(3, 3, MatTemplate::parse(t, ctx)?, args),
+        ("mat3x3", None, _) => mat_ctor_ty(3, 3, args),
+        ("mat3x4", Some(t), []) => Ok(MatTemplate::parse(t, ctx)?.ty(3, 4)),
+        ("mat3x4", Some(t), _) => mat_ctor_ty_t(3, 4, MatTemplate::parse(t, ctx)?, args),
+        ("mat3x4", None, _) => mat_ctor_ty(3, 4, args),
+        ("mat4x2", Some(t), []) => Ok(MatTemplate::parse(t, ctx)?.ty(4, 2)),
+        ("mat4x2", Some(t), _) => mat_ctor_ty_t(4, 2, MatTemplate::parse(t, ctx)?, args),
+        ("mat4x2", None, _) => mat_ctor_ty(4, 2, args),
+        ("mat4x3", Some(t), []) => Ok(MatTemplate::parse(t, ctx)?.ty(4, 3)),
+        ("mat4x3", Some(t), _) => mat_ctor_ty_t(4, 3, MatTemplate::parse(t, ctx)?, args),
+        ("mat4x3", None, _) => mat_ctor_ty(4, 3, args),
+        ("mat4x4", Some(t), []) => Ok(MatTemplate::parse(t, ctx)?.ty(4, 4)),
+        ("mat4x4", Some(t), _) => mat_ctor_ty_t(4, 4, MatTemplate::parse(t, ctx)?, args),
+        ("mat4x4", None, _) => mat_ctor_ty(4, 4, args),
+        ("vec2", Some(t), []) => Ok(VecTemplate::parse(t, ctx)?.ty(2)),
+        ("vec2", Some(t), _) => vec_ctor_ty_t(2, VecTemplate::parse(t, ctx)?, args),
+        ("vec2", None, _) => vec_ctor_ty(2, args),
+        ("vec3", Some(t), []) => Ok(VecTemplate::parse(t, ctx)?.ty(3)),
+        ("vec3", Some(t), _) => vec_ctor_ty_t(3, VecTemplate::parse(t, ctx)?, args),
+        ("vec3", None, _) => vec_ctor_ty(3, args),
+        ("vec4", Some(t), []) => Ok(VecTemplate::parse(t, ctx)?.ty(4)),
+        ("vec4", Some(t), _) => vec_ctor_ty_t(4, VecTemplate::parse(t, ctx)?, args),
+        ("vec4", None, _) => vec_ctor_ty(4, args),
+        _ => Err(E::Signature(ty.clone(), args.to_vec())),
+    }
+}
+
+pub fn builtin_fn_type(ty: &TypeExpression, args: &[Type], ctx: &mut Context) -> Result<Type, E> {
+    fn is_float(ty: &Type) -> bool {
+        ty.is_float() || ty.is_vec() && ty.inner_ty().is_float()
+    }
+    fn is_numeric(ty: &Type) -> bool {
+        ty.is_numeric() || ty.is_vec() && ty.inner_ty().is_numeric()
+    }
+    fn is_integer(ty: &Type) -> bool {
+        ty.is_integer() || ty.is_vec() && ty.inner_ty().is_integer()
+    }
+    let err = || E::Signature(ty.clone(), args.to_vec());
+
+    match (ty.ident.name().as_str(), ty.template_args.as_deref(), args) {
+        // bitcast
+        ("bitcast", Some(t), [_]) => Ok(BitcastTemplate::parse(t, ctx)?.ty()),
+        // logical
+        ("all", None, [_]) | ("any", None, [_]) | ("select", None, [_, _, _]) => Ok(Type::Bool),
+        // array
+        ("arrayLength", None, [_]) => Ok(Type::U32),
+        // numeric
+        ("abs", None, [a]) if is_numeric(a) => Ok(a.clone()),
+        ("acos", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("acosh", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("asin", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("asinh", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("atan", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("atanh", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("atan2", None, [a1, a2]) if is_float(a1) => convert_ty(a1, a2).ok_or_else(err).cloned(),
+        ("ceil", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("clamp", None, [a1, _, _]) if is_numeric(a1) => {
+            convert_all_ty(args).ok_or_else(err).cloned()
+        }
+        ("cos", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("cosh", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("countLeadingZeros", None, [a]) if is_integer(a) => Ok(a.concretize()),
+        ("countOneBits", None, [a]) if is_integer(a) => Ok(a.concretize()),
+        ("countTrailingZeros", None, [a]) if is_integer(a) => Ok(a.concretize()),
+        ("cross", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_float() => {
+            convert_ty(a1, a2).ok_or_else(err).cloned()
+        }
+        ("degrees", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("determinant", None, [a @ Type::Mat(c, r, _)]) if c == r => Ok(a.clone()),
+        ("distance", None, [a1, a2]) if is_float(a1) => {
+            convert_ty(a1, a2).ok_or_else(err).map(|ty| ty.inner_ty())
+        }
+        ("dot", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_numeric() => {
+            convert_ty(a1, a2).ok_or_else(err).map(|ty| ty.inner_ty())
+        }
+        ("dot4U8Packed", None, [a1, a2])
+            if a1.is_convertible_to(&Type::U32) && a2.is_convertible_to(&Type::U32) =>
+        {
+            Ok(Type::U32)
+        }
+        ("dot4I8Packed", None, [a1, a2])
+            if a1.is_convertible_to(&Type::U32) && a2.is_convertible_to(&Type::U32) =>
+        {
+            Ok(Type::I32)
+        }
+        ("exp", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("exp2", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("extractBits", None, [a1, a2, a3])
+            if is_integer(a1)
+                && a2.is_convertible_to(&Type::U32)
+                && a3.is_convertible_to(&Type::U32) =>
+        {
+            Ok(a1.concretize())
+        }
+        ("faceForward", None, [a1, _, _]) if a1.is_vec() && a1.inner_ty().is_float() => {
+            convert_all_ty(args).ok_or_else(err).cloned()
+        }
+        ("firstLeadingBit", None, [a]) if is_integer(a) => Ok(a.concretize()),
+        ("firstTrailingBit", None, [a]) if is_integer(a) => Ok(a.concretize()),
+        ("floor", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("fma", None, [a1, _, _]) if is_float(a1) => convert_all_ty(args).ok_or_else(err).cloned(),
+        ("fract", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("frexp", None, [a]) if is_float(a) => {
+            Ok(Type::Struct(frexp_struct_name(a).unwrap().to_string()))
+        }
+        ("insertBits", None, [a1, a2, a3, a4])
+            if is_integer(a1)
+                && a3.is_convertible_to(&Type::U32)
+                && a4.is_convertible_to(&Type::U32) =>
+        {
+            convert_ty(a1, a2).ok_or_else(err).map(|ty| ty.concretize())
+        }
+        ("inverseSqrt", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("ldexp", None, [a1, a2])
+            if (a1.is_vec()
+                && a1.inner_ty().is_float()
+                && a2.is_vec()
+                && a2.inner_ty().concretize().is_i_32()
+                || a1.is_float() && a2.concretize().is_i_32())
+                && (a1.is_concrete() && a2.is_concrete()
+                    || a1.is_abstract() && a2.is_abstract()) =>
+        {
+            Ok(a1.clone())
+        }
+        ("length", None, [a]) if is_float(a) => Ok(a.inner_ty()),
+        ("log", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("log2", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("max", None, [a1, a2]) if is_numeric(a1) => convert_ty(a1, a2).ok_or_else(err).cloned(),
+        ("min", None, [a1, a2]) if is_numeric(a1) => convert_ty(a1, a2).ok_or_else(err).cloned(),
+        ("mix", None, [a1, a2, a3])
+            if is_float(a1) && (a1.is_vec() && a3.is_float() || a3.is_convertible_to(a1)) =>
+        {
+            convert_ty(a1, a2).ok_or_else(err).cloned()
+        }
+        ("modf", None, [a]) if is_float(a) => {
+            Ok(Type::Struct(modf_struct_name(a).unwrap().to_string()))
+        }
+        ("normalize", None, [a @ Type::Vec(_, ty)]) if ty.is_float() => Ok(a.clone()),
+        ("pow", None, [a1, a2]) => convert_ty(a1, a2).ok_or_else(err).cloned(),
+        ("quantizeToF16", None, [a])
+            if a.concretize().is_f_32() || a.is_vec() && a.inner_ty().concretize().is_f_32() =>
+        {
+            Ok(a.clone())
+        }
+        ("radians", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("reflect", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_float() => {
+            convert_ty(a1, a2).ok_or_else(err).cloned()
+        }
+        ("refract", None, [a1, a2, a3])
+            if a1.is_vec() && a1.inner_ty().is_float() && a3.is_convertible_to(&a1.inner_ty()) =>
+        {
+            convert_ty(a1, a2).ok_or_else(err).cloned()
+        }
+        ("reverseBits", None, [a]) if is_integer(a) => Ok(a.clone()),
+        ("round", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("saturate", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("sign", None, [a]) if is_numeric(a) && !a.inner_ty().is_u_32() => Ok(a.clone()),
+        ("sin", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("sinh", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("smoothstep", None, [a1, _, _]) if is_float(a1) => {
+            convert_all_ty(args).ok_or_else(err).cloned()
+        }
+        ("sqrt", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("step", None, [a1, a2]) if is_float(a1) => convert_ty(a1, a2).ok_or_else(err).cloned(),
+        ("tan", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("tanh", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("transpose", None, [Type::Mat(c, r, ty)]) => Ok(Type::Mat(*r, *c, ty.clone())),
+        ("trunc", None, [a]) if is_float(a) => Ok(a.clone()),
+        // packing
+        // TODO
+        // ("pack4x8snorm", None, [a]) => call_pack4x8snorm(a),
+        // ("pack4x8unorm", None, [a]) => call_pack4x8unorm(a),
+        // ("pack4xI8", None, [a]) => call_pack4xi8(a),
+        // ("pack4xU8", None, [a]) => call_pack4xu8(a),
+        // ("pack4xI8Clamp", None, [a]) => call_pack4xi8clamp(a),
+        // ("pack4xU8Clamp", None, [a]) => call_pack4xu8clamp(a),
+        // ("pack2x16snorm", None, [a]) => call_pack2x16snorm(a),
+        // ("pack2x16unorm", None, [a]) => call_pack2x16unorm(a),
+        // ("pack2x16float", None, [a]) => call_pack2x16float(a),
+        // ("unpack4x8snorm", None, [a]) => call_unpack4x8snorm(a),
+        // ("unpack4x8unorm", None, [a]) => call_unpack4x8unorm(a),
+        // ("unpack4xI8", None, [a]) => call_unpack4xi8(a),
+        // ("unpack4xU8", None, [a]) => call_unpack4xu8(a),
+        // ("unpack2x16snorm", None, [a]) => call_unpack2x16snorm(a),
+        // ("unpack2x16unorm", None, [a]) => call_unpack2x16unorm(a),
+        // ("unpack2x16float", None, [a]) => call_unpack2x16float(a),
+        _ => constructor_type(ty, args, ctx),
+    }
+}
+
+pub fn is_constructor_fn(name: &str) -> bool {
+    matches!(
+        name,
+        "array"
+            | "bool"
+            | "i32"
+            | "u32"
+            | "f32"
+            | "f16"
+            | "mat2x2"
+            | "mat2x3"
+            | "mat2x4"
+            | "mat3x2"
+            | "mat3x3"
+            | "mat3x4"
+            | "mat4x2"
+            | "mat4x3"
+            | "mat4x4"
+            | "vec2"
+            | "vec3"
+            | "vec4"
+    )
+}
+
+pub fn is_builtin_fn(name: &str) -> bool {
+    is_constructor_fn(name)
+        || matches!(
+            name,
+            "bitcast"
+                | "all"
+                | "any"
+                | "select"
+                | "arrayLength"
+                | "abs"
+                | "acos"
+                | "acosh"
+                | "asin"
+                | "asinh"
+                | "atan"
+                | "atanh"
+                | "atan2"
+                | "ceil"
+                | "clamp"
+                | "cos"
+                | "cosh"
+                | "countLeadingZeros"
+                | "countOneBits"
+                | "countTrailingZeros"
+                | "cross"
+                | "degrees"
+                | "determinant"
+                | "distance"
+                | "dot"
+                | "dot4U8Packed"
+                | "dot4I8Packed"
+                | "exp"
+                | "exp2"
+                | "extractBits"
+                | "faceForward"
+                | "firstLeadingBit"
+                | "firstTrailingBit"
+                | "floor"
+                | "fma"
+                | "fract"
+                | "frexp"
+                | "insertBits"
+                | "inverseSqrt"
+                | "ldexp"
+                | "length"
+                | "log"
+                | "log2"
+                | "max"
+                | "min"
+                | "mix"
+                | "modf"
+                | "normalize"
+                | "pow"
+                | "quantizeToF16"
+                | "radians"
+                | "reflect"
+                | "refract"
+                | "reverseBits"
+                | "round"
+                | "saturate"
+                | "sign"
+                | "sin"
+                | "sinh"
+                | "smoothstep"
+                | "sqrt"
+                | "step"
+                | "tan"
+                | "tanh"
+                | "transpose"
+                | "trunc"
+                | "pack4x8snorm"
+                | "pack4x8unorm"
+                | "pack4xI8"
+                | "pack4xU8"
+                | "pack4xI8Clamp"
+                | "pack4xU8Clamp"
+                | "pack2x16snorm"
+                | "pack2x16unorm"
+                | "pack2x16float"
+                | "unpack4x8snorm"
+                | "unpack4x8unorm"
+                | "unpack4xI8"
+                | "unpack4xU8"
+                | "unpack2x16snorm"
+                | "unpack2x16unorm"
+                | "unpack2x16float"
+        )
+}
 
 pub fn call_builtin(
     ty: &TypeExpression,
@@ -480,8 +984,8 @@ impl VecTemplate {
     pub fn ty(&self, n: u8) -> Type {
         Type::Vec(n, self.ty.clone().into())
     }
-    pub fn inner_ty(&self) -> Type {
-        self.ty.clone()
+    pub fn inner_ty(&self) -> &Type {
+        &self.ty
     }
 }
 
@@ -514,8 +1018,8 @@ impl MatTemplate {
         Type::Mat(c, r, self.ty.clone().into())
     }
 
-    pub fn inner_ty(&self) -> Type {
-        self.ty.clone()
+    pub fn inner_ty(&self) -> &Type {
+        &self.ty
     }
 }
 
@@ -761,7 +1265,7 @@ fn call_array_t(tplt: ArrayTemplate, args: &[Instance]) -> Result<Instance, E> {
     Ok(ArrayInstance::new(args, false).into())
 }
 fn call_array(args: &[Instance]) -> Result<Instance, E> {
-    let args = convert_all(args).ok_or_else(|| E::Builtin("array elements are not compatible"))?;
+    let args = convert_all(args).ok_or_else(|| E::Builtin("array elements are incompatible"))?;
 
     if args.is_empty() {
         return Err(E::Builtin("array constructor expects at least 1 argument"));
@@ -913,7 +1417,7 @@ fn call_mat_t(
             return Err(E::Conversion(m.ty(), tplt.ty(c as u8, r as u8)));
         }
 
-        let conv_fn = match &tplt.inner_ty() {
+        let conv_fn = match tplt.inner_ty() {
             Type::F32 => call_f32_1,
             Type::F16 => call_f16_1,
             _ => return Err(E::Builtin("matrix type must be a f32 or f16")),
@@ -932,8 +1436,8 @@ fn call_mat_t(
 
         Ok(MatInstance::from_cols(comps).into())
     } else {
-        let args = convert_all_inner_to(args, &tplt.inner_ty())
-            .ok_or_else(|| E::Builtin("matrix components are not compatible"))?;
+        let args = convert_all_inner_to(args, tplt.inner_ty())
+            .ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
         let ty = args
             .first()
             .ok_or_else(|| E::Builtin("matrix constructor expects arguments"))?
@@ -948,7 +1452,7 @@ fn call_mat_t(
             Ok(MatInstance::from_cols(args).into())
         }
         // overload 3: mat from scalar values
-        else {
+        else if ty.is_scalar() {
             if args.len() != c * r {
                 return Err(E::ParamCount(format!("mat{c}x{r}"), c * r, args.len()));
             }
@@ -959,6 +1463,10 @@ fn call_mat_t(
                 .collect_vec();
 
             Ok(MatInstance::from_cols(args).into())
+        } else {
+            return Err(E::Builtin(
+                "matrix constructor expects scalar or vector arguments",
+            ));
         }
     }
 }
@@ -967,35 +1475,25 @@ fn call_mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
     // overload 1: mat conversion constructor
     if let [Instance::Mat(m)] = args {
         if m.c() != c || m.r() != r {
-            let ty = m.ty();
-            let ty2 = Type::Mat(c as u8, r as u8, ty.inner_ty().into());
-            return Err(E::Conversion(ty, ty2));
+            let ty2 = Type::Mat(c as u8, r as u8, m.inner_ty().into());
+            return Err(E::Conversion(m.ty(), ty2));
         }
         // note: `matCxR(e: matCxR<S>) -> matCxR<S>` is no-op
         Ok(m.clone().into())
     } else {
-        let inner_tys = args.iter().map(|a| a.inner_ty()).collect_vec();
-        let inner_ty = if inner_tys
-            .iter()
-            .all(|ty| ty.is_convertible_to(&Type::AbstractFloat))
-        {
-            Type::AbstractFloat
-        } else if inner_tys.iter().all(|ty| ty.is_convertible_to(&Type::F32)) {
-            Type::F32
-        } else if inner_tys.iter().all(|ty| ty.is_convertible_to(&Type::F16)) {
-            Type::F16
-        } else {
+        let tys = args.iter().map(|a| a.ty()).collect_vec();
+        let ty =
+            convert_all_ty(&tys).ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
+        let inner_ty = ty.inner_ty();
+
+        if !inner_ty.is_float() {
             return Err(E::Builtin(
                 "matrix constructor expects float or vector of float arguments",
             ));
-        };
+        }
 
         let args = convert_all_inner_to(args, &inner_ty)
-            .ok_or_else(|| E::Builtin("matrix components are not compatible"))?;
-        let ty = args
-            .first()
-            .ok_or_else(|| E::Builtin("matrix constructor expects arguments"))?
-            .ty();
+            .ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
 
         // overload 2: mat from column vectors
         if ty.is_vec() {
@@ -1006,7 +1504,7 @@ fn call_mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
             Ok(MatInstance::from_cols(args).into())
         }
         // overload 3: mat from scalar values
-        else {
+        else if ty.is_scalar() {
             if args.len() != c * r {
                 return Err(E::ParamCount(format!("mat{c}x{r}"), c * r, args.len()));
             }
@@ -1016,6 +1514,10 @@ fn call_mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
                 .collect_vec();
 
             Ok(MatInstance::from_cols(args).into())
+        } else {
+            return Err(E::Builtin(
+                "matrix constructor expects scalar or vector arguments",
+            ));
         }
     }
 }
@@ -1029,9 +1531,9 @@ fn call_vec_t(
     // overload 1: vec init from single scalar value
     if let [Instance::Literal(l)] = args {
         let val = l
-            .convert_to(&tplt.inner_ty())
+            .convert_to(tplt.inner_ty())
             .map(Instance::Literal)
-            .ok_or_else(|| E::ParamType(tplt.inner_ty(), l.ty()))?;
+            .ok_or_else(|| E::ParamType(tplt.inner_ty().clone(), l.ty()))?;
         let comps = (0..n).map(|_| val.clone()).collect_vec();
         Ok(VecInstance::new(comps).into())
     }
@@ -1077,8 +1579,8 @@ fn call_vec_t(
         let comps = args
             .iter()
             .map(|a| {
-                a.convert_inner_to(&tplt.inner_ty())
-                    .ok_or_else(|| E::ParamType(tplt.inner_ty(), a.ty()))
+                a.convert_inner_to(tplt.inner_ty())
+                    .ok_or_else(|| E::ParamType(tplt.inner_ty().clone(), a.ty()))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -1121,7 +1623,7 @@ fn call_vec(n: usize, args: &[Instance]) -> Result<Instance, E> {
         }
 
         let comps =
-            convert_all(&args).ok_or_else(|| E::Builtin("vector components are not compatible"))?;
+            convert_all(&args).ok_or_else(|| E::Builtin("vector components are incompatible"))?;
 
         if !comps.first().unwrap(/* SAFETY: len() checked above */).ty().is_scalar() {
             return Err(E::Builtin("vec constructor expects scalar arguments"));
@@ -1272,7 +1774,7 @@ fn call_any(e: &Instance) -> Result<Instance, E> {
 
 fn call_select(f: &Instance, t: &Instance, cond: &Instance) -> Result<Instance, E> {
     let (f, t) = convert(f, t)
-        .ok_or_else(|| E::Builtin("`select` 1st and 2nd arguments are not compatible"))?;
+        .ok_or_else(|| E::Builtin("`select` 1st and 2nd arguments are incompatible"))?;
 
     match cond {
         Instance::Literal(LiteralInstance::Bool(b)) => Ok(b.then_some(t).unwrap_or(f)),
@@ -1618,11 +2120,32 @@ fn call_fract(e: &Instance, stage: EvalStage) -> Result<Instance, E> {
     // impl_call_float_unary!("fract", e, n => n.fract())
 }
 
+fn frexp_struct_name(ty: &Type) -> Option<&'static str> {
+    match ty {
+        Type::AbstractFloat => Some("__frexp_result_abstract"),
+        Type::F32 => Some("__frexp_result_f32"),
+        Type::F16 => Some("__frexp_result_f16"),
+        Type::Vec(n, ty) => match (n, &**ty) {
+            (2, Type::AbstractFloat) => Some("__frexp_result_vec2_abstract"),
+            (2, Type::F32) => Some("__frexp_result_vec2_f32"),
+            (2, Type::F16) => Some("__frexp_result_vec2_f16"),
+            (3, Type::AbstractFloat) => Some("__frexp_result_vec3_abstract"),
+            (3, Type::F32) => Some("__frexp_result_vec3_f32"),
+            (3, Type::F16) => Some("__frexp_result_vec3_f16"),
+            (4, Type::AbstractFloat) => Some("__frexp_result_vec4_abstract"),
+            (4, Type::F32) => Some("__frexp_result_vec4_f32"),
+            (4, Type::F16) => Some("__frexp_result_vec4_f16"),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 fn call_frexp(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`frexp` expects a float or vector of float argument");
-    fn make_frexp_inst(ty: &'static str, fract: Instance, exp: Instance) -> Instance {
+    fn make_frexp_inst(name: &'static str, fract: Instance, exp: Instance) -> Instance {
         Instance::Struct(StructInstance::new(
-            format!("__frexp_result_{ty}"),
+            name.to_string(),
             vec![("fract".to_string(), fract), ("exp".to_string(), exp)],
         ))
     }
@@ -1654,7 +2177,7 @@ fn call_frexp(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::AbstractFloat(n) => {
                 let (fract, exp) = frexp(*n);
                 Ok(make_frexp_inst(
-                    "abstract",
+                    "__frexp_result_abstract",
                     LiteralInstance::AbstractFloat(fract).into(),
                     LiteralInstance::AbstractInt(exp as i64).into(),
                 ))
@@ -1664,7 +2187,7 @@ fn call_frexp(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::F32(n) => {
                 let (fract, exp) = frexp(*n as f64);
                 Ok(make_frexp_inst(
-                    "f32",
+                    "__frexp_result_f32",
                     LiteralInstance::F32(fract as f32).into(),
                     LiteralInstance::I32(exp).into(),
                 ))
@@ -1672,7 +2195,7 @@ fn call_frexp(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::F16(n) => {
                 let (fract, exp) = frexp(n.to_f64().unwrap(/* SAFETY: f16 to f64 is lossless */));
                 Ok(make_frexp_inst(
-                    "f16",
+                    "__frexp_result_f16",
                     LiteralInstance::F16(f16::from_f64(fract)).into(),
                     LiteralInstance::I32(exp).into(),
                 ))
@@ -1680,12 +2203,6 @@ fn call_frexp(e: &Instance) -> Result<Instance, E> {
         },
         Instance::Vec(v) => {
             let ty = v.inner_ty();
-            let name = match ty {
-                Type::AbstractFloat => "vecN_abstract",
-                Type::F32 => "vecN_f32",
-                Type::F16 => "vecN_f16",
-                _ => return Err(ERR),
-            };
             let (fracts, exps): (Vec<_>, Vec<_>) = v
                 .iter()
                 .map(|l| match l.unwrap_literal_ref() {
@@ -1720,6 +2237,7 @@ fn call_frexp(e: &Instance) -> Result<Instance, E> {
                 .collect_vec();
             let fract = VecInstance::new(fracts).into();
             let exp = VecInstance::new(exps).into();
+            let name = frexp_struct_name(&v.ty()).ok_or(ERR)?;
             Ok(make_frexp_inst(name, fract, exp))
         }
         _ => Err(ERR),
@@ -1913,6 +2431,27 @@ fn call_min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
 
 fn call_mix(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
     Err(E::Todo("mix".to_string()))
+}
+
+fn modf_struct_name(ty: &Type) -> Option<&'static str> {
+    match ty {
+        Type::AbstractFloat => Some("__modf_result_abstract"),
+        Type::F32 => Some("__modf_result_f32"),
+        Type::F16 => Some("__modf_result_f16"),
+        Type::Vec(n, ty) => match (n, &**ty) {
+            (2, Type::AbstractFloat) => Some("__modf_result_vec2_abstract"),
+            (2, Type::F32) => Some("__modf_result_vec2_f32"),
+            (2, Type::F16) => Some("__modf_result_vec2_f16"),
+            (3, Type::AbstractFloat) => Some("__modf_result_vec3_abstract"),
+            (3, Type::F32) => Some("__modf_result_vec3_f32"),
+            (3, Type::F16) => Some("__modf_result_vec3_f16"),
+            (4, Type::AbstractFloat) => Some("__modf_result_vec4_abstract"),
+            (4, Type::F32) => Some("__modf_result_vec4_f32"),
+            (4, Type::F16) => Some("__modf_result_vec4_f16"),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 fn call_modf(_a1: &Instance) -> Result<Instance, E> {

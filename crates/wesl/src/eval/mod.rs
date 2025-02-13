@@ -214,6 +214,9 @@ impl<'s> Context<'s> {
 
 pub trait SyntaxUtil {
     /// find a global declaration by name.
+    fn user_decl(&self, name: &str) -> Option<&GlobalDeclaration>;
+
+    /// find a global declaration by name, including built-in ones (see `prelude.wgsl`).
     fn decl(&self, name: &str) -> Option<&GlobalDeclaration>;
 
     /// find a variable/value declaration by name.
@@ -238,11 +241,21 @@ pub trait SyntaxUtil {
 }
 
 impl SyntaxUtil for TranslationUnit {
+    fn user_decl(&self, name: &str) -> Option<&GlobalDeclaration> {
+        // note: declarations in PRELUDE can be shadowed by user-defined declarations.
+        self.global_declarations.iter().find(|d| match d {
+            GlobalDeclaration::Declaration(d) => &*d.ident.name() == name,
+            GlobalDeclaration::TypeAlias(d) => &*d.ident.name() == name,
+            GlobalDeclaration::Struct(d) => &*d.ident.name() == name,
+            GlobalDeclaration::Function(d) => &*d.ident.name() == name,
+            _ => false,
+        })
+    }
     fn decl(&self, name: &str) -> Option<&GlobalDeclaration> {
         // note: declarations in PRELUDE can be shadowed by user-defined declarations.
         self.global_declarations
             .iter()
-            .chain(PRELUDE.global_declarations.iter())
+            // .chain(PRELUDE.global_declarations.iter())
             .find(|d| match d {
                 GlobalDeclaration::Declaration(d) => &*d.ident.name() == name,
                 GlobalDeclaration::TypeAlias(d) => &*d.ident.name() == name,

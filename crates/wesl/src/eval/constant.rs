@@ -1,4 +1,4 @@
-use super::{Scope, SyntaxUtil};
+use super::{is_constructor_fn, Scope, SyntaxUtil};
 use itertools::Itertools;
 use wgsl_parse::{span::Spanned, syntax::*};
 
@@ -261,7 +261,7 @@ impl IsConst for FunctionCall {
                 // TODO: this is not optimal as it will be recomputed for the same functions.
                 is_function_const(decl, wesl)
             } else {
-                false
+                is_constructor_fn(&fn_name)
             }
         }
     }

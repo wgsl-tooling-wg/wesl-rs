@@ -454,7 +454,7 @@ fn parse_binding(
     })?;
     Ok((
         (b.group, b.binding),
-        RefInstance::from_instance(inst, storage, access),
+        RefInstance::new(inst, storage, access),
     ))
 }
 

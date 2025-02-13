@@ -20,6 +20,8 @@ pub enum EvalError {
     NotType(String),
     #[error("unknown type or variable `{0}`")]
     UnknownType(String),
+    #[error("unknown struct `{0}`")]
+    UnknownStruct(String),
     #[error("declaration `{0}` is not accessible at {} time", match .1 {
         EvalStage::Const => "shader-module-creation",
         EvalStage::Override => "pipeline-creation",

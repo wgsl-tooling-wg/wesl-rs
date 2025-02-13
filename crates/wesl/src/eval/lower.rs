@@ -7,7 +7,7 @@ use crate::{
 use wesl_macros::query_mut;
 use wgsl_parse::{span::Spanned, syntax::*};
 
-use super::{to_expr::ToExpr, EvalTy, SyntaxUtil, EXPR_FALSE, EXPR_TRUE};
+use super::{is_constructor_fn, to_expr::ToExpr, EvalTy, SyntaxUtil, EXPR_FALSE, EXPR_TRUE};
 
 type E = EvalError;
 
@@ -318,13 +318,15 @@ impl Lower for Statement {
             Statement::Return(stmt) => stmt.lower(ctx)?,
             Statement::Discard(_) => (),
             Statement::FunctionCall(stmt) => {
-                let decl = ctx.source.decl_function(&*stmt.call.ty.ident.name());
+                let decl = ctx.source.decl_function(&stmt.call.ty.ident.name());
                 if let Some(decl) = decl {
                     if decl.attributes.contains(&Attribute::Const) {
-                        *self = Statement::Void; // a void const function does nothing
+                        *self = Statement::Void; // a const function has no side-effects
                     } else {
                         stmt.lower(ctx)?
                     }
+                } else if is_constructor_fn(&stmt.call.ty.ident.name()) {
+                    *self = Statement::Void; // a const function has no side-effects
                 } else {
                     stmt.lower(ctx)?
                 }

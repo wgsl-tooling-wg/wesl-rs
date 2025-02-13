@@ -1,9 +1,10 @@
 use std::str::FromStr;
 
 use super::{
-    ArrayInstance, ArrayTemplate, AtomicInstance, AtomicTemplate, Context, EvalError, Instance,
-    LiteralInstance, MatInstance, MatTemplate, PtrInstance, PtrTemplate, RefInstance,
-    StructInstance, SyntaxUtil, TextureTemplate, VecInstance, VecTemplate,
+    builtin_fn_type, is_builtin_fn, ArrayInstance, ArrayTemplate, AtomicInstance, AtomicTemplate,
+    Context, EvalError, Instance, LiteralInstance, MatInstance, MatTemplate, PtrInstance,
+    PtrTemplate, RefInstance, StructInstance, SyntaxUtil, TextureTemplate, VecInstance,
+    VecTemplate,
 };
 
 type E = EvalError;
@@ -475,7 +476,10 @@ impl EvalTy for Expression {
             Expression::Parenthesized(expr) => expr.expression.eval_ty(ctx),
             Expression::NamedComponent(expr) => match expr.base.eval_ty(ctx)? {
                 Type::Struct(name) => {
-                    let decl = ctx.source.decl_struct(&name).unwrap();
+                    let decl = ctx
+                        .source
+                        .decl_struct(&name)
+                        .ok_or_else(|| E::UnknownStruct(name.clone()))?;
                     let mem = decl
                         .members
                         .iter()
@@ -601,11 +605,21 @@ impl EvalTy for Expression {
                 })
             }
             Expression::FunctionCall(call) => {
-                let decl = ctx.source.decl_function(&call.ty.ident.name()).unwrap();
-                decl.return_type
-                    .as_ref()
-                    .map(|ty| ty.eval_ty(ctx))
-                    .unwrap_or(Ok(Type::Void))
+                if let Some(decl) = ctx.source.decl_function(&call.ty.ident.name()) {
+                    decl.return_type
+                        .as_ref()
+                        .map(|ty| ty.eval_ty(ctx))
+                        .unwrap_or(Ok(Type::Void))
+                } else if is_builtin_fn(&call.ty.ident.name()) {
+                    let args = call
+                        .arguments
+                        .iter()
+                        .map(|arg| arg.eval_ty(ctx))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    builtin_fn_type(&call.ty, &args, ctx)
+                } else {
+                    Err(E::UnknownFunction(call.ty.ident.to_string()))
+                }
             }
             Expression::TypeOrIdentifier(ty) => ty.eval_ty(ctx),
         }
