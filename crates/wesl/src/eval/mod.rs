@@ -144,7 +144,7 @@ pub enum ResourceKind {
 pub struct Context<'s> {
     pub(crate) source: &'s TranslationUnit,
     // the instance is None if not accessible in the EvalStage
-    pub(crate) scope: Scope<Option<Instance>>,
+    pub(crate) scope: Scope<Instance>,
     pub(crate) resources: HashMap<(u32, u32), RefInstance>,
     pub(crate) overrides: HashMap<String, Instance>,
     pub(crate) kind: ScopeKind,

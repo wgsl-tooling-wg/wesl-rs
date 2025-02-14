@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
 use super::{
-    builtin_fn_type, is_builtin_fn, ArrayInstance, ArrayTemplate, AtomicInstance, AtomicTemplate,
-    Context, EvalError, Instance, LiteralInstance, MatInstance, MatTemplate, PtrInstance,
-    PtrTemplate, RefInstance, StructInstance, SyntaxUtil, TextureTemplate, VecInstance,
-    VecTemplate,
+    builtin_fn_type, convert_ty, is_builtin_fn, ArrayInstance, ArrayTemplate, AtomicInstance,
+    AtomicTemplate, Context, Convert, EvalError, Instance, LiteralInstance, MatInstance,
+    MatTemplate, PtrInstance, PtrTemplate, RefInstance, StructInstance, SyntaxUtil,
+    TextureTemplate, VecInstance, VecTemplate,
 };
 
 type E = EvalError;
@@ -240,7 +240,7 @@ impl Ty for Type {
             Type::Struct(_) => self.clone(),
             Type::Array(_, ty) => ty.ty(),
             Type::Vec(_, ty) => ty.ty(),
-            Type::Mat(_, _, ty) => ty.inner_ty(),
+            Type::Mat(_, _, ty) => ty.ty(),
             Type::Atomic(ty) => ty.ty(),
             Type::Ptr(_, ty) => ty.ty(),
             Type::Texture(_) => self.clone(),
@@ -261,7 +261,7 @@ impl Ty for Instance {
             Instance::Ptr(p) => p.ty(),
             Instance::Ref(r) => r.ty(),
             Instance::Atomic(a) => a.ty(),
-            Instance::Type(t) => t.ty(),
+            Instance::Deferred(t) => t.ty(),
             Instance::Void => Type::Void,
         }
     }
@@ -275,7 +275,7 @@ impl Ty for Instance {
             Instance::Ptr(p) => p.inner_ty(),
             Instance::Ref(r) => r.inner_ty(),
             Instance::Atomic(a) => a.inner_ty(),
-            Instance::Type(t) => t.inner_ty(),
+            Instance::Deferred(t) => t.inner_ty(),
             Instance::Void => Type::Void,
         }
     }
@@ -367,6 +367,9 @@ impl Ty for AtomicInstance {
 }
 
 pub trait EvalTy {
+    /// evaluate the type of an expression, without evaluating the expression itself (static analysis).
+    /// we mean a 'real' expression, not a template expression resolving to a type. Refer to
+    /// `ty_eval_ty` To evaluate the type of a type-expression.
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E>;
 }
 
@@ -377,94 +380,108 @@ impl<T: Ty> EvalTy for T {
 }
 
 impl EvalTy for TypeExpression {
+    /// use only when the `TypeExpression` is an identifier (`Expression::TypeOrIdentifer`), NOT when
+    /// it is a type-expression. For that, see [`ty_eval_ty`].
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
-        let ty = ctx.source.resolve_ty(self);
-        let name = ty.ident.name();
-        let name = name.as_str();
+        if self.template_args.is_some() {
+            Err(E::UnexpectedTemplate(self.ident.to_string()))
+        } else if let Some(inst) = ctx.scope.get(&*self.ident.name()) {
+            Ok(inst.ty())
+        } else {
+            Err(E::UnknownDecl(self.ident.to_string()))
+        }
+    }
+}
 
-        // structs and aliases are the only user-defined types. We resolved
-        // aliases already. any user-defined declaration can shadow parent-scope
-        // declarations and builtin declarations. even if that declaration is
-        // not a type.
-        if ctx.scope.contains(name) {
-            return Err(E::NotType(name.to_string()));
-        }
-        // same as above
-        if let Some(decl) = ctx.source.decl(name) {
-            match decl {
-                GlobalDeclaration::Struct(_) => {
-                    if ty.template_args.is_some() {
-                        return Err(E::UnexpectedTemplate(name.to_string()));
-                    } else {
-                        let ty = Type::Struct(name.to_string());
-                        return Ok(ty);
-                    }
-                }
-                _ => return Err(E::NotType(name.to_string())),
-            }
-        }
+/// evaluate the type of a type-expression. A type-expression only exists in templates, e.g.
+/// `array<f32>`. Use [`TypeExpression::eval_ty`] if you want the type of an identifier reference.
+pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
+    let ty = ctx.source.resolve_ty(expr);
+    let name = ty.ident.name();
+    let name = name.as_str();
 
-        // for now, only builtin types can be type-generators (have a template)
-        if let Some(tplt) = &ty.template_args {
-            match name {
-                "array" => {
-                    let tplt = ArrayTemplate::parse(tplt, ctx)?;
-                    Ok(tplt.ty())
+    // structs and aliases are the only user-defined types. We resolved
+    // aliases already. any user-defined declaration can shadow parent-scope
+    // declarations and builtin declarations. even if that declaration is
+    // not a type.
+    if ctx.scope.contains(name) {
+        return Err(E::NotType(name.to_string()));
+    }
+    // same as above
+    if let Some(decl) = ctx.source.decl(name) {
+        match decl {
+            GlobalDeclaration::Struct(_) => {
+                if ty.template_args.is_some() {
+                    return Err(E::UnexpectedTemplate(name.to_string()));
+                } else {
+                    let ty = Type::Struct(name.to_string());
+                    return Ok(ty);
                 }
-                "vec2" | "vec3" | "vec4" => {
-                    let tplt = VecTemplate::parse(tplt, ctx)?;
-                    let n = name.chars().nth(3).unwrap().to_digit(10).unwrap() as u8;
-                    Ok(tplt.ty(n))
-                }
-                "mat2x2" | "mat2x3" | "mat2x4" | "mat3x2" | "mat3x3" | "mat3x4" | "mat4x2"
-                | "mat4x3" | "mat4x4" => {
-                    let tplt = MatTemplate::parse(tplt, ctx)?;
-                    let c = name.chars().nth(3).unwrap().to_digit(10).unwrap() as u8;
-                    let r = name.chars().nth(5).unwrap().to_digit(10).unwrap() as u8;
-                    Ok(tplt.ty(c, r))
-                }
-                "ptr" => {
-                    let tplt = PtrTemplate::parse(tplt, ctx)?;
-                    Ok(tplt.ty())
-                }
-                "atomic" => {
-                    let tplt = AtomicTemplate::parse(tplt, ctx)?;
-                    Ok(tplt.ty())
-                }
-                name @ ("texture_1d"
-                | "texture_2d"
-                | "texture_2d_array"
-                | "texture_3d"
-                | "texture_cube"
-                | "texture_cube_array"
-                | "texture_multisampled_2d"
-                | "texture_depth_multisampled_2d"
-                | "texture_storage_1d"
-                | "texture_storage_2d"
-                | "texture_storage_2d_array"
-                | "texture_storage_3d") => {
-                    let tplt = TextureTemplate::parse(name, tplt)?;
-                    Ok(Type::Texture(tplt.ty()))
-                }
-                _ => Err(E::UnexpectedTemplate(name.to_string())),
             }
+            _ => return Err(E::NotType(name.to_string())),
         }
-        // builtin types without a template
-        else {
-            match name {
-                "bool" => Ok(Type::Bool),
-                "i32" => Ok(Type::I32),
-                "u32" => Ok(Type::U32),
-                "f32" => Ok(Type::F32),
-                "f16" => Ok(Type::F16),
-                "texture_depth_2d" => Ok(Type::Texture(TextureType::Depth2D)),
-                "texture_depth_2d_array" => Ok(Type::Texture(TextureType::Depth2DArray)),
-                "texture_depth_cube" => Ok(Type::Texture(TextureType::DepthCube)),
-                "texture_depth_cube_array" => Ok(Type::Texture(TextureType::DepthCubeArray)),
-                "sampler" => Ok(Type::Sampler(SamplerType::Sampler)),
-                "sampler_comparison" => Ok(Type::Sampler(SamplerType::SamplerComparison)),
-                _ => Err(E::UnknownType(name.to_string())),
+    }
+
+    // for now, only builtin types can be type-generators (have a template)
+    if let Some(tplt) = &ty.template_args {
+        match name {
+            "array" => {
+                let tplt = ArrayTemplate::parse(tplt, ctx)?;
+                Ok(tplt.ty())
             }
+            "vec2" | "vec3" | "vec4" => {
+                let tplt = VecTemplate::parse(tplt, ctx)?;
+                let n = name.chars().nth(3).unwrap().to_digit(10).unwrap() as u8;
+                Ok(tplt.ty(n))
+            }
+            "mat2x2" | "mat2x3" | "mat2x4" | "mat3x2" | "mat3x3" | "mat3x4" | "mat4x2"
+            | "mat4x3" | "mat4x4" => {
+                let tplt = MatTemplate::parse(tplt, ctx)?;
+                let c = name.chars().nth(3).unwrap().to_digit(10).unwrap() as u8;
+                let r = name.chars().nth(5).unwrap().to_digit(10).unwrap() as u8;
+                Ok(tplt.ty(c, r))
+            }
+            "ptr" => {
+                let tplt = PtrTemplate::parse(tplt, ctx)?;
+                Ok(tplt.ty())
+            }
+            "atomic" => {
+                let tplt = AtomicTemplate::parse(tplt, ctx)?;
+                Ok(tplt.ty())
+            }
+            name @ ("texture_1d"
+            | "texture_2d"
+            | "texture_2d_array"
+            | "texture_3d"
+            | "texture_cube"
+            | "texture_cube_array"
+            | "texture_multisampled_2d"
+            | "texture_depth_multisampled_2d"
+            | "texture_storage_1d"
+            | "texture_storage_2d"
+            | "texture_storage_2d_array"
+            | "texture_storage_3d") => {
+                let tplt = TextureTemplate::parse(name, tplt)?;
+                Ok(Type::Texture(tplt.ty()))
+            }
+            _ => Err(E::UnexpectedTemplate(name.to_string())),
+        }
+    }
+    // builtin types without a template
+    else {
+        match name {
+            "bool" => Ok(Type::Bool),
+            "i32" => Ok(Type::I32),
+            "u32" => Ok(Type::U32),
+            "f32" => Ok(Type::F32),
+            "f16" => Ok(Type::F16),
+            "texture_depth_2d" => Ok(Type::Texture(TextureType::Depth2D)),
+            "texture_depth_2d_array" => Ok(Type::Texture(TextureType::Depth2DArray)),
+            "texture_depth_cube" => Ok(Type::Texture(TextureType::DepthCube)),
+            "texture_depth_cube_array" => Ok(Type::Texture(TextureType::DepthCubeArray)),
+            "sampler" => Ok(Type::Sampler(SamplerType::Sampler)),
+            "sampler_comparison" => Ok(Type::Sampler(SamplerType::SamplerComparison)),
+            _ => Err(E::UnknownType(name.to_string())),
         }
     }
 }
@@ -480,14 +497,14 @@ impl EvalTy for Expression {
                         .source
                         .decl_struct(&name)
                         .ok_or_else(|| E::UnknownStruct(name.clone()))?;
-                    let mem = decl
+                    let m = decl
                         .members
                         .iter()
                         .find(|m| *m.ident.name() == *expr.component.name())
                         .ok_or_else(|| {
                             E::Component(Type::Struct(name), expr.component.to_string())
                         })?;
-                    mem.ty.eval_ty(ctx)
+                    ty_eval_ty(&m.ty, ctx)
                 }
                 Type::Vec(_, ty) => {
                     // TODO: check valid swizzle
@@ -537,23 +554,29 @@ impl EvalTy for Expression {
             Expression::Binary(expr) => {
                 let ty1 = expr.left.eval_ty(ctx)?;
                 let ty2 = expr.right.eval_ty(ctx)?;
-                let inner = ty1.inner_ty();
-                if inner != ty2.inner_ty() {
-                    return Err(E::Binary(expr.operator, ty1, ty2));
-                }
-                let is_numeric = (ty1.is_vec() || ty1.is_numeric())
+
+                // ty1 and ty2 must always have the same inner type
+                let inner = convert_ty(&ty1.inner_ty(), &ty2.inner_ty())
+                    .ok_or_else(|| E::Binary(expr.operator, ty1.clone(), ty2.clone()))?
+                    .clone();
+                println!("{ty1} {ty2} {inner}");
+                let ty1 = ty1.convert_inner_to(&inner).unwrap();
+                let ty2 = ty2.convert_inner_to(&inner).unwrap();
+
+                let is_num = (ty1.is_vec() || ty1.is_numeric())
                     && (ty2.is_vec() || ty2.is_numeric())
                     && inner.is_numeric();
+
                 Ok(match expr.operator {
                     BinaryOperator::ShortCircuitOr | BinaryOperator::ShortCircuitAnd
                         if ty1.is_bool() && ty1 == ty2 =>
                     {
                         Type::Bool
                     }
-                    BinaryOperator::Addition if is_numeric || ty1.is_mat() && ty1 == ty2 => ty1,
-                    BinaryOperator::Subtraction if is_numeric || ty1.is_mat() && ty1 == ty2 => ty1,
+                    BinaryOperator::Addition if (is_num || ty1.is_mat()) && ty1 == ty2 => ty1,
+                    BinaryOperator::Subtraction if (is_num || ty1.is_mat()) && ty1 == ty2 => ty1,
                     BinaryOperator::Multiplication => match (ty1, ty2) {
-                        (ty1, _) if is_numeric => ty1,
+                        (ty1, _) if is_num => ty1,
                         (ty1, ty2) if ty1.is_mat() && ty2.is_float() => ty1,
                         (ty1, ty2) if ty1.is_float() && ty2.is_mat() => ty2,
                         (Type::Mat(c, r, _), Type::Vec(n, _)) if n == c => {
@@ -567,7 +590,7 @@ impl EvalTy for Expression {
                         }
                         (ty1, ty2) => return Err(E::Binary(expr.operator, ty1, ty2)),
                     },
-                    BinaryOperator::Division | BinaryOperator::Remainder if is_numeric => ty1,
+                    BinaryOperator::Division | BinaryOperator::Remainder if is_num => ty1,
                     BinaryOperator::Equality | BinaryOperator::Inequality if ty1.is_scalar() => {
                         Type::Bool
                     }
@@ -597,7 +620,7 @@ impl EvalTy for Expression {
                     | BinaryOperator::BitwiseXor
                     | BinaryOperator::ShiftLeft
                     | BinaryOperator::ShiftRight
-                        if ty1.is_integer() || ty1.is_vec() && inner.is_integer() && ty2 == ty1 =>
+                        if ty1.is_integer() || ty1.is_vec() && inner.is_integer() && ty1 == ty2 =>
                     {
                         ty1
                     }
@@ -608,7 +631,7 @@ impl EvalTy for Expression {
                 if let Some(decl) = ctx.source.decl_function(&call.ty.ident.name()) {
                     decl.return_type
                         .as_ref()
-                        .map(|ty| ty.eval_ty(ctx))
+                        .map(|ty| ty_eval_ty(ty, ctx))
                         .unwrap_or(Ok(Type::Void))
                 } else if is_builtin_fn(&call.ty.ident.name()) {
                     let args = call

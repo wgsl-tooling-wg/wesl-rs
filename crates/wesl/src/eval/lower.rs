@@ -1,13 +1,13 @@
 use std::iter::zip;
 
 use crate::{
-    eval::{Context, Eval, EvalError, Exec, Ty, Type},
+    eval::{ty_eval_ty, Context, Eval, EvalError, Exec, Ty, Type},
     visit::Visit,
 };
 use wesl_macros::query_mut;
 use wgsl_parse::{span::Spanned, syntax::*};
 
-use super::{is_constructor_fn, to_expr::ToExpr, EvalTy, SyntaxUtil, EXPR_FALSE, EXPR_TRUE};
+use super::{is_constructor_fn, to_expr::ToExpr, SyntaxUtil, EXPR_FALSE, EXPR_TRUE};
 
 type E = EvalError;
 
@@ -18,7 +18,7 @@ pub fn make_explicit_conversions(wesl: &mut TranslationUnit, ctx: &mut Context) 
         let decl = ctx.source.decl_function(&*call.ty.ident.name());
         if let Some(decl) = decl {
             for (arg, param) in zip(&mut call.arguments, &decl.parameters) {
-                let ty = param.ty.eval_ty(ctx)?;
+                let ty = ty_eval_ty(&param.ty, ctx)?;
                 if ty.inner_ty().is_scalar() {
                     let ty = ty.to_expr(ctx)?.unwrap_type_or_identifier();
                     *arg.node_mut() = Expression::FunctionCall(FunctionCall {
@@ -62,7 +62,7 @@ pub fn make_explicit_conversions(wesl: &mut TranslationUnit, ctx: &mut Context) 
     }
     for decl in query_mut!(wesl.global_declarations.[].GlobalDeclaration::Function) {
         if let Some(ret) = &decl.return_type {
-            let ty = ret.eval_ty(ctx)?;
+            let ty = ty_eval_ty(ret, ctx)?;
             if ty.inner_ty().is_scalar() {
                 for stmt in &mut decl.body.statements {
                     explicit_stat(stmt, &ty, ctx)?;
@@ -148,7 +148,7 @@ impl Lower for TemplateArgs {
 impl Lower for TypeExpression {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
         // types must be const-expressions
-        let expr = self.eval_ty(ctx)?.to_expr(ctx)?;
+        let expr = ty_eval_ty(self, ctx)?.to_expr(ctx)?;
         *self = match expr {
             Expression::TypeOrIdentifier(ty) => ty,
             _ => unreachable!("eval_ty must return Literal"),

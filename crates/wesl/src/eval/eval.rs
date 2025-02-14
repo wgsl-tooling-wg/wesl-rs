@@ -1,9 +1,9 @@
 use std::iter::zip;
 
 use super::{
-    call_builtin, compound_exec_no_scope, is_builtin_fn, with_scope, Context, Convert, EvalError,
-    EvalStage, EvalTy, Flow, Instance, LiteralInstance, PtrInstance, RefInstance, StructInstance,
-    SyntaxUtil, Ty, Type, VecInstance, ATTR_INTRINSIC,
+    call_builtin, compound_exec_no_scope, is_builtin_fn, ty_eval_ty, with_scope, Context, Convert,
+    EvalError, EvalStage, Flow, Instance, LiteralInstance, PtrInstance, RefInstance,
+    StructInstance, SyntaxUtil, Ty, Type, VecInstance, ATTR_INTRINSIC,
 };
 
 use half::f16;
@@ -275,7 +275,7 @@ impl Eval for FunctionCall {
                     .iter()
                     .zip(args)
                     .map(|(member, inst)| {
-                        let ty = member.ty.eval_ty(ctx)?;
+                        let ty = ty_eval_ty(&member.ty, ctx)?;
                         let inst = inst
                             .convert_to(&ty)
                             .ok_or_else(|| E::ParamType(ty, inst.ty()))?;
@@ -315,7 +315,7 @@ impl Eval for FunctionCall {
             let ret_ty = decl
                 .return_type
                 .as_ref()
-                .map(|e| e.eval_ty(ctx))
+                .map(|e| ty_eval_ty(e, ctx))
                 .unwrap_or(Ok(Type::Void))
                 .inspect_err(|_| ctx.set_err_decl_ctx(decl.ident.to_string()))?;
 
@@ -324,7 +324,7 @@ impl Eval for FunctionCall {
                     .iter()
                     .zip(&decl.parameters)
                     .map(|(arg, param)| {
-                        let param_ty = param.ty.eval_ty(ctx)?;
+                        let param_ty = ty_eval_ty(&param.ty, ctx)?;
                         arg.convert_to(&param_ty)
                             .ok_or_else(|| E::ParamType(param_ty.clone(), arg.ty()))
                     })
@@ -332,7 +332,7 @@ impl Eval for FunctionCall {
                     .inspect_err(|_| ctx.set_err_decl_ctx(decl.ident.to_string()))?;
 
                 for (a, p) in zip(args, &decl.parameters) {
-                    ctx.scope.add(p.ident.to_string(), Some(a));
+                    ctx.scope.add(p.ident.to_string(), a);
                 }
 
                 // the arguments must be in the same scope as the function body.
@@ -369,17 +369,16 @@ impl Eval for FunctionCall {
 
 impl Eval for TypeExpression {
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E> {
-        if let Some(inst) = ctx.scope.get(&*self.ident.name()) {
-            if self.template_args.is_some() {
-                Err(E::UnexpectedTemplate(self.ident.to_string()))
-            } else if let Some(inst) = inst {
-                Ok(inst.clone())
-            } else {
+        if self.template_args.is_some() {
+            Err(E::UnexpectedTemplate(self.ident.to_string()))
+        } else if let Some(inst) = ctx.scope.get(&*self.ident.name()) {
+            if inst.is_deferred() {
                 Err(E::NotAccessible(self.ident.to_string(), ctx.stage))
+            } else {
+                Ok(inst.clone())
             }
         } else {
-            let ty = self.eval_ty(ctx)?;
-            Ok(ty.into())
+            Err(E::UnknownDecl(self.ident.to_string()))
         }
     }
 }

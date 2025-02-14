@@ -21,7 +21,7 @@ impl Display for Instance {
             Instance::Ptr(inst) => write!(f, "{inst}"),
             Instance::Ref(inst) => write!(f, "{inst}"),
             Instance::Atomic(inst) => write!(f, "{inst}"),
-            Instance::Type(ty) => write!(f, "{ty}"),
+            Instance::Deferred(ty) => write!(f, "deferred<{ty}>"),
             Instance::Void => write!(f, ""),
         }
     }

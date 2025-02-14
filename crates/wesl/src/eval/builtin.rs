@@ -15,7 +15,7 @@ use super::{
     conv::{convert_all, Convert},
     convert, convert_all_inner_to, convert_all_ty,
     ops::Compwise,
-    ArrayInstance, EvalError, EvalStage, EvalTy, Instance, LiteralInstance, MatInstance,
+    ty_eval_ty, ArrayInstance, EvalError, EvalStage, Instance, LiteralInstance, MatInstance,
     RefInstance, SampledType, StructInstance, SyntaxUtil, TexelFormat, TextureType, Ty, Type,
     VecInstance,
 };
@@ -391,82 +391,77 @@ pub fn builtin_fn_type(ty: &TypeExpression, args: &[Type], ctx: &mut Context) ->
     fn is_integer(ty: &Type) -> bool {
         ty.is_integer() || ty.is_vec() && ty.inner_ty().is_integer()
     }
-    let err = || E::Signature(ty.clone(), args.to_vec());
 
     match (ty.ident.name().as_str(), ty.template_args.as_deref(), args) {
         // bitcast
-        ("bitcast", Some(t), [_]) => Ok(BitcastTemplate::parse(t, ctx)?.ty()),
+        ("bitcast", Some(t), [_]) => Some(BitcastTemplate::parse(t, ctx)?.ty()),
         // logical
-        ("all", None, [_]) | ("any", None, [_]) | ("select", None, [_, _, _]) => Ok(Type::Bool),
+        ("all", None, [_]) | ("any", None, [_]) | ("select", None, [_, _, _]) => Some(Type::Bool),
         // array
-        ("arrayLength", None, [_]) => Ok(Type::U32),
+        ("arrayLength", None, [_]) => Some(Type::U32),
         // numeric
-        ("abs", None, [a]) if is_numeric(a) => Ok(a.clone()),
-        ("acos", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("acosh", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("asin", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("asinh", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("atan", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("atanh", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("atan2", None, [a1, a2]) if is_float(a1) => convert_ty(a1, a2).ok_or_else(err).cloned(),
-        ("ceil", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("clamp", None, [a1, _, _]) if is_numeric(a1) => {
-            convert_all_ty(args).ok_or_else(err).cloned()
-        }
-        ("cos", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("cosh", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("countLeadingZeros", None, [a]) if is_integer(a) => Ok(a.concretize()),
-        ("countOneBits", None, [a]) if is_integer(a) => Ok(a.concretize()),
-        ("countTrailingZeros", None, [a]) if is_integer(a) => Ok(a.concretize()),
+        ("abs", None, [a]) if is_numeric(a) => Some(a.clone()),
+        ("acos", None, [a]) if is_float(a) => Some(a.clone()),
+        ("acosh", None, [a]) if is_float(a) => Some(a.clone()),
+        ("asin", None, [a]) if is_float(a) => Some(a.clone()),
+        ("asinh", None, [a]) if is_float(a) => Some(a.clone()),
+        ("atan", None, [a]) if is_float(a) => Some(a.clone()),
+        ("atanh", None, [a]) if is_float(a) => Some(a.clone()),
+        ("atan2", None, [a1, a2]) if is_float(a1) => convert_ty(a1, a2).cloned(),
+        ("ceil", None, [a]) if is_float(a) => Some(a.clone()),
+        ("clamp", None, [a1, _, _]) if is_numeric(a1) => convert_all_ty(args).cloned(),
+        ("cos", None, [a]) if is_float(a) => Some(a.clone()),
+        ("cosh", None, [a]) if is_float(a) => Some(a.clone()),
+        ("countLeadingZeros", None, [a]) if is_integer(a) => Some(a.concretize()),
+        ("countOneBits", None, [a]) if is_integer(a) => Some(a.concretize()),
+        ("countTrailingZeros", None, [a]) if is_integer(a) => Some(a.concretize()),
         ("cross", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_float() => {
-            convert_ty(a1, a2).ok_or_else(err).cloned()
+            convert_ty(a1, a2).cloned()
         }
-        ("degrees", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("determinant", None, [a @ Type::Mat(c, r, _)]) if c == r => Ok(a.clone()),
-        ("distance", None, [a1, a2]) if is_float(a1) => {
-            convert_ty(a1, a2).ok_or_else(err).map(|ty| ty.inner_ty())
-        }
+        ("degrees", None, [a]) if is_float(a) => Some(a.clone()),
+        ("determinant", None, [a @ Type::Mat(c, r, _)]) if c == r => Some(a.clone()),
+        ("distance", None, [a1, a2]) if is_float(a1) => convert_ty(a1, a2).map(|ty| ty.inner_ty()),
         ("dot", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_numeric() => {
-            convert_ty(a1, a2).ok_or_else(err).map(|ty| ty.inner_ty())
+            convert_ty(a1, a2).map(|ty| ty.inner_ty())
         }
         ("dot4U8Packed", None, [a1, a2])
             if a1.is_convertible_to(&Type::U32) && a2.is_convertible_to(&Type::U32) =>
         {
-            Ok(Type::U32)
+            Some(Type::U32)
         }
         ("dot4I8Packed", None, [a1, a2])
             if a1.is_convertible_to(&Type::U32) && a2.is_convertible_to(&Type::U32) =>
         {
-            Ok(Type::I32)
+            Some(Type::I32)
         }
-        ("exp", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("exp2", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("exp", None, [a]) if is_float(a) => Some(a.clone()),
+        ("exp2", None, [a]) if is_float(a) => Some(a.clone()),
         ("extractBits", None, [a1, a2, a3])
             if is_integer(a1)
                 && a2.is_convertible_to(&Type::U32)
                 && a3.is_convertible_to(&Type::U32) =>
         {
-            Ok(a1.concretize())
+            Some(a1.concretize())
         }
         ("faceForward", None, [a1, _, _]) if a1.is_vec() && a1.inner_ty().is_float() => {
-            convert_all_ty(args).ok_or_else(err).cloned()
+            convert_all_ty(args).cloned()
         }
-        ("firstLeadingBit", None, [a]) if is_integer(a) => Ok(a.concretize()),
-        ("firstTrailingBit", None, [a]) if is_integer(a) => Ok(a.concretize()),
-        ("floor", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("fma", None, [a1, _, _]) if is_float(a1) => convert_all_ty(args).ok_or_else(err).cloned(),
-        ("fract", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("firstLeadingBit", None, [a]) if is_integer(a) => Some(a.concretize()),
+        ("firstTrailingBit", None, [a]) if is_integer(a) => Some(a.concretize()),
+        ("floor", None, [a]) if is_float(a) => Some(a.clone()),
+        ("fma", None, [a1, _, _]) if is_float(a1) => convert_all_ty(args).cloned(),
+        ("fract", None, [a]) if is_float(a) => Some(a.clone()),
         ("frexp", None, [a]) if is_float(a) => {
-            Ok(Type::Struct(frexp_struct_name(a).unwrap().to_string()))
+            Some(Type::Struct(frexp_struct_name(a).unwrap().to_string()))
         }
         ("insertBits", None, [a1, a2, a3, a4])
             if is_integer(a1)
                 && a3.is_convertible_to(&Type::U32)
                 && a4.is_convertible_to(&Type::U32) =>
         {
-            convert_ty(a1, a2).ok_or_else(err).map(|ty| ty.concretize())
+            convert_ty(a1, a2).map(|ty| ty.concretize())
         }
-        ("inverseSqrt", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("inverseSqrt", None, [a]) if is_float(a) => Some(a.clone()),
         ("ldexp", None, [a1, a2])
             if (a1.is_vec()
                 && a1.inner_ty().is_float()
@@ -476,52 +471,51 @@ pub fn builtin_fn_type(ty: &TypeExpression, args: &[Type], ctx: &mut Context) ->
                 && (a1.is_concrete() && a2.is_concrete()
                     || a1.is_abstract() && a2.is_abstract()) =>
         {
-            Ok(a1.clone())
+            Some(a1.clone())
         }
-        ("length", None, [a]) if is_float(a) => Ok(a.inner_ty()),
-        ("log", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("log2", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("max", None, [a1, a2]) if is_numeric(a1) => convert_ty(a1, a2).ok_or_else(err).cloned(),
-        ("min", None, [a1, a2]) if is_numeric(a1) => convert_ty(a1, a2).ok_or_else(err).cloned(),
-        ("mix", None, [a1, a2, a3])
-            if is_float(a1) && (a1.is_vec() && a3.is_float() || a3.is_convertible_to(a1)) =>
+        ("length", None, [a]) if is_float(a) => Some(a.inner_ty()),
+        ("log", None, [a]) if is_float(a) => Some(a.clone()),
+        ("log2", None, [a]) if is_float(a) => Some(a.clone()),
+        ("max", None, [a1, a2]) if is_numeric(a1) => convert_ty(a1, a2).cloned(),
+        ("min", None, [a1, a2]) if is_numeric(a1) => convert_ty(a1, a2).cloned(),
+        ("mix", None, [Type::Vec(n1, ty1), Type::Vec(n2, ty2), a3])
+            if n1 == n2 && a3.is_float() =>
         {
-            convert_ty(a1, a2).ok_or_else(err).cloned()
+            convert_all_ty([ty1, ty2, a3]).map(|inner| Type::Vec(*n1, inner.clone().into()))
         }
+        ("mix", None, [a1, _, _]) if is_float(a1) => convert_all_ty(args).cloned(),
         ("modf", None, [a]) if is_float(a) => {
-            Ok(Type::Struct(modf_struct_name(a).unwrap().to_string()))
+            Some(Type::Struct(modf_struct_name(a).unwrap().to_string()))
         }
-        ("normalize", None, [a @ Type::Vec(_, ty)]) if ty.is_float() => Ok(a.clone()),
-        ("pow", None, [a1, a2]) => convert_ty(a1, a2).ok_or_else(err).cloned(),
+        ("normalize", None, [a @ Type::Vec(_, ty)]) if ty.is_float() => Some(a.clone()),
+        ("pow", None, [a1, a2]) => convert_ty(a1, a2).cloned(),
         ("quantizeToF16", None, [a])
             if a.concretize().is_f_32() || a.is_vec() && a.inner_ty().concretize().is_f_32() =>
         {
-            Ok(a.clone())
+            Some(a.clone())
         }
-        ("radians", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("radians", None, [a]) if is_float(a) => Some(a.clone()),
         ("reflect", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_float() => {
-            convert_ty(a1, a2).ok_or_else(err).cloned()
+            convert_ty(a1, a2).cloned()
         }
-        ("refract", None, [a1, a2, a3])
-            if a1.is_vec() && a1.inner_ty().is_float() && a3.is_convertible_to(&a1.inner_ty()) =>
+        ("refract", None, [Type::Vec(n1, ty1), Type::Vec(n2, ty2), a3])
+            if n1 == n2 && a3.is_float() =>
         {
-            convert_ty(a1, a2).ok_or_else(err).cloned()
+            convert_all_ty([ty1, ty2, a3]).map(|inner| Type::Vec(*n1, inner.clone().into()))
         }
-        ("reverseBits", None, [a]) if is_integer(a) => Ok(a.clone()),
-        ("round", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("saturate", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("sign", None, [a]) if is_numeric(a) && !a.inner_ty().is_u_32() => Ok(a.clone()),
-        ("sin", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("sinh", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("smoothstep", None, [a1, _, _]) if is_float(a1) => {
-            convert_all_ty(args).ok_or_else(err).cloned()
-        }
-        ("sqrt", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("step", None, [a1, a2]) if is_float(a1) => convert_ty(a1, a2).ok_or_else(err).cloned(),
-        ("tan", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("tanh", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("transpose", None, [Type::Mat(c, r, ty)]) => Ok(Type::Mat(*r, *c, ty.clone())),
-        ("trunc", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("reverseBits", None, [a]) if is_integer(a) => Some(a.clone()),
+        ("round", None, [a]) if is_float(a) => Some(a.clone()),
+        ("saturate", None, [a]) if is_float(a) => Some(a.clone()),
+        ("sign", None, [a]) if is_numeric(a) && !a.inner_ty().is_u_32() => Some(a.clone()),
+        ("sin", None, [a]) if is_float(a) => Some(a.clone()),
+        ("sinh", None, [a]) if is_float(a) => Some(a.clone()),
+        ("smoothstep", None, [a1, _, _]) if is_float(a1) => convert_all_ty(args).cloned(),
+        ("sqrt", None, [a]) if is_float(a) => Some(a.clone()),
+        ("step", None, [a1, a2]) if is_float(a1) => convert_ty(a1, a2).cloned(),
+        ("tan", None, [a]) if is_float(a) => Some(a.clone()),
+        ("tanh", None, [a]) if is_float(a) => Some(a.clone()),
+        ("transpose", None, [Type::Mat(c, r, ty)]) => Some(Type::Mat(*r, *c, ty.clone())),
+        ("trunc", None, [a]) if is_float(a) => Some(a.clone()),
         // packing
         // TODO
         // ("pack4x8snorm", None, [a]) => call_pack4x8snorm(a),
@@ -540,8 +534,9 @@ pub fn builtin_fn_type(ty: &TypeExpression, args: &[Type], ctx: &mut Context) ->
         // ("unpack2x16snorm", None, [a]) => call_unpack2x16snorm(a),
         // ("unpack2x16unorm", None, [a]) => call_unpack2x16unorm(a),
         // ("unpack2x16float", None, [a]) => call_unpack2x16float(a),
-        _ => constructor_type(ty, args, ctx),
+        _ => None,
     }
+    .ok_or_else(|| E::Signature(ty.clone(), args.to_vec()))
 }
 
 pub fn is_constructor_fn(name: &str) -> bool {
@@ -866,7 +861,7 @@ impl StructInstance {
             .members
             .iter()
             .map(|m| {
-                let ty = m.ty.eval_ty(ctx)?;
+                let ty = ty_eval_ty(&m.ty, ctx)?;
                 let val = Instance::zero_value(&ty, ctx)?;
                 Ok((m.ident.to_string(), val))
             })
@@ -915,35 +910,29 @@ pub struct ArrayTemplate {
 }
 impl ArrayTemplate {
     pub fn parse(tplt: &[TemplateArg], ctx: &mut Context) -> Result<ArrayTemplate, E> {
-        // TODO: the first template value must be an ident, cannot just evaluate to ident
-        let tplt = tplt
-            .iter()
-            .map(|arg| arg.eval_value(ctx))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut it = tplt.into_iter();
-        match (it.next(), it.next(), it.next()) {
-            (Some(t1), Some(t2), None) => Self::parse_2(t1, t2),
-            (Some(Instance::Type(ty)), None, None) => Ok(ArrayTemplate { n: None, ty }),
+        let (t1, t2) = match tplt {
+            [t1] => Ok((t1, None)),
+            [t1, t2] => Ok((t1, Some(t2))),
             _ => Err(E::TemplateArgs("array")),
-        }
-    }
-    pub fn parse_2(t1: Instance, t2: Instance) -> Result<ArrayTemplate, E> {
-        match (t1, t2) {
-            (Instance::Type(ty), Instance::Literal(n)) => {
-                let n = match n {
-                    LiteralInstance::AbstractInt(n) => (n > 0).then_some(n as usize),
-                    LiteralInstance::I32(n) => (n > 0).then_some(n as usize),
-                    LiteralInstance::U32(n) => (n > 0).then_some(n as usize),
-                    _ => None,
-                }
-                .ok_or_else(|| {
-                    E::Builtin(
-                        "the array element count must evaluate to a `u32` or a `i32` greater than `0`",
-                    )
-                })?;
-                Ok(ArrayTemplate { n: Some(n), ty })
+        }?;
+        let ty = match t1.expression.node() {
+            Expression::TypeOrIdentifier(ty) => ty_eval_ty(ty, ctx),
+            _ => Err(E::TemplateArgs("array")),
+        }?;
+        if let Some(t2) = t2 {
+            let n = t2.expression.eval_value(ctx)?;
+            let n = match n {
+                Instance::Literal(LiteralInstance::AbstractInt(n)) => (n > 0).then_some(n as usize),
+                Instance::Literal(LiteralInstance::I32(n)) => (n > 0).then_some(n as usize),
+                Instance::Literal(LiteralInstance::U32(n)) => (n > 0).then_some(n as usize),
+                _ => None,
             }
-            _ => Err(E::TemplateArgs("array")),
+            .ok_or(E::Builtin(
+                "the array element count must evaluate to a `u32` or a `i32` greater than `0`",
+            ))?;
+            Ok(ArrayTemplate { n: Some(n), ty })
+        } else {
+            Ok(ArrayTemplate { n: None, ty })
         }
     }
     pub fn ty(&self) -> Type {
@@ -962,23 +951,17 @@ pub struct VecTemplate {
 }
 impl VecTemplate {
     pub fn parse(tplt: &[TemplateArg], ctx: &mut Context) -> Result<VecTemplate, E> {
-        // TODO: the first template value must be an ident, cannot just evaluate to ident
-        let tplt = tplt
-            .iter()
-            .map(|arg| arg.eval_value(ctx))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut it = tplt.into_iter();
-        match (it.next(), it.next()) {
-            (Some(Instance::Type(ty)), None) => match &ty {
-                Type::Vec(_, inner_ty) if inner_ty.is_scalar() && inner_ty.is_concrete() => {
-                    Ok(VecTemplate { ty })
-                }
-                _ if ty.is_scalar() && ty.is_concrete() => Ok(VecTemplate { ty }),
-                _ => Err(EvalError::Builtin(
-                    "vector template type must be a concrete scalar",
-                )),
+        let ty = match tplt {
+            [t1] => match t1.expression.node() {
+                Expression::TypeOrIdentifier(ty) => ty_eval_ty(ty, ctx),
+                _ => Err(E::TemplateArgs("vector")),
             },
             _ => Err(E::TemplateArgs("vector")),
+        }?;
+        if ty.is_scalar() && ty.is_concrete() {
+            Ok(VecTemplate { ty })
+        } else {
+            Err(EvalError::Builtin("vector template type must be a scalar"))
         }
     }
     pub fn ty(&self, n: u8) -> Type {
@@ -995,22 +978,19 @@ pub struct MatTemplate {
 
 impl MatTemplate {
     pub fn parse(tplt: &[TemplateArg], ctx: &mut Context) -> Result<MatTemplate, E> {
-        // TODO: the first template value must be an ident, cannot just evaluate to ident
-        let tplt = tplt
-            .iter()
-            .map(|arg| arg.eval_value(ctx))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut it = tplt.into_iter();
-        match (it.next(), it.next()) {
-            (Some(Instance::Type(ty)), None) => {
-                if !ty.is_f_32() && !ty.is_f_16() {
-                    return Err(EvalError::Builtin(
-                        "matrix template type must be f32 or f16",
-                    ));
-                }
-                Ok(MatTemplate { ty })
-            }
+        let ty = match tplt {
+            [t1] => match t1.expression.node() {
+                Expression::TypeOrIdentifier(ty) => ty_eval_ty(ty, ctx),
+                _ => Err(E::TemplateArgs("matrix")),
+            },
             _ => Err(E::TemplateArgs("matrix")),
+        }?;
+        if ty.is_f_32() || ty.is_f_16() {
+            Ok(MatTemplate { ty })
+        } else {
+            Err(EvalError::Builtin(
+                "matrix template type must be f32 or f16",
+            ))
         }
     }
 
@@ -1048,7 +1028,7 @@ impl PtrTemplate {
                     .name()
                     .parse()
                     .map_err(|()| EvalError::Builtin("invalid pointer storage space"))?;
-                let ty = e2.eval_ty(ctx)?;
+                let ty = ty_eval_ty(e2, ctx)?;
                 if !ty.is_storable() {
                     return Err(EvalError::Builtin("pointer type must be storable"));
                 }
@@ -1111,16 +1091,19 @@ pub struct AtomicTemplate {
 }
 impl AtomicTemplate {
     pub fn parse(tplt: &[TemplateArg], ctx: &mut Context) -> Result<AtomicTemplate, E> {
-        // TODO: the first template value must be an ident, cannot just evaluate to ident
-        let tplt = tplt
-            .iter()
-            .map(|arg| arg.eval_value(ctx))
-            .collect::<Result<Vec<_>, _>>()?;
-        match tplt.as_slice() {
-            [Instance::Type(ty)] if ty.is_u_32() || ty.is_i_32() => {
-                Ok(AtomicTemplate { ty: ty.clone() })
-            }
+        let ty = match tplt {
+            [t1] => match t1.expression.node() {
+                Expression::TypeOrIdentifier(ty) => ty_eval_ty(ty, ctx),
+                _ => Err(E::TemplateArgs("atomic")),
+            },
             _ => Err(E::TemplateArgs("atomic")),
+        }?;
+        if ty.is_i_32() || ty.is_u_32() {
+            Ok(AtomicTemplate { ty })
+        } else {
+            Err(EvalError::Builtin(
+                "atomic template type must be i32 or u32",
+            ))
         }
     }
     pub fn ty(&self) -> Type {
@@ -1218,23 +1201,19 @@ pub struct BitcastTemplate {
 }
 impl BitcastTemplate {
     pub fn parse(tplt: &[TemplateArg], ctx: &mut Context) -> Result<BitcastTemplate, E> {
-        // TODO: the first template value must be an ident, cannot just evaluate to ident
-        let tplt = tplt
-            .iter()
-            .map(|arg| arg.eval_value(ctx))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut it = tplt.into_iter();
-        match (it.next(), it.next()) {
-            (Some(Instance::Type(ty)), None) => {
-                let inner = ty.inner_ty();
-                if !inner.is_numeric() || inner.is_abstract() || !(ty.is_numeric() || ty.is_vec()) {
-                    return Err(EvalError::Builtin(
-                        "bitcast template type must be a concrete numeric scalar or concrete numeric vector",
-                    ));
-                }
-                Ok(BitcastTemplate { ty })
-            }
+        let ty = match tplt {
+            [t1] => match t1.expression.node() {
+                Expression::TypeOrIdentifier(ty) => ty_eval_ty(ty, ctx),
+                _ => Err(E::TemplateArgs("bitcast")),
+            },
             _ => Err(E::TemplateArgs("bitcast")),
+        }?;
+        if ty.is_numeric() || ty.is_vec() && ty.inner_ty().is_numeric() {
+            Ok(BitcastTemplate { ty })
+        } else {
+            Err(EvalError::Builtin(
+                "bitcast template type must be a numeric scalar or numeric vector",
+            ))
         }
     }
     pub fn ty(&self) -> Type {
@@ -1550,7 +1529,7 @@ fn call_vec_t(
             Type::U32 => |n, _| call_u32_1(n),
             Type::F32 => |n, stage| call_f32_1(n, stage),
             Type::F16 => |n, stage| call_f16_1(n, stage),
-            _ => return Err(E::Builtin("vector type must be a concrete scalar")),
+            _ => return Err(E::Builtin("vector type must be a scalar")),
         };
 
         let comps = v

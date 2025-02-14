@@ -139,7 +139,7 @@
     "name": "overflow-check-u32-from-i32",
     "desc": "Tests overflow from unsigned integer conversion to signed integer.",
     "kind": "eval",
-    "code": "@const fn test() -> i32 u32 { let u32_large : u32 = 2147483649; let i32_large : i32 = u32_large; return i32_large; }",
+    "code": "@const fn test() -> i32 { let u32_large : u32 = 2147483649; let i32_large : i32 = u32_large; return i32_large; }",
     "eval": "test()",
     "expect": "fail",
     "stage": "const"

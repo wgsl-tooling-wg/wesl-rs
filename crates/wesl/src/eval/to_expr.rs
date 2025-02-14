@@ -20,8 +20,11 @@ impl ToExpr for Instance {
             Instance::Array(inst) => inst.to_expr(ctx),
             Instance::Vec(inst) => inst.to_expr(ctx),
             Instance::Mat(inst) => inst.to_expr(ctx),
-            Instance::Type(inst) => inst.to_expr(ctx),
-            Instance::Atomic(_) | Instance::Ptr(_) | Instance::Ref(_) | Instance::Void => {
+            Instance::Deferred(_)
+            | Instance::Atomic(_)
+            | Instance::Ptr(_)
+            | Instance::Ref(_)
+            | Instance::Void => {
                 // Err(E::NotConstructible(self.ty()))
                 todo!()
             }

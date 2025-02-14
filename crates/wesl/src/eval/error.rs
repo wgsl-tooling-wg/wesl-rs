@@ -18,7 +18,7 @@ pub enum EvalError {
     Type(Type, Type),
     #[error("expected a type, got declaration `{0}`")]
     NotType(String),
-    #[error("unknown type or variable `{0}`")]
+    #[error("unknown type `{0}`")]
     UnknownType(String),
     #[error("unknown struct `{0}`")]
     UnknownStruct(String),
@@ -108,6 +108,8 @@ pub enum EvalError {
     NotConst(String),
 
     // declarations
+    #[error("unknown declaration `{0}`")]
+    UnknownDecl(String),
     #[error("override-declarations are not permitted in const contexts")]
     OverrideInConst,
     #[error("override-declarations are not permitted in function bodies")]

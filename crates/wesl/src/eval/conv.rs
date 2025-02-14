@@ -3,8 +3,8 @@ use itertools::Itertools;
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{
-    ArrayInstance, Instance, LiteralInstance, MatInstance, SyntaxUtil, Ty, Type, VecInstance,
-    PRELUDE,
+    ArrayInstance, Instance, LiteralInstance, MatInstance, StructInstance, SyntaxUtil, Ty, Type,
+    VecInstance, PRELUDE,
 };
 
 pub trait Convert: Sized + Clone + Ty {
@@ -36,18 +36,39 @@ pub trait Convert: Sized + Clone + Ty {
     }
 }
 
-impl Type {
-    pub fn concretize(&self) -> Type {
+impl Convert for Type {
+    fn convert_to(&self, ty: &Type) -> Option<Self> {
+        self.is_convertible_to(ty).then_some(ty.clone())
+    }
+    fn convert_inner_to(&self, ty: &Type) -> Option<Self> {
         match self {
-            Type::AbstractInt => Type::I32,
-            Type::AbstractFloat => Type::F32,
-            Type::Array(n, ty) => Type::Array(*n, ty.concretize().into()),
-            Type::Vec(n, ty) => Type::Vec(*n, ty.concretize().into()),
-            Type::Mat(c, r, ty) => Type::Mat(*c, *r, ty.concretize().into()),
+            Type::Array(n, inner) => inner
+                .convert_to(ty)
+                .map(|inner| Type::Array(*n, inner.into())),
+            Type::Vec(n, inner) => inner
+                .convert_to(ty)
+                .map(|inner| Type::Vec(*n, inner.into())),
+            Type::Mat(c, r, inner) => inner
+                .convert_to(ty)
+                .map(|inner| Type::Mat(*c, *r, inner.into())),
+            Type::Atomic(_) => (self == ty).then_some(ty.clone()),
+            Type::Ptr(_, _) => (self == ty).then_some(ty.clone()),
+            _ => self.convert_to(ty), // for types that don't have an inner ty
+        }
+    }
+    fn concretize(&self) -> Self {
+        match self {
+            Self::AbstractInt => Type::I32,
+            Self::AbstractFloat => Type::F32,
+            Self::Array(n, ty) => Type::Array(*n, ty.concretize().into()),
+            Self::Vec(n, ty) => Type::Vec(*n, ty.concretize().into()),
+            Self::Mat(c, r, ty) => Type::Mat(*c, *r, ty.concretize().into()),
             _ => self.clone(),
         }
     }
+}
 
+impl Type {
     pub fn is_convertible_to(&self, ty: &Type) -> bool {
         conversion_rank(self, ty).is_some()
     }
@@ -158,6 +179,44 @@ impl Convert for MatInstance {
     }
 }
 
+impl Convert for StructInstance {
+    fn convert_to(&self, ty: &Type) -> Option<Self> {
+        if &self.ty() == ty {
+            Some(self.clone())
+        } else if let Type::Struct(s2) = ty {
+            let s1 = self.name();
+            if PRELUDE.decl_struct(s1).is_some()
+                && PRELUDE.decl_struct(s2).is_some()
+                && s1.ends_with("abstract")
+            {
+                if s2.ends_with("f32") {
+                    let members = self
+                        .iter_members()
+                        .map(|(name, inst)| {
+                            Some((name.clone(), inst.convert_inner_to(&Type::F32)?))
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    Some(StructInstance::new(s2.to_string(), members))
+                } else if s2.ends_with("f16") {
+                    let members = self
+                        .iter_members()
+                        .map(|(name, inst)| {
+                            Some((name.clone(), inst.convert_inner_to(&Type::F16)?))
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    Some(StructInstance::new(s2.to_string(), members))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
+}
+
 impl Convert for Instance {
     fn convert_to(&self, ty: &Type) -> Option<Self> {
         if &self.ty() == ty {
@@ -165,14 +224,14 @@ impl Convert for Instance {
         }
         match self {
             Self::Literal(l) => l.convert_to(ty).map(Self::Literal),
-            Self::Struct(_) => None,
+            Self::Struct(s) => s.convert_to(ty).map(Self::Struct),
             Self::Array(a) => a.convert_to(ty).map(Self::Array),
             Self::Vec(v) => v.convert_to(ty).map(Self::Vec),
             Self::Mat(m) => m.convert_to(ty).map(Self::Mat),
             Self::Ptr(_) => None,
             Self::Ref(r) => r.read().ok().and_then(|r| r.convert_to(ty)), // this is the "load rule". Also performed by `eval_value`.
             Self::Atomic(_) => None,
-            Self::Type(_) => None,
+            Self::Deferred(_) => None,
             Self::Void => None,
         }
     }
@@ -187,7 +246,7 @@ impl Convert for Instance {
             Self::Ptr(_) => None,
             Self::Ref(r) => r.read().ok().and_then(|r| r.convert_inner_to(ty)), // this is the "load rule". Also performed by `eval_value`.
             Self::Atomic(_) => None,
-            Self::Type(_) => None,
+            Self::Deferred(_) => None,
             Self::Void => None,
         }
     }
@@ -205,6 +264,7 @@ pub fn conversion_rank(ty1: &Type, ty2: &Type) -> Option<u32> {
         (Type::AbstractInt, Type::F16) => Some(7),
         (Type::AbstractFloat, Type::F32) => Some(1),
         (Type::AbstractFloat, Type::F16) => Some(2),
+        // frexp and modf
         (Type::Struct(s1), Type::Struct(s2)) => {
             if PRELUDE.decl_struct(s1).is_some()
                 && PRELUDE.decl_struct(s2).is_some()

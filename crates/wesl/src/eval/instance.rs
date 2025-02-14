@@ -26,8 +26,8 @@ pub enum Instance {
     Ptr(PtrInstance),
     Ref(RefInstance),
     Atomic(AtomicInstance),
-    /// type instances can only appear in template arguments.
-    Type(Type),
+    /// for instances that cannot be computed at the current eval stage, we still store the type.
+    Deferred(Type),
     /// the void type does not exist in WGSL, here it can be the result of evaluating a call expression.
     Void,
 }

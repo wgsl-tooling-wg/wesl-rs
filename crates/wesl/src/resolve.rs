@@ -30,6 +30,7 @@ type E = ResolveError;
 /// identify a unique module.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Resource {
+    // TODO: get rid or pathbuf. it is not adapted to current use-cases.
     path: PathBuf,
 }
 
@@ -42,6 +43,7 @@ fn clean_path(path: impl AsRef<Path>) -> PathBuf {
                 res.push(comp);
             }
             Component::CurDir => {
+                // can only 'start' with './'
                 if res == Path::new("") {
                     res.push(comp)
                 }
@@ -95,6 +97,17 @@ impl Resource {
             let path = self.path.iter().skip(1).collect::<PathBuf>();
             Resource::new(path)
         })
+    }
+    pub fn is_absolute(&self) -> bool {
+        self.path.is_absolute()
+    }
+    pub fn absolute(mut self) -> Resource {
+        if !self.is_absolute() {
+            self.path = PathBuf::from_iter(self.path.into_iter().skip(1));
+            self
+        } else {
+            self
+        }
     }
 }
 
@@ -312,7 +325,7 @@ impl<'a> VirtualResolver<'a> {
 
     /// resolves imports in `path` with the given WESL string.
     pub fn add_module(&mut self, path: impl AsRef<Path>, file: Cow<'a, str>) {
-        self.files.insert(Resource::new(path), file);
+        self.files.insert(Resource::new(path).absolute(), file);
     }
 
     pub fn get_module(&self, resource: &Resource) -> Result<&str, E> {
@@ -320,6 +333,10 @@ impl<'a> VirtualResolver<'a> {
             E::FileNotFound(resource.path.to_path_buf(), "virtual module".to_string())
         })?;
         Ok(source)
+    }
+
+    pub fn modules(&self) -> impl Iterator<Item = (&Resource, &str)> {
+        self.files.iter().map(|(res, file)| (res, &**file))
     }
 }
 

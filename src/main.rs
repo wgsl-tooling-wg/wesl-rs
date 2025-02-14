@@ -10,7 +10,7 @@ use std::{
     str::FromStr,
 };
 use wesl::{
-    eval::{Eval, EvalAttrs, EvalError, HostShareable, Instance, RefInstance, Ty},
+    eval::{ty_eval_ty, Eval, EvalAttrs, HostShareable, Instance, RefInstance, Ty},
     syntax::{self, AccessMode, AddressSpace},
     CompileOptions, CompileResult, Diagnostic, FileResolver, ManglerKind, PkgBuilder, Router,
     SyntaxUtil, VirtualResolver, Wesl,
@@ -410,17 +410,11 @@ fn parse_binding(
         })
         .ok_or_else(|| CliError::ResourceNotFound(b.group, b.binding))?;
 
-    let ty = ty_expr
-        .eval_value(&mut ctx)
-        .and_then(|inst| match inst {
-            Instance::Type(ty) => Ok(ty),
-            _ => Err(EvalError::UnknownType(inst.to_string())),
-        })
-        .map_err(|e| {
-            Diagnostic::from(e)
-                .with_ctx(&ctx)
-                .with_source(ty_expr.to_string())
-        })?;
+    let ty = ty_eval_ty(&ty_expr, &mut ctx).map_err(|e| {
+        Diagnostic::from(e)
+            .with_ctx(&ctx)
+            .with_source(ty_expr.to_string())
+    })?;
     let (storage, access) = match b.kind {
         BindingType::Uniform => (AddressSpace::Uniform, AccessMode::Read),
         BindingType::Storage => (

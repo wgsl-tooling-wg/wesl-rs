@@ -2,7 +2,7 @@ use half::f16;
 use itertools::Itertools;
 
 use super::{
-    ArrayInstance, AtomicInstance, Context, EvalAttrs, EvalTy, Instance, LiteralInstance,
+    ty_eval_ty, ArrayInstance, AtomicInstance, Context, EvalAttrs, Instance, LiteralInstance,
     MatInstance, StructInstance, SyntaxUtil, Ty, Type, VecInstance,
 };
 
@@ -23,7 +23,7 @@ impl HostShareable for Instance {
             Instance::Ptr(_) => None,
             Instance::Ref(_) => None,
             Instance::Atomic(a) => a.inner().to_buffer(ctx),
-            Instance::Type(_) => None,
+            Instance::Deferred(_) => None,
             Instance::Void => None,
         }
     }
@@ -62,7 +62,7 @@ impl Instance {
                     .members
                     .iter()
                     .map(|m| {
-                        let ty = m.ty.eval_ty(ctx).ok()?;
+                        let ty = ty_eval_ty(&m.ty, ctx).ok()?;
                         // handle the specific case of runtime-sized arrays.
                         // they can only be the last member of a struct.
                         let inst = if let Type::Array(None, _) = ty {
@@ -279,7 +279,7 @@ impl Type {
                     .members
                     .iter()
                     .map(|m| {
-                        let ty = m.ty.eval_ty(ctx).ok()?;
+                        let ty = ty_eval_ty(&m.ty, ctx).ok()?;
                         // TODO: handle errors, check valid size...
                         let size = m
                             .attr_size(ctx)
@@ -338,7 +338,7 @@ impl Type {
                 decl.members
                     .iter()
                     .map(|m| {
-                        let ty = m.ty.eval_ty(ctx).ok()?;
+                        let ty = ty_eval_ty(&m.ty, ctx).ok()?;
                         m.attr_align(ctx)
                             .ok()
                             .flatten()
