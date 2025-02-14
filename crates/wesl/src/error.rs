@@ -328,6 +328,7 @@ impl Diagnostic<Error> {
                 }
                 EvalError::NotType(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UnknownType(name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::UnknownStruct(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::NotAccessible(name, _) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UnexpectedTemplate(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::View(ty, _) => unmangle_ty(ty, sourcemap, mangler),
@@ -358,6 +359,7 @@ impl Diagnostic<Error> {
                     unmangle_ty(ty2, sourcemap, mangler);
                 }
                 EvalError::UnknownFunction(name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::NotCallable(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::Signature(ty, args) => {
                     unmangle_id(&mut ty.ident, sourcemap, mangler);
                     for arg in args {
@@ -370,6 +372,7 @@ impl Diagnostic<Error> {
                     unmangle_ty(ty2, sourcemap, mangler);
                 }
                 EvalError::NotConst(name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::UnknownDecl(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UninitConst(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UninitLet(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UninitOverride(name) => unmangle_name(name, sourcemap, mangler),
@@ -381,7 +384,43 @@ impl Diagnostic<Error> {
                 EvalError::IncrType(ty) => unmangle_ty(ty, sourcemap, mangler),
                 EvalError::DecrType(ty) => unmangle_ty(ty, sourcemap, mangler),
                 EvalError::ConstAssertFailure(expr) => unmangle_expr(expr, sourcemap, mangler),
-                _ => {}
+                EvalError::Todo(_)
+                | EvalError::MissingTemplate(_)
+                | EvalError::NotWrite
+                | EvalError::NotRead
+                | EvalError::NotReadWrite
+                | EvalError::Swizzle(_)
+                | EvalError::NegOverflow
+                | EvalError::AddOverflow
+                | EvalError::SubOverflow
+                | EvalError::MulOverflow
+                | EvalError::DivByZero
+                | EvalError::RemZeroDiv
+                | EvalError::ShlOverflow(_)
+                | EvalError::ShrOverflow(_)
+                | EvalError::Builtin(_)
+                | EvalError::TemplateArgs(_)
+                | EvalError::ReturnType(_, _)
+                | EvalError::OverrideInConst
+                | EvalError::OverrideInFn
+                | EvalError::LetInMod
+                | EvalError::ForbiddenInitializer(_)
+                | EvalError::UntypedDecl
+                | EvalError::ForbiddenDecl(_, _)
+                | EvalError::MissingResource(_, _)
+                | EvalError::AddressSpace(_, _)
+                | EvalError::AccessMode(_, _)
+                | EvalError::MissingBindAttr
+                | EvalError::MissingWorkgroupSize
+                | EvalError::NegativeAttr(_)
+                | EvalError::InvalidBlendSrc(_)
+                | EvalError::NotRef(_)
+                | EvalError::IncrOverflow
+                | EvalError::DecrOverflow
+                | EvalError::FlowInContinuing(_)
+                | EvalError::DiscardInConst
+                | EvalError::FlowInFunction(_)
+                | EvalError::FlowInModule(_) => {}
             },
             Error::Error(_) => {}
         };

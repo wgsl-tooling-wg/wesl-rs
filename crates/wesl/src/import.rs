@@ -147,6 +147,86 @@ pub fn resolve_lazy(
         }
     }
 
+    fn resolve_ty(
+        mod_resource: &Resource,
+        mod_imports: &Imports,
+        mod_idents: &HashMap<Ident, usize>,
+        mod_treated_idents: &HashSet<Ident>,
+        ty: &mut TypeExpression,
+        local_decls: &mut HashSet<usize>,
+        extern_decls: &mut Decls,
+        resolutions: &mut Resolutions,
+        resolver: &impl Resolver,
+    ) -> Result<(), E> {
+        for ty in Visit::<TypeExpression>::visit_mut(ty) {
+            resolve_ty(
+                &mod_resource,
+                &mod_imports,
+                &mod_idents,
+                &mod_treated_idents,
+                ty,
+                local_decls,
+                extern_decls,
+                resolutions,
+                resolver,
+            )?;
+        }
+
+        if mod_treated_idents.contains(&ty.ident) {
+            return Ok(());
+        }
+
+        // get the the resource associated with the type, if it points to a decl in another module.
+        let (ext_res, ext_id) = if let Some(path) = &ty.path {
+            let res = resolve_inline_resource(path, mod_resource, mod_imports);
+            (res, ty.ident.clone())
+        } else if let Some((resource, ident)) = mod_imports.get(&ty.ident) {
+            (resource.clone(), ident.clone())
+        } else {
+            // points to a local decl, we stop here.
+            if let Some(decl) = mod_idents.get(&ty.ident) {
+                local_decls.insert(*decl);
+            }
+            return Ok(());
+        };
+
+        // if the import path points to a local decl, we stop here
+        if &ext_res == mod_resource {
+            if let Some(decl) = mod_idents.get(&ty.ident) {
+                local_decls.insert(*decl);
+                return Ok(());
+            } else {
+                return Err(E::MissingDecl(ext_res, ty.ident.name().to_string()));
+            }
+        }
+
+        // get or load the external module
+        let ext_mod = load_module(&ext_res, &mut HashSet::new(), resolutions, resolver)?;
+        let mut ext_mod = ext_mod
+            .try_borrow_mut()
+            .map_err(|_| E::CircularDependency(mod_resource.clone()))?;
+        let ext_mod = ext_mod.deref_mut();
+
+        // get the ident of the external declaration pointed to by the type
+        let (ext_id, ext_decl) = ext_mod
+            .idents
+            .iter()
+            .find(|(id, _)| *id.name() == *ext_id.name())
+            .map(|(id, decl)| (id.clone(), *decl))
+            .ok_or_else(|| E::MissingDecl(ext_res.clone(), ext_id.to_string()))?;
+
+        if !ext_mod.treated_idents.contains(&ext_id) {
+            extern_decls
+                .entry(ext_res)
+                .or_insert(Default::default())
+                .insert(ext_decl);
+        }
+
+        ty.path = None;
+        ty.ident = ext_id;
+        Ok(())
+    }
+
     fn resolve_decl(
         module: &mut Module,
         decl: usize,
@@ -164,58 +244,17 @@ pub fn resolve_lazy(
         }
 
         for ty in Visit::<TypeExpression>::visit_mut(decl) {
-            if module.treated_idents.contains(&ty.ident) {
-                continue;
-            }
-
-            // get the the resource associated with the type, if it points to a decl in another module.
-            let (ext_res, ext_id) = if let Some(path) = &ty.path {
-                let res = resolve_inline_resource(path, &module.resource, &module.imports);
-                (res, ty.ident.clone())
-            } else if let Some((resource, ident)) = module.imports.get(&ty.ident) {
-                (resource.clone(), ident.clone())
-            } else {
-                // points to a local decl, we stop here.
-                if let Some(decl) = module.idents.get(&ty.ident) {
-                    local_decls.insert(*decl);
-                }
-                continue;
-            };
-
-            // if the import path points to a local decl, we stop here
-            if ext_res == module.resource {
-                if let Some(decl) = module.idents.get(&ty.ident) {
-                    local_decls.insert(*decl);
-                    continue;
-                } else {
-                    return Err(E::MissingDecl(ext_res, ty.ident.name().to_string()));
-                }
-            }
-
-            // get or load the external module
-            let ext_mod = load_module(&ext_res, &mut HashSet::new(), resolutions, resolver)?;
-            let mut ext_mod = ext_mod
-                .try_borrow_mut()
-                .map_err(|_| E::CircularDependency(module.resource.clone()))?;
-            let ext_mod = ext_mod.deref_mut();
-
-            // get the ident of the external declaration pointed to by the type
-            let (ext_id, ext_decl) = ext_mod
-                .idents
-                .iter()
-                .find(|(id, _)| *id.name() == *ext_id.name())
-                .map(|(id, decl)| (id.clone(), *decl))
-                .ok_or_else(|| E::MissingDecl(ext_res.clone(), ext_id.to_string()))?;
-
-            if !ext_mod.treated_idents.contains(&ext_id) {
-                extern_decls
-                    .entry(ext_res)
-                    .or_insert(Default::default())
-                    .insert(ext_decl);
-            }
-
-            ty.path = None;
-            ty.ident = ext_id;
+            resolve_ty(
+                &module.resource,
+                &module.imports,
+                &module.idents,
+                &module.treated_idents,
+                ty,
+                local_decls,
+                extern_decls,
+                resolutions,
+                resolver,
+            )?;
         }
 
         Ok(())

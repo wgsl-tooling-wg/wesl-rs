@@ -1,4 +1,4 @@
-use super::{is_constructor_fn, Scope, SyntaxUtil};
+use super::{Scope, SyntaxUtil};
 use itertools::Itertools;
 use wgsl_parse::{span::Spanned, syntax::*};
 
@@ -27,8 +27,8 @@ pub(crate) fn mark_functions_const(wesl: &mut TranslationUnit) {
 }
 
 pub fn is_function_const(decl: &Function, wesl: &TranslationUnit) -> bool {
-    let mut locals = Locals::new();
     decl.attributes.contains(&Attribute::Const) || {
+        let mut locals = Locals::new();
         decl.attributes.is_const(wesl, &mut locals)
             && decl.parameters.is_const(wesl, &mut locals)
             && decl.return_attributes.is_const(wesl, &mut locals)
@@ -261,7 +261,7 @@ impl IsConst for FunctionCall {
                 // TODO: this is not optimal as it will be recomputed for the same functions.
                 is_function_const(decl, wesl)
             } else {
-                is_constructor_fn(&fn_name)
+                false
             }
         }
     }

@@ -692,7 +692,6 @@ impl CompileResult {
         overrides: HashMap<String, eval::Instance>,
     ) -> Result<ExecResult, Error> {
         // TODO: this is not the right way.
-        // BUG: this is no longer working because of Ident PartialEq impl
         let expr = syntax::Expression::FunctionCall(syntax::FunctionCall {
             ty: syntax::TypeExpression::new(Ident::new(entrypoint.to_string())),
             arguments: Vec::new(),

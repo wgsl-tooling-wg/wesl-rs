@@ -92,6 +92,8 @@ pub enum EvalError {
     // functions
     #[error("unknown function `{0}`")]
     UnknownFunction(String),
+    #[error("declaration `{0}` is not callable")]
+    NotCallable(String),
     #[error("invalid function call signature: `{0}({})`", (.1).iter().format(", "))]
     Signature(TypeExpression, Vec<Type>),
     #[error("{0}")]

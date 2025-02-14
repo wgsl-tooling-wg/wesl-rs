@@ -1,13 +1,13 @@
 use std::iter::zip;
 
 use crate::{
-    eval::{ty_eval_ty, Context, Eval, EvalError, Exec, Ty, Type},
+    eval::{ty_eval_ty, Context, Eval, EvalError, Exec, Ty, Type, ATTR_INTRINSIC},
     visit::Visit,
 };
 use wesl_macros::query_mut;
 use wgsl_parse::{span::Spanned, syntax::*};
 
-use super::{is_constructor_fn, to_expr::ToExpr, SyntaxUtil, EXPR_FALSE, EXPR_TRUE};
+use super::{to_expr::ToExpr, with_scope, SyntaxUtil, EXPR_FALSE, EXPR_TRUE};
 
 type E = EvalError;
 
@@ -17,14 +17,18 @@ pub fn make_explicit_conversions(wesl: &mut TranslationUnit, ctx: &mut Context) 
     fn explicit_call(call: &mut FunctionCall, ctx: &mut Context) -> Result<(), E> {
         let decl = ctx.source.decl_function(&*call.ty.ident.name());
         if let Some(decl) = decl {
-            for (arg, param) in zip(&mut call.arguments, &decl.parameters) {
-                let ty = ty_eval_ty(&param.ty, ctx)?;
-                if ty.inner_ty().is_scalar() {
-                    let ty = ty.to_expr(ctx)?.unwrap_type_or_identifier();
-                    *arg.node_mut() = Expression::FunctionCall(FunctionCall {
-                        ty,
-                        arguments: vec![arg.clone()],
-                    })
+            // we only do explicit conversions on user-defined functions,
+            // because built-in functions have overloads for abstract types.
+            if !decl.body.attributes.contains(&ATTR_INTRINSIC) {
+                for (arg, param) in zip(&mut call.arguments, &decl.parameters) {
+                    let ty = ty_eval_ty(&param.ty, ctx)?;
+                    if ty.inner_ty().is_scalar() {
+                        let ty = ty.to_expr(ctx)?.unwrap_type_or_identifier();
+                        *arg.node_mut() = Expression::FunctionCall(FunctionCall {
+                            ty,
+                            arguments: vec![arg.clone()],
+                        })
+                    }
                 }
             }
         }
@@ -90,7 +94,7 @@ impl<T: Lower> Lower for Spanned<T> {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
         self.node_mut()
             .lower(ctx)
-            .inspect_err(|_| ctx.set_err_expr_ctx(self.span()))?;
+            .inspect_err(|_| ctx.set_err_span_ctx(self.span()))?;
         Ok(())
     }
 }
@@ -325,8 +329,6 @@ impl Lower for Statement {
                     } else {
                         stmt.lower(ctx)?
                     }
-                } else if is_constructor_fn(&stmt.call.ty.ident.name()) {
-                    *self = Statement::Void; // a const function has no side-effects
                 } else {
                     stmt.lower(ctx)?
                 }
@@ -349,9 +351,12 @@ impl Lower for Statement {
 impl Lower for CompoundStatement {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
         self.attributes.lower(ctx)?;
-        for stmt in &mut self.statements {
-            stmt.lower(ctx)?;
-        }
+        with_scope!(ctx, {
+            for stmt in &mut self.statements {
+                stmt.lower(ctx)?;
+            }
+            Ok(())
+        })?;
         self.statements.retain(|stmt| match stmt.node() {
             Statement::Void => false,
             Statement::Compound(_) => true,

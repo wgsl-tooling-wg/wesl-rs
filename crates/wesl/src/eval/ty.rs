@@ -1,16 +1,16 @@
 use std::str::FromStr;
 
 use super::{
-    builtin_fn_type, convert_ty, is_builtin_fn, ArrayInstance, ArrayTemplate, AtomicInstance,
-    AtomicTemplate, Context, Convert, EvalError, Instance, LiteralInstance, MatInstance,
-    MatTemplate, PtrInstance, PtrTemplate, RefInstance, StructInstance, SyntaxUtil,
-    TextureTemplate, VecInstance, VecTemplate,
+    builtin_fn_type, constructor_type, convert_ty, is_constructor_fn, ArrayInstance, ArrayTemplate,
+    AtomicInstance, AtomicTemplate, Context, Convert, EvalError, Instance, LiteralInstance,
+    MatInstance, MatTemplate, PtrInstance, PtrTemplate, RefInstance, StructInstance, SyntaxUtil,
+    TextureTemplate, VecInstance, VecTemplate, ATTR_INTRINSIC,
 };
 
 type E = EvalError;
 
 use derive_more::derive::{IsVariant, Unwrap};
-use wgsl_parse::syntax::*;
+use wgsl_parse::{span::Spanned, syntax::*};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant, Unwrap)]
 pub enum SampledType {
@@ -471,6 +471,8 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
     else {
         match name {
             "bool" => Ok(Type::Bool),
+            "__AbstractInt" => Ok(Type::AbstractInt),
+            "__AbstractFloat" => Ok(Type::AbstractFloat),
             "i32" => Ok(Type::I32),
             "u32" => Ok(Type::U32),
             "f32" => Ok(Type::F32),
@@ -483,6 +485,14 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
             "sampler_comparison" => Ok(Type::Sampler(SamplerType::SamplerComparison)),
             _ => Err(E::UnknownType(name.to_string())),
         }
+    }
+}
+
+impl<T: EvalTy> EvalTy for Spanned<T> {
+    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
+        self.node().eval_ty(ctx).inspect_err(|_| {
+            ctx.set_err_span_ctx(self.span());
+        })
     }
 }
 
@@ -559,7 +569,6 @@ impl EvalTy for Expression {
                 let inner = convert_ty(&ty1.inner_ty(), &ty2.inner_ty())
                     .ok_or_else(|| E::Binary(expr.operator, ty1.clone(), ty2.clone()))?
                     .clone();
-                println!("{ty1} {ty2} {inner}");
                 let ty1 = ty1.convert_inner_to(&inner).unwrap();
                 let ty2 = ty2.convert_inner_to(&inner).unwrap();
 
@@ -567,18 +576,45 @@ impl EvalTy for Expression {
                     && (ty2.is_vec() || ty2.is_numeric())
                     && inner.is_numeric();
 
+                type BinOp = BinaryOperator;
+
                 Ok(match expr.operator {
                     BinaryOperator::ShortCircuitOr | BinaryOperator::ShortCircuitAnd
                         if ty1.is_bool() && ty1 == ty2 =>
                     {
                         Type::Bool
                     }
-                    BinaryOperator::Addition if (is_num || ty1.is_mat()) && ty1 == ty2 => ty1,
-                    BinaryOperator::Subtraction if (is_num || ty1.is_mat()) && ty1 == ty2 => ty1,
-                    BinaryOperator::Multiplication => match (ty1, ty2) {
-                        (ty1, _) if is_num => ty1,
-                        (ty1, ty2) if ty1.is_mat() && ty2.is_float() => ty1,
-                        (ty1, ty2) if ty1.is_float() && ty2.is_mat() => ty2,
+                    BinOp::Addition
+                    | BinOp::Subtraction
+                    | BinOp::Multiplication
+                    | BinOp::Division
+                    | BinOp::Remainder
+                        if is_num && ty1 == ty2 =>
+                    {
+                        ty1
+                    }
+                    BinOp::Addition
+                    | BinOp::Subtraction
+                    | BinOp::Multiplication
+                    | BinOp::Division
+                    | BinOp::Remainder
+                        if is_num && ty1.is_vec() =>
+                    {
+                        ty1
+                    }
+                    BinOp::Addition
+                    | BinOp::Subtraction
+                    | BinOp::Multiplication
+                    | BinOp::Division
+                    | BinOp::Remainder
+                        if is_num && ty2.is_vec() =>
+                    {
+                        ty2
+                    }
+                    BinOp::Addition | BinOp::Subtraction if ty1.is_mat() && ty1 == ty2 => ty1,
+                    BinOp::Multiplication if ty1.is_mat() && ty2.is_float() => ty1,
+                    BinOp::Multiplication if ty1.is_float() && ty2.is_mat() => ty2,
+                    BinOp::Multiplication => match (ty1, ty2) {
                         (Type::Mat(c, r, _), Type::Vec(n, _)) if n == c => {
                             Type::Vec(r, Box::new(inner))
                         }
@@ -590,36 +626,31 @@ impl EvalTy for Expression {
                         }
                         (ty1, ty2) => return Err(E::Binary(expr.operator, ty1, ty2)),
                     },
-                    BinaryOperator::Division | BinaryOperator::Remainder if is_num => ty1,
-                    BinaryOperator::Equality | BinaryOperator::Inequality if ty1.is_scalar() => {
-                        Type::Bool
-                    }
-                    BinaryOperator::Equality | BinaryOperator::Inequality
-                        if ty1.is_vec() && ty1 == ty2 =>
-                    {
+                    BinOp::Equality | BinOp::Inequality if ty1.is_scalar() => Type::Bool,
+                    BinOp::Equality | BinOp::Inequality if ty1.is_vec() && ty1 == ty2 => {
                         Type::Vec(ty1.unwrap_vec().0, Box::new(Type::Bool))
                     }
-                    BinaryOperator::LessThan
-                    | BinaryOperator::LessThanEqual
-                    | BinaryOperator::GreaterThan
-                    | BinaryOperator::GreaterThanEqual
+                    BinOp::LessThan
+                    | BinOp::LessThanEqual
+                    | BinOp::GreaterThan
+                    | BinOp::GreaterThanEqual
                         if ty1.is_numeric() =>
                     {
                         Type::Bool
                     }
-                    BinaryOperator::LessThan
-                    | BinaryOperator::LessThanEqual
-                    | BinaryOperator::GreaterThan
-                    | BinaryOperator::GreaterThanEqual
+                    BinOp::LessThan
+                    | BinOp::LessThanEqual
+                    | BinOp::GreaterThan
+                    | BinOp::GreaterThanEqual
                         if ty1.is_vec() && ty1 == ty2 =>
                     {
                         Type::Vec(ty1.unwrap_vec().0, Box::new(Type::Bool))
                     }
-                    BinaryOperator::BitwiseOr
-                    | BinaryOperator::BitwiseAnd
-                    | BinaryOperator::BitwiseXor
-                    | BinaryOperator::ShiftLeft
-                    | BinaryOperator::ShiftRight
+                    BinOp::BitwiseOr
+                    | BinOp::BitwiseAnd
+                    | BinOp::BitwiseXor
+                    | BinOp::ShiftLeft
+                    | BinOp::ShiftRight
                         if ty1.is_integer() || ty1.is_vec() && inner.is_integer() && ty1 == ty2 =>
                     {
                         ty1
@@ -628,20 +659,40 @@ impl EvalTy for Expression {
                 })
             }
             Expression::FunctionCall(call) => {
-                if let Some(decl) = ctx.source.decl_function(&call.ty.ident.name()) {
-                    decl.return_type
-                        .as_ref()
-                        .map(|ty| ty_eval_ty(ty, ctx))
-                        .unwrap_or(Ok(Type::Void))
-                } else if is_builtin_fn(&call.ty.ident.name()) {
+                let ty = ctx.source.resolve_ty(&call.ty);
+                if let Some(decl) = ctx.source.decl(&ty.ident.name()) {
+                    match decl {
+                        GlobalDeclaration::Struct(decl) => {
+                            // TODO: check member types
+                            Ok(Type::Struct(decl.ident.to_string()))
+                        }
+                        GlobalDeclaration::Function(decl) => {
+                            if decl.body.attributes.contains(&ATTR_INTRINSIC) {
+                                let args = call
+                                    .arguments
+                                    .iter()
+                                    .map(|arg| arg.eval_ty(ctx))
+                                    .collect::<Result<Vec<_>, _>>()?;
+                                builtin_fn_type(&call.ty, &args, ctx)
+                            } else {
+                                // TODO: check argument types
+                                decl.return_type
+                                    .as_ref()
+                                    .map(|ty| ty_eval_ty(ty, ctx))
+                                    .unwrap_or(Ok(Type::Void))
+                            }
+                        }
+                        _ => Err(E::NotCallable(ty.to_string())),
+                    }
+                } else if is_constructor_fn(&ty.ident.name()) {
                     let args = call
                         .arguments
                         .iter()
                         .map(|arg| arg.eval_ty(ctx))
                         .collect::<Result<Vec<_>, _>>()?;
-                    builtin_fn_type(&call.ty, &args, ctx)
+                    constructor_type(ty, &args, ctx)
                 } else {
-                    Err(E::UnknownFunction(call.ty.ident.to_string()))
+                    Err(E::UnknownFunction(ty.ident.to_string()))
                 }
             }
             Expression::TypeOrIdentifier(ty) => ty.eval_ty(ctx),

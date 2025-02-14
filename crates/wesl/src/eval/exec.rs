@@ -7,7 +7,7 @@ use super::{
     Instance, LiteralInstance, RefInstance, ScopeKind, Ty, Type,
 };
 
-use wgsl_parse::syntax::*;
+use wgsl_parse::{span::Spanned, syntax::*};
 
 type E = EvalError;
 
@@ -56,12 +56,10 @@ pub trait Exec {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E>;
 }
 
-impl Exec for StatementNode {
+impl<T: Exec> Exec for Spanned<T> {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         self.node().exec(ctx).inspect_err(|_| {
-            if ctx.err_expr.is_none() {
-                ctx.err_expr = Some(self.span().clone());
-            }
+            ctx.set_err_span_ctx(self.span());
         })
     }
 }
@@ -153,16 +151,19 @@ pub(crate) fn compound_exec_no_scope(
     stmt: &CompoundStatement,
     ctx: &mut Context,
 ) -> Result<Flow, E> {
-    for stmt in &stmt.statements {
-        let flow = stmt.exec(ctx)?;
-        match flow {
-            Flow::Next => (),
-            Flow::Break | Flow::Continue | Flow::Return(_) => {
-                return Ok(flow);
+    with_scope!(ctx, {
+        ctx.scope.make_transparent();
+        for stmt in &stmt.statements {
+            let flow = stmt.exec(ctx)?;
+            match flow {
+                Flow::Next => (),
+                Flow::Break | Flow::Continue | Flow::Return(_) => {
+                    return Ok(flow);
+                }
             }
         }
-    }
-    Ok(Flow::Next)
+        Ok(Flow::Next)
+    })
 }
 
 impl Exec for AssignmentStatement {
@@ -531,7 +532,6 @@ impl Exec for Declaration {
             (None, None) => return Err(E::UntypedDecl),
             (None, Some(init)) => {
                 let ty = init.eval_ty(ctx)?;
-                println!("{ty} {init}");
                 if self.kind.is_const() {
                     ty // only const declarations can be of abstract type.
                 } else {

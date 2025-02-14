@@ -88,6 +88,12 @@ impl_visit! { Expression => TypeExpression,
     }
 }
 
+impl_visit! { TypeExpression => TypeExpression,
+    {
+        template_args.[].[].expression.(x => visit::<Expression, TypeExpression>(x))
+    }
+}
+
 impl_visit! { Statement => Attributes,
     {
         Statement::Compound.{ attributes, statements.[].(x => recurse(x)) },

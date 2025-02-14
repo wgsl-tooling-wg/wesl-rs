@@ -37,7 +37,8 @@ alias mat4x3h = mat4x3<f16>;
 alias mat4x4h = mat4x4<f16>;
 
 // @internal declarations become prefixed with __, which is not representable in WGSL source
-// therefore it avoids name collisions.
+// therefore it avoids name collisions. AbatractInt and AbstractFloat can be spelled and become
+// prefixed too.
 @internal struct frexp_result_f32 { fract: f32, exp: i32 }
 @internal struct frexp_result_f16 { fract: f16, exp: i32 }
 @internal struct frexp_result_abstract { fract: AbstractFloat, exp: AbstractInt }
@@ -63,6 +64,26 @@ alias mat4x4h = mat4x4<f16>;
 @internal struct modf_result_vec3_abstract { fract: vec3<AbstractFloat>, whole: vec3<AbstractFloat> }
 @internal struct modf_result_vec4_abstract { fract: vec4<AbstractFloat>, whole: vec4<AbstractFloat> }
 @internal @generic(T) struct atomic_compare_exchange_result { old_value: T, exchanged: bool }
+
+// constructors
+// @const @must_use fn array() @intrinsic {}
+// @const @must_use fn bool() @intrinsic {}
+// @const @must_use fn i32() @intrinsic {}
+// @const @must_use fn u32() @intrinsic {}
+// @const @must_use fn f32() @intrinsic {}
+// @const @must_use fn f16() @intrinsic {}
+// @const @must_use fn mat2x2() @intrinsic {}
+// @const @must_use fn mat2x3() @intrinsic {}
+// @const @must_use fn mat2x4() @intrinsic {}
+// @const @must_use fn mat3x2() @intrinsic {}
+// @const @must_use fn mat3x3() @intrinsic {}
+// @const @must_use fn mat3x4() @intrinsic {}
+// @const @must_use fn mat4x2() @intrinsic {}
+// @const @must_use fn mat4x3() @intrinsic {}
+// @const @must_use fn mat4x4() @intrinsic {}
+// @const @must_use fn vec2() @intrinsic {}
+// @const @must_use fn vec3() @intrinsic {}
+// @const @must_use fn vec4() @intrinsic {}
 
 // bitcast
 @const @must_use fn bitcast() @intrinsic {}
