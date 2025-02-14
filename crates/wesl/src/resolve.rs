@@ -98,11 +98,11 @@ impl Resource {
             Resource::new(path)
         })
     }
-    pub fn is_absolute(&self) -> bool {
-        self.path.is_absolute()
+    pub fn is_relative(&self) -> bool {
+        self.first() == Some(".")
     }
     pub fn absolute(mut self) -> Resource {
-        if !self.is_absolute() {
+        if self.is_relative() {
             self.path = PathBuf::from_iter(self.path.into_iter().skip(1));
             self
         } else {
