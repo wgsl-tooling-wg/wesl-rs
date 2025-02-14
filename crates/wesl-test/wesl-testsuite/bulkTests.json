@@ -1,0 +1,53 @@
+[
+  {
+    "name": "webgpu-samples",
+    "baseDir": "webgpu-samples",
+    "globInclude": [
+      "**/*.wgsl"
+    ],
+    "exclude": [
+      "skinnedMesh",
+      "cornell"
+    ]
+  },
+  {
+    "name": "boat_attack",
+    "baseDir": "unity_web_research/webgpu/wgsl/boat_attack",
+    "include": [
+      "unity_webgpu_0000020A44565050.fs.wgsl",
+      "unity_webgpu_000001FD4EFA3030.fs.wgsl",
+      "unity_webgpu_0000014DFB395020.fs.wgsl",
+      "unity_webgpu_0000017E9E2D81A0.vs.wgsl",
+      "unity_webgpu_00000277907BA020.fs.wgsl",
+      "unity_webgpu_000002778F64B030.vs.wgsl",
+      "unity_webgpu_000001F972AC3D10.vs.wgsl",
+      "unity_webgpu_0000026E57303490.fs.wgsl",
+      "unity_webgpu_0000027790A29030.fs.wgsl",
+      "unity_webgpu_0000020A452CBA00.vs.wgsl",
+      "unity_webgpu_0000026E59EE1060.fs.wgsl",
+      "unity_webgpu_0000027196735090.vs.wgsl",
+      "unity_webgpu_0000014C8AC70090.vs.wgsl",
+      "unity_webgpu_0000026E5684E3F0.vs.wgsl",
+      "unity_webgpu_000001AC1A2104D0.vs.wgsl",
+      "unity_webgpu_000002778F5FFAB0.cs.wgsl",
+      "unity_webgpu_00000232C7146770.vs.wgsl",
+      "unity_webgpu_0000014C881FEE40.fs.wgsl",
+      "unity_webgpu_00000232C59F6510.fs.wgsl",
+      "unity_webgpu_000002778F5A9CB0.vs.wgsl",
+      "unity_webgpu_0000026E55136DB0.vs.wgsl",
+      "unity_webgpu_0000017E9CE2DAA0.fs.wgsl"
+    ]
+  },
+  {
+    "name": "alpenglow",
+    "baseDir": "alpenglow-example-wgsl",
+    "globInclude": [
+      "*.wgsl"
+    ],
+    "exclude": [
+      "vec2u_radix_ex_02_scan_reduce",
+      "rasterize_02_tile",
+      "rasterize_01_atomic_initialize_addresses"
+    ]
+  }
+]
