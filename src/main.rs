@@ -308,10 +308,11 @@ struct ExecArgs {
     /// Output as binary (WGSL memory representation) for storable types
     #[arg(short, long = "out-binary")]
     binary: bool,
+    /// Function name to execute
+    #[arg(long, default_value = "main")]
+    entrypoint: String,
     /// WESL entrypoint module to evaluate the expression into
     file: Option<PathBuf>,
-    /// Function name to execute
-    entrypoint: String,
 }
 
 #[derive(Args, Clone, Debug)]
