@@ -16,11 +16,11 @@ use crate::{
 
 use super::{
     conv::{convert_all, Convert},
-    convert, convert_all_inner_to, convert_all_ty,
+    convert, convert_all_inner_to, convert_all_to, convert_all_ty,
     ops::Compwise,
     ty_eval_ty, ArrayInstance, EvalError, EvalStage, Instance, LiteralInstance, MatInstance,
-    RefInstance, SampledType, StructInstance, SyntaxUtil, TexelFormat, TextureType, Ty, Type,
-    VecInstance,
+    RefInstance, SampledType, SamplerType, StructInstance, SyntaxUtil, TexelFormat, TextureType,
+    Ty, Type, VecInstance,
 };
 
 type E = EvalError;
@@ -30,7 +30,7 @@ type E = EvalError;
 pub static EXPR_TRUE: Expression = Expression::Literal(LiteralExpression::Bool(true));
 pub static EXPR_FALSE: Expression = Expression::Literal(LiteralExpression::Bool(false));
 
-pub fn builtin_ident(name: &str) -> Option<&Ident> {
+pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
     macro_rules! ident {
         ($name:literal) => {
             ($name, Ident::new($name.to_string()))
@@ -109,6 +109,92 @@ pub fn builtin_ident(name: &str) -> Option<&Ident> {
         ])
     });
     IDENTS.get(name)
+}
+
+pub trait BuiltinIdent {
+    fn builtin_ident(&self) -> Option<&'static Ident>;
+}
+
+impl BuiltinIdent for Type {
+    fn builtin_ident(&self) -> Option<&'static Ident> {
+        match self {
+            Type::Bool => builtin_ident("bool"),
+            Type::AbstractInt => builtin_ident("__AbstractInt"),
+            Type::AbstractFloat => builtin_ident("__AbstractFloat"),
+            Type::I32 => builtin_ident("i32"),
+            Type::U32 => builtin_ident("u32"),
+            Type::F32 => builtin_ident("f32"),
+            Type::F16 => builtin_ident("f16"),
+            Type::Struct(_) => None,
+            Type::Array(_, _) => builtin_ident("array"),
+            Type::Vec(n, _) => match n {
+                2 => builtin_ident("vec2"),
+                3 => builtin_ident("vec2"),
+                4 => builtin_ident("vec2"),
+                _ => unreachable!("vec must be 2 3 or 4 components"),
+            },
+            Type::Mat(c, r, _) => match (c, r) {
+                (2, 2) => builtin_ident("mat2x2"),
+                (2, 3) => builtin_ident("mat2x3"),
+                (2, 4) => builtin_ident("mat2x4"),
+                (3, 2) => builtin_ident("mat3x2"),
+                (3, 3) => builtin_ident("mat3x3"),
+                (3, 4) => builtin_ident("mat3x4"),
+                (4, 2) => builtin_ident("mat4x2"),
+                (4, 3) => builtin_ident("mat4x3"),
+                (4, 4) => builtin_ident("mat4x4"),
+                _ => unreachable!("mat must be 2 3 or 4 components"),
+            },
+            Type::Atomic(_) => builtin_ident("atomic"),
+            Type::Ptr(_, _) => builtin_ident("ptr"),
+            Type::Texture(texture_type) => texture_type.builtin_ident(),
+            Type::Sampler(sampler_type) => sampler_type.builtin_ident(),
+            Type::Void => None,
+        }
+    }
+}
+
+impl BuiltinIdent for TextureType {
+    fn builtin_ident(&self) -> Option<&'static Ident> {
+        builtin_ident(match self {
+            TextureType::Sampled1D(_) => "texture_1d",
+            TextureType::Sampled2D(_) => "texture_2d",
+            TextureType::Sampled2DArray(_) => "texture_2d_array",
+            TextureType::Sampled3D(_) => "texture_3d",
+            TextureType::SampledCube(_) => "texture_cube",
+            TextureType::SampledCubeArray(_) => "texture_cube_array",
+            TextureType::Multisampled2D(_) => "texture_multisampled_2d",
+            TextureType::DepthMultisampled2D => "texture_depth_multisampled_2d",
+            TextureType::External => "texture_external",
+            TextureType::Storage1D(_, _) => "texture_storage_1d",
+            TextureType::Storage2D(_, _) => "texture_storage_2d",
+            TextureType::Storage2DArray(_, _) => "texture_storage_2d_array",
+            TextureType::Storage3D(_, _) => "texture_storage_3d",
+            TextureType::Depth2D => "texture_depth_2d",
+            TextureType::Depth2DArray => "texture_depth_2d_array",
+            TextureType::DepthCube => "texture_depth_cube",
+            TextureType::DepthCubeArray => "texture_depth_cube_array",
+        })
+    }
+}
+
+impl BuiltinIdent for SamplerType {
+    fn builtin_ident(&self) -> Option<&'static Ident> {
+        match self {
+            SamplerType::Sampler => builtin_ident("sampler"),
+            SamplerType::SamplerComparison => builtin_ident("sampler_comparison"),
+        }
+    }
+}
+
+impl BuiltinIdent for SampledType {
+    fn builtin_ident(&self) -> Option<&'static Ident> {
+        match self {
+            SampledType::I32 => builtin_ident("i32"),
+            SampledType::U32 => builtin_ident("u32"),
+            SampledType::F32 => builtin_ident("f32"),
+        }
+    }
 }
 
 pub static ATTR_INTRINSIC: LazyLock<Attribute> = LazyLock::new(|| {
@@ -202,9 +288,9 @@ fn mat_ctor_ty_t(c: u8, r: u8, tplt: MatTemplate, args: &[Type]) -> Result<Type,
         }
         let ty =
             convert_all_ty(args).ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
-        if !ty.is_convertible_to(tplt.inner_ty()) {
-            return Err(E::Builtin("matrix components are incompatible"));
-        }
+        let ty = ty
+            .convert_inner_to(tplt.inner_ty())
+            .ok_or_else(|| E::Conversion(ty.inner_ty(), tplt.inner_ty().clone()))?;
 
         // overload 2: mat from column vectors
         if ty.is_vec() {
@@ -212,15 +298,15 @@ fn mat_ctor_ty_t(c: u8, r: u8, tplt: MatTemplate, args: &[Type]) -> Result<Type,
                 return Err(E::ParamCount(format!("mat{c}x{r}"), c as usize, args.len()));
             }
         }
-        // overload 3: mat from scalar values
-        else if ty.is_scalar() {
+        // overload 3: mat from float values
+        else if ty.is_float() {
             let n = c as usize * r as usize;
             if args.len() != n {
                 return Err(E::ParamCount(format!("mat{c}x{r}"), n, args.len()));
             }
         } else {
             return Err(E::Builtin(
-                "matrix constructor expects scalar or vector arguments",
+                "matrix constructor expects float or vector of float arguments",
             ));
         }
     }
@@ -241,7 +327,7 @@ fn mat_ctor_ty(c: u8, r: u8, args: &[Type]) -> Result<Type, E> {
             convert_all_ty(args).ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
         let inner_ty = ty.inner_ty();
 
-        if !inner_ty.is_float() {
+        if !inner_ty.is_float() && !inner_ty.is_abstract_int() {
             return Err(E::Builtin(
                 "matrix constructor expects float or vector of float arguments",
             ));
@@ -253,15 +339,15 @@ fn mat_ctor_ty(c: u8, r: u8, args: &[Type]) -> Result<Type, E> {
                 return Err(E::ParamCount(format!("mat{c}x{r}"), c as usize, args.len()));
             }
         }
-        // overload 3: mat from scalar values
-        else if ty.is_scalar() {
+        // overload 3: mat from float values
+        else if ty.is_float() || ty.is_abstract_int() {
             let n = c as usize * r as usize;
             if args.len() != n {
                 return Err(E::ParamCount(format!("mat{c}x{r}"), n, args.len()));
             }
         } else {
             return Err(E::Builtin(
-                "matrix constructor expects scalar or vector arguments",
+                "matrix constructor expects float or vector of float arguments",
             ));
         }
 
@@ -1452,12 +1538,15 @@ fn call_mat_t(
 
         Ok(MatInstance::from_cols(comps).into())
     } else {
-        let args = convert_all_inner_to(args, tplt.inner_ty())
-            .ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
         let ty = args
             .first()
             .ok_or_else(|| E::Builtin("matrix constructor expects arguments"))?
             .ty();
+        let ty = ty
+            .convert_inner_to(tplt.inner_ty())
+            .ok_or_else(|| E::Conversion(ty.inner_ty(), tplt.inner_ty().clone()))?;
+        let args = convert_all_to(args, &ty)
+            .ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
 
         // overload 2: mat from column vectors
         if ty.is_vec() {
@@ -1467,8 +1556,8 @@ fn call_mat_t(
 
             Ok(MatInstance::from_cols(args).into())
         }
-        // overload 3: mat from scalar values
-        else if ty.is_scalar() {
+        // overload 3: mat from float values
+        else if ty.is_float() {
             if args.len() != c * r {
                 return Err(E::ParamCount(format!("mat{c}x{r}"), c * r, args.len()));
             }
@@ -1481,7 +1570,7 @@ fn call_mat_t(
             Ok(MatInstance::from_cols(args).into())
         } else {
             return Err(E::Builtin(
-                "matrix constructor expects scalar or vector arguments",
+                "matrix constructor expects float or vector of float arguments",
             ));
         }
     }
@@ -1500,9 +1589,12 @@ fn call_mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
         let tys = args.iter().map(|a| a.ty()).collect_vec();
         let ty =
             convert_all_ty(&tys).ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
-        let inner_ty = ty.inner_ty();
+        let mut inner_ty = ty.inner_ty();
 
-        if !inner_ty.is_float() {
+        if inner_ty.is_abstract_int() {
+            // force conversion from AbstractInt to a float type
+            inner_ty = Type::AbstractInt;
+        } else if !inner_ty.is_float() {
             return Err(E::Builtin(
                 "matrix constructor expects float or vector of float arguments",
             ));
@@ -1519,8 +1611,8 @@ fn call_mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
 
             Ok(MatInstance::from_cols(args).into())
         }
-        // overload 3: mat from scalar values
-        else if ty.is_scalar() {
+        // overload 3: mat from float values
+        else if ty.is_float() || ty.is_abstract_int() {
             if args.len() != c * r {
                 return Err(E::ParamCount(format!("mat{c}x{r}"), c * r, args.len()));
             }
@@ -1532,7 +1624,7 @@ fn call_mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
             Ok(MatInstance::from_cols(args).into())
         } else {
             return Err(E::Builtin(
-                "matrix constructor expects scalar or vector arguments",
+                "matrix constructor expects float or vector of float arguments",
             ));
         }
     }

@@ -317,6 +317,16 @@ impl MatInstance {
     pub fn iter_cols_mut(&mut self) -> impl Iterator<Item = &mut Instance> {
         self.components.iter_mut()
     }
+    pub fn iter(&self) -> impl Iterator<Item = &Instance> {
+        self.components
+            .iter()
+            .flat_map(|v| v.unwrap_vec_ref().iter())
+    }
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut Instance> {
+        self.components
+            .iter_mut()
+            .flat_map(|v| v.unwrap_vec_mut().iter_mut())
+    }
 }
 impl IntoIterator for MatInstance {
     type Item = Instance;

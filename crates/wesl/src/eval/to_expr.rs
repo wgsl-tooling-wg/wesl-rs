@@ -1,6 +1,6 @@
 use super::{
-    builtin_ident, ArrayInstance, LiteralInstance, MatInstance, SamplerType, StructInstance,
-    SyntaxUtil, TextureType, Type, VecInstance,
+    builtin_ident, ArrayInstance, BuiltinIdent, LiteralInstance, MatInstance, StructInstance,
+    SyntaxUtil, TextureType, Ty, Type, VecInstance,
 };
 use crate::eval::{Context, EvalError, Instance};
 use wgsl_parse::{span::Spanned, syntax::*};
@@ -72,7 +72,7 @@ impl ToExpr for StructInstance {
 impl ToExpr for ArrayInstance {
     fn to_expr(&self, ctx: &Context) -> Result<Expression, E> {
         Ok(Expression::FunctionCall(FunctionCall {
-            ty: TypeExpression::new(Ident::new("array".to_string())),
+            ty: TypeExpression::new(builtin_ident("array").unwrap().clone()),
             arguments: self
                 .iter()
                 .map(|c| c.to_expr(ctx).map(Spanned::from))
@@ -84,7 +84,7 @@ impl ToExpr for ArrayInstance {
 impl ToExpr for VecInstance {
     fn to_expr(&self, ctx: &Context) -> Result<Expression, E> {
         Ok(Expression::FunctionCall(FunctionCall {
-            ty: TypeExpression::new(Ident::new(format!("vec{}", self.n()))),
+            ty: TypeExpression::new(self.ty().builtin_ident().unwrap().clone()),
             arguments: self
                 .iter()
                 .map(|c| c.to_expr(ctx).map(Spanned::from))
@@ -96,9 +96,9 @@ impl ToExpr for VecInstance {
 impl ToExpr for MatInstance {
     fn to_expr(&self, ctx: &Context) -> Result<Expression, E> {
         Ok(Expression::FunctionCall(FunctionCall {
-            ty: TypeExpression::new(Ident::new(format!("mat{}x{}", self.c(), self.r()))),
+            ty: TypeExpression::new(self.ty().builtin_ident().unwrap().clone()),
             arguments: self
-                .iter_cols()
+                .iter() // could also use iter_cols here to output matCxR(VecR(), ...)
                 .map(|c| c.to_expr(ctx).map(Spanned::from))
                 .collect::<Result<Vec<_>, _>>()?,
         }))
@@ -107,17 +107,18 @@ impl ToExpr for MatInstance {
 
 impl ToExpr for Type {
     fn to_expr(&self, ctx: &Context) -> Result<Expression, E> {
+        let ident = self.builtin_ident().cloned();
         match self {
-            Type::Bool => Ok(TypeExpression::new(builtin_ident("bool").unwrap().clone())),
+            Type::Bool => Ok(TypeExpression::new(ident.unwrap())),
             Type::AbstractInt => Err(E::NotConstructible(Type::AbstractInt)),
             Type::AbstractFloat => Err(E::NotConstructible(Type::AbstractFloat)),
-            Type::I32 => Ok(TypeExpression::new(builtin_ident("i32").unwrap().clone())),
-            Type::U32 => Ok(TypeExpression::new(builtin_ident("u32").unwrap().clone())),
-            Type::F32 => Ok(TypeExpression::new(builtin_ident("f32").unwrap().clone())),
-            Type::F16 => Ok(TypeExpression::new(builtin_ident("f16").unwrap().clone())),
+            Type::I32 => Ok(TypeExpression::new(ident.unwrap())),
+            Type::U32 => Ok(TypeExpression::new(ident.unwrap())),
+            Type::F32 => Ok(TypeExpression::new(ident.unwrap())),
+            Type::F16 => Ok(TypeExpression::new(ident.unwrap())),
             Type::Struct(s) => Ok(TypeExpression::new(Ident::new(s.clone()))),
             Type::Array(Some(n), inner_ty) => {
-                let mut ty = TypeExpression::new(builtin_ident("array").unwrap().clone());
+                let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![
                     TemplateArg {
                         expression: inner_ty.to_expr(ctx)?.into(),
@@ -130,37 +131,35 @@ impl ToExpr for Type {
                 Ok(ty)
             }
             Type::Array(None, inner_ty) => {
-                let mut ty = TypeExpression::new(builtin_ident("f16").unwrap().clone());
+                let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![TemplateArg {
                     expression: inner_ty.to_expr(ctx)?.into(),
                 }]);
                 Ok(ty)
             }
-            Type::Vec(n, inner_ty) => {
-                let mut ty =
-                    TypeExpression::new(builtin_ident(&format!("vec{n}")).unwrap().clone());
+            Type::Vec(_, inner_ty) => {
+                let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![TemplateArg {
                     expression: inner_ty.to_expr(ctx)?.into(),
                 }]);
                 Ok(ty)
             }
-            Type::Mat(c, r, inner_ty) => {
-                let mut ty =
-                    TypeExpression::new(builtin_ident(&format!("mat{c}x{r}")).unwrap().clone());
+            Type::Mat(_, _, inner_ty) => {
+                let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![TemplateArg {
                     expression: inner_ty.to_expr(ctx)?.into(),
                 }]);
                 Ok(ty)
             }
             Type::Atomic(inner_ty) => {
-                let mut ty = TypeExpression::new(builtin_ident("atomic").unwrap().clone());
+                let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![TemplateArg {
                     expression: inner_ty.to_expr(ctx)?.into(),
                 }]);
                 Ok(ty)
             }
             Type::Ptr(space, inner_ty) => {
-                let mut ty = TypeExpression::new(builtin_ident("ptr").unwrap().clone());
+                let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![
                     TemplateArg {
                         expression: space.to_expr(ctx)?.into(),
@@ -172,26 +171,7 @@ impl ToExpr for Type {
                 Ok(ty)
             }
             Type::Texture(tex) => {
-                let name = match tex {
-                    TextureType::Sampled1D(_) => "texture_1d",
-                    TextureType::Sampled2D(_) => "texture_2d",
-                    TextureType::Sampled2DArray(_) => "texture_2d_array",
-                    TextureType::Sampled3D(_) => "texture_3d",
-                    TextureType::SampledCube(_) => "texture_cube",
-                    TextureType::SampledCubeArray(_) => "texture_cube_array",
-                    TextureType::Multisampled2D(_) => "texture_multisampled_2d",
-                    TextureType::DepthMultisampled2D => "texture_depth_multisampled_2d",
-                    TextureType::External => "texture_external",
-                    TextureType::Storage1D(_, _) => "texture_storage_1d",
-                    TextureType::Storage2D(_, _) => "texture_storage_2d",
-                    TextureType::Storage2DArray(_, _) => "texture_storage_2d_array",
-                    TextureType::Storage3D(_, _) => "texture_storage_3d",
-                    TextureType::Depth2D => "texture_depth_2d",
-                    TextureType::Depth2DArray => "texture_depth_2d_array",
-                    TextureType::DepthCube => "texture_depth_cube",
-                    TextureType::DepthCubeArray => "texture_depth_cube_array",
-                };
-                let mut ty = TypeExpression::new(builtin_ident(name).unwrap().clone());
+                let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = match tex {
                     TextureType::Sampled1D(sampled)
                     | TextureType::Sampled2D(sampled)
@@ -231,14 +211,7 @@ impl ToExpr for Type {
                 };
                 Ok(ty)
             }
-            Type::Sampler(sampler) => match sampler {
-                SamplerType::Sampler => Ok(TypeExpression::new(
-                    builtin_ident("sampler").unwrap().clone(),
-                )),
-                SamplerType::SamplerComparison => Ok(TypeExpression::new(
-                    builtin_ident("sampler_comparison").unwrap().clone(),
-                )),
-            },
+            Type::Sampler(_) => Ok(TypeExpression::new(ident.unwrap())),
             Type::Void => Err(E::NotConstructible(Type::Void)),
         }
         .map(Into::into)
