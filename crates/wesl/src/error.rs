@@ -396,8 +396,8 @@ impl Diagnostic<Error> {
                 | EvalError::MulOverflow
                 | EvalError::DivByZero
                 | EvalError::RemZeroDiv
-                | EvalError::ShlOverflow(_)
-                | EvalError::ShrOverflow(_)
+                | EvalError::ShlOverflow(_, _)
+                | EvalError::ShrOverflow(_, _)
                 | EvalError::Builtin(_)
                 | EvalError::TemplateArgs(_)
                 | EvalError::ReturnType(_, _)

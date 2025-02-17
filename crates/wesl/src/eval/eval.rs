@@ -254,8 +254,8 @@ impl Eval for BinaryExpression {
                 BinaryOperator::BitwiseOr => lhs.op_bitor(&rhs),
                 BinaryOperator::BitwiseAnd => lhs.op_bitand(&rhs),
                 BinaryOperator::BitwiseXor => lhs.op_bitxor(&rhs),
-                BinaryOperator::ShiftLeft => lhs.op_shl(&rhs),
-                BinaryOperator::ShiftRight => lhs.op_shr(&rhs),
+                BinaryOperator::ShiftLeft => lhs.op_shl(&rhs, ctx.stage),
+                BinaryOperator::ShiftRight => lhs.op_shr(&rhs, ctx.stage),
             }
         }
     }

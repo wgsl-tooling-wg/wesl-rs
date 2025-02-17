@@ -213,11 +213,11 @@ impl Exec for AssignmentStatement {
                     r.write(val)?;
                 }
                 AssignmentOperator::ShiftRightAssign => {
-                    let val = r.read()?.op_shl(&rhs)?;
+                    let val = r.read()?.op_shr(&rhs, ctx.stage)?;
                     r.write(val)?;
                 }
                 AssignmentOperator::ShiftLeftAssign => {
-                    let val = r.read()?.op_shr(&rhs)?;
+                    let val = r.read()?.op_shl(&rhs, ctx.stage)?;
                     r.write(val)?;
                 }
             }

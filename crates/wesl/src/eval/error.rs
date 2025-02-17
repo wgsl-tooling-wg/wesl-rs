@@ -84,10 +84,10 @@ pub enum EvalError {
     DivByZero,
     #[error("attempt to calculate the remainder with a divisor of zero")]
     RemZeroDiv,
-    #[error("attempt to shift left by `{0}`, which would overflow")]
-    ShlOverflow(u32),
-    #[error("attempt to shift right by `{0}`, which would overflow")]
-    ShrOverflow(u32),
+    #[error("attempt to shift left by `{0}`, which would overflow `{1}`")]
+    ShlOverflow(u32, LiteralInstance),
+    #[error("attempt to shift right by `{0}`, which would overflow `{1}`")]
+    ShrOverflow(u32, LiteralInstance),
 
     // functions
     #[error("unknown function `{0}`")]

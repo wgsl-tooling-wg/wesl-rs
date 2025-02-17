@@ -129,8 +129,8 @@ impl BuiltinIdent for Type {
             Type::Array(_, _) => builtin_ident("array"),
             Type::Vec(n, _) => match n {
                 2 => builtin_ident("vec2"),
-                3 => builtin_ident("vec2"),
-                4 => builtin_ident("vec2"),
+                3 => builtin_ident("vec3"),
+                4 => builtin_ident("vec4"),
                 _ => unreachable!("vec must be 2 3 or 4 components"),
             },
             Type::Mat(c, r, _) => match (c, r) {

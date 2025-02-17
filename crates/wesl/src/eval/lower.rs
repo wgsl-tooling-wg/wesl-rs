@@ -103,26 +103,29 @@ impl Lower for Expression {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
         match self.eval_value(ctx) {
             Ok(inst) => *self = inst.to_expr(ctx)?,
-            Err(_) => match self {
-                Expression::Literal(_) => (),
-                Expression::Parenthesized(expr) => expr.expression.lower(ctx)?,
-                Expression::NamedComponent(expr) => expr.base.lower(ctx)?,
-                Expression::Indexing(expr) => {
-                    expr.base.lower(ctx)?;
-                    expr.index.lower(ctx)?;
-                }
-                Expression::Unary(expr) => expr.operand.lower(ctx)?,
-                Expression::Binary(expr) => {
-                    expr.left.lower(ctx)?;
-                    expr.right.lower(ctx)?;
-                }
-                Expression::FunctionCall(expr) => expr.lower(ctx)?,
-                Expression::TypeOrIdentifier(_) => {
-                    if let Ok(expr) = self.eval_value(ctx).and_then(|inst| inst.to_expr(ctx)) {
-                        *self = expr;
+            Err(_) => {
+                ctx.err_span = None;
+                match self {
+                    Expression::Literal(_) => (),
+                    Expression::Parenthesized(expr) => expr.expression.lower(ctx)?,
+                    Expression::NamedComponent(expr) => expr.base.lower(ctx)?,
+                    Expression::Indexing(expr) => {
+                        expr.base.lower(ctx)?;
+                        expr.index.lower(ctx)?;
+                    }
+                    Expression::Unary(expr) => expr.operand.lower(ctx)?,
+                    Expression::Binary(expr) => {
+                        expr.left.lower(ctx)?;
+                        expr.right.lower(ctx)?;
+                    }
+                    Expression::FunctionCall(expr) => expr.lower(ctx)?,
+                    Expression::TypeOrIdentifier(_) => {
+                        if let Ok(expr) = self.eval_value(ctx).and_then(|inst| inst.to_expr(ctx)) {
+                            *self = expr;
+                        }
                     }
                 }
-            },
+            }
         }
         Ok(())
     }

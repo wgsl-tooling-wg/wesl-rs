@@ -7,7 +7,7 @@ use super::{
     VecInstance,
 };
 
-use num_traits::{ToPrimitive, WrappingNeg, WrappingShl};
+use num_traits::{WrappingNeg, WrappingShl};
 use wgsl_parse::syntax::*;
 
 type E = EvalError;
@@ -834,41 +834,101 @@ impl LiteralInstance {
             _ => Err(err()),
         }
     }
-    pub fn op_shl(&self, rhs: &Self) -> Result<Self, E> {
-        match (self, rhs.convert_to(&Type::U32)) {
-            (Self::I32(lhs), Some(Self::U32(rhs))) => Ok(lhs.wrapping_shl(rhs).into()),
-            (Self::U32(lhs), Some(Self::U32(rhs))) => Ok(lhs.wrapping_shl(rhs).into()),
-            (Self::AbstractInt(lhs), Some(Self::U32(rhs))) => lhs
-                .checked_shl(rhs)
-                .map(Into::into)
-                .ok_or(E::ShlOverflow(rhs)),
-            (Self::AbstractFloat(lhs), Some(Self::U32(rhs))) => lhs
-                .to_i64()
-                .and_then(|lhs| lhs.checked_shl(rhs))
-                .map(Into::into)
-                .ok_or(E::ShlOverflow(rhs)),
-            _ => Err(E::Binary(BinaryOperator::ShiftLeft, self.ty(), rhs.ty())),
+    pub fn op_shl(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+        let err = || E::Binary(BinaryOperator::ShiftLeft, self.ty(), rhs.ty());
+        let r = rhs.convert_to(&Type::U32).ok_or_else(err)?.unwrap_u_32();
+        let stage = stage == EvalStage::Const || stage == EvalStage::Override;
+
+        // in const and override expressions, shr operation must not overflow (all discarded bits
+        // must be 0 in positive expressions and 1 in negative expressions).
+        // only abstract types can be shifted by more than the bit width of the operand.
+        match self {
+            LiteralInstance::AbstractInt(l) => {
+                if r == 0 {
+                    // shift by 0 is no-op
+                    return Ok(self.clone());
+                } else if r > 63 {
+                    // shifting that much always returns 0
+                    return Ok(0i64.into());
+                }
+                let msb_mask = (!0u64) << (63 - r);
+                let msb_bits = *l as u64 & msb_mask;
+                if stage && (*l >= 0 && msb_bits != 0 || *l < 0 && msb_bits != msb_mask) {
+                    Err(E::ShlOverflow(r, self.clone()))
+                } else {
+                    Ok(l.wrapping_shl(r).into())
+                }
+            }
+            LiteralInstance::I32(l) => {
+                let r = r % 32; // "the number of bits to shift is the value of e2, modulo the bit width of e1"
+                if r == 0 {
+                    // shift by 0 is no-op
+                    return Ok(self.clone());
+                }
+                let msb_mask = (!0u32) << (31 - r);
+                let msb_bits = *l as u32 & msb_mask;
+                if stage && (*l >= 0 && msb_bits != 0 || *l < 0 && msb_bits != msb_mask) {
+                    Err(E::ShlOverflow(r, self.clone()))
+                } else if stage {
+                    Ok(l.checked_shl(r)
+                        .ok_or(E::ShlOverflow(r, self.clone()))?
+                        .into())
+                } else {
+                    Ok(l.wrapping_shl(r).into())
+                }
+            }
+            LiteralInstance::U32(l) => {
+                let r = r % 32; // "the number of bits to shift is the value of e2, modulo the bit width of e1"
+                if r == 0 {
+                    // shift by 0 is no-op
+                    return Ok(self.clone());
+                }
+                let msb_mask = (!0u32) << (32 - r);
+                let msb_bits = *l & msb_mask;
+                if stage && msb_bits != 0 {
+                    Err(E::ShlOverflow(r, self.clone()))
+                } else if stage {
+                    Ok(l.checked_shl(r)
+                        .ok_or(E::ShlOverflow(r, self.clone()))?
+                        .into())
+                } else {
+                    Ok(l.wrapping_shl(r).into())
+                }
+            }
+            _ => Err(err()),
         }
     }
-    pub fn op_shr(&self, rhs: &Self) -> Result<Self, E> {
-        match (self, rhs.convert_to(&Type::U32)) {
-            (Self::I32(lhs), Some(Self::U32(rhs))) => lhs
-                .checked_shr(rhs)
-                .map(Into::into)
-                .ok_or(E::ShrOverflow(rhs)),
-            (Self::U32(lhs), Some(Self::U32(rhs))) => lhs
-                .checked_shr(rhs)
-                .map(Into::into)
-                .ok_or(E::ShrOverflow(rhs)),
-            (Self::AbstractInt(lhs), Some(Self::U32(rhs))) => lhs
-                .checked_shr(rhs)
-                .map(Into::into)
-                .ok_or(E::ShrOverflow(rhs)),
-            (Self::AbstractFloat(lhs), Some(Self::U32(rhs))) => lhs
-                .to_i64()
-                .and_then(|lhs| lhs.checked_shr(rhs))
-                .map(Into::into)
-                .ok_or(E::ShrOverflow(rhs)),
+    pub fn op_shr(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+        let err = || E::Binary(BinaryOperator::ShiftRight, self.ty(), rhs.ty());
+        let r = rhs.convert_to(&Type::U32).ok_or_else(err)?.unwrap_u_32();
+        let stage = stage == EvalStage::Const || stage == EvalStage::Override;
+
+        // shift by 0 is no-op
+        if r == 0 {
+            return Ok(self.clone());
+        }
+
+        // contrary to shl, it is not an error to overflow (discard non-zero bits). But it is an
+        // error to shift more than the bit width.
+        match self {
+            Self::I32(l) => Ok(if stage {
+                l.checked_shr(r)
+                    .ok_or(E::ShrOverflow(r, self.clone()))?
+                    .into()
+            } else {
+                l.wrapping_shr(r).into()
+            }),
+            Self::U32(l) => Ok(if stage {
+                l.checked_shr(r)
+                    .ok_or(E::ShrOverflow(r, self.clone()))?
+                    .into()
+            } else {
+                l.wrapping_shr(r).into()
+            }),
+            Self::AbstractInt(l) => {
+                // we shr twice because x >> 64 is panic(overflow) and wrapping_shr only allow x >> 63.
+                Ok((l >> 1).wrapping_shr(r - 1).into())
+            }
             _ => Err(E::Binary(BinaryOperator::ShiftRight, self.ty(), rhs.ty())),
         }
     }
@@ -887,11 +947,11 @@ impl VecInstance {
     pub fn op_bitxor(&self, rhs: &Self) -> Result<Self, E> {
         self.compwise_binary(rhs, |l, r| l.op_bitxor(r))
     }
-    pub fn op_shl(&self, rhs: &Self) -> Result<Self, E> {
-        self.compwise_binary(rhs, |l, r| l.op_shl(r))
+    pub fn op_shl(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+        self.compwise_binary(rhs, |l, r| l.op_shl(r, stage))
     }
-    pub fn op_shr(&self, rhs: &Self) -> Result<Self, E> {
-        self.compwise_binary(rhs, |l, r| l.op_shr(r))
+    pub fn op_shr(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+        self.compwise_binary(rhs, |l, r| l.op_shr(r, stage))
     }
 }
 
@@ -924,17 +984,17 @@ impl Instance {
             _ => Err(E::Binary(BinaryOperator::BitwiseXor, self.ty(), rhs.ty())),
         }
     }
-    pub fn op_shl(&self, rhs: &Self) -> Result<Self, E> {
+    pub fn op_shl(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
         match (self, rhs) {
-            both!(Self::Literal, lhs, rhs) => lhs.op_shl(rhs).map(Into::into),
-            both!(Self::Vec, lhs, rhs) => lhs.op_shl(rhs).map(Into::into),
+            both!(Self::Literal, lhs, rhs) => lhs.op_shl(rhs, stage).map(Into::into),
+            both!(Self::Vec, lhs, rhs) => lhs.op_shl(rhs, stage).map(Into::into),
             _ => Err(E::Binary(BinaryOperator::ShiftLeft, self.ty(), rhs.ty())),
         }
     }
-    pub fn op_shr(&self, rhs: &Self) -> Result<Self, E> {
+    pub fn op_shr(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
         match (self, rhs) {
-            both!(Self::Literal, lhs, rhs) => lhs.op_shr(rhs).map(Into::into),
-            both!(Self::Vec, lhs, rhs) => lhs.op_shr(rhs).map(Into::into),
+            both!(Self::Literal, lhs, rhs) => lhs.op_shr(rhs, stage).map(Into::into),
+            both!(Self::Vec, lhs, rhs) => lhs.op_shr(rhs, stage).map(Into::into),
             _ => Err(E::Binary(BinaryOperator::ShiftRight, self.ty(), rhs.ty())),
         }
     }

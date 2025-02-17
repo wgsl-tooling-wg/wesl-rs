@@ -496,206 +496,242 @@ impl<T: EvalTy> EvalTy for Spanned<T> {
     }
 }
 
+impl EvalTy for ParenthesizedExpression {
+    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
+        self.expression.eval_ty(ctx)
+    }
+}
+
+impl EvalTy for NamedComponentExpression {
+    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
+        match self.base.eval_ty(ctx)? {
+            Type::Struct(name) => {
+                let decl = ctx
+                    .source
+                    .decl_struct(&name)
+                    .ok_or_else(|| E::UnknownStruct(name.clone()))?;
+                let m = decl
+                    .members
+                    .iter()
+                    .find(|m| *m.ident.name() == *self.component.name())
+                    .ok_or_else(|| E::Component(Type::Struct(name), self.component.to_string()))?;
+                ty_eval_ty(&m.ty, ctx)
+            }
+            Type::Vec(_, ty) => {
+                // TODO: check valid swizzle
+                let m = self.component.name().len();
+                if m == 1 {
+                    Ok(*ty)
+                } else if m <= 4 {
+                    Ok(Type::Vec(m as u8, ty))
+                } else {
+                    Err(E::Swizzle(self.component.to_string()))
+                }
+            }
+            ty => Err(E::Component(ty, self.component.to_string())),
+        }
+    }
+}
+
+impl EvalTy for IndexingExpression {
+    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
+        let index_ty = self.index.eval_ty(ctx)?;
+        if index_ty.is_integer() {
+            match self.base.eval_ty(ctx)? {
+                Type::Array(_, ty) => Ok(*ty),
+                Type::Vec(_, ty) => Ok(*ty),
+                Type::Mat(_, r, ty) => Ok(Type::Vec(r, ty)),
+                ty => Err(E::NotIndexable(ty)),
+            }
+        } else {
+            Err(E::Index(index_ty))
+        }
+    }
+}
+
+impl EvalTy for UnaryExpression {
+    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
+        let ty = self.operand.eval_ty(ctx)?;
+        let inner = ty.inner_ty();
+        if ty != inner
+            && !ty.is_vec()
+            && !self.operator.is_address_of()
+            && !self.operator.is_indirection()
+        {
+            return Err(E::Unary(self.operator, ty));
+        }
+        match self.operator {
+            UnaryOperator::LogicalNegation if inner == Type::Bool => Ok(ty),
+            UnaryOperator::Negation if inner.is_scalar() && !inner.is_u_32() => Ok(ty),
+            UnaryOperator::BitwiseComplement if inner.is_integer() => Ok(ty),
+            UnaryOperator::AddressOf => Ok(Type::Ptr(AddressSpace::Function, Box::new(ty))), // TODO: we don't know the address space
+            UnaryOperator::Indirection if ty.is_ptr() => Ok(*ty.unwrap_ptr().1),
+            _ => Err(E::Unary(self.operator, ty)),
+        }
+    }
+}
+
+impl EvalTy for BinaryExpression {
+    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
+        type BinOp = BinaryOperator;
+        let ty1 = self.left.eval_ty(ctx)?;
+        let ty2 = self.right.eval_ty(ctx)?;
+
+        // ty1 and ty2 must always have the same inner type, except for << and >> operators.
+        let (inner, ty1, ty2) = if matches!(self.operator, BinOp::ShiftLeft | BinOp::ShiftRight) {
+            (ty1.inner_ty(), ty1, ty2)
+        } else {
+            let inner = convert_ty(&ty1.inner_ty(), &ty2.inner_ty())
+                .ok_or_else(|| E::Binary(self.operator, ty1.clone(), ty2.clone()))?
+                .clone();
+            let ty1 = ty1.convert_inner_to(&inner).unwrap();
+            let ty2 = ty2.convert_inner_to(&inner).unwrap();
+            (inner, ty1, ty2)
+        };
+
+        let is_num = (ty1.is_vec() || ty1.is_numeric())
+            && (ty2.is_vec() || ty2.is_numeric())
+            && inner.is_numeric();
+
+        Ok(match self.operator {
+            BinOp::ShortCircuitOr | BinOp::ShortCircuitAnd
+                if (ty1.is_bool() || ty1.is_vec() && inner.is_bool()) && ty1 == ty2 =>
+            {
+                Type::Bool
+            }
+            BinOp::Addition
+            | BinOp::Subtraction
+            | BinOp::Multiplication
+            | BinOp::Division
+            | BinOp::Remainder
+                if is_num && ty1 == ty2 =>
+            {
+                ty1
+            }
+            BinOp::Addition
+            | BinOp::Subtraction
+            | BinOp::Multiplication
+            | BinOp::Division
+            | BinOp::Remainder
+                if is_num && ty1.is_vec() =>
+            {
+                ty1
+            }
+            BinOp::Addition
+            | BinOp::Subtraction
+            | BinOp::Multiplication
+            | BinOp::Division
+            | BinOp::Remainder
+                if is_num && ty2.is_vec() =>
+            {
+                ty2
+            }
+            BinOp::Addition | BinOp::Subtraction if ty1.is_mat() && ty1 == ty2 => ty1,
+            BinOp::Multiplication if ty1.is_mat() && ty2.is_float() => ty1,
+            BinOp::Multiplication if ty1.is_float() && ty2.is_mat() => ty2,
+            BinOp::Multiplication => match (ty1, ty2) {
+                (Type::Mat(c, r, _), Type::Vec(n, _)) if n == c => Type::Vec(r, Box::new(inner)),
+                (Type::Vec(n, _), Type::Mat(c, r, _)) if n == r => Type::Vec(c, Box::new(inner)),
+                (Type::Mat(k1, r1, _), Type::Mat(c2, k2, _)) if k1 == k2 => {
+                    Type::Mat(c2, r1, Box::new(inner))
+                }
+                (ty1, ty2) => return Err(E::Binary(self.operator, ty1, ty2)),
+            },
+            BinOp::Equality | BinOp::Inequality if ty1.is_scalar() => Type::Bool,
+            BinOp::Equality | BinOp::Inequality if ty1.is_vec() && ty1 == ty2 => {
+                Type::Vec(ty1.unwrap_vec().0, Box::new(Type::Bool))
+            }
+            BinOp::LessThan
+            | BinOp::LessThanEqual
+            | BinOp::GreaterThan
+            | BinOp::GreaterThanEqual
+                if ty1.is_numeric() =>
+            {
+                Type::Bool
+            }
+            BinOp::LessThan
+            | BinOp::LessThanEqual
+            | BinOp::GreaterThan
+            | BinOp::GreaterThanEqual
+                if ty1.is_vec() && ty1 == ty2 =>
+            {
+                Type::Vec(ty1.unwrap_vec().0, Box::new(Type::Bool))
+            }
+            BinOp::BitwiseOr | BinOp::BitwiseAnd
+                if ty1.is_bool() || ty1.is_vec() && inner.is_bool() && ty1 == ty2 =>
+            {
+                ty1
+            }
+            BinOp::BitwiseOr | BinOp::BitwiseAnd | BinOp::BitwiseXor
+                if ty1.is_integer() || ty1.is_vec() && inner.is_integer() && ty1 == ty2 =>
+            {
+                ty1
+            }
+            BinOp::ShiftLeft | BinOp::ShiftRight
+                if ty1.is_integer() && ty2.is_convertible_to(&Type::U32)
+                    || ty1.is_vec()
+                        && ty2.is_vec()
+                        && ty1.inner_ty().is_integer()
+                        && ty2.inner_ty().is_convertible_to(&Type::U32) =>
+            {
+                ty1
+            }
+            _ => return Err(E::Binary(self.operator, ty1, ty2)),
+        })
+    }
+}
+
+impl EvalTy for FunctionCallExpression {
+    fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
+        let ty = ctx.source.resolve_ty(&self.ty);
+        if let Some(decl) = ctx.source.decl(&ty.ident.name()) {
+            match decl {
+                GlobalDeclaration::Struct(decl) => {
+                    // TODO: check member types
+                    Ok(Type::Struct(decl.ident.to_string()))
+                }
+                GlobalDeclaration::Function(decl) => {
+                    if decl.body.attributes.contains(&ATTR_INTRINSIC) {
+                        let args = self
+                            .arguments
+                            .iter()
+                            .map(|arg| arg.eval_ty(ctx))
+                            .collect::<Result<Vec<_>, _>>()?;
+                        builtin_fn_type(&self.ty, &args, ctx)
+                    } else {
+                        // TODO: check argument types
+                        decl.return_type
+                            .as_ref()
+                            .map(|ty| ty_eval_ty(ty, ctx))
+                            .unwrap_or(Ok(Type::Void))
+                    }
+                }
+                _ => Err(E::NotCallable(ty.to_string())),
+            }
+        } else if is_constructor_fn(&ty.ident.name()) {
+            let args = self
+                .arguments
+                .iter()
+                .map(|arg| arg.eval_ty(ctx))
+                .collect::<Result<Vec<_>, _>>()?;
+            constructor_type(ty, &args, ctx)
+        } else {
+            Err(E::UnknownFunction(ty.ident.to_string()))
+        }
+    }
+}
+
 impl EvalTy for Expression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
         match self {
-            Expression::Literal(expr) => Ok(expr.ty()),
-            Expression::Parenthesized(expr) => expr.expression.eval_ty(ctx),
-            Expression::NamedComponent(expr) => match expr.base.eval_ty(ctx)? {
-                Type::Struct(name) => {
-                    let decl = ctx
-                        .source
-                        .decl_struct(&name)
-                        .ok_or_else(|| E::UnknownStruct(name.clone()))?;
-                    let m = decl
-                        .members
-                        .iter()
-                        .find(|m| *m.ident.name() == *expr.component.name())
-                        .ok_or_else(|| {
-                            E::Component(Type::Struct(name), expr.component.to_string())
-                        })?;
-                    ty_eval_ty(&m.ty, ctx)
-                }
-                Type::Vec(_, ty) => {
-                    // TODO: check valid swizzle
-                    let m = expr.component.name().len();
-                    if m == 1 {
-                        Ok(*ty)
-                    } else if m <= 4 {
-                        Ok(Type::Vec(m as u8, ty))
-                    } else {
-                        Err(E::Swizzle(expr.component.to_string()))
-                    }
-                }
-                ty => Err(E::Component(ty, expr.component.to_string())),
-            },
-            Expression::Indexing(expr) => {
-                let index_ty = expr.index.eval_ty(ctx)?;
-                if index_ty.is_integer() {
-                    match expr.base.eval_ty(ctx)? {
-                        Type::Array(_, ty) => Ok(*ty),
-                        Type::Vec(_, ty) => Ok(*ty),
-                        Type::Mat(c, _, ty) => Ok(Type::Vec(c, ty)),
-                        ty => Err(E::NotIndexable(ty)),
-                    }
-                } else {
-                    Err(E::Index(index_ty))
-                }
-            }
-            Expression::Unary(expr) => {
-                let ty = expr.operand.eval_ty(ctx)?;
-                let inner = ty.inner_ty();
-                if ty != inner
-                    && !ty.is_vec()
-                    && !expr.operator.is_address_of()
-                    && !expr.operator.is_indirection()
-                {
-                    return Err(E::Unary(expr.operator, ty));
-                }
-                match expr.operator {
-                    UnaryOperator::LogicalNegation if inner == Type::Bool => Ok(ty),
-                    UnaryOperator::Negation if inner.is_scalar() && !inner.is_u_32() => Ok(ty),
-                    UnaryOperator::BitwiseComplement if inner.is_integer() => Ok(ty),
-                    UnaryOperator::AddressOf => Ok(Type::Ptr(AddressSpace::Function, Box::new(ty))), // TODO: we don't know the address space
-                    UnaryOperator::Indirection if ty.is_ptr() => Ok(*ty.unwrap_ptr().1),
-                    _ => Err(E::Unary(expr.operator, ty)),
-                }
-            }
-            Expression::Binary(expr) => {
-                let ty1 = expr.left.eval_ty(ctx)?;
-                let ty2 = expr.right.eval_ty(ctx)?;
-
-                // ty1 and ty2 must always have the same inner type
-                let inner = convert_ty(&ty1.inner_ty(), &ty2.inner_ty())
-                    .ok_or_else(|| E::Binary(expr.operator, ty1.clone(), ty2.clone()))?
-                    .clone();
-                let ty1 = ty1.convert_inner_to(&inner).unwrap();
-                let ty2 = ty2.convert_inner_to(&inner).unwrap();
-
-                let is_num = (ty1.is_vec() || ty1.is_numeric())
-                    && (ty2.is_vec() || ty2.is_numeric())
-                    && inner.is_numeric();
-
-                type BinOp = BinaryOperator;
-
-                Ok(match expr.operator {
-                    BinaryOperator::ShortCircuitOr | BinaryOperator::ShortCircuitAnd
-                        if ty1.is_bool() && ty1 == ty2 =>
-                    {
-                        Type::Bool
-                    }
-                    BinOp::Addition
-                    | BinOp::Subtraction
-                    | BinOp::Multiplication
-                    | BinOp::Division
-                    | BinOp::Remainder
-                        if is_num && ty1 == ty2 =>
-                    {
-                        ty1
-                    }
-                    BinOp::Addition
-                    | BinOp::Subtraction
-                    | BinOp::Multiplication
-                    | BinOp::Division
-                    | BinOp::Remainder
-                        if is_num && ty1.is_vec() =>
-                    {
-                        ty1
-                    }
-                    BinOp::Addition
-                    | BinOp::Subtraction
-                    | BinOp::Multiplication
-                    | BinOp::Division
-                    | BinOp::Remainder
-                        if is_num && ty2.is_vec() =>
-                    {
-                        ty2
-                    }
-                    BinOp::Addition | BinOp::Subtraction if ty1.is_mat() && ty1 == ty2 => ty1,
-                    BinOp::Multiplication if ty1.is_mat() && ty2.is_float() => ty1,
-                    BinOp::Multiplication if ty1.is_float() && ty2.is_mat() => ty2,
-                    BinOp::Multiplication => match (ty1, ty2) {
-                        (Type::Mat(c, r, _), Type::Vec(n, _)) if n == c => {
-                            Type::Vec(r, Box::new(inner))
-                        }
-                        (Type::Vec(n, _), Type::Mat(c, r, _)) if n == r => {
-                            Type::Vec(c, Box::new(inner))
-                        }
-                        (Type::Mat(k1, r1, _), Type::Mat(c2, k2, _)) if k1 == k2 => {
-                            Type::Mat(c2, r1, Box::new(inner))
-                        }
-                        (ty1, ty2) => return Err(E::Binary(expr.operator, ty1, ty2)),
-                    },
-                    BinOp::Equality | BinOp::Inequality if ty1.is_scalar() => Type::Bool,
-                    BinOp::Equality | BinOp::Inequality if ty1.is_vec() && ty1 == ty2 => {
-                        Type::Vec(ty1.unwrap_vec().0, Box::new(Type::Bool))
-                    }
-                    BinOp::LessThan
-                    | BinOp::LessThanEqual
-                    | BinOp::GreaterThan
-                    | BinOp::GreaterThanEqual
-                        if ty1.is_numeric() =>
-                    {
-                        Type::Bool
-                    }
-                    BinOp::LessThan
-                    | BinOp::LessThanEqual
-                    | BinOp::GreaterThan
-                    | BinOp::GreaterThanEqual
-                        if ty1.is_vec() && ty1 == ty2 =>
-                    {
-                        Type::Vec(ty1.unwrap_vec().0, Box::new(Type::Bool))
-                    }
-                    BinOp::BitwiseOr
-                    | BinOp::BitwiseAnd
-                    | BinOp::BitwiseXor
-                    | BinOp::ShiftLeft
-                    | BinOp::ShiftRight
-                        if ty1.is_integer() || ty1.is_vec() && inner.is_integer() && ty1 == ty2 =>
-                    {
-                        ty1
-                    }
-                    _ => return Err(E::Binary(expr.operator, ty1, ty2)),
-                })
-            }
-            Expression::FunctionCall(call) => {
-                let ty = ctx.source.resolve_ty(&call.ty);
-                if let Some(decl) = ctx.source.decl(&ty.ident.name()) {
-                    match decl {
-                        GlobalDeclaration::Struct(decl) => {
-                            // TODO: check member types
-                            Ok(Type::Struct(decl.ident.to_string()))
-                        }
-                        GlobalDeclaration::Function(decl) => {
-                            if decl.body.attributes.contains(&ATTR_INTRINSIC) {
-                                let args = call
-                                    .arguments
-                                    .iter()
-                                    .map(|arg| arg.eval_ty(ctx))
-                                    .collect::<Result<Vec<_>, _>>()?;
-                                builtin_fn_type(&call.ty, &args, ctx)
-                            } else {
-                                // TODO: check argument types
-                                decl.return_type
-                                    .as_ref()
-                                    .map(|ty| ty_eval_ty(ty, ctx))
-                                    .unwrap_or(Ok(Type::Void))
-                            }
-                        }
-                        _ => Err(E::NotCallable(ty.to_string())),
-                    }
-                } else if is_constructor_fn(&ty.ident.name()) {
-                    let args = call
-                        .arguments
-                        .iter()
-                        .map(|arg| arg.eval_ty(ctx))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    constructor_type(ty, &args, ctx)
-                } else {
-                    Err(E::UnknownFunction(ty.ident.to_string()))
-                }
-            }
-            Expression::TypeOrIdentifier(ty) => ty.eval_ty(ctx),
+            Expression::Literal(expr) => expr.eval_ty(ctx),
+            Expression::Parenthesized(expr) => expr.eval_ty(ctx),
+            Expression::NamedComponent(expr) => expr.eval_ty(ctx),
+            Expression::Indexing(expr) => expr.eval_ty(ctx),
+            Expression::Unary(expr) => expr.eval_ty(ctx),
+            Expression::Binary(expr) => expr.eval_ty(ctx),
+            Expression::FunctionCall(expr) => expr.eval_ty(ctx),
+            Expression::TypeOrIdentifier(expr) => expr.eval_ty(ctx),
         }
     }
 }
