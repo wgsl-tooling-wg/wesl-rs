@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use wesl_macros::query;
 use wgsl_parse::syntax::{
     Expression, ExpressionNode, GlobalDeclaration, TranslationUnit, TypeExpression,
@@ -14,6 +16,8 @@ pub enum ValidateError {
     ParamCount(String, usize, usize),
     #[error("`{0}` is not callable")]
     NotCallable(String),
+    #[error("duplicate declaration of `{0}`")]
+    Duplicate(String),
 }
 
 type E = ValidateError;
@@ -605,17 +609,33 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
     Ok(())
 }
 
+fn check_no_duplicate_decl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
+    let mut unique = HashSet::new();
+    for decl in &wesl.global_declarations {
+        if let Some(id) = decl.ident() {
+            if !unique.insert(id.to_string()) {
+                return Err(
+                    Diagnostic::from(E::Duplicate(id.to_string())).with_declaration(id.to_string())
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Validate a *resolved* WESL module. Must be called on module resolutions.
 /// Resolved: has no imports, no qualified idents and no conditional translation.
 /// Used idents must have use_count > 1.
 pub(crate) fn validate_wesl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     check_defined_symbols(wesl)?;
+    check_no_duplicate_decl(wesl)?;
     Ok(())
 }
 
 /// Validate the final output (valid WGSL).
 pub fn validate_wgsl(wgsl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     check_defined_symbols(wgsl)?;
+    check_no_duplicate_decl(wgsl)?;
     check_function_calls(wgsl)?;
     Ok(())
 }
