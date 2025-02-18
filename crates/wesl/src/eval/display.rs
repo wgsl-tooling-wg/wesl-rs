@@ -21,8 +21,7 @@ impl Display for Instance {
             Instance::Ptr(inst) => write!(f, "{inst}"),
             Instance::Ref(inst) => write!(f, "{inst}"),
             Instance::Atomic(inst) => write!(f, "{inst}"),
-            Instance::Deferred(ty) => write!(f, "deferred<{ty}>"),
-            Instance::Void => write!(f, ""),
+            Instance::Deferred(ty) => write!(f, "__deferred<{ty}>"),
         }
     }
 }
@@ -143,7 +142,6 @@ impl Display for Type {
             Type::Ptr(a_s, ty) => write!(f, "ptr<{a_s}, {ty}>"),
             Type::Texture(texture_type) => texture_type.fmt(f),
             Type::Sampler(sampler_type) => sampler_type.fmt(f),
-            Type::Void => write!(f, "void"),
         }
     }
 }

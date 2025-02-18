@@ -142,7 +142,6 @@ pub enum Type {
     Ptr(AddressSpace, Box<Type>),
     Texture(TextureType),
     Sampler(SamplerType),
-    Void,
 }
 
 impl Type {
@@ -245,7 +244,6 @@ impl Ty for Type {
             Type::Ptr(_, ty) => ty.ty(),
             Type::Texture(_) => self.clone(),
             Type::Sampler(_) => self.clone(),
-            Type::Void => self.clone(),
         }
     }
 }
@@ -262,7 +260,6 @@ impl Ty for Instance {
             Instance::Ref(r) => r.ty(),
             Instance::Atomic(a) => a.ty(),
             Instance::Deferred(t) => t.ty(),
-            Instance::Void => Type::Void,
         }
     }
     fn inner_ty(&self) -> Type {
@@ -276,7 +273,6 @@ impl Ty for Instance {
             Instance::Ref(r) => r.inner_ty(),
             Instance::Atomic(a) => a.inner_ty(),
             Instance::Deferred(t) => t.inner_ty(),
-            Instance::Void => Type::Void,
         }
     }
 }
@@ -700,10 +696,11 @@ impl EvalTy for FunctionCallExpression {
                         builtin_fn_type(&self.ty, &args, ctx)
                     } else {
                         // TODO: check argument types
-                        decl.return_type
+                        let ty = decl
+                            .return_type
                             .as_ref()
-                            .map(|ty| ty_eval_ty(ty, ctx))
-                            .unwrap_or(Ok(Type::Void))
+                            .ok_or_else(|| E::Void(decl.ident.to_string()))?;
+                        ty_eval_ty(ty, ctx)
                     }
                 }
                 _ => Err(E::NotCallable(ty.to_string())),

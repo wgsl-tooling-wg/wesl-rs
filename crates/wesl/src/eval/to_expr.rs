@@ -20,13 +20,8 @@ impl ToExpr for Instance {
             Instance::Array(inst) => inst.to_expr(ctx),
             Instance::Vec(inst) => inst.to_expr(ctx),
             Instance::Mat(inst) => inst.to_expr(ctx),
-            Instance::Deferred(_)
-            | Instance::Atomic(_)
-            | Instance::Ptr(_)
-            | Instance::Ref(_)
-            | Instance::Void => {
-                // Err(E::NotConstructible(self.ty()))
-                todo!()
+            Instance::Ptr(_) | Instance::Ref(_) | Instance::Atomic(_) | Instance::Deferred(_) => {
+                Err(E::NotConstructible(self.ty()))
             }
         }
     }
@@ -212,7 +207,6 @@ impl ToExpr for Type {
                 Ok(ty)
             }
             Type::Sampler(_) => Ok(TypeExpression::new(ident.unwrap())),
-            Type::Void => Err(E::NotConstructible(Type::Void)),
         }
         .map(Into::into)
     }

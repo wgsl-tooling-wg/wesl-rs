@@ -371,7 +371,17 @@ impl Diagnostic<Error> {
                     unmangle_ty(ty1, sourcemap, mangler);
                     unmangle_ty(ty2, sourcemap, mangler);
                 }
+                EvalError::ReturnType(ty1, name, ty2) => {
+                    unmangle_ty(ty1, sourcemap, mangler);
+                    unmangle_name(name, sourcemap, mangler);
+                    unmangle_ty(ty2, sourcemap, mangler);
+                }
+                EvalError::NoReturn(name, ty) => {
+                    unmangle_name(name, sourcemap, mangler);
+                    unmangle_ty(ty, sourcemap, mangler);
+                }
                 EvalError::NotConst(name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::Void(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UnknownDecl(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UninitConst(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UninitLet(name) => unmangle_name(name, sourcemap, mangler),
@@ -400,7 +410,6 @@ impl Diagnostic<Error> {
                 | EvalError::ShrOverflow(_, _)
                 | EvalError::Builtin(_)
                 | EvalError::TemplateArgs(_)
-                | EvalError::ReturnType(_, _)
                 | EvalError::OverrideInConst
                 | EvalError::OverrideInFn
                 | EvalError::LetInMod

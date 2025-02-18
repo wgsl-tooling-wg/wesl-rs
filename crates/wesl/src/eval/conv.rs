@@ -232,7 +232,6 @@ impl Convert for Instance {
             Self::Ref(r) => r.read().ok().and_then(|r| r.convert_to(ty)), // this is the "load rule". Also performed by `eval_value`.
             Self::Atomic(_) => None,
             Self::Deferred(_) => None,
-            Self::Void => None,
         }
     }
 
@@ -247,7 +246,6 @@ impl Convert for Instance {
             Self::Ref(r) => r.read().ok().and_then(|r| r.convert_inner_to(ty)), // this is the "load rule". Also performed by `eval_value`.
             Self::Atomic(_) => None,
             Self::Deferred(_) => None,
-            Self::Void => None,
         }
     }
 }

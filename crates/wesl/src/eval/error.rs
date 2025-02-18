@@ -104,10 +104,14 @@ pub enum EvalError {
     ParamCount(String, usize, usize),
     #[error("invalid parameter type, expected `{0}`, got `{1}`")]
     ParamType(Type, Type),
-    #[error("returned `{0}` from a function that returns `{1}`")]
-    ReturnType(Type, Type),
+    #[error("returned `{0}` from function `{1}` that returns `{2}`")]
+    ReturnType(Type, String, Type),
+    #[error("call to function `{0}` did not return any value, expected `{1}`")]
+    NoReturn(String, Type),
     #[error("calling non-const function `{0}` in const context")]
     NotConst(String),
+    #[error("expected a value, but function `{0}` has no return type")]
+    Void(String),
 
     // declarations
     #[error("unknown declaration `{0}`")]

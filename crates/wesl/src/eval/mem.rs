@@ -24,7 +24,6 @@ impl HostShareable for Instance {
             Instance::Ref(_) => None,
             Instance::Atomic(a) => a.inner().to_buffer(ctx),
             Instance::Deferred(_) => None,
-            Instance::Void => None,
         }
     }
 }
@@ -152,7 +151,7 @@ impl Instance {
                 };
                 Some(AtomicInstance::new(inst).into())
             }
-            Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) | Type::Void => None,
+            Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => None,
         }
     }
 }
@@ -313,7 +312,7 @@ impl Type {
                 Some(*c as u32 * align)
             }
             Type::Atomic(_) => Some(4),
-            Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) | Type::Void => None,
+            Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => None,
         }
     }
 
@@ -360,7 +359,7 @@ impl Type {
             }
             Type::Mat(_, r, ty) => Type::Vec(*r, ty.clone()).align_of(ctx),
             Type::Atomic(_) => Some(4),
-            Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) | Type::Void => None,
+            Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => None,
         }
     }
 }

@@ -17,7 +17,7 @@ pub enum Flow {
     Next,
     Break,
     Continue,
-    Return(Instance),
+    Return(Option<Instance>),
 }
 
 macro_rules! with_stage {
@@ -481,12 +481,12 @@ impl Exec for ContinueStatement {
 
 impl Exec for ReturnStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        let inst = if let Some(e) = &self.expression {
-            e.eval_value(ctx)?
+        if let Some(e) = &self.expression {
+            let inst = e.eval_value(ctx)?;
+            Ok(Flow::Return(Some(inst)))
         } else {
-            Instance::Void
-        };
-        Ok(Flow::Return(inst))
+            Ok(Flow::Return(None))
+        }
     }
 }
 
@@ -498,8 +498,11 @@ impl Exec for DiscardStatement {
 
 impl Exec for FunctionCallStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        let _ = self.call.eval(ctx)?;
-        Ok(Flow::Next)
+        match self.call.eval(ctx) {
+            Ok(_) => Ok(Flow::Next),
+            Err(E::Void(_)) => Ok(Flow::Next),
+            Err(e) => Err(e),
+        }
     }
 }
 

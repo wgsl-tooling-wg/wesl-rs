@@ -149,7 +149,6 @@ impl BuiltinIdent for Type {
             Type::Ptr(_, _) => builtin_ident("ptr"),
             Type::Texture(texture_type) => texture_type.builtin_ident(),
             Type::Sampler(sampler_type) => sampler_type.builtin_ident(),
-            Type::Void => None,
         }
     }
 }
@@ -951,8 +950,6 @@ impl Instance {
             Type::Atomic(_) | Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => {
                 Err(E::NotConstructible(ty.clone()))
             }
-            // XXX: should this be not constructible?
-            Type::Void => Ok(Instance::Void),
         }
     }
 }

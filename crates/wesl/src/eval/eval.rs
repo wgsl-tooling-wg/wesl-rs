@@ -294,9 +294,8 @@ impl Eval for FunctionCall {
                 let ret_ty = decl
                     .return_type
                     .as_ref()
-                    .map(|e| ty_eval_ty(e, ctx))
-                    .unwrap_or(Ok(Type::Void))
-                    .inspect_err(|_| ctx.set_err_decl_ctx(decl.ident.to_string()))?;
+                    .ok_or_else(|| E::Void(fn_name.clone()))?;
+                let ret_ty = ty_eval_ty(ret_ty, ctx)?;
 
                 let flow = with_scope!(ctx, {
                     let args = args
@@ -308,7 +307,7 @@ impl Eval for FunctionCall {
                                 .ok_or_else(|| E::ParamType(param_ty.clone(), arg.ty()))
                         })
                         .collect::<Result<Vec<_>, _>>()
-                        .inspect_err(|_| ctx.set_err_decl_ctx(decl.ident.to_string()))?;
+                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
 
                     for (a, p) in zip(args, &decl.parameters) {
                         ctx.scope.add(p.ident.to_string(), a);
@@ -316,24 +315,19 @@ impl Eval for FunctionCall {
 
                     // the arguments must be in the same scope as the function body.
                     let flow = compound_exec_no_scope(&decl.body, ctx)
-                        .inspect_err(|_| ctx.set_err_decl_ctx(decl.ident.to_string()))?;
+                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
 
                     Ok(flow)
                 })?;
 
                 let inst = match flow {
-                    Flow::Next => {
-                        if ret_ty == Type::Void {
-                            Ok(Instance::Void)
-                        } else {
-                            Err(E::ReturnType(Type::Void, ret_ty))
-                        }
-                    }
+                    Flow::Next => Err(E::NoReturn(fn_name, ret_ty)),
                     Flow::Break | Flow::Continue => Err(E::FlowInFunction(flow)),
-                    Flow::Return(inst) => inst
+                    Flow::Return(Some(inst)) => inst
                         .convert_to(&ret_ty)
-                        .ok_or(E::ReturnType(inst.ty(), ret_ty))
-                        .inspect_err(|_| ctx.set_err_decl_ctx(decl.ident.to_string())),
+                        .ok_or(E::ReturnType(inst.ty(), fn_name.clone(), ret_ty))
+                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name)),
+                    Flow::Return(None) => Err(E::NoReturn(fn_name, ret_ty)),
                 };
                 inst
             }
@@ -354,13 +348,9 @@ impl Eval for FunctionCall {
                         .collect::<Result<Vec<_>, _>>()?;
                     Ok(StructInstance::new(fn_name, members).into())
                 } else if args.is_empty() {
-                    StructInstance::zero_value(&*decl.ident.name(), ctx).map(Into::into)
+                    StructInstance::zero_value(&fn_name, ctx).map(Into::into)
                 } else {
-                    Err(E::ParamCount(
-                        decl.ident.to_string(),
-                        decl.members.len(),
-                        args.len(),
-                    ))
+                    Err(E::ParamCount(fn_name, decl.members.len(), args.len()))
                 }
             } else {
                 Err(E::NotCallable(fn_name))
