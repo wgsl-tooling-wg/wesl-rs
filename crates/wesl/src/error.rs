@@ -383,6 +383,7 @@ impl Diagnostic<Error> {
                 }
                 EvalError::NotConst(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::Void(name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::MustUse(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UnknownDecl(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UninitConst(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UninitLet(name) => unmangle_name(name, sourcemap, mangler),

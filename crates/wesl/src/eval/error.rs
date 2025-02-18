@@ -112,6 +112,8 @@ pub enum EvalError {
     NotConst(String),
     #[error("expected a value, but function `{0}` has no return type")]
     Void(String),
+    #[error("function `{0}` has the `@must_use` attribute, its return value must be used")]
+    MustUse(String),
 
     // declarations
     #[error("unknown declaration `{0}`")]

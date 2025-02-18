@@ -3,8 +3,8 @@ use std::fmt::Display;
 use crate::eval::conv::Convert;
 
 use super::{
-    attrs::EvalAttrs, ty_eval_ty, AccessMode, Context, Eval, EvalError, EvalStage, EvalTy,
-    Instance, LiteralInstance, RefInstance, ScopeKind, Ty, Type,
+    attrs::EvalAttrs, is_constructor_fn, ty_eval_ty, AccessMode, Context, Eval, EvalError,
+    EvalStage, EvalTy, Instance, LiteralInstance, RefInstance, ScopeKind, SyntaxUtil, Ty, Type,
 };
 
 use wgsl_parse::{span::Spanned, syntax::*};
@@ -498,6 +498,27 @@ impl Exec for DiscardStatement {
 
 impl Exec for FunctionCallStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
+        let fn_name = self.call.ty.ident.to_string();
+
+        let is_must_use = match ctx.source.decl(&fn_name) {
+            Some(GlobalDeclaration::Function(decl)) => {
+                decl.attributes.contains(&Attribute::MustUse)
+            }
+            Some(GlobalDeclaration::Struct(_)) => true,
+            Some(_) => return Err(E::NotCallable(fn_name)),
+            None => {
+                if is_constructor_fn(&fn_name) {
+                    true
+                } else {
+                    return Err(E::UnknownFunction(fn_name));
+                }
+            }
+        };
+
+        if is_must_use {
+            return Err(E::MustUse(fn_name));
+        }
+
         match self.call.eval(ctx) {
             Ok(_) => Ok(Flow::Next),
             Err(E::Void(_)) => Ok(Flow::Next),

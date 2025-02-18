@@ -327,7 +327,9 @@ impl Lower for Statement {
             Statement::FunctionCall(stmt) => {
                 let decl = ctx.source.decl_function(&stmt.call.ty.ident.name());
                 if let Some(decl) = decl {
-                    if decl.attributes.contains(&Attribute::Const) {
+                    if decl.attributes.contains(&Attribute::Const)
+                        && !decl.attributes.contains(&Attribute::MustUse)
+                    {
                         *self = Statement::Void; // a const function has no side-effects
                     } else {
                         stmt.lower(ctx)?
