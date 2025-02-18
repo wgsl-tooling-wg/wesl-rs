@@ -516,7 +516,14 @@ impl Resolutions {
                 wesl.global_declarations
                     .extend(module.source.global_declarations.clone());
             }
+            wesl.global_directives
+                .extend(module.source.global_directives.clone());
         }
+        // TODO: <https://github.com/wgsl-tooling-wg/wesl-spec/issues/71>
+        // currently the behavior is:
+        // * include all directives used (if strip)
+        // * include all directives (if not strip)
+        wesl.global_directives.dedup();
         wesl
     }
 }
