@@ -589,7 +589,7 @@ impl Display for CompileResult {
 #[cfg(feature = "eval")]
 pub struct ExecResult<'a> {
     /// The executed function return value
-    pub inst: eval::Instance,
+    pub inst: Option<eval::Instance>,
     /// Context after execution
     pub ctx: eval::Context<'a>,
 }
@@ -597,10 +597,8 @@ pub struct ExecResult<'a> {
 #[cfg(feature = "eval")]
 impl<'a> ExecResult<'a> {
     /// Get the function return value.
-    ///
-    /// "void" functions return [`eval::Instance::Void`].
-    pub fn return_value(&self) -> &eval::Instance {
-        &self.inst
+    pub fn return_value(&self) -> Option<&eval::Instance> {
+        self.inst.as_ref()
     }
 
     /// Get a [shader resource](https://www.w3.org/TR/WGSL/#resource).
@@ -609,13 +607,6 @@ impl<'a> ExecResult<'a> {
     /// can be modified after executing an entry point.
     pub fn resource(&self, group: u32, binding: u32) -> Option<&eval::RefInstance> {
         self.ctx.resource(group, binding)
-    }
-}
-
-#[cfg(feature = "eval")]
-impl<'a> Display for ExecResult<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.inst.fmt(f)
     }
 }
 
@@ -692,23 +683,24 @@ impl CompileResult {
         overrides: HashMap<String, eval::Instance>,
     ) -> Result<ExecResult, Error> {
         // TODO: this is not the right way.
-        let expr = syntax::Expression::FunctionCall(syntax::FunctionCall {
+        let call = syntax::FunctionCall {
             ty: syntax::TypeExpression::new(Ident::new(entrypoint.to_string())),
             arguments: Vec::new(),
-        });
+        };
 
-        let (inst, ctx) = exec(&expr, &self.syntax, bindings, overrides);
+        let (inst, ctx) = exec(&call, &self.syntax, bindings, overrides);
         let inst = inst.map_err(|e| {
-            Diagnostic::from(e)
-                .with_source(expr.to_string())
-                .with_ctx(&ctx)
-        });
-
-        let inst = if let Some(sourcemap) = &self.sourcemap {
-            inst.map_err(|e| Error::Error(e.with_sourcemap(sourcemap)))
-        } else {
-            inst.map_err(Error::Error)
-        }?;
+            if let Some(sourcemap) = &self.sourcemap {
+                Diagnostic::from(e)
+                    .with_source(call.to_string())
+                    .with_ctx(&ctx)
+                    .with_sourcemap(sourcemap)
+            } else {
+                Diagnostic::from(e)
+                    .with_source(call.to_string())
+                    .with_ctx(&ctx)
+            }
+        })?;
 
         Ok(ExecResult { inst, ctx })
     }
@@ -966,16 +958,21 @@ pub fn eval<'s>(
 /// Low-level version of [`CompileResult::exec`].
 #[cfg(feature = "eval")]
 pub fn exec<'s>(
-    expr: &syntax::Expression,
+    expr: &impl Eval,
     wgsl: &'s TranslationUnit,
     bindings: HashMap<(u32, u32), eval::RefInstance>,
     overrides: HashMap<String, eval::Instance>,
-) -> (Result<eval::Instance, EvalError>, eval::Context<'s>) {
+) -> (Result<Option<eval::Instance>, EvalError>, eval::Context<'s>) {
     let mut ctx = eval::Context::new(wgsl);
     ctx.add_bindings(bindings);
     ctx.add_overrides(overrides);
     ctx.set_stage(eval::EvalStage::Exec);
-    let res = wgsl.exec(&mut ctx).and_then(|_| expr.eval(&mut ctx));
+
+    let res = wgsl.exec(&mut ctx).and_then(|_| match expr.eval(&mut ctx) {
+        Ok(ret) => Ok(Some(ret)),
+        Err(eval::EvalError::Void(_)) => Ok(None),
+        Err(e) => Err(e),
+    });
     (res, ctx)
 }
 

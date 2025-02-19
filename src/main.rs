@@ -186,7 +186,7 @@ where
     Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
 }
 
-/// reference: https://gpuweb.github.io/gpuweb/#binding-type
+/// reference: <https://gpuweb.github.io/gpuweb/#binding-type>
 #[derive(Clone, Copy, Debug)]
 enum BindingType {
     Uniform,
@@ -587,14 +587,17 @@ fn run(cli: Cli) -> Result<(), CliError> {
 
             let mut exec = comp.exec(&args.entrypoint, resources, overrides)?;
 
-            if args.binary {
-                let buf = exec
-                    .inst
-                    .to_buffer(&mut exec.ctx)
-                    .ok_or_else(|| CliError::NotStorable(exec.inst.ty()))?;
-                std::io::stdout().write_all(buf.as_slice()).unwrap();
-            } else {
-                println!("return: {}", exec.inst)
+            if let Some(inst) = &exec.inst {
+                if args.binary {
+                    let buf = inst
+                        .to_buffer(&mut exec.ctx)
+                        .ok_or_else(|| CliError::NotStorable(inst.ty()))?;
+                    std::io::stdout().write_all(buf.as_slice()).unwrap();
+                } else {
+                    println!("return: {}", inst)
+                }
+            } else if !args.binary {
+                println!("return: void")
             }
 
             let resources = args
@@ -611,7 +614,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
                 if args.binary {
                     let buf = inst
                         .to_buffer(&mut exec.ctx)
-                        .ok_or_else(|| CliError::NotStorable(exec.inst.ty()))?;
+                        .ok_or_else(|| CliError::NotStorable(inst.ty()))?;
                     std::io::stdout().write_all(buf.as_slice()).unwrap();
                 } else {
                     println!("resource: group={group} binding={binding} value={inst}")

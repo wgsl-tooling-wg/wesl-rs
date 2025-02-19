@@ -119,6 +119,16 @@ impl From<Expression> for ReturnStatement {
     }
 }
 
+impl From<FunctionCall> for FunctionCallStatement {
+    fn from(call: FunctionCall) -> Self {
+        Self {
+            #[cfg(feature = "attributes")]
+            attributes: Default::default(),
+            call,
+        }
+    }
+}
+
 impl GlobalDeclaration {
     /// Get the name of the declaration, if it has one.
     pub fn ident(&self) -> Option<&Ident> {
