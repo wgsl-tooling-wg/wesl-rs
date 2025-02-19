@@ -5,7 +5,7 @@ use wgsl_parse::syntax::{TranslationUnit, TypeExpression};
 use crate::{Mangler, ResolveError, Resolver, Resource};
 
 /// A SourceMap is a lookup from compiled WGSL to source WESL. It translates a mangled
-/// name into a pair (module path, declaration name).
+/// name into a module path and declaration name.
 pub trait SourceMap {
     /// Get the module path and declaration name from a mangled name.
     fn get_decl(&self, decl: &str) -> Option<(&Resource, &str)>;
@@ -96,6 +96,10 @@ impl SourceMap for NoSourceMap {
 }
 
 /// Generate a SourceMap by keeping track of name mangling and file resolutions.
+///
+/// `SourceMapper` is a proxy that implements [`Mangler`] and [`Resolver`]. To record a
+/// sourcemap, invoke the compiler with this instance as both the mangler and the
+/// resolver.
 pub struct SourceMapper<'a> {
     pub resolver: &'a dyn Resolver,
     pub mangler: &'a dyn Mangler,
@@ -103,6 +107,7 @@ pub struct SourceMapper<'a> {
 }
 
 impl<'a> SourceMapper<'a> {
+    /// Create a new `SourceMapper` from a mangler and a resolver.
     pub fn new(resolver: &'a dyn Resolver, mangler: &'a dyn Mangler) -> Self {
         Self {
             resolver,
@@ -110,6 +115,7 @@ impl<'a> SourceMapper<'a> {
             sourcemap: Default::default(),
         }
     }
+    /// Consume this and return a [`BasicSourceMap`].
     pub fn finish(self) -> BasicSourceMap {
         self.sourcemap.into_inner()
     }

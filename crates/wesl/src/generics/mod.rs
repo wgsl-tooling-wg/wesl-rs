@@ -6,6 +6,7 @@ use wgsl_parse::{syntax::*, Decorated};
 
 use crate::visit::Visit;
 
+/// Generics error (experimental)
 #[derive(Clone, Debug, Error)]
 pub enum GenericsError {
     #[error("template not allowed on a generic parameter")]

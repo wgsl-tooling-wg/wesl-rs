@@ -8,6 +8,7 @@ use wgsl_parse::syntax::{
 use crate::visit::Visit;
 use crate::{Diagnostic, Error};
 
+/// WESL or WGSL Validation error.
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum ValidateError {
     #[error("cannot find declaration of `{0}`")]

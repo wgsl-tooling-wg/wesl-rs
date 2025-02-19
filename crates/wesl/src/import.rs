@@ -15,6 +15,7 @@ type Imports = HashMap<Ident, (Resource, Ident)>;
 type Decls = HashMap<Resource, HashSet<usize>>;
 type Modules = HashMap<Resource, Rc<RefCell<Module>>>;
 
+/// Error produced during import resolution.
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum ImportError {
     #[error("duplicate imported item `{0}`")]

@@ -4,6 +4,7 @@ use wgsl_parse::syntax::*;
 
 use super::{EvalStage, Flow, Instance, LiteralInstance, MemView, ScopeKind, Type};
 
+/// Evaluation and Execution errors.
 #[derive(Clone, Debug, Error)]
 pub enum EvalError {
     #[error("not implemented: `{0}`")]

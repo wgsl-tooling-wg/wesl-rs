@@ -1,11 +1,9 @@
 //! # WESL: A Community Standard for Enhanced WGSL
 //!
-//! This is the crate for all your [WESL](https://github.com/wgsl-tooling-wg/wesl-spec) needs.
+//! This is the crate for all your [WESL](https://github.com/wgsl-tooling-wg/wesl-spec)
+//! needs.
 //!
-//! Work in progress! Both the WESL specification and this API are subject to frequent
-//! changes.
-//!
-//! See also: the [standalone CLI](https://github.com/wgsl-tooling-wg/wesl-rs).
+//! See also the [standalone CLI](https://github.com/wgsl-tooling-wg/wesl-rs).
 //!
 //! ## Basic Usage
 //!
@@ -132,8 +130,8 @@ pub use error::{Diagnostic, Error};
 pub use lower::lower;
 pub use mangle::{CacheMangler, EscapeMangler, HashMangler, Mangler, NoMangler, UnicodeMangler};
 pub use resolve::{
-    CacheResolver, FileResolver, NoResolver, PkgModule, PkgResolver, Preprocessor, ResolveError,
-    Resolver, Resource, Router, StandardResolver, VirtualResolver,
+    FileResolver, NoResolver, PkgModule, PkgResolver, Preprocessor, ResolveError, Resolver,
+    Resource, Router, StandardResolver, VirtualResolver,
 };
 pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
 pub use strip::strip_except;
@@ -152,6 +150,7 @@ use itertools::Itertools;
 use validate::validate_wesl;
 use wgsl_parse::syntax::{Ident, TranslationUnit};
 
+/// Compilation options. Used in [`compile`] and [`Wesl::set_options`].
 #[derive(Debug)]
 pub struct CompileOptions {
     pub imports: bool,
@@ -181,27 +180,21 @@ impl Default for CompileOptions {
     }
 }
 
+/// Mangling scheme. Used in [`Wesl::set_mangler`].
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ManglerKind {
-    /// Escaped path mangler. `foo/bar/{item} -> foo_bar_item`
+    /// Escaped path mangler.
+    /// `foo_bar::item -> foo__bar_item`
     #[default]
     Escape,
-    /// Hash mangler. `foo/bar/{item} -> item_1985638328947`
+    /// Hash mangler.
+    /// `foo::bar::item -> item_1985638328947`
     Hash,
     /// Make valid identifiers with unicode "confusables" characters.
-    /// `foo/{bar<baz, moo>} -> foo::barᐸbazˏmooᐳ`
+    /// `foo::bar<baz, moo> -> foo::barᐸbazˏmooᐳ`
     Unicode,
-    /// Disable mangling (warning: will break if case of name conflicts!)
+    /// Disable mangling. (warning: will break if case of name conflicts!)
     None,
-}
-
-fn make_mangler(kind: ManglerKind) -> Box<dyn Mangler + Send + Sync + 'static> {
-    match kind {
-        ManglerKind::Escape => Box::new(EscapeMangler),
-        ManglerKind::Hash => Box::new(HashMangler),
-        ManglerKind::Unicode => Box::new(UnicodeMangler),
-        ManglerKind::None => Box::new(NoMangler),
-    }
 }
 
 /// Include a WGSL file compiled with [`Wesl::build_artefact`] as a string.
@@ -234,7 +227,7 @@ macro_rules! wesl_pkg {
     };
 }
 
-/// The WESL compiler high-level API (builder pattern).
+/// The WESL compiler high-level API.
 ///
 /// # Basic Usage
 ///
@@ -254,15 +247,13 @@ impl Wesl<StandardResolver> {
     /// Get a WESL compiler with all *mandatory* and *optional* WESL extensions enabled,
     /// but not *experimental* and *non-standard* extensions.
     ///
-    /// It's probably what you want to use in most cases. You can customize it with other
-    /// functions.
-    ///
     /// See also: [`Wesl::new_barebones`], [`Wesl::new_experimental`].
     ///
     /// # WESL Reference
-    /// * (mandatory) Imports: [`Imports.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md) (specification for `imports` is not stabilized yet)
-    /// * (mandatory) Conditional translation: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
-    /// * (optional)  Stripping: spec not yet available.
+    /// This WESL compiler is spec-compliant.
+    ///
+    /// Mandatory extensions: imports, conditional translation.
+    /// Optional extrensions: stripping.
     pub fn new(base: impl AsRef<Path>) -> Self {
         Self {
             options: CompileOptions {
@@ -282,17 +273,17 @@ impl Wesl<StandardResolver> {
         }
     }
 
-    /// Get a WESL compiler with all functionalities enabled, including *experimental*
-    /// ones.
+    /// Get a WESL compiler with all functionalities enabled, including *experimental* and
+    /// *non-standard* ones.
     ///
     /// See also: [`Wesl::new`] and [`Wesl::new_barebones`].
     ///
     /// # WESL Reference
-    /// This Wesl compiler is *not* spec-compliant because it enables all extensions
+    /// This WESL compiler is *not* spec-compliant because it enables all extensions
     /// including *experimental* and *non-standard* ones. See [`Wesl::new`].
     ///
-    /// Experimental extensions: `generics`
-    /// Non-standard extensions: `@const`
+    /// Experimental extensions: generics.
+    /// Non-standard extensions: `@const`.
     pub fn new_experimental(base: impl AsRef<Path>) -> Self {
         Self {
             options: CompileOptions {
@@ -335,13 +326,13 @@ impl Wesl<StandardResolver> {
 }
 
 impl Wesl<NoResolver> {
-    /// Get WESL compiler with all extensions disabled.
+    /// Get a WESL compiler with no extensions, no mangler and no resolver.
     ///
-    /// You *should* set a [`Mangler`] and a [`Resolver`] manually to use this compiler, see
-    /// [`Wesl::set_mangler`] and [`Wesl::set_custom_resolver`].
+    /// You *should* set a [`Mangler`] and a [`Resolver`] manually to use this compiler,
+    /// see [`Wesl::set_mangler`] and [`Wesl::set_custom_resolver`].
     ///
     /// # WESL Reference
-    /// This Wesl compiler is *not* spec-compliant because it does not enable *mandatory*
+    /// This WESL compiler is *not* spec-compliant because it does not enable *mandatory*
     /// WESL extensions. See [`Wesl::new`].
     pub fn new_barebones() -> Self {
         Self {
@@ -376,19 +367,21 @@ impl<R: Resolver> Wesl<R> {
     ///
     /// # WESL Reference
     /// Custom manglers *must* conform to the constraints described in [`Mangler`].
+    ///
     /// Spec: not yet available.
     pub fn set_mangler(&mut self, kind: ManglerKind) -> &mut Self {
-        self.mangler = make_mangler(kind);
+        self.mangler = match kind {
+            ManglerKind::Escape => Box::new(EscapeMangler),
+            ManglerKind::Hash => Box::new(HashMangler),
+            ManglerKind::Unicode => Box::new(UnicodeMangler),
+            ManglerKind::None => Box::new(NoMangler),
+        };
         self
     }
 
     /// Set a custom [`Mangler`].
     ///
     /// The default mangler is [`EscapeMangler`].
-    ///
-    /// # WESL Reference
-    /// All [builtin manglers](ManglerKind) are spec-compliant, except [`NoMangler`] ([`ManglerKind::None`]).
-    /// Spec: not yet available.
     pub fn set_custom_mangler(
         &mut self,
         mangler: impl Mangler + Send + Sync + 'static,
@@ -397,11 +390,11 @@ impl<R: Resolver> Wesl<R> {
         self
     }
 
-    /// Set a custom [`Resolver`] (customize how import paths are translated to wesl modules).
+    /// Set a custom [`Resolver`] (customize how import paths are translated to WESL modules).
     ///
     ///```rust
     /// # use wesl::{FileResolver, Router, VirtualResolver, Wesl};
-    /// // in this example, `import runtime::constants::PI` is in a custom module mounted at runtime.
+    /// // `import runtime::constants::PI` is in a custom module mounted at runtime.
     /// let mut resolver = VirtualResolver::new();
     /// resolver.add_module("constants", "const PI = 3.1415; const TAU = PI * 2.0;".into());
     /// let mut router = Router::new();
@@ -413,7 +406,6 @@ impl<R: Resolver> Wesl<R> {
     /// # WESL Reference
     /// Both [`FileResolver`] and [`VirtualResolver`] are spec-compliant.
     /// Custom resolvers *must* conform to the constraints described in [`Resolver`].
-    /// Spec: not yet available.
     pub fn set_custom_resolver(self, resolver: impl Resolver + 'static) -> Wesl<Box<dyn Resolver>> {
         Wesl {
             options: self.options,
@@ -428,7 +420,8 @@ impl<R: Resolver> Wesl<R> {
     /// Turning "on" this option will improve the quality of error messages.
     ///
     /// # WESL Reference
-    /// Sourcemapping is not part of the WESL Specification and does not impact compliance.
+    /// Sourcemapping is not yet part of the WESL Specification and does not impact
+    /// compliance.
     pub fn use_sourcemap(&mut self, val: bool) -> &mut Self {
         self.use_sourcemap = val;
         self
@@ -436,11 +429,10 @@ impl<R: Resolver> Wesl<R> {
 
     /// Enable imports.
     ///
-    /// Inline import identifiers (identifiers with `::`) are not yet implemented.
-    ///
     /// # WESL Reference
     /// Imports is a *mandatory* WESL extension.
-    /// Spec: not yet available.
+    ///
+    /// Spec: [`Imports.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md)
     #[cfg(feature = "imports")]
     pub fn use_imports(&mut self, val: bool) -> &mut Self {
         self.options.imports = val;
@@ -462,6 +454,7 @@ impl<R: Resolver> Wesl<R> {
     ///
     /// # WESL Reference
     /// Generics is an *experimental* WESL extension.
+    ///
     /// Spec: not yet available.
     #[cfg(feature = "generics")]
     pub fn use_generics(&mut self, val: bool) -> &mut Self {
@@ -472,6 +465,7 @@ impl<R: Resolver> Wesl<R> {
     ///
     /// # WESL Reference
     /// Conditional translation is a *mandatory* WESL extension.
+    ///
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
     #[cfg(feature = "condcomp")]
     pub fn set_feature(&mut self, feat: &str, val: bool) -> &mut Self {
@@ -497,13 +491,14 @@ impl<R: Resolver> Wesl<R> {
     ///
     /// # WESL Reference
     /// Conditional translation is a *mandatory* WESL extension.
+    ///
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
     #[cfg(feature = "condcomp")]
     pub fn unset_feature(&mut self, feat: &str) -> &mut Self {
         self.options.features.remove(feat);
         self
     }
-    /// Removes unused declarations from the final WGSL output.
+    /// Remove unused declarations from the final WGSL output.
     ///
     /// Unused declarations are all declarations not used (directly or indirectly) by any
     /// of the entrypoints (functions marked `@compute`, `@vertex` or `@fragment`) in the
@@ -514,12 +509,14 @@ impl<R: Resolver> Wesl<R> {
     /// # WESL Reference
     /// Code stripping is an *optional* WESL extension.
     /// Customizing entrypoints returned by the compiler is explicitly allowed by the spec.
+    ///
     /// Spec: not yet available.
     pub fn use_stripping(&mut self, val: bool) -> &mut Self {
         self.options.strip = val;
         self
     }
-    /// Transform an output into a simplified WGSL that is better supported by implementors.
+    /// Transform an output into a simplified WGSL that is better supported by
+    /// implementors.
     ///
     /// Currently, lower performs the following transforms:
     /// * remove aliases (inlined)
@@ -527,27 +524,33 @@ impl<R: Resolver> Wesl<R> {
     /// * remove deprecated, non-standard attributes
     /// * remove import declarations
     ///
+    /// with the `eval` feature flag enabled, it performs additional transforms:
+    /// * evaluate const-expressions (including calls to const functions)
+    /// * remove unreachable code paths after const-evaluation
+    /// * remove function call statements to const functions (no side-effects)
+    /// * make implicit conversions from abstract types explicit (using conversion rank)
+    ///
     /// Customizing this behavior is not possible currently. The following transforms may
     /// be available in the future:
     /// * make variable types explicit
-    /// * make implicit conversions (conversion rank) explicit
-    /// * concretize abstract literals
     /// * remove unused variables / code with no side-effects
-    /// * evaluate const-expressions
     ///
     /// # WESL Reference
     /// Lowering is an *experimental* WESL extension.
+    ///
     /// Spec: not yet available.
     pub fn use_lower(&mut self, val: bool) -> &mut Self {
         self.options.lower = val;
         self
     }
-    /// If stripping is enabled, specifies which entrypoints to keep in the final WGSL.
+    /// If stripping is enabled, specify which entrypoints to keep in the final WGSL.
     /// All entrypoints are kept by default.
     ///
     /// # WESL Reference
     /// Code stripping is an *optional* WESL extension.
-    /// Customizing entrypoints returned by the compiler is explicitly allowed by the spec.
+    /// Customizing entrypoints returned by the compiler is explicitly allowed by the
+    /// spec.
+    ///
     /// Spec: not yet available.
     pub fn keep_entrypoints(&mut self, entries: Vec<String>) -> &mut Self {
         self.options.keep = Some(entries);
@@ -558,7 +561,9 @@ impl<R: Resolver> Wesl<R> {
     ///
     /// # WESL Reference
     /// Code stripping is an *optional* WESL extension.
-    /// Customizing entrypoints returned by the compiler is explicitly allowed by the spec.
+    /// Customizing entrypoints returned by the compiler is explicitly allowed by the
+    /// spec.
+    ///
     /// Spec: not yet available.
     pub fn keep_all_entrypoints(&mut self) -> &mut Self {
         self.options.keep = None;
@@ -566,6 +571,11 @@ impl<R: Resolver> Wesl<R> {
     }
 }
 
+/// The result of [`Wesl::compile`].
+///
+/// This type contains both the resulting WGSL syntax tree and the sourcemap if
+/// [`Wesl`] was invoked with sourcemapping enabled.
+///
 /// This type implements `Display`, call `to_string()` to get the compiled WGSL.
 #[derive(Clone)]
 pub struct CompileResult {
@@ -585,6 +595,11 @@ impl Display for CompileResult {
     }
 }
 
+/// The result of [`CompileResult::exec`].
+///
+/// This type contains both the return value of the function called (if any) and the
+/// evaluation context (including bindings).
+///
 /// This type implements `Display`, call `to_string()` to get the function return value.
 #[cfg(feature = "eval")]
 pub struct ExecResult<'a> {
@@ -603,13 +618,19 @@ impl<'a> ExecResult<'a> {
 
     /// Get a [shader resource](https://www.w3.org/TR/WGSL/#resource).
     ///
-    /// Shader resources (aka. bindings) with `write` [access mode](https://www.w3.org/TR/WGSL/#memory-access-mode)
-    /// can be modified after executing an entry point.
+    /// Shader resources (aka. bindings) with `write`
+    /// [access mode](https://www.w3.org/TR/WGSL/#memory-access-mode) can be modified
+    /// after executing an entry point.
     pub fn resource(&self, group: u32, binding: u32) -> Option<&eval::RefInstance> {
         self.ctx.resource(group, binding)
     }
 }
 
+/// The result of [`CompileResult::eval`].
+///
+/// This type contains both the resulting WGSL instance and the evaluation context
+/// (including bindings).
+///
 /// This type implements `Display`, call `to_string()` to get the evaluation result.
 #[cfg(feature = "eval")]
 pub struct EvalResult<'a> {
@@ -640,7 +661,7 @@ impl<'a> Display for EvalResult<'a> {
 impl CompileResult {
     /// Evaluate a const-expression in the context of this compilation result.
     ///
-    /// Highly experimental. Not all builtin `@const` WGSL functions are supported yet.
+    /// Highly experimental. Not all builtin WGSL functions are supported yet.
     /// Contrary to [`eval_str`], the provided expression can reference declarations
     /// in the compiled WGSL: global const-declarations and user-defined functions with
     /// the `@const` attribute.
@@ -669,10 +690,9 @@ impl CompileResult {
         Ok(res)
     }
 
-    /// Execute an entrypoint in the same way it would be executed on the GPU.
+    /// Execute an entrypoint in the same way that it would be executed on the GPU.
     ///
-    /// /!\ This function is highly experimental.
-    ///
+    /// Highly experimental.
     ///
     /// # WESL Reference
     /// The `@const` attribute is non-standard.
@@ -709,23 +729,20 @@ impl CompileResult {
 impl<R: Resolver> Wesl<R> {
     /// Compile a WESL program from a root file.
     ///
-    /// The result of `compile` is not necessarily a valid WGSL string. See (TODO) to
-    /// validate the output and (TODO) perform convert the output to valid WGSL.
-    ///
     /// # WESL Reference
     /// Spec: not available yet.
-    pub fn compile(&self, entrypoint: impl AsRef<Path>) -> Result<CompileResult, Error> {
-        let entrypoint = Resource::new(entrypoint);
+    pub fn compile(&self, root: impl AsRef<Path>) -> Result<CompileResult, Error> {
+        let root = Resource::new(root);
 
         if self.use_sourcemap {
             let (syntax, sourcemap) =
-                compile_sourcemap(&entrypoint, &self.resolver, &self.mangler, &self.options);
+                compile_sourcemap(&root, &self.resolver, &self.mangler, &self.options);
             Ok(CompileResult {
                 syntax: syntax?,
                 sourcemap: Some(sourcemap),
             })
         } else {
-            let syntax = compile(&entrypoint, &self.resolver, &self.mangler, &self.options);
+            let syntax = compile(&root, &self.resolver, &self.mangler, &self.options);
             Ok(CompileResult {
                 syntax: syntax?,
                 sourcemap: None,
@@ -733,13 +750,14 @@ impl<R: Resolver> Wesl<R> {
         }
     }
 
-    /// Compile a WESL program from a root file and output the result in rust's OUT_DIR.
+    /// Compile a WESL program from a root file and output the result in rust's `OUT_DIR`.
     ///
-    /// This function is meant to be used in a `build.rs` workflow. The compiled WGSL will
-    /// be available with the [`include_wesl`] macro. See the crate documentation for a
+    /// This function is meant to be used in a `build.rs` workflow. The output WGSL will
+    /// be accessed with the [`include_wesl`] macro. See the crate documentation for a
     /// usage example.
     ///
-    /// * The first argument is the path to the entrypoint file relative to the base directory.
+    /// * The first argument is the path to the entrypoint file relative to the base
+    ///   directory.
     /// * The second argument is the name of the artefact, used in [`include_wesl`].
     ///
     /// # Panics
@@ -796,7 +814,7 @@ fn keep_idents(wesl: &TranslationUnit, keep: &Option<Vec<String>>, strip: bool) 
 }
 
 fn compile_pre_assembly(
-    root_resource: &Resource,
+    root: &Resource,
     resolver: &impl Resolver,
     mangler: &impl Mangler,
     options: &CompileOptions,
@@ -814,7 +832,7 @@ fn compile_pre_assembly(
         resolver
     };
 
-    let wesl = resolver.resolve_module(root_resource)?;
+    let wesl = resolver.resolve_module(root)?;
 
     // hack, this is passed by &mut just to return it from the function even in error case.
     *root_decls = wesl
@@ -828,9 +846,9 @@ fn compile_pre_assembly(
     let wesl = if options.imports {
         let mut resolution = if options.lazy {
             let keep = keep_idents(&wesl, &options.keep, options.strip);
-            import::resolve_lazy(wesl, root_resource, keep, &resolver)?
+            import::resolve_lazy(wesl, root, keep, &resolver)?
         } else {
-            import::resolve_eager(wesl, root_resource, &resolver)?
+            import::resolve_eager(wesl, root, &resolver)?
         };
         resolution.mangle(mangler)?;
         if options.validate {
@@ -871,13 +889,13 @@ fn compile_post_assembly(
 
 /// Low-level version of [`Wesl::compile`].
 pub fn compile(
-    root_module: &Resource,
+    root: &Resource,
     resolver: &impl Resolver,
     mangler: &impl Mangler,
     options: &CompileOptions,
 ) -> Result<TranslationUnit, Diagnostic<Error>> {
     let mut root_names = Vec::new();
-    let mut wesl = compile_pre_assembly(root_module, resolver, mangler, options, &mut root_names)?;
+    let mut wesl = compile_pre_assembly(root, resolver, mangler, options, &mut root_names)?;
     let keep = options.keep.as_deref().unwrap_or(&root_names);
     compile_post_assembly(&mut wesl, options, keep)?;
     Ok(wesl)
@@ -885,23 +903,17 @@ pub fn compile(
 
 /// Like [`compile`], but provides better error diagnostics and returns the sourcemap.
 pub fn compile_sourcemap(
-    root_module: &Resource,
+    root: &Resource,
     resolver: &impl Resolver,
     mangler: &impl Mangler,
     options: &CompileOptions,
 ) -> (Result<TranslationUnit, Error>, BasicSourceMap) {
     let sourcemapper = SourceMapper::new(&resolver, &mangler);
     let mut root_names = Vec::new();
-    let comp = compile_pre_assembly(
-        root_module,
-        &sourcemapper,
-        &sourcemapper,
-        options,
-        &mut root_names,
-    );
+    let comp = compile_pre_assembly(root, &sourcemapper, &sourcemapper, options, &mut root_names);
     let mut sourcemap = sourcemapper.finish();
     for name in &root_names {
-        sourcemap.add_decl(name.clone(), root_module.clone(), name.clone());
+        sourcemap.add_decl(name.clone(), root.clone(), name.clone());
     }
     let keep = options.keep.as_deref().unwrap_or(&root_names);
 
@@ -926,7 +938,9 @@ pub fn compile_sourcemap(
 
 /// Evaluate a const-expression.
 ///
-/// Only builtin function declarations marked `@const` can be called from const-expressions.
+/// Only builtin function declarations marked `@const` can be called from
+/// const-expressions.
+///
 /// Highly experimental. Not all builtin `@const` WGSL functions are supported yet.
 #[cfg(feature = "eval")]
 pub fn eval_str(expr: &str) -> Result<eval::Instance, Error> {

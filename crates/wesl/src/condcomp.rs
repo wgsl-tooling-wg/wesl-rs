@@ -5,6 +5,7 @@ use itertools::Itertools;
 use thiserror::Error;
 use wgsl_parse::{syntax::*, Decorated};
 
+/// Conditional translation error.
 #[derive(Clone, Debug, Error)]
 pub enum CondCompError {
     #[error("invalid feature flag: `{0}`")]

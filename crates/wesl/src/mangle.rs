@@ -16,15 +16,26 @@ use super::Resource;
 /// WGSL identifiers.
 ///
 /// `Mangler` implementations must respect the following constraints:
-/// * TODO
+/// * A pair {resource, item} must be associated with a unique mangled name.
+/// * A mangled name must be associated with a unique pair {resource, item} (or at least,
+///   the risk of a collision must be negligible).
+/// * The mangled name must be a valid WGSL identifier.
+///
+/// Calls to `Mangler::mangle` must respect these preconditions:
+/// * the resource must be canonical (absolute module path).
+/// * the item must be a valid WGSL identifier.
 ///
 /// # WESL Reference
-/// spec: not yet available.
+/// spec: [NameMangling.md](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/NameMangling.md)
 pub trait Mangler {
+    /// Turn an import path and item name into a mangled WGSL identifier. The resource
+    /// must be the canonical (absolute) module path.
     fn mangle(&self, resource: &Resource, item: &str) -> String;
+    /// Reverse the [`Mangler::mangle`] operation. Implementing this is optional.
     fn unmangle(&self, _mangled: &str) -> Option<(Resource, String)> {
         None
     }
+    /// Used for generics. Is experimental. Implementing is optional.
     fn mangle_types(&self, item: &str, variant: u32, _types: &[TypeExpression]) -> String {
         format!("{item}_{variant}")
     }
@@ -69,10 +80,10 @@ impl Mangler for HashMangler {
     }
 }
 
-/// A mangler that gives the escaped path to the resource.
+/// A mangler that replaces `::` with `_` and `_` with `__`.
 /// e.g. `foo::bar_baz item => foo_bar__baz_item`
 ///
-/// Warning: the file path segments must be valid wgsl identifiers.
+/// This is WESL's default mangler.
 #[derive(Default, Clone, Debug)]
 pub struct EscapeMangler;
 
@@ -121,7 +132,7 @@ impl Mangler for EscapeMangler {
 /// A mangler that just returns the identifer as-is (no mangling).
 /// e.g. `foo::bar::baz item => item`
 ///
-/// Warning: will break the program in case of name conflicts.
+/// Warning: this mangler is not spec-compliant. It can cause name collisions.
 #[derive(Default, Clone, Debug)]
 pub struct NoMangler;
 
@@ -168,7 +179,7 @@ impl<'a, T: Mangler> Mangler for CacheMangler<'a, T> {
 /// A mangler that uses cryptic unicode symbols that look like :, < and >
 /// e.g. `foo::bar::baz array<f32,2> => foo::bar::baz::arrayᐸf32ˏ2ᐳ`
 ///
-/// Very unlikely to collide unless using U+02D0 characters
+/// Very unlikely to collide unless using U+02D0 characters.
 ///
 /// # Panics
 /// if the TypeExpression is not normalized (i.e. contains only identifiers and literals)

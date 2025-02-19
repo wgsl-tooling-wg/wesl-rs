@@ -5,13 +5,13 @@ use wgsl_parse::syntax::TranslationUnit;
 
 use std::{
     borrow::Cow,
-    cell::RefCell,
     collections::HashMap,
     fmt::Display,
     fs,
     path::{Component, Path, PathBuf},
 };
 
+/// Error produced by module resolution.
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum ResolveError {
     #[error("invalid import path: `{0}` ({1})")]
@@ -24,6 +24,7 @@ pub enum ResolveError {
 
 type E = ResolveError;
 
+// TODO: rename ModulePath?
 /// A resource uniquely identify an importable module (file).
 ///
 /// Each module must be associated with a unique `Resource`, and a `Resource` must
@@ -60,28 +61,39 @@ fn clean_path(path: impl AsRef<Path>) -> PathBuf {
 }
 
 impl Resource {
+    /// Create a new resource from a module path.
+    ///
+    /// Precondition: the path components must be valid WGSL identifiers, or `..` or `.`.
     pub fn new(path: impl AsRef<Path>) -> Self {
         Self {
             path: clean_path(path),
         }
     }
+    /// Represent this resource as a module path.
     pub fn path(&self) -> &Path {
         &self.path
     }
+    /// Add a path component to the resource.
+    ///
+    /// Precondition: the `item` must be a valid WGSL identifier.
     pub fn push(&mut self, item: &str) {
         self.path.push(item);
     }
+    /// Get the parent resource, if this resource is not the root module.
     pub fn parent(&self) -> Option<Self> {
         self.path.parent().map(|p| Self {
             path: p.to_path_buf(),
         })
     }
+    /// Get the first component of the module path.
     pub fn first(&self) -> Option<&str> {
         self.path.iter().next().map(|p| p.to_str().unwrap())
     }
+    /// Get the last component of the module path.
     pub fn last(&self) -> Option<&str> {
         self.path.iter().last().map(|p| p.to_str().unwrap())
     }
+    /// Append `suffix` to the module path.
     pub fn join(&self, suffix: impl AsRef<Path>) -> Self {
         let mut path = self.path.clone();
         path.push(suffix);
@@ -89,18 +101,24 @@ impl Resource {
             path: clean_path(path),
         }
     }
+    /// Whether this resource points at an item in an external package.
     pub fn is_package(&self) -> bool {
         self.path.has_root()
     }
+    /// Get the the module path inside of the package, if this resource refers
+    /// to an item in an external package.
     pub fn package_local(&self) -> Option<Resource> {
         self.is_package().then(|| {
             let path = self.path.iter().skip(1).collect::<PathBuf>();
             Resource::new(path)
         })
     }
+    /// Whether this resource is relative (corresponds to a module path
+    /// starting with `super::`).
     pub fn is_relative(&self) -> bool {
         self.first() == Some(".")
     }
+    /// Make this resource absolute by dropping the `super::` prefix.
     pub fn absolute(mut self) -> Resource {
         if self.is_relative() {
             self.path = PathBuf::from_iter(self.path.iter().skip(1));
@@ -132,14 +150,17 @@ impl Display for Resource {
     }
 }
 
-/// A Resolver is responsible for turning a import path into a unique resource identifer ([`Resource`]),
-/// and providing the source file.
+/// A Resolver is responsible for turning an import path into a unique module path
+/// ([`Resource`]) and providing the source file and syntax tree.
 ///
-/// `Resolver` implementations must respect the following constraints:
-/// * TODO
+/// Typically implementations of [`Resolver`] only implement [`Resolver::resolve_source`].
+///
+/// Calls to `Resolver` functions must respect these preconditions:
+/// * the resource must be canonical (absolute module path).
 pub trait Resolver {
-    /// Tries to resolve a source file identified by a resource.
+    /// Try to resolve a source file identified by a resource.
     fn resolve_source<'a>(&'a self, resource: &Resource) -> Result<Cow<'a, str>, E>;
+    /// Convert a source file into a syntax tree.
     fn source_to_module(&self, source: &str, resource: &Resource) -> Result<TranslationUnit, E> {
         let mut wesl: TranslationUnit = source.parse().map_err(|e| {
             Diagnostic::from(e)
@@ -149,11 +170,13 @@ pub trait Resolver {
         wesl.retarget_idents(); // it's important to call that early on to have identifiers point at the right declaration.
         Ok(wesl)
     }
+    /// Try to resolve a source file identified by a resource.
     fn resolve_module(&self, resource: &Resource) -> Result<TranslationUnit, E> {
         let source = self.resolve_source(resource)?;
         let wesl = self.source_to_module(&source, resource)?;
         Ok(wesl)
     }
+    /// Get the display name of the resource. Implementing this is optional.
     fn display_name(&self, _resource: &Resource) -> Option<String> {
         None
     }
@@ -191,7 +214,7 @@ impl<T: Resolver> Resolver for &T {
 
 /// A resolver that never resolves anything.
 ///
-/// Returns [`ResolveError::FileNotFound`] when calling [`Resolver::resolve_source`].
+/// Returns [`ResolveError::InvalidResource`] when calling [`Resolver::resolve_source`].
 #[derive(Default, Clone, Debug)]
 pub struct NoResolver;
 
@@ -204,47 +227,9 @@ impl Resolver for NoResolver {
     }
 }
 
-/// A resolver that remembers to avoid multiple fetches.
-pub struct CacheResolver<R: Resolver> {
-    resolver: R,
-    cache: RefCell<HashMap<Resource, String>>,
-}
-
-impl<R: Resolver> CacheResolver<R> {
-    pub fn new(resolver: R) -> Self {
-        Self {
-            resolver,
-            cache: Default::default(),
-        }
-    }
-}
-
-impl<R: Resolver> Resolver for CacheResolver<R> {
-    fn resolve_source<'a>(&'a self, resource: &Resource) -> Result<Cow<'a, str>, E> {
-        let mut cache = self.cache.borrow_mut();
-
-        let source = if let Some(source) = cache.get(resource) {
-            source
-        } else {
-            let source = self.resolver.resolve_source(resource)?;
-            cache.insert(resource.clone(), source.into_owned());
-            cache.get(resource).unwrap()
-        };
-
-        Ok(source.clone().into())
-    }
-    fn source_to_module(&self, source: &str, resource: &Resource) -> Result<TranslationUnit, E> {
-        self.resolver.source_to_module(source, resource)
-    }
-    fn resolve_module(&self, resource: &Resource) -> Result<TranslationUnit, E> {
-        self.resolver.resolve_module(resource)
-    }
-    fn display_name(&self, resource: &Resource) -> Option<String> {
-        self.resolver.display_name(resource)
-    }
-}
-
 /// A resolver that looks for files in the filesystem.
+///
+/// It simply translates module paths to file paths. This is the intended behavior.
 #[derive(Default)]
 pub struct FileResolver {
     base: PathBuf,
@@ -252,7 +237,9 @@ pub struct FileResolver {
 }
 
 impl FileResolver {
-    /// `base` is the root directory to which absolute paths refer to.
+    /// Create a new resolver.
+    ///
+    /// `base` is the root directory which absolute paths refer to.
     pub fn new(base: impl AsRef<Path>) -> Self {
         Self {
             base: base.as_ref().to_path_buf(),
@@ -308,26 +295,29 @@ impl Resolver for FileResolver {
     }
 }
 
-/// A resolver that resolves WESL in-memory modules added with [`Self::add_module`].
+/// A resolver that resolves in-memory modules added with [`Self::add_module`].
 ///
-/// Use-cases are platforms that lack a filesystem (e.g. WASM) or for runtime-generated files.
+/// Use-cases are platforms that lack a filesystem (e.g. WASM), tests or
+/// runtime-generated files.
 #[derive(Default)]
 pub struct VirtualResolver<'a> {
     files: HashMap<Resource, Cow<'a, str>>,
 }
 
 impl<'a> VirtualResolver<'a> {
+    /// Create a new resolver.
     pub fn new() -> Self {
         Self {
             files: HashMap::new(),
         }
     }
 
-    /// resolves imports in `path` with the given WESL string.
+    /// Resolve imports of `path` with the given WESL string.
     pub fn add_module(&mut self, path: impl AsRef<Path>, file: Cow<'a, str>) {
         self.files.insert(Resource::new(path).absolute(), file);
     }
 
+    /// Get a module registered with [`Self::add_module`].
     pub fn get_module(&self, resource: &Resource) -> Result<&str, E> {
         let source = self.files.get(resource).ok_or_else(|| {
             E::FileNotFound(resource.path.to_path_buf(), "virtual module".to_string())
@@ -335,6 +325,7 @@ impl<'a> VirtualResolver<'a> {
         Ok(source)
     }
 
+    /// Iterate over all registered modules.
     pub fn modules(&self) -> impl Iterator<Item = (&Resource, &str)> {
         self.files.iter().map(|(res, file)| (res, &**file))
     }
@@ -353,14 +344,16 @@ impl<T: Fn(&mut TranslationUnit) -> Result<(), Error>> ResolveFn for T {}
 
 /// A WESL module preprocessor.
 ///
-/// The preprocess function will be called each time the WESL compiler tries to load a module.
-/// The preprocess function *must* always return the same syntax tree for a given module path.
+/// The preprocess function will be called each time the WESL compiler tries to load a
+/// module.
 pub struct Preprocessor<R: Resolver, F: ResolveFn> {
     pub resolver: R,
     pub preprocess: F,
 }
 
 impl<R: Resolver, F: ResolveFn> Preprocessor<R, F> {
+    /// Create a new resolver that runs the preprocessing function before each call to
+    /// [`Resolver::resolve_module`].
     pub fn new(resolver: R, preprocess: F) -> Self {
         Self {
             resolver,
@@ -393,12 +386,12 @@ impl<R: Resolver, F: ResolveFn> Resolver for Preprocessor<R, F> {
     }
 }
 
-/// A router is a resolver that can dispatch imports to several sub-resolvers based on the
-/// import path prefix.
+/// A resolver that can dispatch imports to several sub-resolvers based on the import
+/// path prefix.
 ///
 /// Add sub-resolvers with [`Self::mount_resolver`].
 ///
-/// This resolver is not thread-safe ([`Send`], [`Sync`]).
+/// This resolver is not thread-safe (not [`Send`] or [`Sync`]).
 pub struct Router {
     mount_points: Vec<(PathBuf, Box<dyn Resolver>)>,
     fallback: Option<(PathBuf, Box<dyn Resolver>)>,
@@ -406,6 +399,7 @@ pub struct Router {
 
 /// Dispatches resolution of a resource to sub-resolvers.
 impl Router {
+    /// Create a new resolver.
     pub fn new() -> Self {
         Self {
             mount_points: Vec::new(),
@@ -414,7 +408,7 @@ impl Router {
     }
 
     /// Mount a resolver at a given path prefix. All imports that start with this prefix
-    /// will be dispatched to that resolver.
+    /// will be dispatched to that resolver with the suffix of the path.
     pub fn mount_resolver(&mut self, path: impl AsRef<Path>, resolver: impl Resolver + 'static) {
         let path = path.as_ref().to_path_buf();
         let resolver: Box<dyn Resolver> = Box::new(resolver);
@@ -474,6 +468,10 @@ impl Resolver for Router {
     }
 }
 
+/// The trait implemented by external packages.
+///
+/// You typically don't implement this, instead it is implemented for you by the
+/// [`crate::PkgBuilder`].
 pub trait PkgModule: Send + Sync {
     fn name(&self) -> &'static str;
     fn source(&self) -> &'static str;
@@ -486,17 +484,22 @@ pub trait PkgModule: Send + Sync {
     }
 }
 
+/// A resolver that only resolves module paths that refer to modules in external packages.
+///
+/// Register external packages with [`Self::add_package`].
 pub struct PkgResolver {
     packages: Vec<&'static dyn PkgModule>,
 }
 
 impl PkgResolver {
+    /// Create a new resolver.
     pub fn new() -> Self {
         Self {
             packages: Vec::new(),
         }
     }
 
+    /// Add a package to the resolver.
     pub fn add_package(&mut self, pkg: &'static dyn PkgModule) {
         self.packages.push(pkg);
     }
@@ -540,12 +543,18 @@ impl Resolver for PkgResolver {
 }
 
 /// The resolver that implements the WESL standard.
+///
+/// It resolves modules in external packages registered with [`Self::add_package`] and
+/// modules in the local package with the filesystem.
 pub struct StandardResolver {
     pkg: PkgResolver,
     files: FileResolver,
 }
 
 impl StandardResolver {
+    /// Create a new resolver.
+    ///
+    /// `base` is the root directory which absolute paths refer to.
     pub fn new(base: impl AsRef<Path>) -> Self {
         Self {
             pkg: PkgResolver::new(),
@@ -553,6 +562,7 @@ impl StandardResolver {
         }
     }
 
+    /// Add an external package.
     pub fn add_package(&mut self, pkg: &'static dyn PkgModule) {
         self.pkg.add_package(pkg)
     }

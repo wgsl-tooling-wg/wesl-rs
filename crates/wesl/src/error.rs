@@ -17,6 +17,7 @@ use crate::ImportError;
 #[cfg(feature = "eval")]
 use crate::eval::{Context, EvalError};
 
+/// Any WESL error.
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum Error {
     #[error("{0}")]
@@ -41,6 +42,10 @@ pub enum Error {
     Error(#[from] Diagnostic<Error>),
 }
 
+/// Error diagnostics. Display user-friendly error snippets with `Display`.
+///
+/// A diagnostic is a wrapper around an error with extra contextual metata: the source,
+/// the declaration name, the span, ...
 #[derive(Clone, Debug)]
 pub struct Diagnostic<E: std::error::Error> {
     pub error: Box<E>,
@@ -129,6 +134,7 @@ impl From<Error> for Diagnostic<Error> {
 }
 
 impl<E: std::error::Error> Diagnostic<E> {
+    /// Create an empty diagnostic from an error. No metadata is attached.
     fn new(error: E) -> Diagnostic<E> {
         Self {
             error: Box::new(error),
@@ -140,27 +146,36 @@ impl<E: std::error::Error> Diagnostic<E> {
             span: None,
         }
     }
+    /// Provide the source code from which the error was emitted.
+    /// You should also provide the span with [`Self::with_span`].
     pub fn with_source(mut self, source: String) -> Self {
         self.source = Some(source);
         self
     }
+    /// Provide the span (chunk of source code) where the error originated.
+    /// You should also provide the source with [`Self::with_source`].
     pub fn with_span(mut self, span: Span) -> Self {
         self.span = Some(span);
         self
     }
+    /// Provide the declaration in which the error originated.
     pub fn with_declaration(mut self, decl: String) -> Self {
         self.declaration = Some(decl);
         self
     }
+    /// Provide the output code that was generated, even if an error was emitted.
     pub fn with_output(mut self, out: String) -> Self {
         self.output = Some(out);
         self
     }
+    /// Provide the module path in which the error was emitted. the `disp_name` is
+    /// usually the file name of the module.
     pub fn with_resource(mut self, resource: Resource, disp_name: Option<String>) -> Self {
         self.resource = Some(resource);
         self.display_name = disp_name;
         self
     }
+    /// Add metadata collected by the evaluation/execution context.
     #[cfg(feature = "eval")]
     pub fn with_ctx(mut self, ctx: &Context) -> Self {
         let (decl, span) = ctx.err_ctx();
@@ -169,6 +184,8 @@ impl<E: std::error::Error> Diagnostic<E> {
         self
     }
 
+    /// Add metadata collected by the sourcemap. If the mangled declaration name was set,
+    /// this will automatically add the source, the module path and the declaration name.
     pub fn with_sourcemap(mut self, sourcemap: &impl SourceMap) -> Self {
         if let Some(decl) = &self.declaration {
             if let Some((resource, decl)) = sourcemap.get_decl(decl) {
@@ -196,7 +213,7 @@ impl<E: std::error::Error> Diagnostic<E> {
         self
     }
 
-    pub fn display_origin(&self) -> String {
+    pub(crate) fn display_origin(&self) -> String {
         match (&self.resource, &self.display_name) {
             (Some(res), Some(name)) => {
                 format!("{res} ({name})")
@@ -207,19 +224,19 @@ impl<E: std::error::Error> Diagnostic<E> {
         }
     }
 
-    pub fn display_short_origin(&self) -> Option<String> {
+    pub(crate) fn display_short_origin(&self) -> Option<String> {
         self.display_name
             .clone()
             .or_else(|| self.resource.as_ref().map(|res| res.to_string()))
-    }
-
-    pub fn error_message(&self) -> String {
-        self.error.to_string()
     }
 }
 
 impl Diagnostic<Error> {
     // XXX: this function has issues when the root module identifiers are not mangled.
+    /// unmangle any mangled identifiers in the error.
+    ///
+    /// The mangled must be the same used for compiling the WGSL source. It must have
+    /// unmangling capabilities. If not, you might want to use a [`crate::SourceMapper`].
     pub fn unmangle(
         mut self,
         sourcemap: Option<&impl SourceMap>,
