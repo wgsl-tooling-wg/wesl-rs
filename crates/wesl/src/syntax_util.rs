@@ -1,8 +1,4 @@
-use std::{
-    borrow::Cow,
-    collections::HashSet,
-    iter::{once, Iterator},
-};
+use std::{borrow::Cow, collections::HashSet, iter::Iterator};
 
 use crate::visit::Visit;
 use wesl_macros::query_mut;
@@ -64,7 +60,7 @@ impl SyntaxUtil for TranslationUnit {
         fn flatten_imports(imports: &[Import]) -> impl Iterator<Item = Ident> + '_ {
             imports.iter().flat_map(|import| match &import.content {
                 ImportContent::Item(item) => {
-                    once(item.rename.as_ref().unwrap_or(&item.ident).clone()).boxed()
+                    std::iter::once(item.rename.as_ref().unwrap_or(&item.ident).clone()).boxed()
                 }
                 ImportContent::Collection(coll) => flatten_imports(coll).boxed(),
             })

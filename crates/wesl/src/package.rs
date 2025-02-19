@@ -27,7 +27,7 @@ use crate::{validate::validate_wesl, Diagnostic, Error, Resource, SyntaxUtil};
 ///        .expect("failed to build artefact");
 /// }
 /// ```
-/// Then, in your `lib.rs` file, expose the generated module with the [`wesl_pkg`] macro.
+/// Then, in your `lib.rs` file, expose the generated module with the [`crate::wesl_pkg`] macro.
 /// ```rs
 /// // in src/lib.rs
 /// use wesl::wesl_pkg;

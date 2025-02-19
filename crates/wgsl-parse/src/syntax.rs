@@ -42,8 +42,8 @@ pub struct TranslationUnit {
 /// Identifiers correspond to WGSL `ident` syntax node, except that they have several
 /// convenience features:
 /// * Can be shared by cloning (they are shared pointers)
-/// * Can be (renamed)[Self::rename] (with interior mutability)
-/// * References to the same Ident can be (counted)[Self::use_count]
+/// * Can be [renamed][Self::rename] (with interior mutability)
+/// * References to the same Ident can be [counted][Self::use_count]
 /// * Equality and Hash compares the reference, NOT the internal string value
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug)]

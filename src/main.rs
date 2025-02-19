@@ -15,7 +15,7 @@ use wesl::{
     CompileOptions, CompileResult, Diagnostic, FileResolver, ManglerKind, PkgBuilder, Router,
     SyntaxUtil, VirtualResolver, Wesl,
 };
-use wgsl_parse::{syntax::TranslationUnit, Parser as WgslParser};
+use wgsl_parse::syntax::TranslationUnit;
 
 #[derive(Parser)]
 #[command(version, author, about)]
@@ -506,11 +506,11 @@ fn run(cli: Cli) -> Result<(), CliError> {
                         naga::front::wgsl::parse_str(&source)
                             .map_err(|e| CliError::Naga(e, source.clone()))?;
                     }
-                    WgslParser::recognize_str(&source)
+                    wgsl_parse::recognize_str(&source)
                         .map_err(|e| Diagnostic::from(e).with_source(source))?;
                 }
                 CheckKind::Wesl => {
-                    let mut wesl = WgslParser::parse_str(&source)
+                    let mut wesl = TranslationUnit::from_str(&source)
                         .map_err(|e| Diagnostic::from(e).with_source(source))?;
                     wesl.retarget_idents();
                     todo!("validating WESL needs more work")

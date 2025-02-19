@@ -8,16 +8,20 @@ use thiserror::Error;
 
 use crate::{lexer::Token, span::Span};
 
+/// WGSL parse error kind.
 #[derive(Error, Clone, Debug, PartialEq)]
-pub enum ParseError {
+pub enum ErrorKind {
     #[error("invalid token")]
     InvalidToken,
     #[error("unexpected token `{token}`, expected `{}`", .expected.iter().format(", "))]
-    UnexpectedToken { token: Token, expected: Vec<String> },
+    UnexpectedToken {
+        token: String,
+        expected: Vec<String>,
+    },
     #[error("unexpected end of file, expected `{}`", .expected.iter().format(", "))]
     UnexpectedEof { expected: Vec<String> },
     #[error("extra token `{0}` at the end of the file")]
-    ExtraToken(Token),
+    ExtraToken(String),
     #[error("invalid diagnostic severity")]
     DiagnosticSeverity,
     #[error("invalid `{0}` attribute, {1}")]
@@ -27,7 +31,7 @@ pub enum ParseError {
 }
 
 #[derive(Default, Clone, Debug, PartialEq)]
-pub enum CustomLalrError {
+pub(crate) enum CustomLalrError {
     #[default]
     LexerError,
     DiagnosticSeverity,
@@ -37,10 +41,21 @@ pub enum CustomLalrError {
 
 type LalrError = lalrpop_util::ParseError<usize, Token, (usize, CustomLalrError, usize)>;
 
+/// WGSL parse error.
+///
+/// This error can be pretty-printed with the source snippet with [`Error::with_source`]
 #[derive(Error, Clone, Debug, PartialEq)]
 pub struct Error {
-    pub error: ParseError,
+    pub error: ErrorKind,
     pub span: Span,
+}
+
+impl Error {
+    /// Returns an [`ErrorWithSource`], a wrapper type that implements `Display` and prints
+    /// a user-friendly error snippet.
+    pub fn with_source(self, source: Cow<'_, str>) -> ErrorWithSource<'_> {
+        ErrorWithSource::new(self, source)
+    }
 }
 
 impl Display for Error {
@@ -54,12 +69,12 @@ impl From<LalrError> for Error {
         match err {
             LalrError::InvalidToken { location } => {
                 let span = Span::new(location..location + 1);
-                let error = ParseError::InvalidToken;
+                let error = ErrorKind::InvalidToken;
                 Self { span, error }
             }
             LalrError::UnrecognizedEof { location, expected } => {
                 let span = Span::new(location..location + 1);
-                let error = ParseError::UnexpectedEof { expected };
+                let error = ErrorKind::UnexpectedEof { expected };
                 Self { span, error }
             }
             LalrError::UnrecognizedToken {
@@ -67,14 +82,17 @@ impl From<LalrError> for Error {
                 expected,
             } => {
                 let span = Span::new(l..r);
-                let error = ParseError::UnexpectedToken { token, expected };
+                let error = ErrorKind::UnexpectedToken {
+                    token: token.to_string(),
+                    expected,
+                };
                 Self { span, error }
             }
             LalrError::ExtraToken {
                 token: (l, token, r),
             } => {
                 let span = Span::new(l..r);
-                let error = ParseError::ExtraToken(token);
+                let error = ErrorKind::ExtraToken(token.to_string());
                 Self { span, error }
             }
             LalrError::User {
@@ -82,12 +100,12 @@ impl From<LalrError> for Error {
             } => {
                 let span = Span::new(l..r);
                 let error = match error {
-                    CustomLalrError::DiagnosticSeverity => ParseError::DiagnosticSeverity,
-                    CustomLalrError::LexerError => ParseError::InvalidToken,
+                    CustomLalrError::DiagnosticSeverity => ErrorKind::DiagnosticSeverity,
+                    CustomLalrError::LexerError => ErrorKind::InvalidToken,
                     CustomLalrError::Attribute(attr, expected) => {
-                        ParseError::Attribute(attr, expected)
+                        ErrorKind::Attribute(attr, expected)
                     }
-                    CustomLalrError::VarTemplate(reason) => ParseError::VarTemplate(reason),
+                    CustomLalrError::VarTemplate(reason) => ErrorKind::VarTemplate(reason),
                 };
                 Self { span, error }
             }
@@ -95,44 +113,28 @@ impl From<LalrError> for Error {
     }
 }
 
-pub trait FormatError: Sized + Debug {
-    fn fmt_err(&self, f: &mut std::fmt::Formatter<'_>, source: &str) -> std::fmt::Result;
-
-    fn with_source(self, source: Cow<'_, str>) -> ErrorWithSource<'_, Self> {
-        ErrorWithSource::new(self, source)
-    }
-}
-
+/// A wrapper type that implements `Display` and prints a user-friendly error snippet.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ErrorWithSource<'s, T: FormatError> {
-    pub error: T,
+pub struct ErrorWithSource<'s> {
+    pub error: Error,
     pub source: Cow<'s, str>,
 }
 
-impl<'s, T: FormatError> std::error::Error for ErrorWithSource<'s, T> {}
+impl std::error::Error for ErrorWithSource<'_> {}
 
-impl<'s, T: FormatError> ErrorWithSource<'s, T> {
-    pub fn new(message: T, source: Cow<'s, str>) -> Self {
-        Self {
-            error: message,
-            source,
-        }
+impl<'s> ErrorWithSource<'s> {
+    pub fn new(error: Error, source: Cow<'s, str>) -> Self {
+        Self { error, source }
     }
 }
 
-impl<'s, F: FormatError> Display for ErrorWithSource<'s, F> {
+impl Display for ErrorWithSource<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.error.fmt_err(f, &self.source)
-    }
-}
-
-impl FormatError for Error {
-    fn fmt_err(&self, f: &mut std::fmt::Formatter<'_>, source: &str) -> std::fmt::Result {
         use annotate_snippets::*;
-        let text = format!("{}", self.error);
+        let text = format!("{}", self.error.error);
 
-        let annot = Level::Info.span(self.span.range());
-        let snip = Snippet::source(source).fold(true).annotation(annot);
+        let annot = Level::Info.span(self.error.span.range());
+        let snip = Snippet::source(&self.source).fold(true).annotation(annot);
         let msg = Level::Error.title(&text).snippet(snip);
 
         let renderer = Renderer::styled();

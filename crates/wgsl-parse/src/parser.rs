@@ -1,12 +1,12 @@
-//! The [`Parser`] takes WGSL source code and returns a [syntax tree].
-//!
-//! [syntax tree]: syntax
-
 use std::str::FromStr;
 
 use lalrpop_util::lalrpop_mod;
 
-use crate::{error::Error, lexer::Lexer, syntax};
+use crate::{
+    error::Error,
+    lexer::Lexer,
+    syntax::{Expression, GlobalDeclaration, GlobalDirective, Statement, TranslationUnit},
+};
 
 lalrpop_mod!(
     #[allow(clippy::type_complexity)]
@@ -17,37 +17,30 @@ lalrpop_mod!(
     wgsl_recognize
 );
 
-pub struct Parser;
-
-impl Parser {
-    pub fn parse_str(source: &str) -> Result<syntax::TranslationUnit, Error> {
-        let lexer = Lexer::new(source);
-        let parser = wgsl::TranslationUnitParser::new();
-        parser.parse(lexer).map_err(Into::into)
-    }
-    pub fn parse(lexer: &mut Lexer) -> Result<syntax::TranslationUnit, Error> {
-        let parser = wgsl::TranslationUnitParser::new();
-        parser.parse(lexer).map_err(Into::into)
-    }
+/// Parse a string into a syntax tree ([`TranslationUnit`]).
+///
+/// Identical to [`TranslationUnit::from_str`].
+pub fn parse_str(source: &str) -> Result<TranslationUnit, Error> {
+    let lexer = Lexer::new(source);
+    let parser = wgsl::TranslationUnitParser::new();
+    parser.parse(lexer).map_err(Into::into)
 }
 
-impl Parser {
-    pub fn recognize_str(source: &str) -> Result<(), Error> {
-        let lexer = Lexer::new(source);
-        let parser = wgsl_recognize::TranslationUnitParser::new();
-        parser.parse(lexer).map_err(Into::into)
-    }
-    pub fn recognize(lexer: &mut Lexer) -> Result<(), Error> {
-        let parser = wgsl_recognize::TranslationUnitParser::new();
-        parser.parse(lexer).map_err(Into::into)
-    }
-    pub fn recognize_template_list(lexer: &mut Lexer) -> Result<(), Error> {
-        let parser = wgsl_recognize::TryTemplateListParser::new();
-        parser.parse(lexer).map_err(Into::into)
-    }
+/// Test whether a string represent a valid WGSL module ([`TranslationUnit`]).
+///
+/// Warning: it does not take WESL extensions into account.
+pub fn recognize_str(source: &str) -> Result<(), Error> {
+    let lexer = Lexer::new(source);
+    let parser = wgsl_recognize::TranslationUnitParser::new();
+    parser.parse(lexer).map_err(Into::into)
 }
 
-impl FromStr for syntax::TranslationUnit {
+pub(crate) fn recognize_template_list(lexer: &mut Lexer) -> Result<(), Error> {
+    let parser = wgsl_recognize::TryTemplateListParser::new();
+    parser.parse(lexer).map_err(Into::into)
+}
+
+impl FromStr for TranslationUnit {
     type Err = Error;
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
@@ -56,7 +49,7 @@ impl FromStr for syntax::TranslationUnit {
         parser.parse(lexer).map_err(Into::into)
     }
 }
-impl FromStr for syntax::GlobalDirective {
+impl FromStr for GlobalDirective {
     type Err = Error;
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
@@ -65,7 +58,7 @@ impl FromStr for syntax::GlobalDirective {
         parser.parse(lexer).map_err(Into::into)
     }
 }
-impl FromStr for syntax::GlobalDeclaration {
+impl FromStr for GlobalDeclaration {
     type Err = Error;
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
@@ -74,7 +67,7 @@ impl FromStr for syntax::GlobalDeclaration {
         parser.parse(lexer).map_err(Into::into)
     }
 }
-impl FromStr for syntax::Statement {
+impl FromStr for Statement {
     type Err = Error;
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
@@ -83,7 +76,7 @@ impl FromStr for syntax::Statement {
         parser.parse(lexer).map_err(Into::into)
     }
 }
-impl FromStr for syntax::Expression {
+impl FromStr for Expression {
     type Err = Error;
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
@@ -93,7 +86,7 @@ impl FromStr for syntax::Expression {
     }
 }
 #[cfg(feature = "imports")]
-impl FromStr for syntax::Import {
+impl FromStr for crate::syntax::Import {
     type Err = Error;
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {

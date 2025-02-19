@@ -1,6 +1,6 @@
 //! Prefer using [`Parser::parse_str`]. You shouldn't need to manipulate the lexer.
 
-use crate::{error::CustomLalrError, parser::Parser};
+use crate::error::CustomLalrError;
 use logos::{Logos, SpannedIter};
 use std::{fmt::Display, num::NonZeroU8, sync::LazyLock};
 
@@ -173,7 +173,7 @@ fn parse_block_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
 }
 
 #[derive(Default, Clone, Debug, PartialEq)]
-pub struct LexerState {
+pub(crate) struct LexerState {
     depth: i32,
     template_depths: Vec<i32>,
     lookahead: Option<Token>,
@@ -187,7 +187,7 @@ pub struct LexerState {
     skip r"//[^\n\v\f\r\u0085\u2028\u2029]*", // line comment
     extras = LexerState,
     error = CustomLalrError)]
-pub enum Token {
+pub(crate) enum Token {
     // comments. This variant is never produced.
     #[token("/*", parse_block_comment, priority = 2)]
     Ignored,
@@ -603,17 +603,16 @@ impl Display for Token {
 }
 
 pub type Spanned<Tok, Loc, ParseError> = Result<(Loc, Tok, Loc), (Loc, ParseError, Loc)>;
+type NextToken = Option<(Result<Token, CustomLalrError>, Span)>;
 
 #[derive(Clone)]
-pub struct Lexer<'s> {
+pub(crate) struct Lexer<'s> {
     source: &'s str,
     token_stream: SpannedIter<'s, Token>,
-    next_token: Option<(Result<Token, CustomLalrError>, Span)>,
+    next_token: NextToken,
     recognizing_template: bool,
     opened_templates: u32,
 }
-
-type NextToken = Option<(Result<Token, CustomLalrError>, Span)>;
 
 impl<'s> Lexer<'s> {
     pub fn new(source: &'s str) -> Self {
@@ -626,10 +625,6 @@ impl<'s> Lexer<'s> {
             recognizing_template: false,
             opened_templates: 0,
         }
-    }
-
-    pub fn source(&self) -> &str {
-        self.source
     }
 
     fn take_two_tokens(&mut self) -> (NextToken, NextToken) {
@@ -733,7 +728,7 @@ pub fn recognize_template_list(source: &str) -> bool {
     lexer.recognizing_template = true;
     lexer.opened_templates = 1;
     lexer.token_stream.extras.template_depths.push(0);
-    Parser::recognize_template_list(&mut lexer).is_ok()
+    crate::parser::recognize_template_list(&mut lexer).is_ok()
 }
 
 #[test]
@@ -742,7 +737,7 @@ fn tmp_test() {
     println!("-- {}", recognize_template_list("<X<Y> > foo"));
 }
 
-impl<'s> Iterator for Lexer<'s> {
+impl Iterator for Lexer<'_> {
     type Item = Spanned<Token, usize, CustomLalrError>;
 
     fn next(&mut self) -> Option<Self::Item> {

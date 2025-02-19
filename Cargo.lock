@@ -1366,7 +1366,7 @@ dependencies = [
 
 [[package]]
 name = "wesl"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "annotate-snippets",
  "bytes",
@@ -1385,7 +1385,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-cli"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "clap",
  "naga",
@@ -1396,7 +1396,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-consumer"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "wesl",
  "wesl-random",
@@ -1404,7 +1404,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-macros"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "itertools 0.13.0",
  "proc-macro2",
@@ -1414,14 +1414,14 @@ dependencies = [
 
 [[package]]
 name = "wesl-random"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "wesl",
 ]
 
 [[package]]
 name = "wgsl-parse"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "annotate-snippets",
  "derive_more",
@@ -1436,7 +1436,7 @@ dependencies = [
 
 [[package]]
 name = "wgsl-test"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "datatest",
  "regex",

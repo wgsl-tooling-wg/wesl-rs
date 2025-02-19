@@ -42,5 +42,5 @@ generics = ["attributes"]
 condcomp = ["attributes"]
 
 # import declarations.
-# reference: https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md#reference-level-explanation
+# reference: https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md
 imports = []
