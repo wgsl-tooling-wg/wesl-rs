@@ -12,16 +12,14 @@ license.workspace = true
 annotate-snippets = "0.11.4"
 derive_more = { version = "1.0.0", features = ["as_ref", "constructor", "deref", "deref_mut", "from", "is_variant", "try_unwrap", "unwrap"] }
 itertools = "0.13.0"
-lalrpop-util = "0.20.2"
+lalrpop-util = "0.22.1"
 lexical = { version = "6.1.1", features = ["format", "power-of-two"] }
 logos = "0.14.1"
 serde = { version = "1.0.215", optional = true, features = ["derive", "rc"] }
 thiserror = "1.0.63"
 
 [build-dependencies]
-# we are waiting for https://github.com/lalrpop/lalrpop/pull/959 to be released on crates.io.
-# lalrpop = { version = "0.22.0", default-features = false }
-lalrpop = { git = "https://github.com/lalrpop/lalrpop.git", branch = "master" }
+lalrpop = { version = "0.22.1", default-features = false }
 
 [features]
 default = []
