@@ -491,7 +491,8 @@ const BUILTIN_FUNCTIONS: &[&str] = &[
 /// An identifier is linked to a declaration if:
 /// * its use-count is greater than 1
 /// * OR it is a built-in name
-/// note that this function could be simplified if we didn't care about the diagnostics metadata (declaration and expression)
+///
+/// Note that this function could be simplified if we didn't care about the diagnostics metadata (declaration and expression)
 fn check_defined_symbols(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     fn check_ty(ty: &TypeExpression) -> Result<(), Diagnostic<Error>> {
         if ty.ident.use_count() == 1 && !BUILTIN_NAMES.contains(&ty.ident.name().as_str()) {

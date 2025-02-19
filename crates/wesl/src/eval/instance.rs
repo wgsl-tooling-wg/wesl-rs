@@ -114,14 +114,6 @@ impl Instance {
         let old = std::mem::replace(self, value);
         Ok(old)
     }
-    pub fn len(&self) -> usize {
-        match self {
-            Instance::Array(a) => a.n(),
-            Instance::Vec(v) => v.n(),
-            Instance::Mat(m) => m.c(),
-            _ => 0,
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, From, Unwrap)]

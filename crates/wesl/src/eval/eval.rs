@@ -144,7 +144,7 @@ impl Eval for NamedComponentExpression {
         }
 
         let base = self.base.eval(ctx)?;
-        inst_comp(base, &*self.component.name())
+        inst_comp(base, &self.component.name())
     }
 }
 
@@ -280,7 +280,7 @@ impl Eval for FunctionCall {
                 }
 
                 if decl.body.attributes.contains(&ATTR_INTRINSIC) {
-                    return call_builtin(&ty, args, ctx);
+                    return call_builtin(ty, args, ctx);
                 }
 
                 if self.arguments.len() != decl.parameters.len() {
@@ -320,7 +320,7 @@ impl Eval for FunctionCall {
                     Ok(flow)
                 })?;
 
-                let inst = match flow {
+                match flow {
                     Flow::Next => Err(E::NoReturn(fn_name, ret_ty)),
                     Flow::Break | Flow::Continue => Err(E::FlowInFunction(flow)),
                     Flow::Return(Some(inst)) => inst
@@ -328,8 +328,7 @@ impl Eval for FunctionCall {
                         .ok_or(E::ReturnType(inst.ty(), fn_name.clone(), ret_ty))
                         .inspect_err(|_| ctx.set_err_decl_ctx(fn_name)),
                     Flow::Return(None) => Err(E::NoReturn(fn_name, ret_ty)),
-                };
-                inst
+                }
             }
             // struct constructor
             else if let GlobalDeclaration::Struct(decl) = decl {
@@ -356,7 +355,7 @@ impl Eval for FunctionCall {
                 Err(E::NotCallable(fn_name))
             }
         } else if is_constructor_fn(&fn_name) {
-            call_builtin(&ty, args, ctx)
+            call_builtin(ty, args, ctx)
         } else {
             Err(E::UnknownFunction(fn_name))
         }
@@ -367,7 +366,7 @@ impl Eval for TypeExpression {
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E> {
         if self.template_args.is_some() {
             Err(E::UnexpectedTemplate(self.ident.to_string()))
-        } else if let Some(inst) = ctx.scope.get(&*self.ident.name()) {
+        } else if let Some(inst) = ctx.scope.get(&self.ident.name()) {
             if inst.is_deferred() {
                 Err(E::NotAccessible(self.ident.to_string(), ctx.stage))
             } else {

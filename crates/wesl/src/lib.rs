@@ -723,7 +723,7 @@ impl<R: Resolver> Wesl<R> {
     /// # WESL Reference
     /// Spec: not available yet.
     pub fn compile(&self, entrypoint: impl AsRef<Path>) -> Result<CompileResult, Error> {
-        let entrypoint = Resource::new(entrypoint.as_ref().to_path_buf());
+        let entrypoint = Resource::new(entrypoint);
 
         if self.use_sourcemap {
             let (syntax, sourcemap) =
@@ -869,7 +869,7 @@ fn compile_post_assembly(
         generics::replace_calls(wesl)?;
     };
     if options.validate {
-        validate_wgsl(&wesl)?;
+        validate_wgsl(wesl)?;
     }
     if options.lower {
         lower(wesl, keep)?;

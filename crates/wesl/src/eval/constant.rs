@@ -8,10 +8,8 @@ pub(crate) fn mark_functions_const(wesl: &mut TranslationUnit) {
         .iter()
         .map(|decl| {
             if let GlobalDeclaration::Function(decl) = decl {
-                if !decl.attributes.contains(&Attribute::Const) {
-                    if is_function_const(decl, wesl) {
-                        return true;
-                    }
+                if !decl.attributes.contains(&Attribute::Const) && is_function_const(decl, wesl) {
+                    return true;
                 }
             }
             false

@@ -67,7 +67,7 @@ pub(crate) struct Resolutions {
 
 impl Resolutions {
     pub(crate) fn root_resource(&self) -> &Resource {
-        &self.order.first().unwrap() // safety: always a root module
+        self.order.first().unwrap() // safety: always a root module
     }
     pub(crate) fn modules(&self) -> impl Iterator<Item = Ref<Module>> {
         self.order.iter().map(|res| self.modules[res].borrow())
@@ -77,15 +77,15 @@ impl Resolutions {
 fn resolve_inline_resource(path: &Path, parent_resource: &Resource, imports: &Imports) -> Resource {
     if path.has_root() {
         // we skip the slash and get the first ident
-        let prefix = path.iter().skip(1).next().unwrap().to_str().unwrap();
+        let prefix = path.iter().nth(1).unwrap().to_str().unwrap();
 
         imports
             .iter()
             .find_map(|(ident, (ext_res, ext_ident))| {
-                if &*ident.name() == prefix {
+                if *ident.name() == prefix {
                     // import a::b::c as foo; foo::bar::baz() => a::b::c::bar::baz()
                     let mut res = ext_res.clone(); // a::b
-                    res.push(&*ext_ident.name()); // c
+                    res.push(&ext_ident.name()); // c
                     let suffix = PathBuf::from_iter(path.iter().skip(2)); // bar
                     Some(res.join(suffix))
                 } else {
@@ -160,10 +160,10 @@ pub fn resolve_lazy(
     ) -> Result<(), E> {
         for ty in Visit::<TypeExpression>::visit_mut(ty) {
             resolve_ty(
-                &mod_resource,
-                &mod_imports,
-                &mod_idents,
-                &mod_treated_idents,
+                mod_resource,
+                mod_imports,
+                mod_idents,
+                mod_treated_idents,
                 ty,
                 local_decls,
                 extern_decls,
@@ -216,10 +216,7 @@ pub fn resolve_lazy(
             .ok_or_else(|| E::MissingDecl(ext_res.clone(), ext_id.to_string()))?;
 
         if !ext_mod.treated_idents.contains(&ext_id) {
-            extern_decls
-                .entry(ext_res)
-                .or_insert(Default::default())
-                .insert(ext_decl);
+            extern_decls.entry(ext_res).or_default().insert(ext_decl);
         }
 
         ty.path = None;
@@ -267,7 +264,7 @@ pub fn resolve_lazy(
         resolver: &impl Resolver,
         resolutions: &mut Resolutions,
     ) -> Result<(), E> {
-        let module = load_module(&resource, &mut HashSet::new(), resolutions, resolver)?;
+        let module = load_module(resource, &mut HashSet::new(), resolutions, resolver)?;
         let mut module = module
             .try_borrow_mut()
             .map_err(|_| E::CircularDependency(resource.clone()))?;
@@ -353,7 +350,7 @@ pub fn resolve_eager(
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
     ) -> Result<(), E> {
-        for (_, (resource, _)) in &module.imports {
+        for (resource, _) in module.imports.values() {
             if !resolutions.modules.contains_key(resource) {
                 let source = resolver.resolve_module(resource)?;
                 let module = Module::new(source, resource.clone());
@@ -468,7 +465,7 @@ fn mangle_decls<'a>(wgsl: &'a mut TranslationUnit, resource: &'a Resource, mangl
         .iter_mut()
         .filter_map(|decl| decl.ident_mut())
         .for_each(|ident| {
-            let new_name = mangler.mangle(resource, &*ident.name());
+            let new_name = mangler.mangle(resource, &ident.name());
             ident.rename(new_name.clone());
         })
 }

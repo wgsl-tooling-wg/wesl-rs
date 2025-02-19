@@ -73,7 +73,7 @@ pub fn generate_variants(wesl: &mut TranslationUnit) -> Result<(), E> {
 
                 let signature = decl.parameters.iter().map(|p| p.ty.clone()).collect_vec();
 
-                let new_name = mangle::mangle(&*decl.ident.name(), &signature);
+                let new_name = mangle::mangle(&decl.ident.name(), &signature);
                 decl.ident = Ident::new(new_name);
                 new_decls.push(decl.into());
             }
@@ -108,7 +108,7 @@ pub fn replace_calls(wesl: &mut TranslationUnit) -> Result<(), E> {
                     })
                     .collect_vec();
 
-                let new_name = mangle::mangle(&*f.ty.ident.name(), &signature);
+                let new_name = mangle::mangle(&f.ty.ident.name(), &signature);
                 f.ty.ident = idents
                     .iter()
                     .find(|ident| *ident.name() == new_name)

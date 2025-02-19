@@ -340,7 +340,7 @@ enum CliError {
     #[error("{0}")]
     WeslDiagnostic(#[from] wesl::Diagnostic<wesl::Error>),
     #[cfg(feature = "naga")]
-    #[error("naga error: {}", .0.emit_to_string(&.1))]
+    #[error("naga error: {}", .0.emit_to_string(.1))]
     Naga(naga::front::wgsl::ParseError, String),
 }
 

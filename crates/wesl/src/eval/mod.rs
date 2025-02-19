@@ -257,10 +257,10 @@ impl SyntaxUtil for TranslationUnit {
     fn user_decl(&self, name: &str) -> Option<&GlobalDeclaration> {
         // note: declarations in PRELUDE can be shadowed by user-defined declarations.
         self.global_declarations.iter().find(|d| match d {
-            GlobalDeclaration::Declaration(d) => &*d.ident.name() == name,
-            GlobalDeclaration::TypeAlias(d) => &*d.ident.name() == name,
-            GlobalDeclaration::Struct(d) => &*d.ident.name() == name,
-            GlobalDeclaration::Function(d) => &*d.ident.name() == name,
+            GlobalDeclaration::Declaration(d) => *d.ident.name() == name,
+            GlobalDeclaration::TypeAlias(d) => *d.ident.name() == name,
+            GlobalDeclaration::Struct(d) => *d.ident.name() == name,
+            GlobalDeclaration::Function(d) => *d.ident.name() == name,
             _ => false,
         })
     }
@@ -270,10 +270,10 @@ impl SyntaxUtil for TranslationUnit {
             .iter()
             .chain(PRELUDE.global_declarations.iter())
             .find(|d| match d {
-                GlobalDeclaration::Declaration(d) => &*d.ident.name() == name,
-                GlobalDeclaration::TypeAlias(d) => &*d.ident.name() == name,
-                GlobalDeclaration::Struct(d) => &*d.ident.name() == name,
-                GlobalDeclaration::Function(d) => &*d.ident.name() == name,
+                GlobalDeclaration::Declaration(d) => *d.ident.name() == name,
+                GlobalDeclaration::TypeAlias(d) => *d.ident.name() == name,
+                GlobalDeclaration::Struct(d) => *d.ident.name() == name,
+                GlobalDeclaration::Function(d) => *d.ident.name() == name,
                 _ => false,
             })
     }
@@ -316,6 +316,6 @@ impl SyntaxUtil for TranslationUnit {
     }
 
     fn resolve_ty<'a>(&'a self, ty: &'a TypeExpression) -> &'a TypeExpression {
-        self.resolve_alias(&*ty.ident.name()).unwrap_or(ty)
+        self.resolve_alias(&ty.ident.name()).unwrap_or(ty)
     }
 }

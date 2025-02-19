@@ -381,7 +381,7 @@ impl EvalTy for TypeExpression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
         if self.template_args.is_some() {
             Err(E::UnexpectedTemplate(self.ident.to_string()))
-        } else if let Some(inst) = ctx.scope.get(&*self.ident.name()) {
+        } else if let Some(inst) = ctx.scope.get(&self.ident.name()) {
             Ok(inst.ty())
         } else {
             Err(E::UnknownDecl(self.ident.to_string()))

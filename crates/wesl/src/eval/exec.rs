@@ -24,6 +24,7 @@ macro_rules! with_stage {
     ($ctx:expr, $stage:expr, $body:tt) => {{
         let stage = $ctx.stage;
         $ctx.stage = $stage;
+        #[allow(clippy::redundant_closure_call)]
         let body = (|| $body)();
         $ctx.stage = stage;
         body
@@ -33,6 +34,7 @@ macro_rules! with_stage {
 macro_rules! with_scope {
     ($ctx:expr, $body:tt) => {{
         $ctx.scope.push();
+        #[allow(clippy::redundant_closure_call)]
         let body = (|| $body)();
         $ctx.scope.pop();
         body
@@ -548,7 +550,7 @@ impl Exec for ConstAssertStatement {
 // TODO: implement address space
 impl Exec for Declaration {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        if ctx.scope.local_contains(&*self.ident.name()) {
+        if ctx.scope.local_contains(&self.ident.name()) {
             return Err(E::DuplicateDecl(self.ident.to_string()));
         }
 

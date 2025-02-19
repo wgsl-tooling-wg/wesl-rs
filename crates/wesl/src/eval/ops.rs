@@ -846,7 +846,7 @@ impl LiteralInstance {
             LiteralInstance::AbstractInt(l) => {
                 if r == 0 {
                     // shift by 0 is no-op
-                    return Ok(self.clone());
+                    return Ok(*self);
                 } else if r > 63 {
                     // shifting that much always returns 0
                     return Ok(0i64.into());
@@ -854,7 +854,7 @@ impl LiteralInstance {
                 let msb_mask = (!0u64) << (63 - r);
                 let msb_bits = *l as u64 & msb_mask;
                 if stage && (*l >= 0 && msb_bits != 0 || *l < 0 && msb_bits != msb_mask) {
-                    Err(E::ShlOverflow(r, self.clone()))
+                    Err(E::ShlOverflow(r, *self))
                 } else {
                     Ok(l.wrapping_shl(r).into())
                 }
@@ -863,16 +863,14 @@ impl LiteralInstance {
                 let r = r % 32; // "the number of bits to shift is the value of e2, modulo the bit width of e1"
                 if r == 0 {
                     // shift by 0 is no-op
-                    return Ok(self.clone());
+                    return Ok(*self);
                 }
                 let msb_mask = (!0u32) << (31 - r);
                 let msb_bits = *l as u32 & msb_mask;
                 if stage && (*l >= 0 && msb_bits != 0 || *l < 0 && msb_bits != msb_mask) {
-                    Err(E::ShlOverflow(r, self.clone()))
+                    Err(E::ShlOverflow(r, *self))
                 } else if stage {
-                    Ok(l.checked_shl(r)
-                        .ok_or(E::ShlOverflow(r, self.clone()))?
-                        .into())
+                    Ok(l.checked_shl(r).ok_or(E::ShlOverflow(r, *self))?.into())
                 } else {
                     Ok(l.wrapping_shl(r).into())
                 }
@@ -881,16 +879,14 @@ impl LiteralInstance {
                 let r = r % 32; // "the number of bits to shift is the value of e2, modulo the bit width of e1"
                 if r == 0 {
                     // shift by 0 is no-op
-                    return Ok(self.clone());
+                    return Ok(*self);
                 }
                 let msb_mask = (!0u32) << (32 - r);
                 let msb_bits = *l & msb_mask;
                 if stage && msb_bits != 0 {
-                    Err(E::ShlOverflow(r, self.clone()))
+                    Err(E::ShlOverflow(r, *self))
                 } else if stage {
-                    Ok(l.checked_shl(r)
-                        .ok_or(E::ShlOverflow(r, self.clone()))?
-                        .into())
+                    Ok(l.checked_shl(r).ok_or(E::ShlOverflow(r, *self))?.into())
                 } else {
                     Ok(l.wrapping_shl(r).into())
                 }
@@ -905,23 +901,19 @@ impl LiteralInstance {
 
         // shift by 0 is no-op
         if r == 0 {
-            return Ok(self.clone());
+            return Ok(*self);
         }
 
         // contrary to shl, it is not an error to overflow (discard non-zero bits). But it is an
         // error to shift more than the bit width.
         match self {
             Self::I32(l) => Ok(if stage {
-                l.checked_shr(r)
-                    .ok_or(E::ShrOverflow(r, self.clone()))?
-                    .into()
+                l.checked_shr(r).ok_or(E::ShrOverflow(r, *self))?.into()
             } else {
                 l.wrapping_shr(r).into()
             }),
             Self::U32(l) => Ok(if stage {
-                l.checked_shr(r)
-                    .ok_or(E::ShrOverflow(r, self.clone()))?
-                    .into()
+                l.checked_shr(r).ok_or(E::ShrOverflow(r, *self))?.into()
             } else {
                 l.wrapping_shr(r).into()
             }),

@@ -103,7 +103,7 @@ impl Resource {
     }
     pub fn absolute(mut self) -> Resource {
         if self.is_relative() {
-            self.path = PathBuf::from_iter(self.path.into_iter().skip(1));
+            self.path = PathBuf::from_iter(self.path.iter().skip(1));
             self
         } else {
             self
@@ -444,7 +444,7 @@ impl Router {
 
         // SAFETY: we just checked that resource.path() starts with mount_path
         let suffix = resource.path().strip_prefix(mount_path).unwrap();
-        let resource = Resource::new(suffix.to_path_buf());
+        let resource = Resource::new(suffix);
         Ok((resolver, resource))
     }
 }
@@ -464,7 +464,7 @@ impl Resolver for Router {
         let (resolver, resource) = self.route(resource)?;
         resolver.source_to_module(source, &resource)
     }
-    fn resolve_module<'a>(&'a self, resource: &Resource) -> Result<TranslationUnit, E> {
+    fn resolve_module(&self, resource: &Resource) -> Result<TranslationUnit, E> {
         let (resolver, resource) = self.route(resource)?;
         resolver.resolve_module(&resource)
     }

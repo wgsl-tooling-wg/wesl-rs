@@ -15,7 +15,7 @@ type E = EvalError;
 // I should fix that at some point, but meanwhile it fixes Naga not supporting automatic conversions.
 pub fn make_explicit_conversions(wesl: &mut TranslationUnit, ctx: &mut Context) -> Result<(), E> {
     fn explicit_call(call: &mut FunctionCall, ctx: &mut Context) -> Result<(), E> {
-        let decl = ctx.source.decl_function(&*call.ty.ident.name());
+        let decl = ctx.source.decl_function(&call.ty.ident.name());
         if let Some(decl) = decl {
             // we only do explicit conversions on user-defined functions,
             // because built-in functions have overloads for abstract types.

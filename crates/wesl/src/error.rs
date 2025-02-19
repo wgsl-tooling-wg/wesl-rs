@@ -232,10 +232,10 @@ impl Diagnostic<Error> {
         ) {
             let res_name = if let Some(sourcemap) = sourcemap {
                 sourcemap
-                    .get_decl(&*id.name())
+                    .get_decl(&id.name())
                     .map(|(res, name)| (res.clone(), name.to_string()))
             } else if let Some(mangler) = mangler {
-                mangler.unmangle(&*id.name())
+                mangler.unmangle(&id.name())
             } else {
                 None
             };
