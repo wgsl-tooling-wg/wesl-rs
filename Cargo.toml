@@ -9,9 +9,9 @@ repository = "https://github.com/wgsl-tooling-wg/wesl-rs"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-wgsl-parse = { path = "crates/wgsl-parse" }
-wesl = { path = "crates/wesl" }
-wesl-macros = { path = "crates/wesl-macros" }
+wgsl-parse = { path = "crates/wgsl-parse", version = "0.1.0" }
+wesl = { path = "crates/wesl", version = "0.1.0" }
+wesl-macros = { path = "crates/wesl-macros", version = "0.1.0" }
 
 [package]
 name = "wesl-cli"

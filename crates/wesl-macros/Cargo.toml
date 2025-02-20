@@ -1,5 +1,7 @@
 [package]
 name = "wesl-macros"
+description = "Macros for the WESL rust compiler"
+documentation = "https://docs.rs/wesl-macros"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
