@@ -7,7 +7,10 @@ use crate::{
 use wesl_macros::query_mut;
 use wgsl_parse::{span::Spanned, syntax::*};
 
-use super::{to_expr::ToExpr, with_scope, SyntaxUtil, EXPR_FALSE, EXPR_TRUE};
+use super::{
+    to_expr::ToExpr, with_scope, Convert, EvalStage, EvalTy, Instance, SyntaxUtil, EXPR_FALSE,
+    EXPR_TRUE,
+};
 
 type E = EvalError;
 
@@ -103,7 +106,8 @@ impl Lower for Expression {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
         match self.eval_value(ctx) {
             Ok(inst) => *self = inst.to_expr(ctx)?,
-            Err(_) => {
+            // `NotAccessible` is supposed to be the only possible error when evaluating valid code.
+            Err(E::NotAccessible(_, EvalStage::Const)) => {
                 ctx.err_span = None;
                 match self {
                     Expression::Literal(_) => (),
@@ -126,6 +130,7 @@ impl Lower for Expression {
                     }
                 }
             }
+            Err(e) => return Err(e),
         }
         Ok(())
     }
@@ -201,6 +206,24 @@ impl Lower for Declaration {
         self.attributes.lower(ctx)?;
         self.ty.lower(ctx)?;
         self.initializer.lower(ctx)?;
+
+        // TODO: this is copy-pasted 3 times now.
+        let ty = match (&self.ty, &self.initializer) {
+            (None, None) => return Err(E::UntypedDecl),
+            (None, Some(init)) => {
+                let ty = init.eval_ty(ctx)?;
+                if self.kind.is_const() {
+                    ty // only const declarations can be of abstract type.
+                } else {
+                    ty.concretize()
+                }
+            }
+            (Some(ty), _) => ty_eval_ty(ty, ctx)?,
+        };
+
+        ctx.scope
+            .add(self.ident.to_string(), Instance::Deferred(ty));
+
         Ok(())
     }
 }
@@ -234,7 +257,11 @@ impl Lower for Function {
         }
         self.return_attributes.lower(ctx)?;
         self.return_type.lower(ctx)?;
-        self.body.lower(ctx)?;
+        for p in &self.parameters {
+            let inst = Instance::Deferred(ty_eval_ty(&p.ty, ctx)?);
+            ctx.scope.add(p.ident.to_string(), inst);
+        }
+        compound_lower(&mut self.body, ctx, true)?;
         Ok(())
     }
 }
@@ -353,35 +380,46 @@ impl Lower for Statement {
     }
 }
 
+fn compound_lower(
+    stmt: &mut CompoundStatement,
+    ctx: &mut Context,
+    transparent: bool,
+) -> Result<(), E> {
+    stmt.attributes.lower(ctx)?;
+    with_scope!(ctx, {
+        if transparent {
+            ctx.scope.make_transparent();
+        }
+        for stmt in &mut stmt.statements {
+            stmt.lower(ctx)?;
+        }
+        Ok(())
+    })?;
+    stmt.statements.retain(|stmt| match stmt.node() {
+        Statement::Void => false,
+        Statement::Compound(_) => true,
+        Statement::Assignment(_) => true,
+        Statement::Increment(_) => true,
+        Statement::Decrement(_) => true,
+        Statement::If(_) => true,
+        Statement::Switch(_) => true,
+        Statement::Loop(_) => true,
+        Statement::For(_) => true,
+        Statement::While(_) => true,
+        Statement::Break(_) => true,
+        Statement::Continue(_) => true,
+        Statement::Return(_) => true,
+        Statement::Discard(_) => true,
+        Statement::FunctionCall(_) => true,
+        Statement::ConstAssert(_) => false,
+        Statement::Declaration(_) => true,
+    });
+    Ok(())
+}
+
 impl Lower for CompoundStatement {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
-        self.attributes.lower(ctx)?;
-        with_scope!(ctx, {
-            for stmt in &mut self.statements {
-                stmt.lower(ctx)?;
-            }
-            Ok(())
-        })?;
-        self.statements.retain(|stmt| match stmt.node() {
-            Statement::Void => false,
-            Statement::Compound(_) => true,
-            Statement::Assignment(_) => true,
-            Statement::Increment(_) => true,
-            Statement::Decrement(_) => true,
-            Statement::If(_) => true,
-            Statement::Switch(_) => true,
-            Statement::Loop(_) => true,
-            Statement::For(_) => true,
-            Statement::While(_) => true,
-            Statement::Break(_) => true,
-            Statement::Continue(_) => true,
-            Statement::Return(_) => true,
-            Statement::Discard(_) => true,
-            Statement::FunctionCall(_) => true,
-            Statement::ConstAssert(_) => false,
-            Statement::Declaration(_) => true,
-        });
-        Ok(())
+        compound_lower(self, ctx, false)
     }
 }
 
@@ -455,10 +493,14 @@ impl Lower for LoopStatement {
 
 impl Lower for ForStatement {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
-        self.initializer.lower(ctx)?;
-        self.condition.lower(ctx)?;
-        self.body.lower(ctx)?;
-        Ok(())
+        // the initializer is in the same scope as the body.
+        // https://github.com/gpuweb/gpuweb/issues/5024
+        with_scope!(ctx, {
+            self.initializer.lower(ctx)?;
+            self.condition.lower(ctx)?;
+            compound_lower(&mut self.body, ctx, true)?;
+            Ok(())
+        })
     }
 }
 

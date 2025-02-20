@@ -1,5 +1,6 @@
 use crate::{visit::Visit, Error};
 
+use itertools::Itertools;
 use wgsl_parse::syntax::*;
 
 /// Performs conversions on the final syntax tree to make it more compatible with naga,
@@ -38,6 +39,7 @@ pub fn lower(wesl: &mut TranslationUnit, _keep: &[String]) -> Result<(), Error> 
         }
 
         // lowering sometimes makes const function unused, so we remove them if not in keep list.
+        // we also remove `@const` attributes.
         wesl.global_declarations.retain_mut(|decl| {
             if let GlobalDeclaration::Function(decl) = decl {
                 if decl.attributes.contains(&Attribute::Const)
