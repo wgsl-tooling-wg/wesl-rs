@@ -18,17 +18,13 @@ num-traits = "0.2.19"
 serde = { version = "1.0.215", features = ["derive"], optional = true }
 sourcemap = "9.0.0"
 thiserror = "1.0.63"
-wgsl-parse = { workspace = true, features = [] }
+wgsl-parse = { workspace = true, features = ["wesl"] }
 wesl-macros = { workspace = true }
 proc-macro2 = { version = "1.0.93", optional = true }
 quote = { version = "1.0.38", optional = true }
 
 [features]
-default = ["imports", "condcomp"]
-imports = ["wgsl-parse/imports"]
-attributes = ["wgsl-parse/attributes"]
-condcomp = ["wgsl-parse/condcomp", "attributes"]
 eval = []
-generics = ["wgsl-parse/generics", "attributes"]
+generics = ["wgsl-parse/generics"]
 serde = ["wgsl-parse/serde", "dep:serde"]
 package = ["dep:proc-macro2", "dep:quote"]

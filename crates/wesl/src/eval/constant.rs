@@ -90,8 +90,7 @@ impl IsConst for Attribute {
             Attribute::Vertex => false,           // attr on entrypoint function (never const)
             Attribute::Fragment => false,         // attr on entrypoint function (never const)
             Attribute::Compute => false,          // attr on entrypoint function (never const)
-            #[cfg(feature = "condcomp")]
-            Attribute::If(_) => true, // if attributes are translate-time (always const)
+            Attribute::If(_) => true,             // if attributes are translate-time (always const)
             #[cfg(feature = "generics")]
             Attribute::Type(_) => todo!(),
             Attribute::Custom(attr) => attr.arguments.is_const(wesl, locals),

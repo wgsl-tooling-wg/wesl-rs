@@ -105,7 +105,6 @@ impl_visit! { Statement => Attributes,
         Statement::Switch.{
             attributes,
             clauses.[].{
-                #[cfg(feature = "attributes")]
                 attributes,
                 body.statements.[].(x => recurse(x))
             },
@@ -114,10 +113,8 @@ impl_visit! { Statement => Attributes,
             attributes,
             body.statements.[].(x => recurse(x)),
             continuing.[].{
-                #[cfg(feature = "attributes")]
                 attributes,
                 body.statements.[].(x => recurse(x)),
-                #[cfg(feature = "attributes")]
                 break_if.[].attributes
             },
         },
@@ -129,17 +126,11 @@ impl_visit! { Statement => Attributes,
             attributes,
             body.statements.[].(x => recurse(x)),
         },
-        #[cfg(feature = "attributes")]
         Statement::Break.attributes,
-        #[cfg(feature = "attributes")]
         Statement::Continue.attributes,
-        #[cfg(feature = "attributes")]
         Statement::Return.attributes,
-        #[cfg(feature = "attributes")]
         Statement::Discard.attributes,
-        #[cfg(feature = "attributes")]
         Statement::FunctionCall.attributes,
-        #[cfg(feature = "attributes")]
         Statement::ConstAssert.attributes,
         Statement::Declaration.attributes,
     }
@@ -152,18 +143,15 @@ impl_visit! { Statement => TypeExpression,
             statements.[].(x => recurse(x)),
         },
         Statement::Assignment.{
-            #[cfg(feature = "attributes")]
             attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
             lhs.(x => visit::<Expression, TypeExpression>(x)),
             rhs.(x => visit::<Expression, TypeExpression>(x)),
         },
         Statement::Increment.{
-            #[cfg(feature = "attributes")]
             attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
             expression.(x => visit::<Expression, TypeExpression>(x)),
         },
         Statement::Decrement.{
-            #[cfg(feature = "attributes")]
             attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
             expression.(x => visit::<Expression, TypeExpression>(x)),
         },
@@ -177,7 +165,6 @@ impl_visit! { Statement => TypeExpression,
                 }
             },
             else_if_clauses.[].{
-                #[cfg(feature = "attributes")]
                 attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
                 expression.(x => visit::<Expression, TypeExpression>(x)),
                 body.{
@@ -186,7 +173,6 @@ impl_visit! { Statement => TypeExpression,
                 }
             },
             else_clause.[].{
-                #[cfg(feature = "attributes")]
                 attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
                 body.{
                     attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
@@ -199,7 +185,6 @@ impl_visit! { Statement => TypeExpression,
             expression.(x => visit::<Expression, TypeExpression>(x)),
             body_attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
             clauses.[].{
-                #[cfg(feature = "attributes")]
                 attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
                 case_selectors.[].CaseSelector::Expression.(x => visit::<Expression, TypeExpression>(x)),
                 body.{
@@ -215,14 +200,12 @@ impl_visit! { Statement => TypeExpression,
                 statements.[].(x => recurse(x)),
             },
             continuing.[].{
-                #[cfg(feature = "attributes")]
                 attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
                 body.{
                     attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
                     statements.[].(x => recurse(x)),
                 },
                 break_if.[].{
-                    #[cfg(feature = "attributes")]
                     attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
                     expression.(x => visit::<Expression, TypeExpression>(x)),
                 }
@@ -246,25 +229,20 @@ impl_visit! { Statement => TypeExpression,
                 statements.[].(x => recurse(x)),
             },
         },
-        #[cfg(feature = "attributes")]
         Statement::Break.{
             attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
         },
-        #[cfg(feature = "attributes")]
         Statement::Continue.{
             attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
         },
         Statement::Return.{
-            #[cfg(feature = "attributes")]
             attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
             expression.[].(x => visit::<Expression, TypeExpression>(x)),
         },
-        #[cfg(feature = "attributes")]
         Statement::Discard.{
             attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
         },
         Statement::FunctionCall.{
-            #[cfg(feature = "attributes")]
             attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
             call.{
                 ty,
@@ -272,7 +250,6 @@ impl_visit! { Statement => TypeExpression,
             }
         },
         Statement::ConstAssert.{
-            #[cfg(feature = "attributes")]
             attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
             expression.(x => visit::<Expression, TypeExpression>(x)),
         },
@@ -397,9 +374,7 @@ impl_visit! { TranslationUnit => StatementNode,
 
 impl_visit! { TranslationUnit => Attributes,
     {
-        #[cfg(all(feature = "imports", feature = "attributes"))]
         imports.[].attributes,
-        #[cfg(feature = "attributes")]
         global_directives.[].{
             GlobalDirective::Diagnostic.attributes,
             GlobalDirective::Enable.attributes,
@@ -407,10 +382,8 @@ impl_visit! { TranslationUnit => Attributes,
         },
         global_declarations.[].{
             GlobalDeclaration::Declaration.attributes,
-            #[cfg(feature = "attributes")]
             GlobalDeclaration::TypeAlias.attributes,
             GlobalDeclaration::Struct.{
-                #[cfg(feature = "attributes")]
                 attributes,
                 members.[].attributes,
             },
@@ -419,7 +392,6 @@ impl_visit! { TranslationUnit => Attributes,
                 parameters.[].attributes,
                 body.{ attributes, statements.[].(x => visit::<Statement, Attributes>(x)) }
             },
-            #[cfg(feature = "attributes")]
             GlobalDeclaration::ConstAssert.attributes,
         }
     }
@@ -450,14 +422,12 @@ impl_visit! { Declaration => TypeExpression,
 }
 impl_visit! { TypeAlias => TypeExpression,
     {
-        #[cfg(feature = "attributes")]
         attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
         ty,
     }
 }
 impl_visit! { Struct => TypeExpression,
     {
-        #[cfg(feature = "attributes")]
         attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
         members.[].{
             attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
@@ -482,7 +452,6 @@ impl_visit! { Function => TypeExpression,
 }
 impl_visit! { ConstAssert => TypeExpression,
     {
-        #[cfg(feature = "attributes")]
         attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
         expression.(x => visit::<Expression, TypeExpression>(x)),
     }

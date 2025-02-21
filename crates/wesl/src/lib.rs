@@ -1,17 +1,15 @@
 #![doc = include_str!("../README.md")]
 
-#[cfg(feature = "condcomp")]
-mod condcomp;
 #[cfg(feature = "eval")]
 pub mod eval;
 #[cfg(feature = "generics")]
 mod generics;
-#[cfg(feature = "imports")]
-mod import;
 #[cfg(feature = "package")]
 mod package;
 
+mod condcomp;
 mod error;
+mod import;
 mod lower;
 mod mangle;
 mod resolve;
@@ -20,12 +18,6 @@ mod strip;
 mod syntax_util;
 mod validate;
 mod visit;
-
-#[cfg(feature = "condcomp")]
-pub use condcomp::CondCompError;
-
-#[cfg(feature = "imports")]
-pub use import::ImportError;
 
 #[cfg(feature = "eval")]
 pub use eval::{Eval, EvalError, Exec};
@@ -36,7 +28,9 @@ pub use generics::GenericsError;
 #[cfg(feature = "package")]
 pub use package::PkgBuilder;
 
+pub use condcomp::CondCompError;
 pub use error::{Diagnostic, Error};
+pub use import::ImportError;
 pub use lower::lower;
 pub use mangle::{CacheMangler, EscapeMangler, HashMangler, Mangler, NoMangler, UnicodeMangler};
 pub use resolve::{
@@ -342,7 +336,6 @@ impl<R: Resolver> Wesl<R> {
     /// Imports is a *mandatory* WESL extension.
     ///
     /// Spec: [`Imports.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md)
-    #[cfg(feature = "imports")]
     pub fn use_imports(&mut self, val: bool) -> &mut Self {
         self.options.imports = val;
         self
@@ -353,7 +346,6 @@ impl<R: Resolver> Wesl<R> {
     /// # WESL Reference
     /// Conditional Compilation is a *mandatory* WESL extension.
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
-    #[cfg(feature = "condcomp")]
     pub fn use_condcomp(&mut self, val: bool) -> &mut Self {
         self.options.condcomp = val;
         self
@@ -376,7 +368,6 @@ impl<R: Resolver> Wesl<R> {
     /// Conditional translation is a *mandatory* WESL extension.
     ///
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
-    #[cfg(feature = "condcomp")]
     pub fn set_feature(&mut self, feat: &str, val: bool) -> &mut Self {
         self.options.features.insert(feat.to_string(), val);
         self
@@ -386,7 +377,6 @@ impl<R: Resolver> Wesl<R> {
     /// # WESL Reference
     /// Conditional translation is a *mandatory* WESL extension.
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
-    #[cfg(feature = "condcomp")]
     pub fn set_features<'a>(
         &mut self,
         feats: impl IntoIterator<Item = (&'a str, bool)>,
@@ -402,7 +392,6 @@ impl<R: Resolver> Wesl<R> {
     /// Conditional translation is a *mandatory* WESL extension.
     ///
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
-    #[cfg(feature = "condcomp")]
     pub fn unset_feature(&mut self, feat: &str) -> &mut Self {
         self.options.features.remove(feat);
         self
@@ -729,7 +718,6 @@ fn compile_pre_assembly(
 ) -> Result<TranslationUnit, Error> {
     let resolver = Box::new(resolver);
 
-    #[cfg(feature = "condcomp")]
     let resolver: Box<dyn Resolver> = if options.condcomp {
         Box::new(Preprocessor::new(resolver, |wesl| {
             condcomp::run(wesl, &options.features)?;
@@ -749,7 +737,6 @@ fn compile_pre_assembly(
         .map(|name| name.to_string())
         .collect_vec();
 
-    #[cfg(feature = "imports")]
     let wesl = if options.imports {
         let mut resolution = if options.lazy {
             let keep = keep_idents(&wesl, &options.keep, options.strip);

@@ -1,12 +1,10 @@
 use crate::{visit::Visit, Error};
 
-use itertools::Itertools;
 use wgsl_parse::syntax::*;
 
 /// Performs conversions on the final syntax tree to make it more compatible with naga,
 /// catch errors early and perform optimizations.
 pub fn lower(wesl: &mut TranslationUnit, _keep: &[String]) -> Result<(), Error> {
-    #[cfg(feature = "imports")]
     wesl.imports.clear();
 
     for attrs in Visit::<Attributes>::visit_mut(wesl) {

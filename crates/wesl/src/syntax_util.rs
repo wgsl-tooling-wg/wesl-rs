@@ -56,7 +56,6 @@ impl SyntaxUtil for TranslationUnit {
         // keep track of declarations in a scope.
         type Scope<'a> = Cow<'a, HashSet<Ident>>;
 
-        #[cfg(feature = "imports")]
         fn flatten_imports(imports: &[ImportStatement]) -> impl Iterator<Item = Ident> + '_ {
             fn rec(content: &ImportContent) -> impl Iterator<Item = Ident> + '_ {
                 match &content {
@@ -72,16 +71,10 @@ impl SyntaxUtil for TranslationUnit {
         }
 
         let scope: Scope = Cow::Owned(
-            #[cfg(feature = "imports")]
             self.global_declarations
                 .iter()
                 .filter_map(|decl| decl.ident().cloned())
                 .chain(flatten_imports(&self.imports))
-                .collect::<HashSet<_>>(),
-            #[cfg(not(feature = "imports"))]
-            self.global_declarations
-                .iter()
-                .filter_map(|decl| decl.ident().cloned())
                 .collect::<HashSet<_>>(),
         );
 
@@ -109,7 +102,6 @@ impl SyntaxUtil for TranslationUnit {
                 }
                 Statement::Assignment(s) => {
                     query_mut!(s.{
-                        #[cfg(feature = "attributes")]
                         attributes.[].(x => x.visit_mut()),
                         lhs.(x => Visit::<TypeExpression>::visit_mut(&mut **x)),
                         rhs.(x => Visit::<TypeExpression>::visit_mut(&mut **x)),
@@ -118,7 +110,6 @@ impl SyntaxUtil for TranslationUnit {
                 }
                 Statement::Increment(s) => {
                     query_mut!(s.{
-                        #[cfg(feature = "attributes")]
                         attributes.[].(x => x.visit_mut()),
                         expression.(x => Visit::<TypeExpression>::visit_mut(&mut **x)),
                     })
@@ -126,7 +117,6 @@ impl SyntaxUtil for TranslationUnit {
                 }
                 Statement::Decrement(s) => {
                     query_mut!(s.{
-                        #[cfg(feature = "attributes")]
                         attributes.[].(x => x.visit_mut()),
                         expression.(x => Visit::<TypeExpression>::visit_mut(&mut **x)),
                     })
@@ -143,7 +133,6 @@ impl SyntaxUtil for TranslationUnit {
                             }
                         },
                         else_if_clauses.[].{
-                            #[cfg(feature = "attributes")]
                             attributes.[].(x => x.visit_mut()),
                             expression.(x => Visit::<TypeExpression>::visit_mut(&mut **x)),
                             body.{
@@ -151,7 +140,6 @@ impl SyntaxUtil for TranslationUnit {
                             }
                         },
                         else_clause.[].{
-                            #[cfg(feature = "attributes")]
                             attributes.[].(x => x.visit_mut()),
                             body.{
                                 attributes.[].(x => x.visit_mut()),
@@ -174,7 +162,6 @@ impl SyntaxUtil for TranslationUnit {
                         expression.(x => Visit::<TypeExpression>::visit_mut(&mut **x)),
                         body_attributes.[].(x => x.visit_mut()),
                         clauses.[].{
-                            #[cfg(feature = "attributes")]
                             attributes.[].(x => x.visit_mut()),
                             case_selectors.[].CaseSelector::Expression.(x => Visit::<TypeExpression>::visit_mut(&mut **x)),
                             body.{
@@ -201,7 +188,6 @@ impl SyntaxUtil for TranslationUnit {
                     if let Some(s) = &mut s.continuing {
                         let s2 = &mut *s; // COMBAK: not sure why this is needed?
                         query_mut!(s2.{
-                            #[cfg(feature = "attributes")]
                             attributes.[].(x => x.visit_mut()),
                             body.attributes.[].(x => x.visit_mut()),
                         })
@@ -212,7 +198,6 @@ impl SyntaxUtil for TranslationUnit {
                         if let Some(s) = &mut s.break_if {
                             let s2 = &mut *s; // COMBAK: not sure why this is needed?
                             query_mut!(s2.{
-                                #[cfg(feature = "attributes")]
                                 attributes.[].(x => x.visit_mut()),
                                 expression.(x => Visit::<TypeExpression>::visit_mut(&mut **x)),
                             })
@@ -248,12 +233,10 @@ impl SyntaxUtil for TranslationUnit {
                     retarget_stats(&mut s.body.statements, scope.clone());
                 }
                 Statement::Break(s) => {
-                    #[cfg(feature = "attributes")]
                     query_mut!(s.attributes.[].(x => x.visit_mut()))
                         .for_each(|ty| retarget_ty(ty, &scope));
                 }
                 Statement::Continue(s) => {
-                    #[cfg(feature = "attributes")]
                     query_mut!(s.attributes.[].(x => x.visit_mut()))
                         .for_each(|ty| retarget_ty(ty, &scope));
                 }
@@ -262,13 +245,11 @@ impl SyntaxUtil for TranslationUnit {
                         .for_each(|ty| retarget_ty(ty, &scope));
                 }
                 Statement::Discard(s) => {
-                    #[cfg(feature = "attributes")]
                     query_mut!(s.attributes.[].(x => x.visit_mut()))
                         .for_each(|ty| retarget_ty(ty, &scope));
                 }
                 Statement::FunctionCall(s) => {
                     query_mut!(s.{
-                       #[cfg(feature = "attributes")]
                         attributes.[].(x => x.visit_mut()),
                         call.{
                             ty,

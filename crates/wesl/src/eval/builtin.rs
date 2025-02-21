@@ -232,7 +232,6 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
 
     for decl in &mut prelude.global_declarations {
         match decl {
-            #[cfg(feature = "attributes")]
             GlobalDeclaration::Struct(s) => {
                 if s.attributes.contains(&attr_internal) {
                     s.ident = Ident::new(format!("__{}", s.ident));
@@ -1135,8 +1134,7 @@ impl PtrTemplate {
         match (it.next(), it.next(), it.next(), it.next()) {
             (
                 Some(Expression::TypeOrIdentifier(TypeExpression {
-                    #[cfg(feature = "imports")]
-                        path: None,
+                    path: None,
                     ident: e1,
                     template_args: None,
                 })),
@@ -1155,8 +1153,7 @@ impl PtrTemplate {
                 let access = if let Some(e3) = e3 {
                     match e3 {
                         Expression::TypeOrIdentifier(TypeExpression {
-                            #[cfg(feature = "imports")]
-                                path: None,
+                            path: None,
                             ident,
                             template_args: None,
                         }) => Some(

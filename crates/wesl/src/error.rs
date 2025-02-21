@@ -7,11 +7,10 @@ use wgsl_parse::{
 
 use crate::{Mangler, ResolveError, SourceMap, ValidateError};
 
-#[cfg(feature = "condcomp")]
-use crate::CondCompError;
 #[cfg(feature = "generics")]
 use crate::GenericsError;
-#[cfg(feature = "imports")]
+
+use crate::CondCompError;
 use crate::ImportError;
 
 #[cfg(feature = "eval")]
@@ -26,10 +25,8 @@ pub enum Error {
     ValidateError(#[from] ValidateError),
     #[error("{0}")]
     ResolveError(#[from] ResolveError),
-    #[cfg(feature = "imports")]
     #[error("{0}")]
     ImportError(#[from] ImportError),
-    #[cfg(feature = "condcomp")]
     #[error("{0}")]
     CondCompError(#[from] CondCompError),
     #[cfg(feature = "generics")]
@@ -83,7 +80,6 @@ impl From<ResolveError> for Diagnostic<Error> {
     }
 }
 
-#[cfg(feature = "imports")]
 impl From<ImportError> for Diagnostic<Error> {
     fn from(error: ImportError) -> Self {
         match error {
@@ -93,7 +89,6 @@ impl From<ImportError> for Diagnostic<Error> {
     }
 }
 
-#[cfg(feature = "condcomp")]
 impl From<CondCompError> for Diagnostic<Error> {
     fn from(error: CondCompError) -> Self {
         Self::new(error.into())
@@ -120,9 +115,7 @@ impl From<Error> for Diagnostic<Error> {
             Error::ParseError(e) => e.into(),
             Error::ValidateError(e) => e.into(),
             Error::ResolveError(e) => e.into(),
-            #[cfg(feature = "imports")]
             Error::ImportError(e) => e.into(),
-            #[cfg(feature = "condcomp")]
             Error::CondCompError(e) => e.into(),
             #[cfg(feature = "generics")]
             Error::GenericsError(e) => e.into(),
@@ -327,9 +320,7 @@ impl Diagnostic<Error> {
                 | ValidateError::Duplicate(name) => unmangle_name(name, sourcemap, mangler),
             },
             Error::ResolveError(_) => {}
-            #[cfg(feature = "imports")]
             Error::ImportError(_) => {}
-            #[cfg(feature = "condcomp")]
             Error::CondCompError(e) => match e {
                 CondCompError::InvalidExpression(expr) => unmangle_expr(expr, sourcemap, mangler),
                 CondCompError::InvalidFeatureFlag(_) | CondCompError::MissingFeatureFlag(_) => {}

@@ -222,9 +222,7 @@ fn statement_eval_if_attributes(
 pub fn run(wesl: &mut TranslationUnit, features: &Features) -> Result<(), E> {
     // 1. evaluate all if attributes
 
-    #[cfg(feature = "imports")]
     eval_if_attributes(&mut wesl.imports, features)?;
-
     eval_if_attributes(&mut wesl.global_directives, features)?;
     eval_if_attributes(&mut wesl.global_declarations, features)?;
 

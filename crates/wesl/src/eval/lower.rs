@@ -182,7 +182,6 @@ impl Lower for Attributes {
                 | Attribute::Size(expr) => {
                     expr.lower(ctx)?;
                 }
-                #[cfg(feature = "condcomp")]
                 Attribute::If(expr) => {
                     expr.lower(ctx)?;
                 }
