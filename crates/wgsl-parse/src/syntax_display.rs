@@ -61,27 +61,35 @@ impl Display for Ident {
 }
 
 #[cfg(feature = "imports")]
-impl Display for Import {
+impl Display for ImportStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         #[cfg(feature = "attributes")]
         write!(f, "{}", fmt_attrs(&self.attributes, false))?;
-        let path = self
-            .path
-            .iter()
-            .map(|segment| match segment.to_str() {
-                Some(".") => "self",
-                Some("..") => "super",
-                Some(str) => str,
-                _ => "?",
-            })
-            .format("::");
-        let absolute = if self.path.has_root() {
-            "package::"
-        } else {
-            ""
-        };
+        let path = &self.path;
         let content = &self.content;
-        write!(f, "{absolute}{path}::{content};")
+        write!(f, "{path}::{content};")
+    }
+}
+
+#[cfg(feature = "imports")]
+impl Display for ModulePath {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.origin {
+            PathOrigin::Absolute => write!(f, "package::")?,
+            PathOrigin::Relative(0) => write!(f, "self::")?,
+            PathOrigin::Relative(n) => write!(f, "{}::", (1..n).map(|_| "super").format("::"))?,
+            PathOrigin::Package => (),
+        };
+        write!(f, "{}", self.components.iter().format("::"))
+    }
+}
+
+#[cfg(feature = "imports")]
+impl Display for Import {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let path = self.path.iter().format("::");
+        let content = &self.content;
+        write!(f, "{path}{content}")
     }
 }
 

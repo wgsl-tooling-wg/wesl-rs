@@ -34,7 +34,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct TranslationUnit {
     #[cfg(feature = "imports")]
-    pub imports: Vec<Import>,
+    pub imports: Vec<ImportStatement>,
     pub global_directives: Vec<GlobalDirective>,
     pub global_declarations: Vec<GlobalDeclaration>,
 }
@@ -88,16 +88,41 @@ impl std::hash::Hash for Ident {
 #[cfg(feature = "imports")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
-pub struct Import {
+pub struct ImportStatement {
     #[cfg(feature = "attributes")]
     pub attributes: Attributes,
-    pub path: std::path::PathBuf,
+    pub path: ModulePath,
     pub content: ImportContent,
 }
 
 #[cfg(feature = "imports")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, PartialEq, IsVariant, Unwrap)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, IsVariant)]
+pub enum PathOrigin {
+    Absolute,
+    Relative(usize),
+    Package,
+}
+
+#[cfg(feature = "imports")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct ModulePath {
+    pub origin: PathOrigin,
+    pub components: Vec<String>,
+}
+
+#[cfg(feature = "imports")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Import {
+    pub path: Vec<String>,
+    pub content: ImportContent,
+}
+
+#[cfg(feature = "imports")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, PartialEq, IsVariant)]
 pub enum ImportContent {
     Item(ImportItem),
     Collection(Vec<Import>),
@@ -465,7 +490,7 @@ pub type FunctionCallExpression = FunctionCall;
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeExpression {
     #[cfg(feature = "imports")]
-    pub path: Option<std::path::PathBuf>,
+    pub path: Option<ModulePath>,
     pub ident: Ident,
     pub template_args: TemplateArgs,
 }

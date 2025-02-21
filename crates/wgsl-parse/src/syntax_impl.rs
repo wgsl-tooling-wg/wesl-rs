@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use crate::span::Spanned;
 
 use super::syntax::*;
@@ -17,6 +19,102 @@ impl TranslationUnit {
                 true
             }
         })
+    }
+}
+
+#[cfg(feature = "imports")]
+impl ModulePath {
+    /// Create a new resource from a module path.
+    ///
+    /// Precondition: the path components must be valid WGSL identifiers, or `..` or `.`.
+    pub fn new(origin: PathOrigin, components: Vec<String>) -> Self {
+        Self { origin, components }
+    }
+    /// Create a new resource from a module path.
+    ///
+    /// Precondition: the path components must be valid WGSL identifiers, or `..` or `.`.
+    pub fn from_path(path: impl AsRef<std::path::Path>) -> Self {
+        use std::path::Component;
+        let mut origin = PathOrigin::Package;
+        let mut components = Vec::new();
+
+        for comp in path.as_ref().with_extension("").components() {
+            match comp {
+                Component::Prefix(_) => {}
+                Component::RootDir => origin = PathOrigin::Absolute,
+                Component::CurDir => {
+                    if components.is_empty() && origin.is_package() {
+                        origin = PathOrigin::Relative(0);
+                    }
+                }
+                Component::ParentDir => {
+                    if components.is_empty() {
+                        if let PathOrigin::Relative(n) = &mut origin {
+                            *n += 1;
+                        } else {
+                            origin = PathOrigin::Relative(1)
+                        }
+                    } else {
+                        components.pop();
+                    }
+                }
+                Component::Normal(comp) => components.push(comp.to_string_lossy().to_string()),
+            }
+        }
+
+        Self { origin, components }
+    }
+    /// Add a path component to the resource.
+    ///
+    /// Precondition: the `item` must be a valid WGSL identifier.
+    pub fn push(&mut self, item: &str) {
+        self.components.push(item.to_string());
+    }
+    /// Get the first component of the module path.
+    pub fn first(&self) -> Option<&str> {
+        self.components.first().map(String::as_str)
+    }
+    /// Get the last component of the module path.
+    pub fn last(&self) -> Option<&str> {
+        self.components.last().map(String::as_str)
+    }
+    /// Append `suffix` to the module path.
+    pub fn join(mut self, suffix: impl IntoIterator<Item = String>) -> Self {
+        self.components.extend(suffix);
+        self
+    }
+    /// Append `suffix` to the module path.
+    /// the suffix must be a relative module path.
+    pub fn join_path(&self, path: &Self) -> Option<Self> {
+        match path.origin {
+            PathOrigin::Relative(n) => {
+                let to_keep = self.components.len().min(n) - n;
+                let components = self.components.iter().take(to_keep).cloned().collect_vec();
+                let origin = match self.origin {
+                    PathOrigin::Absolute | PathOrigin::Package => {
+                        if n > self.components.len() {
+                            PathOrigin::Relative(n - self.components.len())
+                        } else {
+                            self.origin
+                        }
+                    }
+                    PathOrigin::Relative(m) => {
+                        if n > self.components.len() {
+                            PathOrigin::Relative(m + n - self.components.len())
+                        } else {
+                            self.origin
+                        }
+                    }
+                };
+                Some(Self { origin, components })
+            }
+            _ => None,
+        }
+    }
+    pub fn starts_with(&self, prefix: &Self) -> bool {
+        self.origin == prefix.origin
+            && prefix.components.len() >= self.components.len()
+            && prefix.components.iter().zip(&self.components).all_equal()
     }
 }
 
@@ -186,7 +284,7 @@ macro_rules! impl_decorated_struct {
 }
 
 #[cfg(all(feature = "imports", feature = "attributes"))]
-impl_decorated_struct!(Import);
+impl_decorated_struct!(ImportStatement);
 
 #[cfg(feature = "attributes")]
 impl Decorated for GlobalDirective {

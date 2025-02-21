@@ -40,14 +40,13 @@ pub use error::{Diagnostic, Error};
 pub use lower::lower;
 pub use mangle::{CacheMangler, EscapeMangler, HashMangler, Mangler, NoMangler, UnicodeMangler};
 pub use resolve::{
-    FileResolver, NoResolver, PkgModule, PkgResolver, Preprocessor, ResolveError, Resolver,
-    Resource, Router, StandardResolver, VirtualResolver,
+    FileResolver, NoResolver, PkgModule, PkgResolver, Preprocessor, ResolveError, Resolver, Router,
+    StandardResolver, VirtualResolver,
 };
 pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
 pub use strip::strip_except;
 pub use syntax_util::SyntaxUtil;
 pub use validate::{validate_wgsl, ValidateError};
-
 pub use wgsl_parse::syntax;
 
 use std::{
@@ -58,7 +57,7 @@ use std::{
 
 use itertools::Itertools;
 use validate::validate_wesl;
-use wgsl_parse::syntax::{Ident, TranslationUnit};
+use wgsl_parse::syntax::{Ident, ModulePath, PathOrigin, TranslationUnit};
 
 /// Compilation options. Used in [`compile`] and [`Wesl::set_options`].
 #[derive(Debug)]
@@ -642,7 +641,8 @@ impl<R: Resolver> Wesl<R> {
     /// # WESL Reference
     /// Spec: not available yet.
     pub fn compile(&self, root: impl AsRef<Path>) -> Result<CompileResult, Error> {
-        let root = Resource::new(root);
+        let mut root = ModulePath::from_path(root);
+        root.origin = PathOrigin::Absolute; // we force absolute paths
 
         if self.use_sourcemap {
             let (syntax, sourcemap) =
@@ -724,7 +724,7 @@ fn keep_idents(wesl: &TranslationUnit, keep: &Option<Vec<String>>, strip: bool) 
 }
 
 fn compile_pre_assembly(
-    root: &Resource,
+    root: &ModulePath,
     resolver: &impl Resolver,
     mangler: &impl Mangler,
     options: &CompileOptions,
@@ -799,7 +799,7 @@ fn compile_post_assembly(
 
 /// Low-level version of [`Wesl::compile`].
 pub fn compile(
-    root: &Resource,
+    root: &ModulePath,
     resolver: &impl Resolver,
     mangler: &impl Mangler,
     options: &CompileOptions,
@@ -813,7 +813,7 @@ pub fn compile(
 
 /// Like [`compile`], but provides better error diagnostics and returns the sourcemap.
 pub fn compile_sourcemap(
-    root: &Resource,
+    root: &ModulePath,
     resolver: &impl Resolver,
     mangler: &impl Mangler,
     options: &CompileOptions,

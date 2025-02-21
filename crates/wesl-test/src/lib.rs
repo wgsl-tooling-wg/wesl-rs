@@ -13,7 +13,7 @@ use regex::Regex;
 use serde::Deserialize;
 use wesl::{
     syntax::{Expression, GlobalDeclaration, Statement, TranslationUnit},
-    CompileOptions, NoMangler, Resource, VirtualResolver,
+    CompileOptions, ModulePath, NoMangler, VirtualResolver,
 };
 
 #[datatest::files("webgpu-samples", {
@@ -314,7 +314,7 @@ fn wesl_testsuite_import_cases(case: WgslTestSrc) {
         resolver.add_module(path, file.into());
     }
 
-    let root_module = Resource::new(PathBuf::from("main"));
+    let root_module = ModulePath::new(PathBuf::from("main"));
     let mut compile_options = CompileOptions::default();
     compile_options.strip = false;
 

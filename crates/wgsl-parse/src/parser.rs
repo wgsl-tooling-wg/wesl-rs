@@ -86,12 +86,12 @@ impl FromStr for Expression {
     }
 }
 #[cfg(feature = "imports")]
-impl FromStr for crate::syntax::Import {
+impl FromStr for crate::syntax::ImportStatement {
     type Err = Error;
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
         let lexer = Lexer::new(source);
-        let parser = wgsl::ImportParser::new();
+        let parser = wgsl::ImportStatementParser::new();
         parser.parse(lexer).map_err(Into::into)
     }
 }

@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use std::path::PathBuf;
 use crate::{error::CustomLalrError, lexer::Token};
 use crate::span::{Spanned, Span};
 use crate::syntax::*;
@@ -952,130 +951,102 @@ DiagnosticControl: (DiagnosticSeverity, String) = {
 #[cfg(feature = "imports")]
 PathIdent: String = {
     IdentPatternToken => <>,
-    "alias" => <>.to_string(),
-    "break" => <>.to_string(),
-    "case" => <>.to_string(),
-    "const" => <>.to_string(),
-    "const_assert" => <>.to_string(),
-    "continue" => <>.to_string(),
-    "continuing" => <>.to_string(),
-    "default" => <>.to_string(),
-    "diagnostic" => <>.to_string(),
-    "discard" => <>.to_string(),
-    // the "else" keyword is LR(1) conflict: if () {} else::call_fn();
-    // "else" => <>.to_string(),
-    "enable" => <>.to_string(),
-    "false" => <>.to_string(),
-    "fn" => <>.to_string(),
-    "for" => <>.to_string(),
-    "if" => <>.to_string(),
-    "let" => <>.to_string(),
-    "loop" => <>.to_string(),
-    "override" => <>.to_string(),
-    "requires" => <>.to_string(),
-    "return" => <>.to_string(),
-    "struct" => <>.to_string(),
-    "switch" => <>.to_string(),
-    "true" => <>.to_string(),
-    "var" => <>.to_string(),
-    "while" => <>.to_string(),
-    "as" => <>.to_string(),
-    "import" => <>.to_string(),
+    // "alias" => <>.to_string(),
+    // "break" => <>.to_string(),
+    // "case" => <>.to_string(),
+    // "const" => <>.to_string(),
+    // "const_assert" => <>.to_string(),
+    // "continue" => <>.to_string(),
+    // "continuing" => <>.to_string(),
+    // "default" => <>.to_string(),
+    // "diagnostic" => <>.to_string(),
+    // "discard" => <>.to_string(),
+    // // the "else" keyword is LR(1) conflict: if () {} else::call_fn();
+    // // "else" => <>.to_string(),
+    // "enable" => <>.to_string(),
+    // "false" => <>.to_string(),
+    // "fn" => <>.to_string(),
+    // "for" => <>.to_string(),
+    // "if" => <>.to_string(),
+    // "let" => <>.to_string(),
+    // "loop" => <>.to_string(),
+    // "override" => <>.to_string(),
+    // "requires" => <>.to_string(),
+    // "return" => <>.to_string(),
+    // "struct" => <>.to_string(),
+    // "switch" => <>.to_string(),
+    // "true" => <>.to_string(),
+    // "var" => <>.to_string(),
+    // "while" => <>.to_string(),
+    // "as" => <>.to_string(),
+    // "import" => <>.to_string(),
 };
 
 #[cfg(feature = "imports")]
-TemplateElaboratedIdent: TypeExpression = <relative: ImportRelative?> <path: (<PathIdent> "::")*> <ident: Ident> <template_args: TemplateList?> => {
-    let path = match relative {
-        Some(mut relative) => {
-            relative.extend(path);
-            Some(relative)
-        },
-        None => {
-            if path.is_empty() {
-                None
-            } else {
-                let mut absolute = PathBuf::from("/");
-                absolute.extend(path);
-                Some(absolute)
-            }
-        }
-    };
-    TypeExpression {
-        path, ident, template_args
-    }
+TemplateElaboratedIdent: TypeExpression = <path: ModulePath?> <ident: Ident> <template_args: TemplateList?> => TypeExpression {
+    path, ident, template_args
 };
 
 
 #[cfg(feature = "imports")]
 pub TranslationUnit: TranslationUnit = {
-    <imports: Import*> <global_directives: GlobalDirective*> <global_declarations: GlobalDecl*> => TranslationUnit {
+    <imports: ImportStatement*> <global_directives: GlobalDirective*> <global_declarations: GlobalDecl*> => TranslationUnit {
         imports, global_directives, global_declarations
     },
 };
 
 #[cfg(all(feature = "imports", not(feature = "attributes")))]
-pub Import: Import = {
-    "import" <relative: ImportRelative?> <mut import: ImportPath> ";" => {
-        match relative {
-            Some(mut relative) => {
-                relative.extend(&import.path);
-                import.path = relative;
-            },
-            None => {
-                let mut absolute = PathBuf::from("/");
-                absolute.push(import.path);
-                import.path = absolute;
-            },
-        };
-        import
+pub ImportStatement: ImportStatement = {
+    "import" <path: ModulePath> <content: ImportContent> ";" => ImportStatement {
+        path, content
     }
 };
 
 #[cfg(all(feature = "imports", feature = "attributes"))]
-pub Import: Import = {
-    <attributes: Attribute*> "import" <relative: ImportRelative?> <mut import: ImportPath> ";" => {
-        match relative {
-            Some(mut relative) => {
-                relative.extend(&import.path);
-                import.path = relative;
-            },
-            None => {
-                let mut absolute = PathBuf::from("/");
-                absolute.push(import.path);
-                import.path = absolute;
-            },
-        };
-        import.attributes = attributes;
-        import
+pub ImportStatement: ImportStatement = {
+    <attributes: Attribute*> "import" <path: ModulePath> <content: ImportContent> ";" => ImportStatement {
+        attributes, path, content
     }
 };
 
 #[cfg(feature = "imports")]
-ImportRelative: PathBuf = {
-    // "self" is no longer part of the spec.
-    // "self" "::" <parents: ("super" "::")*> => {
-    //     PathBuf::from_iter(std::iter::once(".").chain(parents.iter().map(|_| "..")))
-    // },
+PathOrigin: PathOrigin = {
+    // NOTE: `self::` is no longer part of the spec.
+    "self" "::" => {
+        PathOrigin::Relative(0)
+    },
     "super" "::" <parents: ("super" "::")*> => {
-        PathBuf::from_iter(std::iter::once("..").chain(parents.iter().map(|_| "..")))
+        let n = 1 + parents.len();
+        PathOrigin::Relative(n)
     },
     "package" "::" => {
-        PathBuf::from("")
+        PathOrigin::Absolute
+    },
+};
+
+#[inline]
+#[cfg(feature = "imports")]
+ModulePath: ModulePath = {
+    <origin: PathOrigin> <components: (<PathIdent> "::")*> => ModulePath {
+        origin, components
+    },
+    <components: (<PathIdent> "::")+> => ModulePath {
+        origin: PathOrigin::Package,
+        components
     },
 };
 
 #[cfg(feature = "imports")]
-ImportPath: Import = {
+Import: Import = {
     <path: (<PathIdent> "::")*> <content: ImportContent> => Import {
-        #[cfg(feature = "attributes")] attributes: Vec::new(),
-        path: PathBuf::from_iter(path), content
-    },
+        path, content
+    }
 };
 
 #[cfg(feature = "imports")]
 ImportContent: ImportContent = {
-    CollectionImport => ImportContent::Collection(<>),
     ImportItem => ImportContent::Item(<>),
+    ImportCollection => ImportContent::Collection(<>),
 };
 
 #[cfg(feature = "imports")]
@@ -1086,8 +1057,8 @@ ImportItem: ImportItem = {
 };
 
 #[cfg(feature = "imports")]
-CollectionImport: Vec<Import> = {
-    "{" <Comma1<ImportPath>> "}"
+ImportCollection: Vec<Import> = {
+    "{" <Comma1<Import>> "}"
 };
 
 // EXTENSION: WESL-CONDITIONAL-TRANSLATION

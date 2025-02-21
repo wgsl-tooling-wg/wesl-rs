@@ -57,13 +57,18 @@ impl SyntaxUtil for TranslationUnit {
         type Scope<'a> = Cow<'a, HashSet<Ident>>;
 
         #[cfg(feature = "imports")]
-        fn flatten_imports(imports: &[Import]) -> impl Iterator<Item = Ident> + '_ {
-            imports.iter().flat_map(|import| match &import.content {
-                ImportContent::Item(item) => {
-                    std::iter::once(item.rename.as_ref().unwrap_or(&item.ident).clone()).boxed()
+        fn flatten_imports(imports: &[ImportStatement]) -> impl Iterator<Item = Ident> + '_ {
+            fn rec(content: &ImportContent) -> impl Iterator<Item = Ident> + '_ {
+                match &content {
+                    ImportContent::Item(item) => {
+                        std::iter::once(item.rename.as_ref().unwrap_or(&item.ident).clone()).boxed()
+                    }
+                    ImportContent::Collection(coll) => {
+                        coll.iter().flat_map(|import| rec(&import.content)).boxed()
+                    }
                 }
-                ImportContent::Collection(coll) => flatten_imports(coll).boxed(),
-            })
+            }
+            imports.iter().flat_map(|import| rec(&import.content))
         }
 
         let scope: Scope = Cow::Owned(

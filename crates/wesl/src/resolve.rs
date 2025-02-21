@@ -1,154 +1,29 @@
 use crate::{Diagnostic, Error, SyntaxUtil};
 
 use itertools::Itertools;
-use wgsl_parse::syntax::TranslationUnit;
+use wgsl_parse::syntax::{ModulePath, PathOrigin, TranslationUnit};
 
 use std::{
     borrow::Cow,
     collections::HashMap,
-    fmt::Display,
     fs,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
 };
 
 /// Error produced by module resolution.
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum ResolveError {
     #[error("invalid import path: `{0}` ({1})")]
-    InvalidResource(Resource, String),
+    InvalidResource(ModulePath, String),
     #[error("file not found: `{0}` ({1})")]
     FileNotFound(PathBuf, String),
+    #[error("module not found: `{0}` ({1})")]
+    ModuleNotFound(ModulePath, String),
     #[error("{0}")]
     Error(#[from] Diagnostic<Error>),
 }
 
 type E = ResolveError;
-
-// TODO: rename ModulePath?
-/// A resource uniquely identify an importable module (file).
-///
-/// Each module must be associated with a unique `Resource`, and a `Resource` must
-/// identify a unique module.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Resource {
-    // TODO: get rid or pathbuf. it is not adapted to current use-cases.
-    path: PathBuf,
-}
-
-fn clean_path(path: impl AsRef<Path>) -> PathBuf {
-    let mut res = PathBuf::new();
-    for comp in path.as_ref().with_extension("").components() {
-        match comp {
-            Component::Prefix(_) => {}
-            Component::RootDir => {
-                res.push(comp);
-            }
-            Component::CurDir => {
-                // can only 'start' with './'
-                if res == Path::new("") {
-                    res.push(comp)
-                }
-            }
-            Component::ParentDir => {
-                if !res.pop() {
-                    res.push(comp);
-                }
-            }
-            Component::Normal(_) => res.push(comp),
-        }
-    }
-    res
-}
-
-impl Resource {
-    /// Create a new resource from a module path.
-    ///
-    /// Precondition: the path components must be valid WGSL identifiers, or `..` or `.`.
-    pub fn new(path: impl AsRef<Path>) -> Self {
-        Self {
-            path: clean_path(path),
-        }
-    }
-    /// Represent this resource as a module path.
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-    /// Add a path component to the resource.
-    ///
-    /// Precondition: the `item` must be a valid WGSL identifier.
-    pub fn push(&mut self, item: &str) {
-        self.path.push(item);
-    }
-    /// Get the parent resource, if this resource is not the root module.
-    pub fn parent(&self) -> Option<Self> {
-        self.path.parent().map(|p| Self {
-            path: p.to_path_buf(),
-        })
-    }
-    /// Get the first component of the module path.
-    pub fn first(&self) -> Option<&str> {
-        self.path.iter().next().map(|p| p.to_str().unwrap())
-    }
-    /// Get the last component of the module path.
-    pub fn last(&self) -> Option<&str> {
-        self.path.iter().last().map(|p| p.to_str().unwrap())
-    }
-    /// Append `suffix` to the module path.
-    pub fn join(&self, suffix: impl AsRef<Path>) -> Self {
-        let mut path = self.path.clone();
-        path.push(suffix);
-        Self {
-            path: clean_path(path),
-        }
-    }
-    /// Whether this resource points at an item in an external package.
-    pub fn is_package(&self) -> bool {
-        self.path.has_root()
-    }
-    /// Get the the module path inside of the package, if this resource refers
-    /// to an item in an external package.
-    pub fn package_local(&self) -> Option<Resource> {
-        self.is_package().then(|| {
-            let path = self.path.iter().skip(1).collect::<PathBuf>();
-            Resource::new(path)
-        })
-    }
-    /// Whether this resource is relative (corresponds to a module path
-    /// starting with `super::`).
-    pub fn is_relative(&self) -> bool {
-        self.first() == Some(".")
-    }
-    /// Make this resource absolute by dropping the `super::` prefix.
-    pub fn absolute(mut self) -> Resource {
-        if self.is_relative() {
-            self.path = PathBuf::from_iter(self.path.iter().skip(1));
-            self
-        } else {
-            self
-        }
-    }
-}
-
-impl Display for Resource {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fn fmt_path<'a>(path: impl Iterator<Item = Component<'a>> + 'a) -> impl Display + 'a {
-            path.filter_map(|seg| match seg {
-                std::path::Component::Prefix(_) | std::path::Component::RootDir => None,
-                std::path::Component::CurDir => Some("self"),
-                std::path::Component::ParentDir => Some("super"),
-                std::path::Component::Normal(str) => str.to_str(),
-            })
-            .format("::")
-        }
-        if self.path.has_root() {
-            write!(f, "{}", fmt_path(self.path.components().skip(1)))
-        } else if self.path.starts_with(".") || self.path.starts_with("..") {
-            write!(f, "{}", fmt_path(self.path.components()))
-        } else {
-            write!(f, "package::{}", fmt_path(self.path.components()))
-        }
-    }
-}
 
 /// A Resolver is responsible for turning an import path into a unique module path
 /// ([`Resource`]) and providing the source file and syntax tree.
@@ -159,55 +34,55 @@ impl Display for Resource {
 /// * the resource must be canonical (absolute module path).
 pub trait Resolver {
     /// Try to resolve a source file identified by a resource.
-    fn resolve_source<'a>(&'a self, resource: &Resource) -> Result<Cow<'a, str>, E>;
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, E>;
     /// Convert a source file into a syntax tree.
-    fn source_to_module(&self, source: &str, resource: &Resource) -> Result<TranslationUnit, E> {
+    fn source_to_module(&self, source: &str, path: &ModulePath) -> Result<TranslationUnit, E> {
         let mut wesl: TranslationUnit = source.parse().map_err(|e| {
             Diagnostic::from(e)
-                .with_resource(resource.clone(), self.display_name(resource))
+                .with_resource(path.clone(), self.display_name(path))
                 .with_source(source.to_string())
         })?;
         wesl.retarget_idents(); // it's important to call that early on to have identifiers point at the right declaration.
         Ok(wesl)
     }
     /// Try to resolve a source file identified by a resource.
-    fn resolve_module(&self, resource: &Resource) -> Result<TranslationUnit, E> {
-        let source = self.resolve_source(resource)?;
-        let wesl = self.source_to_module(&source, resource)?;
+    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, E> {
+        let source = self.resolve_source(path)?;
+        let wesl = self.source_to_module(&source, path)?;
         Ok(wesl)
     }
     /// Get the display name of the resource. Implementing this is optional.
-    fn display_name(&self, _resource: &Resource) -> Option<String> {
+    fn display_name(&self, _path: &ModulePath) -> Option<String> {
         None
     }
 }
 
 impl<T: Resolver + ?Sized> Resolver for Box<T> {
-    fn resolve_source<'a>(&'a self, resource: &Resource) -> Result<Cow<'a, str>, E> {
-        (**self).resolve_source(resource)
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, E> {
+        (**self).resolve_source(path)
     }
-    fn source_to_module(&self, source: &str, resource: &Resource) -> Result<TranslationUnit, E> {
-        (**self).source_to_module(source, resource)
+    fn source_to_module(&self, source: &str, path: &ModulePath) -> Result<TranslationUnit, E> {
+        (**self).source_to_module(source, path)
     }
-    fn resolve_module(&self, resource: &Resource) -> Result<TranslationUnit, E> {
-        (**self).resolve_module(resource)
+    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, E> {
+        (**self).resolve_module(path)
     }
-    fn display_name(&self, resource: &Resource) -> Option<String> {
-        (**self).display_name(resource)
+    fn display_name(&self, path: &ModulePath) -> Option<String> {
+        (**self).display_name(path)
     }
 }
 
 impl<T: Resolver> Resolver for &T {
-    fn resolve_source<'a>(&'a self, resource: &Resource) -> Result<Cow<'a, str>, E> {
+    fn resolve_source<'a>(&'a self, resource: &ModulePath) -> Result<Cow<'a, str>, E> {
         (**self).resolve_source(resource)
     }
-    fn source_to_module(&self, source: &str, resource: &Resource) -> Result<TranslationUnit, E> {
+    fn source_to_module(&self, source: &str, resource: &ModulePath) -> Result<TranslationUnit, E> {
         (**self).source_to_module(source, resource)
     }
-    fn resolve_module(&self, resource: &Resource) -> Result<TranslationUnit, E> {
+    fn resolve_module(&self, resource: &ModulePath) -> Result<TranslationUnit, E> {
         (**self).resolve_module(resource)
     }
-    fn display_name(&self, resource: &Resource) -> Option<String> {
+    fn display_name(&self, resource: &ModulePath) -> Option<String> {
         (**self).display_name(resource)
     }
 }
@@ -219,7 +94,7 @@ impl<T: Resolver> Resolver for &T {
 pub struct NoResolver;
 
 impl Resolver for NoResolver {
-    fn resolve_source<'a>(&'a self, resource: &Resource) -> Result<Cow<'a, str>, E> {
+    fn resolve_source<'a>(&'a self, resource: &ModulePath) -> Result<Cow<'a, str>, E> {
         Err(E::InvalidResource(
             resource.clone(),
             "no resolver".to_string(),
@@ -252,43 +127,39 @@ impl FileResolver {
         self.extension = extension;
     }
 
-    fn file_path(&self, resource: &Resource) -> Result<PathBuf, E> {
-        if resource.path().has_root() {
+    fn file_path(&self, resource: &ModulePath) -> Result<PathBuf, E> {
+        if resource.origin.is_package() {
             return Err(E::InvalidResource(
                 resource.clone(),
-                "not a file".to_string(),
+                "this is an external package import, not a file import. Use `package::` or `super::` for file imports."
+                    .to_string(),
             ));
         }
         let mut path = self.base.to_path_buf();
-        path.extend(resource.path());
-        let has_extension = path.extension().is_some();
-        if !has_extension {
-            path.set_extension(self.extension);
-        }
+        path.extend(&resource.components);
+        path.set_extension(self.extension);
         if path.exists() {
             Ok(path)
-        } else if !has_extension {
+        } else {
             path.set_extension("wgsl");
             if path.exists() {
                 Ok(path)
             } else {
                 Err(E::FileNotFound(path, "physical file".to_string()))
             }
-        } else {
-            Err(E::FileNotFound(path, "physical file".to_string()))
         }
     }
 }
 
 impl Resolver for FileResolver {
-    fn resolve_source<'a>(&'a self, resource: &Resource) -> Result<Cow<'a, str>, E> {
+    fn resolve_source<'a>(&'a self, resource: &ModulePath) -> Result<Cow<'a, str>, E> {
         let path = self.file_path(resource)?;
         let source = fs::read_to_string(&path)
             .map_err(|_| E::FileNotFound(path, "physical file".to_string()))?;
 
         Ok(source.into())
     }
-    fn display_name(&self, resource: &Resource) -> Option<String> {
+    fn display_name(&self, resource: &ModulePath) -> Option<String> {
         self.file_path(resource)
             .ok()
             .map(|path| path.display().to_string())
@@ -301,7 +172,7 @@ impl Resolver for FileResolver {
 /// runtime-generated files.
 #[derive(Default)]
 pub struct VirtualResolver<'a> {
-    files: HashMap<Resource, Cow<'a, str>>,
+    files: HashMap<ModulePath, Cow<'a, str>>,
 }
 
 impl<'a> VirtualResolver<'a> {
@@ -314,25 +185,28 @@ impl<'a> VirtualResolver<'a> {
 
     /// Resolve imports of `path` with the given WESL string.
     pub fn add_module(&mut self, path: impl AsRef<Path>, file: Cow<'a, str>) {
-        self.files.insert(Resource::new(path).absolute(), file);
+        let mut path = ModulePath::from_path(path);
+        path.origin = PathOrigin::Absolute; // we force absolute paths
+        self.files.insert(path, file);
     }
 
     /// Get a module registered with [`Self::add_module`].
-    pub fn get_module(&self, resource: &Resource) -> Result<&str, E> {
-        let source = self.files.get(resource).ok_or_else(|| {
-            E::FileNotFound(resource.path.to_path_buf(), "virtual module".to_string())
-        })?;
+    pub fn get_module(&self, resource: &ModulePath) -> Result<&str, E> {
+        let source = self
+            .files
+            .get(resource)
+            .ok_or_else(|| E::ModuleNotFound(resource.clone(), "virtual module".to_string()))?;
         Ok(source)
     }
 
     /// Iterate over all registered modules.
-    pub fn modules(&self) -> impl Iterator<Item = (&Resource, &str)> {
+    pub fn modules(&self) -> impl Iterator<Item = (&ModulePath, &str)> {
         self.files.iter().map(|(res, file)| (res, &**file))
     }
 }
 
 impl Resolver for VirtualResolver<'_> {
-    fn resolve_source<'b>(&'b self, resource: &Resource) -> Result<Cow<'b, str>, E> {
+    fn resolve_source<'b>(&'b self, resource: &ModulePath) -> Result<Cow<'b, str>, E> {
         let source = self.get_module(resource)?;
         Ok(source.into())
     }
@@ -363,11 +237,11 @@ impl<R: Resolver, F: ResolveFn> Preprocessor<R, F> {
 }
 
 impl<R: Resolver, F: ResolveFn> Resolver for Preprocessor<R, F> {
-    fn resolve_source<'b>(&'b self, resource: &Resource) -> Result<Cow<'b, str>, E> {
+    fn resolve_source<'b>(&'b self, resource: &ModulePath) -> Result<Cow<'b, str>, E> {
         let res = self.resolver.resolve_source(resource)?;
         Ok(res)
     }
-    fn source_to_module(&self, source: &str, resource: &Resource) -> Result<TranslationUnit, E> {
+    fn source_to_module(&self, source: &str, resource: &ModulePath) -> Result<TranslationUnit, E> {
         let mut wesl: TranslationUnit = source.parse().map_err(|e| {
             Diagnostic::from(e)
                 .with_resource(resource.clone(), self.display_name(resource))
@@ -381,7 +255,7 @@ impl<R: Resolver, F: ResolveFn> Resolver for Preprocessor<R, F> {
         })?;
         Ok(wesl)
     }
-    fn display_name(&self, resource: &Resource) -> Option<String> {
+    fn display_name(&self, resource: &ModulePath) -> Option<String> {
         self.resolver.display_name(resource)
     }
 }
@@ -393,8 +267,8 @@ impl<R: Resolver, F: ResolveFn> Resolver for Preprocessor<R, F> {
 ///
 /// This resolver is not thread-safe (not [`Send`] or [`Sync`]).
 pub struct Router {
-    mount_points: Vec<(PathBuf, Box<dyn Resolver>)>,
-    fallback: Option<(PathBuf, Box<dyn Resolver>)>,
+    mount_points: Vec<(ModulePath, Box<dyn Resolver>)>,
+    fallback: Option<(ModulePath, Box<dyn Resolver>)>,
 }
 
 /// Dispatches resolution of a resource to sub-resolvers.
@@ -410,12 +284,13 @@ impl Router {
     /// Mount a resolver at a given path prefix. All imports that start with this prefix
     /// will be dispatched to that resolver with the suffix of the path.
     pub fn mount_resolver(&mut self, path: impl AsRef<Path>, resolver: impl Resolver + 'static) {
-        let path = path.as_ref().to_path_buf();
+        let path = path.as_ref();
+        let resource = ModulePath::from_path(path);
         let resolver: Box<dyn Resolver> = Box::new(resolver);
-        if path.iter().count() == 0 {
-            self.fallback = Some((path, resolver));
+        if path == Path::new("") {
+            self.fallback = Some((resource, resolver));
         } else {
-            self.mount_points.push((path, resolver));
+            self.mount_points.push((resource, resolver));
         }
     }
 
@@ -424,22 +299,26 @@ impl Router {
         self.mount_resolver("", resolver);
     }
 
-    fn route(&self, resource: &Resource) -> Result<(&dyn Resolver, Resource), E> {
+    fn route(&self, resource: &ModulePath) -> Result<(&dyn Resolver, ModulePath), E> {
         let (mount_path, resolver) = self
             .mount_points
             .iter()
-            .filter(|(path, _)| resource.path().starts_with(path))
-            .max_by_key(|(path, _)| path.iter().count())
+            .filter(|(prefix, _)| resource.starts_with(prefix))
+            .max_by_key(|(prefix, _)| prefix.components.len())
             .or(self
                 .fallback
                 .as_ref()
-                .take_if(|(path, _)| resource.path().starts_with(path)))
+                .take_if(|(prefix, _)| resource.starts_with(prefix)))
             .ok_or_else(|| E::InvalidResource(resource.clone(), "no mount point".to_string()))?;
 
-        // SAFETY: we just checked that resource.path() starts with mount_path
-        let suffix = resource.path().strip_prefix(mount_path).unwrap();
-        let resource = Resource::new(suffix);
-        Ok((resolver, resource))
+        let components = resource
+            .components
+            .iter()
+            .skip(mount_path.components.len())
+            .cloned()
+            .collect_vec();
+        let suffix = ModulePath::new(PathOrigin::Absolute, components);
+        Ok((resolver, suffix))
     }
 }
 
@@ -450,19 +329,19 @@ impl Default for Router {
 }
 
 impl Resolver for Router {
-    fn resolve_source<'a>(&'a self, resource: &Resource) -> Result<Cow<'a, str>, E> {
+    fn resolve_source<'a>(&'a self, resource: &ModulePath) -> Result<Cow<'a, str>, E> {
         let (resolver, resource) = self.route(resource)?;
         resolver.resolve_source(&resource)
     }
-    fn source_to_module(&self, source: &str, resource: &Resource) -> Result<TranslationUnit, E> {
+    fn source_to_module(&self, source: &str, resource: &ModulePath) -> Result<TranslationUnit, E> {
         let (resolver, resource) = self.route(resource)?;
         resolver.source_to_module(source, &resource)
     }
-    fn resolve_module(&self, resource: &Resource) -> Result<TranslationUnit, E> {
+    fn resolve_module(&self, resource: &ModulePath) -> Result<TranslationUnit, E> {
         let (resolver, resource) = self.route(resource)?;
         resolver.resolve_module(&resource)
     }
-    fn display_name(&self, resource: &Resource) -> Option<String> {
+    fn display_name(&self, resource: &ModulePath) -> Option<String> {
         let (resolver, resource) = self.route(resource).ok()?;
         resolver.display_name(&resource)
     }
@@ -512,31 +391,32 @@ impl Default for PkgResolver {
 }
 
 impl Resolver for PkgResolver {
-    fn resolve_source<'a>(&'a self, resource: &Resource) -> Result<std::borrow::Cow<'a, str>, E> {
-        let path = resource.path();
+    fn resolve_source<'a>(&'a self, resource: &ModulePath) -> Result<std::borrow::Cow<'a, str>, E> {
         for pkg in &self.packages {
             // TODO: the resolution algorithm is currently not spec-compliant.
             // https://github.com/wgsl-tooling-wg/wesl-spec/blob/imports-update/Imports.md
-            if resource.path().starts_with(pkg.name()) {
+            if resource.origin.is_package()
+                && resource.components.first().map(String::as_str) == Some(pkg.name())
+            {
                 let mut cur_mod = *pkg;
-                for segment in path.iter().skip(1) {
-                    let name = segment.to_str().ok_or_else(|| {
-                        E::InvalidResource(resource.clone(), "invalid unicode".to_string())
-                    })?;
-                    if let Some(submod) = pkg.submodule(name) {
+                for comp in resource.components.iter().skip(1) {
+                    if let Some(submod) = pkg.submodule(comp) {
                         cur_mod = submod;
                     } else {
-                        return Err(E::FileNotFound(
-                            path.to_path_buf(),
-                            format!("in package {}", pkg.name()),
+                        return Err(E::ModuleNotFound(
+                            resource.clone(),
+                            format!(
+                                "in module `{}`, no submodule named `{comp}`",
+                                cur_mod.name()
+                            ),
                         ));
                     }
                 }
                 return Ok(cur_mod.source().into());
             }
         }
-        Err(E::FileNotFound(
-            resource.path().to_path_buf(),
+        Err(E::ModuleNotFound(
+            resource.clone(),
             "no package found".to_string(),
         ))
     }
@@ -569,23 +449,23 @@ impl StandardResolver {
 }
 
 impl Resolver for StandardResolver {
-    fn resolve_source<'a>(&'a self, resource: &Resource) -> Result<Cow<'a, str>, E> {
-        if let Some(res) = resource.package_local() {
-            self.pkg.resolve_source(&res)
+    fn resolve_source<'a>(&'a self, resource: &ModulePath) -> Result<Cow<'a, str>, E> {
+        if resource.origin.is_package() {
+            self.pkg.resolve_source(resource)
         } else {
             self.files.resolve_source(resource)
         }
     }
-    fn resolve_module(&self, resource: &Resource) -> Result<TranslationUnit, E> {
-        if let Some(res) = resource.package_local() {
-            self.pkg.resolve_module(&res)
+    fn resolve_module(&self, resource: &ModulePath) -> Result<TranslationUnit, E> {
+        if resource.origin.is_package() {
+            self.pkg.resolve_module(resource)
         } else {
             self.files.resolve_module(resource)
         }
     }
-    fn display_name(&self, resource: &Resource) -> Option<String> {
-        if let Some(res) = resource.package_local() {
-            self.pkg.display_name(&res)
+    fn display_name(&self, resource: &ModulePath) -> Option<String> {
+        if resource.origin.is_package() {
+            self.pkg.display_name(resource)
         } else {
             self.files.display_name(resource)
         }

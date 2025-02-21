@@ -2,10 +2,10 @@ use std::fmt::Display;
 
 use wgsl_parse::{
     span::Span,
-    syntax::{Expression, Ident},
+    syntax::{Expression, Ident, ModulePath},
 };
 
-use crate::{Mangler, ResolveError, Resource, SourceMap, ValidateError};
+use crate::{Mangler, ResolveError, SourceMap, ValidateError};
 
 #[cfg(feature = "condcomp")]
 use crate::CondCompError;
@@ -51,7 +51,7 @@ pub struct Diagnostic<E: std::error::Error> {
     pub error: Box<E>,
     pub source: Option<String>,
     pub output: Option<String>,
-    pub resource: Option<Resource>,
+    pub resource: Option<ModulePath>,
     pub display_name: Option<String>,
     pub declaration: Option<String>,
     pub span: Option<Span>,
@@ -75,9 +75,9 @@ impl From<ValidateError> for Diagnostic<Error> {
 impl From<ResolveError> for Diagnostic<Error> {
     fn from(error: ResolveError) -> Self {
         match error {
-            ResolveError::InvalidResource(_, _) | ResolveError::FileNotFound(_, _) => {
-                Self::new(error.into())
-            }
+            ResolveError::InvalidResource(_, _)
+            | ResolveError::FileNotFound(_, _)
+            | ResolveError::ModuleNotFound(_, _) => Self::new(error.into()),
             ResolveError::Error(e) => e,
         }
     }
@@ -170,7 +170,7 @@ impl<E: std::error::Error> Diagnostic<E> {
     }
     /// Provide the module path in which the error was emitted. the `disp_name` is
     /// usually the file name of the module.
-    pub fn with_resource(mut self, resource: Resource, disp_name: Option<String>) -> Self {
+    pub fn with_resource(mut self, resource: ModulePath, disp_name: Option<String>) -> Self {
         self.resource = Some(resource);
         self.display_name = disp_name;
         self

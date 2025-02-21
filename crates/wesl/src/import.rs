@@ -2,18 +2,19 @@ use std::{
     cell::{Ref, RefCell},
     collections::{HashMap, HashSet},
     ops::DerefMut,
-    path::{Path, PathBuf},
     rc::Rc,
 };
 
 use itertools::Itertools;
-use wgsl_parse::syntax::{self, Ident, TranslationUnit, TypeExpression};
+use wgsl_parse::syntax::{
+    self, Ident, ImportContent, ImportStatement, ModulePath, TranslationUnit, TypeExpression,
+};
 
-use crate::{visit::Visit, Mangler, ResolveError, Resolver, Resource};
+use crate::{visit::Visit, Mangler, ResolveError, Resolver};
 
-type Imports = HashMap<Ident, (Resource, Ident)>;
-type Decls = HashMap<Resource, HashSet<usize>>;
-type Modules = HashMap<Resource, Rc<RefCell<Module>>>;
+type Imports = HashMap<Ident, (ModulePath, Ident)>;
+type Decls = HashMap<ModulePath, HashSet<usize>>;
+type Modules = HashMap<ModulePath, Rc<RefCell<Module>>>;
 
 /// Error produced during import resolution.
 #[derive(Clone, Debug, thiserror::Error)]
@@ -23,30 +24,30 @@ pub enum ImportError {
     #[error("{0}")]
     ResolveError(#[from] ResolveError),
     #[error("module `{0}` has no declaration `{1}`")]
-    MissingDecl(Resource, String),
+    MissingDecl(ModulePath, String),
     #[error("circular dependency involving `{0}`")]
-    CircularDependency(Resource),
+    CircularDependency(ModulePath),
 }
 
 type E = ImportError;
 
 pub(crate) struct Module {
     pub(crate) source: TranslationUnit,
-    pub(crate) resource: Resource,
+    pub(crate) resource: ModulePath,
     idents: HashMap<Ident, usize>,  // lookup (ident, decl_index)
     treated_idents: HashSet<Ident>, // used idents that have already been usage-analyzed
     imports: Imports,
 }
 
 impl Module {
-    fn new(source: TranslationUnit, resource: Resource) -> Self {
+    fn new(source: TranslationUnit, resource: ModulePath) -> Self {
         let idents = source
             .global_declarations
             .iter()
             .enumerate()
             .filter_map(|(i, decl)| decl.ident().map(|id| (id.clone(), i)))
             .collect();
-        let imports = imported_resources(&source.imports, &resource);
+        let imports = flatten_imports(&source.imports, &resource);
         Self {
             source,
             resource,
@@ -63,11 +64,11 @@ impl Module {
 
 pub(crate) struct Resolutions {
     modules: Modules,
-    order: Vec<Resource>,
+    order: Vec<ModulePath>,
 }
 
 impl Resolutions {
-    pub(crate) fn root_resource(&self) -> &Resource {
+    pub(crate) fn root_resource(&self) -> &ModulePath {
         self.order.first().unwrap() // safety: always a root module
     }
     pub(crate) fn modules(&self) -> impl Iterator<Item = Ref<Module>> {
@@ -75,27 +76,31 @@ impl Resolutions {
     }
 }
 
-fn resolve_inline_resource(path: &Path, parent_resource: &Resource, imports: &Imports) -> Resource {
-    if path.has_root() {
-        // we skip the slash and get the first ident
-        let prefix = path.iter().nth(1).unwrap().to_str().unwrap();
-
-        imports
-            .iter()
-            .find_map(|(ident, (ext_res, ext_ident))| {
-                if *ident.name() == prefix {
-                    // import a::b::c as foo; foo::bar::baz() => a::b::c::bar::baz()
-                    let mut res = ext_res.clone(); // a::b
-                    res.push(&ext_ident.name()); // c
-                    let suffix = PathBuf::from_iter(path.iter().skip(2)); // bar
-                    Some(res.join(suffix))
-                } else {
-                    None
-                }
-            })
-            .unwrap_or_else(|| Resource::new(path))
-    } else {
-        absolute_resource(path, Some(parent_resource))
+fn resolve_inline_resource(
+    path: &ModulePath,
+    parent_resource: &ModulePath,
+    imports: &Imports,
+) -> ModulePath {
+    match path.origin {
+        syntax::PathOrigin::Absolute => path.clone(),
+        syntax::PathOrigin::Relative(_) => parent_resource.join_path(path).unwrap(),
+        syntax::PathOrigin::Package => {
+            let prefix = path.first().unwrap();
+            // the path could be either a package, of referencing an imported module alias.
+            imports
+                .iter()
+                .find_map(|(ident, (ext_res, ext_ident))| {
+                    if *ident.name() == prefix {
+                        // import a::b::c as foo; foo::bar::baz() => a::b::c::bar::baz()
+                        let mut res = ext_res.clone(); // a::b
+                        res.push(&ext_ident.name()); // c
+                        Some(res.join(path.components.iter().skip(1).cloned()))
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| path.clone())
+        }
     }
 }
 
@@ -115,12 +120,12 @@ fn resolve_inline_resource(path: &Path, parent_resource: &Resource, imports: &Im
 /// See also: [`resolve_eager`]
 pub fn resolve_lazy(
     root: TranslationUnit,
-    resource: &Resource,
+    resource: &ModulePath,
     keep: HashSet<Ident>,
     resolver: &impl Resolver,
 ) -> Result<Resolutions, E> {
     fn load_module(
-        resource: &Resource,
+        resource: &ModulePath,
         local_decls: &mut HashSet<usize>,
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
@@ -149,7 +154,7 @@ pub fn resolve_lazy(
     }
 
     fn resolve_ty(
-        mod_resource: &Resource,
+        mod_resource: &ModulePath,
         mod_imports: &Imports,
         mod_idents: &HashMap<Ident, usize>,
         mod_treated_idents: &HashSet<Ident>,
@@ -259,7 +264,7 @@ pub fn resolve_lazy(
     }
 
     fn resolve_decls(
-        resource: &Resource,
+        resource: &ModulePath,
         local_decls: &mut HashSet<usize>,
         extern_decls: &mut Decls,
         resolver: &impl Resolver,
@@ -336,7 +341,7 @@ pub fn resolve_lazy(
 
 pub fn resolve_eager(
     root: TranslationUnit,
-    resource: &Resource,
+    resource: &ModulePath,
     resolver: &impl Resolver,
 ) -> Result<Resolutions, E> {
     let mut resolutions = Resolutions::new();
@@ -414,54 +419,40 @@ pub fn resolve_eager(
     Ok(resolutions)
 }
 
-pub(crate) fn absolute_resource(
-    import_path: &Path,
-    parent_resource: Option<&Resource>,
-) -> Resource {
-    if import_path.starts_with(".") || import_path.starts_with("..") {
-        if let Some(parent) = parent_resource {
-            parent.join(import_path)
-        } else {
-            Resource::new(import_path)
-        }
-    } else {
-        Resource::new(import_path)
-    }
-}
-
 /// Flatten imports to a list of resources to import.
-pub(crate) fn imported_resources(imports: &[syntax::Import], parent_res: &Resource) -> Imports {
+pub(crate) fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Imports {
+    fn rec(content: &ImportContent, path: ModulePath, res: &mut Imports) {
+        match content {
+            ImportContent::Item(item) => {
+                let ident = item.rename.as_ref().unwrap_or(&item.ident).clone();
+                res.insert(ident, (path, item.ident.clone()));
+            }
+            ImportContent::Collection(coll) => {
+                for import in coll {
+                    let path = path.clone().join(import.path.clone());
+                    rec(&import.content, path, res)
+                }
+            }
+        }
+    }
+
     let mut res = Imports::new();
 
     for import in imports {
-        match &import.content {
-            syntax::ImportContent::Item(item) => {
-                let resource = absolute_resource(&import.path, Some(parent_res));
-                let ident = item.rename.as_ref().unwrap_or(&item.ident).clone();
-                res.insert(ident, (resource, item.ident.clone()));
-            }
-            syntax::ImportContent::Collection(imports) => {
-                // prepend the parent import path to the children in the collection
-                let imports = imports
-                    .clone()
-                    .into_iter()
-                    .map(|mut child| {
-                        let mut path = import.path.clone();
-                        path.extend(child.path.iter());
-                        child.path = path;
-                        child
-                    })
-                    .collect::<Vec<_>>();
-
-                res.extend(imported_resources(&imports, parent_res));
-            }
-        }
+        let path = parent_path
+            .join_path(&import.path)
+            .unwrap_or_else(|| import.path.clone());
+        rec(&import.content, path, &mut res);
     }
 
     res
 }
 
-fn mangle_decls<'a>(wgsl: &'a mut TranslationUnit, resource: &'a Resource, mangler: &impl Mangler) {
+fn mangle_decls<'a>(
+    wgsl: &'a mut TranslationUnit,
+    resource: &'a ModulePath,
+    mangler: &impl Mangler,
+) {
     wgsl.global_declarations
         .iter_mut()
         .filter_map(|decl| decl.ident_mut())
@@ -478,7 +469,7 @@ impl Resolutions {
             order: Default::default(),
         }
     }
-    fn push_module(&mut self, resource: Resource, module: Rc<RefCell<Module>>) {
+    fn push_module(&mut self, resource: ModulePath, module: Rc<RefCell<Module>>) {
         self.modules.insert(resource.clone(), module);
         self.order.push(resource);
     }

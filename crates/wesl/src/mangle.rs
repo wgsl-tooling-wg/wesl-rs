@@ -4,13 +4,13 @@ use std::fmt;
 use std::hash::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
-use std::path::PathBuf;
 
 use itertools::Itertools;
 use wgsl_parse::syntax::Expression;
+use wgsl_parse::syntax::PathOrigin;
 use wgsl_parse::syntax::TypeExpression;
 
-use super::Resource;
+use super::ModulePath;
 
 /// A name mangler is responsible for renaming import-qualified identifiers into valid
 /// WGSL identifiers.
@@ -30,9 +30,9 @@ use super::Resource;
 pub trait Mangler {
     /// Turn an import path and item name into a mangled WGSL identifier. The resource
     /// must be the canonical (absolute) module path.
-    fn mangle(&self, resource: &Resource, item: &str) -> String;
+    fn mangle(&self, resource: &ModulePath, item: &str) -> String;
     /// Reverse the [`Mangler::mangle`] operation. Implementing this is optional.
-    fn unmangle(&self, _mangled: &str) -> Option<(Resource, String)> {
+    fn unmangle(&self, _mangled: &str) -> Option<(ModulePath, String)> {
         None
     }
     /// Used for generics. Is experimental. Implementing is optional.
@@ -42,10 +42,10 @@ pub trait Mangler {
 }
 
 impl<T: Mangler + ?Sized> Mangler for Box<T> {
-    fn mangle(&self, resource: &Resource, item: &str) -> String {
+    fn mangle(&self, resource: &ModulePath, item: &str) -> String {
         (**self).mangle(resource, item)
     }
-    fn unmangle(&self, mangled: &str) -> Option<(Resource, String)> {
+    fn unmangle(&self, mangled: &str) -> Option<(ModulePath, String)> {
         (**self).unmangle(mangled)
     }
     fn mangle_types(&self, item: &str, variant: u32, types: &[TypeExpression]) -> String {
@@ -54,10 +54,10 @@ impl<T: Mangler + ?Sized> Mangler for Box<T> {
 }
 
 impl<T: Mangler> Mangler for &T {
-    fn mangle(&self, resource: &Resource, item: &str) -> String {
+    fn mangle(&self, resource: &ModulePath, item: &str) -> String {
         (**self).mangle(resource, item)
     }
-    fn unmangle(&self, mangled: &str) -> Option<(Resource, String)> {
+    fn unmangle(&self, mangled: &str) -> Option<(ModulePath, String)> {
         (**self).unmangle(mangled)
     }
     fn mangle_types(&self, item: &str, variant: u32, types: &[TypeExpression]) -> String {
@@ -71,7 +71,7 @@ impl<T: Mangler> Mangler for &T {
 pub struct HashMangler;
 
 impl Mangler for HashMangler {
-    fn mangle(&self, resource: &Resource, item: &str) -> String {
+    fn mangle(&self, resource: &ModulePath, item: &str) -> String {
         let mut hasher = DefaultHasher::new();
         resource.hash(&mut hasher);
         item.hash(&mut hasher);
@@ -88,22 +88,29 @@ impl Mangler for HashMangler {
 pub struct EscapeMangler;
 
 impl Mangler for EscapeMangler {
-    fn mangle(&self, resource: &Resource, item: &str) -> String {
-        let path = resource.path().with_extension("");
-        let path = path
+    fn mangle(&self, resource: &ModulePath, item: &str) -> String {
+        let origin = match resource.origin {
+            PathOrigin::Absolute => "package_".to_string(),
+            PathOrigin::Relative(0) => "self_".to_string(),
+            PathOrigin::Relative(n) => format!("{}_", (1..n).map(|_| "super").format("_")),
+            PathOrigin::Package => "".to_string(),
+        };
+        let path = resource
+            .components
             .iter()
-            .map(|p| p.to_string_lossy().replace('_', "__").replace('/', "pkg"))
+            .map(|p| p.replace('_', "__"))
             .format("_")
             .to_string();
-        format!("{path}_{}", item.replace('_', "__"))
+        format!("{origin}{path}_{}", item.replace('_', "__"))
     }
-    fn unmangle(&self, mangled: &str) -> Option<(Resource, String)> {
+    fn unmangle(&self, mangled: &str) -> Option<(ModulePath, String)> {
         let mut parts = mangled.split('_').peekable();
-        let mut path_parts = Vec::new();
+        let mut origin = PathOrigin::Package;
+        let mut components = Vec::new();
 
         while let Some(part) = parts.next() {
-            if part == "pkg" {
-                path_parts.push("/".to_string());
+            if part == "package" {
+                origin = PathOrigin::Absolute;
             } else {
                 let mut part = part.to_string();
                 while parts.peek() == Some(&"") {
@@ -113,18 +120,13 @@ impl Mangler for EscapeMangler {
                         part.push_str(next);
                     }
                 }
-                path_parts.push(part);
+                components.push(part);
             }
         }
 
-        if path_parts.len() < 2 {
-            return None;
-        }
+        let item = components.pop()?;
 
-        let item = path_parts.pop()?;
-        let path = PathBuf::from_iter(path_parts);
-
-        let resource = Resource::new(path);
+        let resource = ModulePath::new(origin, components);
         Some((resource, item))
     }
 }
@@ -137,14 +139,14 @@ impl Mangler for EscapeMangler {
 pub struct NoMangler;
 
 impl Mangler for NoMangler {
-    fn mangle(&self, _resource: &Resource, item: &str) -> String {
+    fn mangle(&self, _resource: &ModulePath, item: &str) -> String {
         item.to_string()
     }
 }
 
 /// A mangler that remembers and can unmangle.
 pub struct CacheMangler<'a, T: Mangler> {
-    cache: RefCell<HashMap<String, (Resource, String)>>,
+    cache: RefCell<HashMap<String, (ModulePath, String)>>,
     mangler: &'a T,
 }
 
@@ -158,13 +160,13 @@ impl<'a, T: Mangler> CacheMangler<'a, T> {
 }
 
 impl<'a, T: Mangler> Mangler for CacheMangler<'a, T> {
-    fn mangle(&self, resource: &Resource, item: &str) -> String {
+    fn mangle(&self, resource: &ModulePath, item: &str) -> String {
         let res = self.mangler.mangle(resource, item);
         let mut cache = self.cache.borrow_mut();
         cache.insert(res.clone(), (resource.clone(), item.to_string()));
         res
     }
-    fn unmangle(&self, mangled: &str) -> Option<(Resource, String)> {
+    fn unmangle(&self, mangled: &str) -> Option<(ModulePath, String)> {
         {
             let cache = self.cache.borrow();
             if let Some(res) = cache.get(mangled).cloned() {
@@ -218,17 +220,43 @@ impl UnicodeMangler {
 }
 
 impl Mangler for UnicodeMangler {
-    fn mangle(&self, resource: &Resource, item: &str) -> String {
+    fn mangle(&self, resource: &ModulePath, item: &str) -> String {
         let sep = Self::SEP;
-        let path = resource.path();
-        let path = path.iter().map(|p| p.to_string_lossy()).format(sep);
-        format!("{path}{sep}{item}")
+        let origin = match resource.origin {
+            PathOrigin::Absolute => format!("package{sep}"),
+            PathOrigin::Relative(0) => format!("self{sep}"),
+            PathOrigin::Relative(n) => format!("{}{sep}", (1..n).map(|_| "super").format(sep)),
+            PathOrigin::Package => "".to_string(),
+        };
+        let path = resource.components.iter().format(sep);
+        format!("{origin}{path}{sep}{item}")
     }
-    fn unmangle(&self, mangled: &str) -> Option<(Resource, String)> {
-        let mut path = PathBuf::from_iter(mangled.split(Self::SEP));
-        let name = path.file_name().unwrap().to_str().unwrap().to_string();
-        path.pop();
-        Some((Resource::new(path), name))
+    fn unmangle(&self, mangled: &str) -> Option<(ModulePath, String)> {
+        let mut components = mangled.split(Self::SEP).map(str::to_string).collect_vec();
+        let mut origin = PathOrigin::Package;
+        while let Some(comp) = components.first() {
+            match comp.as_str() {
+                "package" => {
+                    components.remove(0);
+                    origin = PathOrigin::Absolute;
+                    break;
+                }
+                "self" => {
+                    components.remove(0);
+                    origin = PathOrigin::Relative(0);
+                }
+                "super" => {
+                    components.remove(0);
+                    origin = match origin {
+                        PathOrigin::Relative(n) => PathOrigin::Relative(n + 1),
+                        _ => PathOrigin::Relative(1),
+                    };
+                }
+                _ => break,
+            }
+        }
+        let name = components.pop()?;
+        Some((ModulePath::new(origin, components), name))
     }
     fn mangle_types(&self, item: &str, _variant: u32, types: &[TypeExpression]) -> String {
         // these are NOT chevrons and comma!

@@ -1,10 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use wgsl_parse::syntax::TranslationUnit;
+use wgsl_parse::syntax::{PathOrigin, TranslationUnit};
 
-use crate::{validate::validate_wesl, Diagnostic, Error, Resource, SyntaxUtil};
+use crate::{validate::validate_wesl, Diagnostic, Error, ModulePath, SyntaxUtil};
 
 /// A builder that generates code for WESL packages.
 ///
@@ -189,21 +189,23 @@ impl Module {
 
     /// run validation checks on each of the scanned files.
     pub fn validate(self) -> Result<Self, Error> {
-        fn validate_module(module: &Module) -> Result<(), Error> {
-            let resource = Resource::new(PathBuf::from(&module.name));
+        fn validate_module(module: &Module, path: ModulePath) -> Result<(), Error> {
             let mut wesl: TranslationUnit = module.source.parse().map_err(|e| {
                 Diagnostic::from(e)
-                    .with_resource(resource, None)
+                    .with_resource(path.clone(), None)
                     .with_source(module.source.clone())
             })?;
             wesl.retarget_idents();
             validate_wesl(&wesl)?;
             for module in &module.submodules {
-                validate_module(module)?;
+                let mut path = path.clone();
+                path.push(&module.name);
+                validate_module(module, path)?;
             }
             Ok(())
         }
-        validate_module(&self)?;
+        let path = ModulePath::new(PathOrigin::Package, vec![self.name.clone()]);
+        validate_module(&self, path)?;
         Ok(self)
     }
 
