@@ -87,6 +87,17 @@ impl Mangler for HashMangler {
 #[derive(Default, Clone, Debug)]
 pub struct EscapeMangler;
 
+impl EscapeMangler {
+    pub fn escape_component(comp: &str) -> String {
+        let underscores = comp.chars().filter(|c| *c == '_').count();
+        if underscores > 0 {
+            format!("_{underscores}{comp}")
+        } else {
+            comp.to_string()
+        }
+    }
+}
+
 impl Mangler for EscapeMangler {
     fn mangle(&self, resource: &ModulePath, item: &str) -> String {
         let origin = match resource.origin {
@@ -98,10 +109,9 @@ impl Mangler for EscapeMangler {
         let path = resource
             .components
             .iter()
-            .map(|p| p.replace('_', "__"))
-            .format("_")
-            .to_string();
-        format!("{origin}{path}_{}", item.replace('_', "__"))
+            .map(|comp| Self::escape_component(comp))
+            .format("_");
+        format!("{origin}{path}_{}", Self::escape_component(item))
     }
     fn unmangle(&self, mangled: &str) -> Option<(ModulePath, String)> {
         let mut parts = mangled.split('_').peekable();
