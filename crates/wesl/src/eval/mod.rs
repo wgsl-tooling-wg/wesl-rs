@@ -99,14 +99,16 @@ impl<T> Scope<T> {
     pub fn pop(&mut self) {
         self.inner = self.inner.parent.clone().expect("failed to pop scope");
     }
-    pub fn add(&mut self, name: String, value: T) {
+    pub fn add(&mut self, name: String, value: T) -> bool {
         if self.local_contains(&name) {
-            panic!("duplicate scope value insertion")
+            false
+        } else {
+            Rc::get_mut(&mut self.inner)
+                .expect("cannot edit a parent scope")
+                .local
+                .insert(name, value);
+            true
         }
-        Rc::get_mut(&mut self.inner)
-            .expect("cannot edit a parent scope")
-            .local
-            .insert(name, value);
     }
     pub fn get(&self, name: &str) -> Option<&T> {
         self.inner.get(name)

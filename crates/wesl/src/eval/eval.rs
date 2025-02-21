@@ -310,7 +310,9 @@ impl Eval for FunctionCall {
                         .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
 
                     for (a, p) in zip(args, &decl.parameters) {
-                        ctx.scope.add(p.ident.to_string(), a);
+                        if !ctx.scope.add(p.ident.to_string(), a) {
+                            return Err(E::DuplicateDecl(p.ident.to_string()));
+                        }
                     }
 
                     // the arguments must be in the same scope as the function body.

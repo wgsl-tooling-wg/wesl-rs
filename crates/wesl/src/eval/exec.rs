@@ -578,17 +578,12 @@ impl Exec for Declaration {
                 .transpose()
         };
 
-        match (self.kind, ctx.kind) {
-            (DeclarationKind::Const, _) => {
-                let inst = init(ctx, EvalStage::Const)?
-                    .ok_or_else(|| E::UninitConst(self.ident.to_string()))?;
-                ctx.scope.add(self.ident.to_string(), inst);
-            }
+        let inst = match (self.kind, ctx.kind) {
+            (DeclarationKind::Const, _) => init(ctx, EvalStage::Const)?
+                .ok_or_else(|| E::UninitConst(self.ident.to_string()))?,
             (DeclarationKind::Override, ScopeKind::Function) => return Err(E::OverrideInFn),
             (DeclarationKind::Let, ScopeKind::Function) => {
-                let inst =
-                    init(ctx, ctx.stage)?.ok_or_else(|| E::UninitLet(self.ident.to_string()))?;
-                ctx.scope.add(self.ident.to_string(), inst);
+                init(ctx, ctx.stage)?.ok_or_else(|| E::UninitLet(self.ident.to_string()))?
             }
             (DeclarationKind::Var(space), ScopeKind::Function) => {
                 if !matches!(space, Some(AddressSpace::Function) | None) {
@@ -598,37 +593,30 @@ impl Exec for Declaration {
                     .map(Ok)
                     .unwrap_or_else(|| Instance::zero_value(&ty, ctx))?;
 
-                let inst = RefInstance::new(inst, AddressSpace::Function, AccessMode::ReadWrite);
-                ctx.scope.add(self.ident.to_string(), inst.into());
+                RefInstance::new(inst, AddressSpace::Function, AccessMode::ReadWrite).into()
             }
             (DeclarationKind::Override, ScopeKind::Module) => {
                 if ctx.stage == EvalStage::Const {
-                    ctx.scope
-                        .add(self.ident.to_string(), Instance::Deferred(ty));
+                    Instance::Deferred(ty)
+                } else if let Some(inst) = ctx.overridable(&self.ident.name()) {
+                    inst.convert_to(&ty)
+                        .ok_or_else(|| E::Conversion(inst.ty(), ty))?
+                } else if let Some(inst) = init(ctx, EvalStage::Override)? {
+                    inst
                 } else {
-                    let inst = if let Some(inst) = ctx.overridable(&self.ident.name()) {
-                        inst.convert_to(&ty)
-                            .ok_or_else(|| E::Conversion(inst.ty(), ty))?
-                    } else if let Some(inst) = init(ctx, EvalStage::Override)? {
-                        inst
-                    } else {
-                        return Err(E::UninitOverride(self.ident.to_string()));
-                    };
-
-                    ctx.scope.add(self.ident.to_string(), inst);
+                    return Err(E::UninitOverride(self.ident.to_string()));
                 }
             }
             (DeclarationKind::Let, ScopeKind::Module) => return Err(E::LetInMod),
             (DeclarationKind::Var(addr_space), ScopeKind::Module) => {
                 if ctx.stage == EvalStage::Const {
-                    ctx.scope
-                        .add(self.ident.to_string(), Instance::Deferred(ty));
+                    Instance::Deferred(ty)
                 } else {
                     let addr_space = addr_space.unwrap_or(AddressSpace::Handle);
 
                     match addr_space {
                         AddressSpace::Function => {
-                            return Err(E::ForbiddenDecl(self.kind, ctx.kind))
+                            return Err(E::ForbiddenDecl(self.kind, ctx.kind));
                         }
                         AddressSpace::Private => {
                             // the initializer for a private variable must be a const- or override-expression
@@ -638,15 +626,8 @@ impl Exec for Declaration {
                                 Instance::zero_value(&ty, ctx)?
                             };
 
-                            ctx.scope.add(
-                                self.ident.to_string(),
-                                RefInstance::new(
-                                    inst,
-                                    AddressSpace::Private,
-                                    AccessMode::ReadWrite,
-                                )
-                                .into(),
-                            );
+                            RefInstance::new(inst, AddressSpace::Private, AccessMode::ReadWrite)
+                                .into()
                         }
                         AddressSpace::Uniform => {
                             if self.initializer.is_some() {
@@ -665,7 +646,7 @@ impl Exec for Declaration {
                             if inst.access != AccessMode::Read {
                                 return Err(E::AccessMode(AccessMode::Read, inst.access));
                             }
-                            ctx.scope.add(self.ident.to_string(), inst.clone().into())
+                            inst.clone().into()
                         }
                         AddressSpace::Storage(access_mode) => {
                             if self.initializer.is_some() {
@@ -689,14 +670,19 @@ impl Exec for Declaration {
                             if inst.access != access_mode {
                                 return Err(E::AccessMode(access_mode, inst.access));
                             }
-                            ctx.scope.add(self.ident.to_string(), inst.clone().into())
+                            inst.clone().into()
                         }
                         AddressSpace::Workgroup => todo!("workgroup address space"),
                         AddressSpace::Handle => todo!("handle address space"),
                     }
                 }
             }
+        };
+
+        if ctx.scope.add(self.ident.to_string(), inst) {
+            Ok(Flow::Next)
+        } else {
+            Err(E::DuplicateDecl(self.ident.to_string()))
         }
-        Ok(Flow::Next)
     }
 }

@@ -220,10 +220,14 @@ impl Lower for Declaration {
             (Some(ty), _) => ty_eval_ty(ty, ctx)?,
         };
 
-        ctx.scope
-            .add(self.ident.to_string(), Instance::Deferred(ty));
-
-        Ok(())
+        if ctx
+            .scope
+            .add(self.ident.to_string(), Instance::Deferred(ty))
+        {
+            Ok(())
+        } else {
+            return Err(E::DuplicateDecl(self.ident.to_string()));
+        }
     }
 }
 
@@ -256,12 +260,17 @@ impl Lower for Function {
         }
         self.return_attributes.lower(ctx)?;
         self.return_type.lower(ctx)?;
-        for p in &self.parameters {
-            let inst = Instance::Deferred(ty_eval_ty(&p.ty, ctx)?);
-            ctx.scope.add(p.ident.to_string(), inst);
-        }
-        compound_lower(&mut self.body, ctx, true)?;
-        Ok(())
+
+        with_scope!(ctx, {
+            for p in &self.parameters {
+                let inst = Instance::Deferred(ty_eval_ty(&p.ty, ctx)?);
+                if !ctx.scope.add(p.ident.to_string(), inst) {
+                    return Err(E::DuplicateDecl(p.ident.to_string()));
+                }
+            }
+            compound_lower(&mut self.body, ctx, true)?;
+            Ok(())
+        })
     }
 }
 
@@ -526,11 +535,17 @@ impl Lower for FunctionCallStatement {
 
 impl Lower for TranslationUnit {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
-        self.exec(ctx)?; // add const-decls to the scope and eval const_asserts
         for decl in &mut self.global_declarations {
             match decl {
                 GlobalDeclaration::Void => Ok(()),
-                GlobalDeclaration::Declaration(decl) => decl.lower(ctx),
+                GlobalDeclaration::Declaration(decl) => {
+                    if decl.kind == DeclarationKind::Const {
+                        // eval and add it to the scope
+                        decl.exec(ctx).map(|_| ())
+                    } else {
+                        decl.lower(ctx)
+                    }
+                }
                 GlobalDeclaration::TypeAlias(decl) => decl.lower(ctx),
                 GlobalDeclaration::Struct(decl) => decl.lower(ctx),
                 GlobalDeclaration::Function(decl) => decl.lower(ctx),
