@@ -51,7 +51,7 @@ pub struct Diagnostic<E: std::error::Error> {
     pub error: Box<E>,
     pub source: Option<String>,
     pub output: Option<String>,
-    pub resource: Option<ModulePath>,
+    pub module_path: Option<ModulePath>,
     pub display_name: Option<String>,
     pub declaration: Option<String>,
     pub span: Option<Span>,
@@ -75,9 +75,9 @@ impl From<ValidateError> for Diagnostic<Error> {
 impl From<ResolveError> for Diagnostic<Error> {
     fn from(error: ResolveError) -> Self {
         match error {
-            ResolveError::InvalidResource(_, _)
-            | ResolveError::FileNotFound(_, _)
-            | ResolveError::ModuleNotFound(_, _) => Self::new(error.into()),
+            ResolveError::FileNotFound(_, _) | ResolveError::ModuleNotFound(_, _) => {
+                Self::new(error.into())
+            }
             ResolveError::Error(e) => e,
         }
     }
@@ -140,7 +140,7 @@ impl<E: std::error::Error> Diagnostic<E> {
             error: Box::new(error),
             source: None,
             output: None,
-            resource: None,
+            module_path: None,
             display_name: None,
             declaration: None,
             span: None,
@@ -170,8 +170,8 @@ impl<E: std::error::Error> Diagnostic<E> {
     }
     /// Provide the module path in which the error was emitted. the `disp_name` is
     /// usually the file name of the module.
-    pub fn with_resource(mut self, resource: ModulePath, disp_name: Option<String>) -> Self {
-        self.resource = Some(resource);
+    pub fn with_module_path(mut self, path: ModulePath, disp_name: Option<String>) -> Self {
+        self.module_path = Some(path);
         self.display_name = disp_name;
         self
     }
@@ -188,14 +188,14 @@ impl<E: std::error::Error> Diagnostic<E> {
     /// this will automatically add the source, the module path and the declaration name.
     pub fn with_sourcemap(mut self, sourcemap: &impl SourceMap) -> Self {
         if let Some(decl) = &self.declaration {
-            if let Some((resource, decl)) = sourcemap.get_decl(decl) {
-                self.resource = Some(resource.clone());
+            if let Some((path, decl)) = sourcemap.get_decl(decl) {
+                self.module_path = Some(path.clone());
                 self.declaration = Some(decl.to_string());
                 self.display_name = sourcemap
-                    .get_display_name(resource)
+                    .get_display_name(path)
                     .map(|name| name.to_string());
                 self.source = sourcemap
-                    .get_source(resource)
+                    .get_source(path)
                     .map(|s| s.to_string())
                     .or(self.source);
             } else {
@@ -214,7 +214,7 @@ impl<E: std::error::Error> Diagnostic<E> {
     }
 
     pub(crate) fn display_origin(&self) -> String {
-        match (&self.resource, &self.display_name) {
+        match (&self.module_path, &self.display_name) {
             (Some(res), Some(name)) => {
                 format!("{res} ({name})")
             }
@@ -227,7 +227,7 @@ impl<E: std::error::Error> Diagnostic<E> {
     pub(crate) fn display_short_origin(&self) -> Option<String> {
         self.display_name
             .clone()
-            .or_else(|| self.resource.as_ref().map(|res| res.to_string()))
+            .or_else(|| self.module_path.as_ref().map(|res| res.to_string()))
     }
 }
 

@@ -493,7 +493,7 @@ pub struct CompileResult {
 }
 
 impl CompileResult {
-    pub fn to_file(&self, path: impl AsRef<Path>) -> std::io::Result<()> {
+    pub fn write_to_file(&self, path: impl AsRef<Path>) -> std::io::Result<()> {
         std::fs::write(path, self.to_string())
     }
 }
@@ -640,8 +640,8 @@ impl<R: Resolver> Wesl<R> {
     ///
     /// # WESL Reference
     /// Spec: not available yet.
-    pub fn compile(&self, root: impl AsRef<Path>) -> Result<CompileResult, Error> {
-        let mut root = ModulePath::from_path(root);
+    pub fn compile(&self, root: impl Into<ModulePath>) -> Result<CompileResult, Error> {
+        let mut root = root.into();
         root.origin = PathOrigin::Absolute; // we force absolute paths
 
         if self.use_sourcemap {
@@ -673,8 +673,8 @@ impl<R: Resolver> Wesl<R> {
     /// # Panics
     /// Panics when compilation fails or if the output file cannot be written.
     /// Pretty-prints the WESL error message to stderr.
-    pub fn build_artefact(&self, entrypoint: impl AsRef<Path>, out_name: &str) {
-        let entrypoint = entrypoint.as_ref();
+    pub fn build_artefact(&self, entrypoint: impl Into<ModulePath>, out_name: &str) {
+        let entrypoint = entrypoint.into();
         let dirname = std::env::var("OUT_DIR").unwrap();
         let out_name = Path::new(out_name);
         if out_name.iter().count() != 1 || out_name.extension().is_some() {
@@ -683,16 +683,13 @@ impl<R: Resolver> Wesl<R> {
         }
         let mut output = Path::new(&dirname).join(out_name);
         output.set_extension("wgsl");
-        self.compile(entrypoint)
+        self.compile(entrypoint.clone())
             .inspect_err(|e| {
-                eprintln!(
-                    "failed to build WESL shader `{}`.\n{e}",
-                    entrypoint.display()
-                );
+                eprintln!("failed to build WESL shader `{entrypoint}`.\n{e}");
                 panic!();
             })
             .unwrap()
-            .to_file(output)
+            .write_to_file(output)
             .expect("failed to write output shader");
     }
 }
@@ -764,10 +761,7 @@ fn compile_pre_assembly(
         if options.validate {
             for module in resolution.modules() {
                 validate_wesl(&module.source).map_err(|d| {
-                    d.with_resource(
-                        module.resource.clone(),
-                        resolver.display_name(&module.resource),
-                    )
+                    d.with_module_path(module.path.clone(), resolver.display_name(&module.path))
                 })?;
             }
         }

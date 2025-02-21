@@ -24,15 +24,20 @@ impl TranslationUnit {
 
 #[cfg(feature = "imports")]
 impl ModulePath {
-    /// Create a new resource from a module path.
+    /// Create a new module path from components.
     ///
-    /// Precondition: the path components must be valid WGSL identifiers, or `..` or `.`.
+    /// Precondition: the path components must be valid WGSL identifiers.
     pub fn new(origin: PathOrigin, components: Vec<String>) -> Self {
         Self { origin, components }
     }
-    /// Create a new resource from a module path.
+    /// Create a new module path from a filesystem path.
     ///
-    /// Precondition: the path components must be valid WGSL identifiers, or `..` or `.`.
+    /// * Paths with a root (leading `/` on Unix) produce `package::` paths.
+    /// * Relative paths (starting with `.` or `..`) produce `self::` or `super::` paths.
+    /// * The file extension is ignored.
+    /// * The path is canonicalized and to do so it does NOT follow symlinks.
+    ///
+    /// Precondition: the path components must be valid WGSL identifiers.
     pub fn from_path(path: impl AsRef<std::path::Path>) -> Self {
         use std::path::Component;
         let mut origin = PathOrigin::Package;
@@ -64,7 +69,7 @@ impl ModulePath {
 
         Self { origin, components }
     }
-    /// Add a path component to the resource.
+    /// Append a component to the path.
     ///
     /// Precondition: the `item` must be a valid WGSL identifier.
     pub fn push(&mut self, item: &str) {
@@ -115,6 +120,15 @@ impl ModulePath {
         self.origin == prefix.origin
             && prefix.components.len() >= self.components.len()
             && prefix.components.iter().zip(&self.components).all_equal()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.origin.is_package() && self.components.is_empty()
+    }
+}
+
+impl<T: AsRef<std::path::Path>> From<T> for ModulePath {
+    fn from(value: T) -> Self {
+        ModulePath::from_path(value.as_ref())
     }
 }
 

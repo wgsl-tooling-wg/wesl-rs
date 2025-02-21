@@ -192,7 +192,7 @@ impl Module {
         fn validate_module(module: &Module, path: ModulePath) -> Result<(), Error> {
             let mut wesl: TranslationUnit = module.source.parse().map_err(|e| {
                 Diagnostic::from(e)
-                    .with_resource(path.clone(), None)
+                    .with_module_path(path.clone(), None)
                     .with_source(module.source.clone())
             })?;
             wesl.retarget_idents();
