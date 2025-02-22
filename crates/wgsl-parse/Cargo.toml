@@ -24,7 +24,7 @@ lalrpop = { version = "0.22.1", default-features = false }
 [features]
 default = []
 
-wesl = ["imports", "condcomp", "generics"]
+wesl = ["imports", "condcomp"]
 
 # allow attributes on most declarations and statements.
 # reference: https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md#appendix-updated-grammar
