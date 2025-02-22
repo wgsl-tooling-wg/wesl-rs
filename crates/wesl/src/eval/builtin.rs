@@ -639,23 +639,54 @@ pub fn builtin_fn_type(ty: &TypeExpression, args: &[Type], ctx: &mut Context) ->
         ("transpose", None, [Type::Mat(c, r, ty)]) => Ok(Type::Mat(*r, *c, ty.clone())),
         ("trunc", None, [a]) if is_float(a) => Ok(a.clone()),
         // packing
-        // TODO
-        // ("pack4x8snorm", None, [a]) => call_pack4x8snorm(a),
-        // ("pack4x8unorm", None, [a]) => call_pack4x8unorm(a),
-        // ("pack4xI8", None, [a]) => call_pack4xi8(a),
-        // ("pack4xU8", None, [a]) => call_pack4xu8(a),
-        // ("pack4xI8Clamp", None, [a]) => call_pack4xi8clamp(a),
-        // ("pack4xU8Clamp", None, [a]) => call_pack4xu8clamp(a),
-        // ("pack2x16snorm", None, [a]) => call_pack2x16snorm(a),
-        // ("pack2x16unorm", None, [a]) => call_pack2x16unorm(a),
-        // ("pack2x16float", None, [a]) => call_pack2x16float(a),
-        // ("unpack4x8snorm", None, [a]) => call_unpack4x8snorm(a),
-        // ("unpack4x8unorm", None, [a]) => call_unpack4x8unorm(a),
-        // ("unpack4xI8", None, [a]) => call_unpack4xi8(a),
-        // ("unpack4xU8", None, [a]) => call_unpack4xu8(a),
-        // ("unpack2x16snorm", None, [a]) => call_unpack2x16snorm(a),
-        // ("unpack2x16unorm", None, [a]) => call_unpack2x16unorm(a),
-        // ("unpack2x16float", None, [a]) => call_unpack2x16float(a),
+        ("pack4x8snorm", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::F32.into())) => {
+            Ok(Type::U32)
+        }
+        ("pack4x8unorm", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::F32.into())) => {
+            Ok(Type::U32)
+        }
+        ("pack4xI8", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::I32.into())) => {
+            Ok(Type::U32)
+        }
+        ("pack4xU8", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::U32.into())) => {
+            Ok(Type::U32)
+        }
+        ("pack4xI8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
+            Ok(Type::U32)
+        }
+        ("pack4xU8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
+            Ok(Type::U32)
+        }
+        ("pack2x16snorm", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
+            Ok(Type::U32)
+        }
+        ("pack2x16unorm", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
+            Ok(Type::U32)
+        }
+        ("pack2x16float", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
+            Ok(Type::U32)
+        }
+        ("unpack4x8snorm", None, [a]) if a.is_convertible_to(&Type::U32) => {
+            Ok(Type::Vec(4, Type::F32.into()))
+        }
+        ("unpack4x8unorm", None, [a]) if a.is_convertible_to(&Type::U32) => {
+            Ok(Type::Vec(4, Type::F32.into()))
+        }
+        ("unpack4xI8", None, [a]) if a.is_convertible_to(&Type::U32) => {
+            Ok(Type::Vec(4, Type::I32.into()))
+        }
+        ("unpack4xU8", None, [a]) if a.is_convertible_to(&Type::U32) => {
+            Ok(Type::Vec(4, Type::U32.into()))
+        }
+        ("unpack2x16snorm", None, [a]) if a.is_convertible_to(&Type::U32) => {
+            Ok(Type::Vec(2, Type::F32.into()))
+        }
+        ("unpack2x16unorm", None, [a]) if a.is_convertible_to(&Type::U32) => {
+            Ok(Type::Vec(2, Type::F32.into()))
+        }
+        ("unpack2x16float", None, [a]) if a.is_convertible_to(&Type::U32) => {
+            Ok(Type::Vec(2, Type::F32.into()))
+        }
         _ => Err(err()),
     }
 }
@@ -682,95 +713,6 @@ pub fn is_constructor_fn(name: &str) -> bool {
             | "vec3"
             | "vec4"
     )
-}
-
-pub fn is_builtin_fn(name: &str) -> bool {
-    is_constructor_fn(name)
-        || matches!(
-            name,
-            "bitcast"
-                | "all"
-                | "any"
-                | "select"
-                | "arrayLength"
-                | "abs"
-                | "acos"
-                | "acosh"
-                | "asin"
-                | "asinh"
-                | "atan"
-                | "atanh"
-                | "atan2"
-                | "ceil"
-                | "clamp"
-                | "cos"
-                | "cosh"
-                | "countLeadingZeros"
-                | "countOneBits"
-                | "countTrailingZeros"
-                | "cross"
-                | "degrees"
-                | "determinant"
-                | "distance"
-                | "dot"
-                | "dot4U8Packed"
-                | "dot4I8Packed"
-                | "exp"
-                | "exp2"
-                | "extractBits"
-                | "faceForward"
-                | "firstLeadingBit"
-                | "firstTrailingBit"
-                | "floor"
-                | "fma"
-                | "fract"
-                | "frexp"
-                | "insertBits"
-                | "inverseSqrt"
-                | "ldexp"
-                | "length"
-                | "log"
-                | "log2"
-                | "max"
-                | "min"
-                | "mix"
-                | "modf"
-                | "normalize"
-                | "pow"
-                | "quantizeToF16"
-                | "radians"
-                | "reflect"
-                | "refract"
-                | "reverseBits"
-                | "round"
-                | "saturate"
-                | "sign"
-                | "sin"
-                | "sinh"
-                | "smoothstep"
-                | "sqrt"
-                | "step"
-                | "tan"
-                | "tanh"
-                | "transpose"
-                | "trunc"
-                | "pack4x8snorm"
-                | "pack4x8unorm"
-                | "pack4xI8"
-                | "pack4xU8"
-                | "pack4xI8Clamp"
-                | "pack4xU8Clamp"
-                | "pack2x16snorm"
-                | "pack2x16unorm"
-                | "pack2x16float"
-                | "unpack4x8snorm"
-                | "unpack4x8unorm"
-                | "unpack4xI8"
-                | "unpack4xU8"
-                | "unpack2x16snorm"
-                | "unpack2x16unorm"
-                | "unpack2x16float"
-        )
 }
 
 pub fn call_builtin(

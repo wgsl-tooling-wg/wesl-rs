@@ -7,6 +7,7 @@ mod generics;
 #[cfg(feature = "package")]
 mod package;
 
+mod builtin;
 mod condcomp;
 mod error;
 mod import;
