@@ -541,6 +541,11 @@ pub fn builtin_fn_type(
         ("select", None, [a1, a2, a3]) if (a1.is_scalar() || a1.is_vec()) && a3.is_bool() => {
             convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
         }
+        ("select", None, [a1, a2, a3])
+            if (a1.is_vec()) && a3.is_vec() && a3.inner_ty().is_bool() =>
+        {
+            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
+        }
         // array
         ("arrayLength", None, [_]) => Ok(Some(Type::U32)),
         // numeric

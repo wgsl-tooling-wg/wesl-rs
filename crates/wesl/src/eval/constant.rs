@@ -1,4 +1,4 @@
-use super::{Scope, SyntaxUtil};
+use super::{is_constructor_fn, Scope, SyntaxUtil};
 use itertools::Itertools;
 use wgsl_parse::{span::Spanned, syntax::*};
 
@@ -257,6 +257,8 @@ impl IsConst for FunctionCall {
             } else if let Some(decl) = wesl.decl_function(&fn_name) {
                 // TODO: this is not optimal as it will be recomputed for the same functions.
                 is_function_const(decl, wesl)
+            } else if is_constructor_fn(&fn_name) {
+                true
             } else {
                 false
             }
