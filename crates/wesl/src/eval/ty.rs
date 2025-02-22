@@ -19,6 +19,16 @@ pub enum SampledType {
     F32,
 }
 
+impl From<SampledType> for Type {
+    fn from(value: SampledType) -> Self {
+        match value {
+            SampledType::I32 => Type::I32,
+            SampledType::U32 => Type::U32,
+            SampledType::F32 => Type::F32,
+        }
+    }
+}
+
 impl FromStr for SampledType {
     type Err = ();
 
@@ -69,6 +79,52 @@ pub enum TexelFormat {
     Rgba32Sint,
     Rgba32Float,
     Bgra8Unorm,
+}
+
+impl TexelFormat {
+    pub fn channel_type(&self) -> SampledType {
+        match self {
+            TexelFormat::Rgba8Unorm => SampledType::F32,
+            TexelFormat::Rgba8Snorm => SampledType::F32,
+            TexelFormat::Rgba8Uint => SampledType::U32,
+            TexelFormat::Rgba8Sint => SampledType::I32,
+            TexelFormat::Rgba16Uint => SampledType::U32,
+            TexelFormat::Rgba16Sint => SampledType::I32,
+            TexelFormat::Rgba16Float => SampledType::F32,
+            TexelFormat::R32Uint => SampledType::U32,
+            TexelFormat::R32Sint => SampledType::I32,
+            TexelFormat::R32Float => SampledType::F32,
+            TexelFormat::Rg32Uint => SampledType::U32,
+            TexelFormat::Rg32Sint => SampledType::I32,
+            TexelFormat::Rg32Float => SampledType::F32,
+            TexelFormat::Rgba32Uint => SampledType::U32,
+            TexelFormat::Rgba32Sint => SampledType::I32,
+            TexelFormat::Rgba32Float => SampledType::F32,
+            TexelFormat::Bgra8Unorm => SampledType::F32,
+        }
+    }
+
+    pub fn num_channels(&self) -> u32 {
+        match self {
+            TexelFormat::Rgba8Unorm => 4,
+            TexelFormat::Rgba8Snorm => 4,
+            TexelFormat::Rgba8Uint => 4,
+            TexelFormat::Rgba8Sint => 4,
+            TexelFormat::Rgba16Uint => 4,
+            TexelFormat::Rgba16Sint => 4,
+            TexelFormat::Rgba16Float => 4,
+            TexelFormat::R32Uint => 1,
+            TexelFormat::R32Sint => 1,
+            TexelFormat::R32Float => 1,
+            TexelFormat::Rg32Uint => 2,
+            TexelFormat::Rg32Sint => 2,
+            TexelFormat::Rg32Float => 2,
+            TexelFormat::Rgba32Uint => 4,
+            TexelFormat::Rgba32Sint => 4,
+            TexelFormat::Rgba32Float => 4,
+            TexelFormat::Bgra8Unorm => 4,
+        }
+    }
 }
 
 impl FromStr for TexelFormat {
@@ -122,6 +178,112 @@ pub enum TextureType {
     Depth2DArray,
     DepthCube,
     DepthCubeArray,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, IsVariant)]
+pub enum TextureDimensions {
+    D1,
+    D2,
+    D3,
+}
+
+impl TextureType {
+    pub fn dimensions(&self) -> TextureDimensions {
+        match self {
+            Self::Sampled1D(_) | Self::Storage1D(_, _) => TextureDimensions::D1,
+            Self::Sampled2D(_)
+            | Self::Sampled2DArray(_)
+            | Self::SampledCube(_)
+            | Self::SampledCubeArray(_)
+            | Self::Multisampled2D(_)
+            | Self::Depth2D
+            | Self::Depth2DArray
+            | Self::DepthCube
+            | Self::DepthCubeArray
+            | Self::DepthMultisampled2D
+            | Self::Storage2D(_, _)
+            | Self::Storage2DArray(_, _)
+            | Self::External => TextureDimensions::D2,
+            Self::Sampled3D(_) | Self::Storage3D(_, _) => TextureDimensions::D3,
+        }
+    }
+    pub fn sampled_type(&self) -> Option<SampledType> {
+        match self {
+            TextureType::Sampled1D(st) => Some(*st),
+            TextureType::Sampled2D(st) => Some(*st),
+            TextureType::Sampled2DArray(st) => Some(*st),
+            TextureType::Sampled3D(st) => Some(*st),
+            TextureType::SampledCube(st) => Some(*st),
+            TextureType::SampledCubeArray(st) => Some(*st),
+            TextureType::Multisampled2D(_) => None,
+            TextureType::DepthMultisampled2D => None,
+            TextureType::External => None,
+            TextureType::Storage1D(_, _) => None,
+            TextureType::Storage2D(_, _) => None,
+            TextureType::Storage2DArray(_, _) => None,
+            TextureType::Storage3D(_, _) => None,
+            TextureType::Depth2D => None,
+            TextureType::Depth2DArray => None,
+            TextureType::DepthCube => None,
+            TextureType::DepthCubeArray => None,
+        }
+    }
+    pub fn channel_type(&self) -> SampledType {
+        match self {
+            TextureType::Sampled1D(st) => *st,
+            TextureType::Sampled2D(st) => *st,
+            TextureType::Sampled2DArray(st) => *st,
+            TextureType::Sampled3D(st) => *st,
+            TextureType::SampledCube(st) => *st,
+            TextureType::SampledCubeArray(st) => *st,
+            TextureType::Multisampled2D(st) => *st,
+            TextureType::DepthMultisampled2D => SampledType::F32,
+            TextureType::External => SampledType::F32,
+            TextureType::Storage1D(f, _) => f.channel_type(),
+            TextureType::Storage2D(f, _) => f.channel_type(),
+            TextureType::Storage2DArray(f, _) => f.channel_type(),
+            TextureType::Storage3D(f, _) => f.channel_type(),
+            TextureType::Depth2D => SampledType::F32,
+            TextureType::Depth2DArray => SampledType::F32,
+            TextureType::DepthCube => SampledType::F32,
+            TextureType::DepthCubeArray => SampledType::F32,
+        }
+    }
+    pub fn is_depth(&self) -> bool {
+        matches!(
+            self,
+            TextureType::Depth2D
+                | TextureType::Depth2DArray
+                | TextureType::DepthCube
+                | TextureType::DepthCubeArray
+        )
+    }
+    pub fn is_storage(&self) -> bool {
+        matches!(
+            self,
+            TextureType::Storage1D(_, _)
+                | TextureType::Storage2D(_, _)
+                | TextureType::Storage2DArray(_, _)
+                | TextureType::Storage3D(_, _)
+        )
+    }
+    pub fn is_sampled(&self) -> bool {
+        matches!(
+            self,
+            TextureType::Sampled1D(_)
+                | TextureType::Sampled2D(_)
+                | TextureType::Sampled2DArray(_)
+                | TextureType::Sampled3D(_)
+                | TextureType::SampledCube(_)
+                | TextureType::SampledCubeArray(_)
+        )
+    }
+    pub fn is_multisampled(&self) -> bool {
+        matches!(
+            self,
+            TextureType::Multisampled2D(_) | TextureType::DepthMultisampled2D
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, IsVariant, Unwrap)]
@@ -693,7 +855,8 @@ impl EvalTy for FunctionCallExpression {
                             .iter()
                             .map(|arg| arg.eval_ty(ctx))
                             .collect::<Result<Vec<_>, _>>()?;
-                        builtin_fn_type(&self.ty, &args, ctx)
+                        builtin_fn_type(&self.ty, &args, ctx)?
+                            .ok_or_else(|| E::Void(decl.ident.to_string()))
                     } else {
                         // TODO: check argument types
                         let ty = decl

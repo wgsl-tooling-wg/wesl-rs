@@ -355,7 +355,6 @@ fn mat_ctor_ty(c: u8, r: u8, args: &[Type]) -> Result<Type, E> {
 
 fn vec_ctor_ty_t(n: u8, tplt: VecTemplate, args: &[Type]) -> Result<Type, E> {
     if let [arg] = args {
-        println!("{n} {arg} {}", tplt.ty(n));
         // overload 1: vec init from single scalar value
         if arg.is_scalar() {
             if !arg.is_convertible_to(tplt.inner_ty()) {
@@ -489,7 +488,11 @@ pub fn constructor_type(ty: &TypeExpression, args: &[Type], ctx: &mut Context) -
     }
 }
 
-pub fn builtin_fn_type(ty: &TypeExpression, args: &[Type], ctx: &mut Context) -> Result<Type, E> {
+pub fn builtin_fn_type(
+    ty: &TypeExpression,
+    args: &[Type],
+    ctx: &mut Context,
+) -> Result<Option<Type>, E> {
     fn is_float(ty: &Type) -> bool {
         ty.is_float() || ty.is_vec() && ty.inner_ty().is_float()
     }
@@ -503,81 +506,87 @@ pub fn builtin_fn_type(ty: &TypeExpression, args: &[Type], ctx: &mut Context) ->
 
     match (ty.ident.name().as_str(), ty.template_args.as_deref(), args) {
         // bitcast
-        ("bitcast", Some(t), [_]) => Ok(BitcastTemplate::parse(t, ctx)?.ty()),
+        ("bitcast", Some(t), [_]) => Ok(Some(BitcastTemplate::parse(t, ctx)?.ty())),
         // logical
-        ("all", None, [_]) | ("any", None, [_]) => Ok(Type::Bool),
+        ("all", None, [_]) | ("any", None, [_]) => Ok(Some(Type::Bool)),
         ("select", None, [a1, a2, a3]) if (a1.is_scalar() || a1.is_vec()) && a3.is_bool() => {
-            convert_ty(a1, a2).cloned().ok_or_else(err)
+            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
         }
         // array
-        ("arrayLength", None, [_]) => Ok(Type::U32),
+        ("arrayLength", None, [_]) => Ok(Some(Type::U32)),
         // numeric
-        ("abs", None, [a]) if is_numeric(a) => Ok(a.clone()),
-        ("acos", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("acosh", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("asin", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("asinh", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("atan", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("atanh", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("atan2", None, [a1, a2]) if is_float(a1) => convert_ty(a1, a2).cloned().ok_or_else(err),
-        ("ceil", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("abs", None, [a]) if is_numeric(a) => Ok(Some(a.clone())),
+        ("acos", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("acosh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("asin", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("asinh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("atan", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("atanh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("atan2", None, [a1, a2]) if is_float(a1) => {
+            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
+        }
+        ("ceil", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("clamp", None, [a1, _, _]) if is_numeric(a1) => {
-            convert_all_ty(args).cloned().ok_or_else(err)
+            convert_all_ty(args).cloned().map(Some).ok_or_else(err)
         }
-        ("cos", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("cosh", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("countLeadingZeros", None, [a]) if is_integer(a) => Ok(a.concretize()),
-        ("countOneBits", None, [a]) if is_integer(a) => Ok(a.concretize()),
-        ("countTrailingZeros", None, [a]) if is_integer(a) => Ok(a.concretize()),
+        ("cos", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("cosh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("countLeadingZeros", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
+        ("countOneBits", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
+        ("countTrailingZeros", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
         ("cross", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_float() => {
-            convert_ty(a1, a2).cloned().ok_or_else(err)
+            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
         }
-        ("degrees", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("determinant", None, [a @ Type::Mat(c, r, _)]) if c == r => Ok(a.clone()),
-        ("distance", None, [a1, a2]) if is_float(a1) => {
-            convert_ty(a1, a2).map(|ty| ty.inner_ty()).ok_or_else(err)
-        }
-        ("dot", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_numeric() => {
-            convert_ty(a1, a2).map(|ty| ty.inner_ty()).ok_or_else(err)
-        }
+        ("degrees", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("determinant", None, [a @ Type::Mat(c, r, _)]) if c == r => Ok(Some(a.clone())),
+        ("distance", None, [a1, a2]) if is_float(a1) => convert_ty(a1, a2)
+            .map(|ty| Some(ty.inner_ty()))
+            .ok_or_else(err),
+        ("dot", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_numeric() => convert_ty(a1, a2)
+            .map(|ty| Some(ty.inner_ty()))
+            .ok_or_else(err),
         ("dot4U8Packed", None, [a1, a2])
             if a1.is_convertible_to(&Type::U32) && a2.is_convertible_to(&Type::U32) =>
         {
-            Ok(Type::U32)
+            Ok(Some(Type::U32))
         }
         ("dot4I8Packed", None, [a1, a2])
             if a1.is_convertible_to(&Type::U32) && a2.is_convertible_to(&Type::U32) =>
         {
-            Ok(Type::I32)
+            Ok(Some(Type::I32))
         }
-        ("exp", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("exp2", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("exp", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("exp2", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("extractBits", None, [a1, a2, a3])
             if is_integer(a1)
                 && a2.is_convertible_to(&Type::U32)
                 && a3.is_convertible_to(&Type::U32) =>
         {
-            Ok(a1.concretize())
+            Ok(Some(a1.concretize()))
         }
         ("faceForward", None, [a1, _, _]) if a1.is_vec() && a1.inner_ty().is_float() => {
-            convert_all_ty(args).cloned().ok_or_else(err)
+            convert_all_ty(args).cloned().map(Some).ok_or_else(err)
         }
-        ("firstLeadingBit", None, [a]) if is_integer(a) => Ok(a.concretize()),
-        ("firstTrailingBit", None, [a]) if is_integer(a) => Ok(a.concretize()),
-        ("floor", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("fma", None, [a1, _, _]) if is_float(a1) => convert_all_ty(args).cloned().ok_or_else(err),
-        ("fract", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("frexp", None, [a]) if is_float(a) => {
-            Ok(Type::Struct(frexp_struct_name(a).unwrap().to_string()))
+        ("firstLeadingBit", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
+        ("firstTrailingBit", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
+        ("floor", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("fma", None, [a1, _, _]) if is_float(a1) => {
+            convert_all_ty(args).cloned().map(Some).ok_or_else(err)
         }
+        ("fract", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("frexp", None, [a]) if is_float(a) => Ok(Some(Type::Struct(
+            frexp_struct_name(a).unwrap().to_string(),
+        ))),
         ("insertBits", None, [a1, a2, a3, a4])
             if is_integer(a1)
                 && a3.is_convertible_to(&Type::U32)
                 && a4.is_convertible_to(&Type::U32) =>
         {
-            convert_ty(a1, a2).map(|ty| ty.concretize()).ok_or_else(err)
+            convert_ty(a1, a2)
+                .map(|ty| Some(ty.concretize()))
+                .ok_or_else(err)
         }
-        ("inverseSqrt", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("inverseSqrt", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("ldexp", None, [a1, a2])
             if (a1.is_vec()
                 && a1.inner_ty().is_float()
@@ -587,106 +596,282 @@ pub fn builtin_fn_type(ty: &TypeExpression, args: &[Type], ctx: &mut Context) ->
                 && (a1.is_concrete() && a2.is_concrete()
                     || a1.is_abstract() && a2.is_abstract()) =>
         {
-            Ok(a1.clone())
+            Ok(Some(a1.clone()))
         }
-        ("length", None, [a]) if is_float(a) => Ok(a.inner_ty()),
-        ("log", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("log2", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("max", None, [a1, a2]) if is_numeric(a1) => convert_ty(a1, a2).cloned().ok_or_else(err),
-        ("min", None, [a1, a2]) if is_numeric(a1) => convert_ty(a1, a2).cloned().ok_or_else(err),
+        ("length", None, [a]) if is_float(a) => Ok(Some(a.inner_ty())),
+        ("log", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("log2", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("max", None, [a1, a2]) if is_numeric(a1) => {
+            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
+        }
+        ("min", None, [a1, a2]) if is_numeric(a1) => {
+            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
+        }
         ("mix", None, [Type::Vec(n1, ty1), Type::Vec(n2, ty2), a3])
             if n1 == n2 && a3.is_float() =>
         {
             convert_all_ty([ty1, ty2, a3])
-                .map(|inner| Type::Vec(*n1, inner.clone().into()))
+                .map(|inner| Some(Type::Vec(*n1, inner.clone().into())))
                 .ok_or_else(err)
         }
-        ("mix", None, [a1, _, _]) if is_float(a1) => convert_all_ty(args).cloned().ok_or_else(err),
-        ("modf", None, [a]) if is_float(a) => {
-            Ok(Type::Struct(modf_struct_name(a).unwrap().to_string()))
+        ("mix", None, [a1, _, _]) if is_float(a1) => {
+            convert_all_ty(args).cloned().map(Some).ok_or_else(err)
         }
-        ("normalize", None, [a @ Type::Vec(_, ty)]) if ty.is_float() => Ok(a.clone()),
-        ("pow", None, [a1, a2]) => convert_ty(a1, a2).cloned().ok_or_else(err),
+        ("modf", None, [a]) if is_float(a) => {
+            Ok(Some(Type::Struct(modf_struct_name(a).unwrap().to_string())))
+        }
+        ("normalize", None, [a @ Type::Vec(_, ty)]) if ty.is_float() => Ok(Some(a.clone())),
+        ("pow", None, [a1, a2]) => convert_ty(a1, a2).cloned().map(Some).ok_or_else(err),
         ("quantizeToF16", None, [a])
             if a.concretize().is_f_32() || a.is_vec() && a.inner_ty().concretize().is_f_32() =>
         {
-            Ok(a.clone())
+            Ok(Some(a.clone()))
         }
-        ("radians", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("radians", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("reflect", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_float() => {
-            convert_ty(a1, a2).cloned().ok_or_else(err)
+            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
         }
         ("refract", None, [Type::Vec(n1, ty1), Type::Vec(n2, ty2), a3])
             if n1 == n2 && a3.is_float() =>
         {
             convert_all_ty([ty1, ty2, a3])
-                .map(|inner| Type::Vec(*n1, inner.clone().into()))
+                .map(|inner| Some(Type::Vec(*n1, inner.clone().into())))
                 .ok_or_else(err)
         }
-        ("reverseBits", None, [a]) if is_integer(a) => Ok(a.clone()),
-        ("round", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("saturate", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("sign", None, [a]) if is_numeric(a) && !a.inner_ty().is_u_32() => Ok(a.clone()),
-        ("sin", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("sinh", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("reverseBits", None, [a]) if is_integer(a) => Ok(Some(a.clone())),
+        ("round", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("saturate", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("sign", None, [a]) if is_numeric(a) && !a.inner_ty().is_u_32() => Ok(Some(a.clone())),
+        ("sin", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("sinh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("smoothstep", None, [a1, _, _]) if is_float(a1) => {
-            convert_all_ty(args).cloned().ok_or_else(err)
+            convert_all_ty(args).cloned().map(Some).ok_or_else(err)
         }
-        ("sqrt", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("step", None, [a1, a2]) if is_float(a1) => convert_ty(a1, a2).cloned().ok_or_else(err),
-        ("tan", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("tanh", None, [a]) if is_float(a) => Ok(a.clone()),
-        ("transpose", None, [Type::Mat(c, r, ty)]) => Ok(Type::Mat(*r, *c, ty.clone())),
-        ("trunc", None, [a]) if is_float(a) => Ok(a.clone()),
+        ("sqrt", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("step", None, [a1, a2]) if is_float(a1) => {
+            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
+        }
+        ("tan", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("tanh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        ("transpose", None, [Type::Mat(c, r, ty)]) => Ok(Some(Type::Mat(*r, *c, ty.clone()))),
+        ("trunc", None, [a]) if is_float(a) => Ok(Some(a.clone())),
+        // derivative
+        ("dpdx", None, [a]) if is_float(a) => Ok(Some(a.convert_inner_to(&Type::F32).unwrap())),
+        ("dpdxCoarse", None, [a]) if is_float(a) => {
+            Ok(Some(a.convert_inner_to(&Type::F32).unwrap()))
+        }
+        ("dpdxFine", None, [a]) if is_float(a) => Ok(Some(a.convert_inner_to(&Type::F32).unwrap())),
+        ("dpdy", None, [a]) if is_float(a) => Ok(Some(a.convert_inner_to(&Type::F32).unwrap())),
+        ("dpdyCoarse", None, [a]) if is_float(a) => {
+            Ok(Some(a.convert_inner_to(&Type::F32).unwrap()))
+        }
+        ("dpdyFine", None, [a]) if is_float(a) => Ok(Some(a.convert_inner_to(&Type::F32).unwrap())),
+        ("fwidth", None, [a]) if is_float(a) => Ok(Some(a.convert_inner_to(&Type::F32).unwrap())),
+        ("fwidthCoarse", None, [a]) if is_float(a) => {
+            Ok(Some(a.convert_inner_to(&Type::F32).unwrap()))
+        }
+        ("fwidthFine", None, [a]) if is_float(a) => {
+            Ok(Some(a.convert_inner_to(&Type::F32).unwrap()))
+        }
+        // texture
+        // TODO check arguments for texture functions
+        ("textureDimensions", None, [Type::Texture(t)] | [Type::Texture(t), _])
+            if t.dimensions().is_d_1() =>
+        {
+            Ok(Some(Type::U32))
+        }
+        ("textureDimensions", None, [Type::Texture(t)] | [Type::Texture(t), _])
+            if t.dimensions().is_d_2() =>
+        {
+            Ok(Some(Type::Vec(2, Type::U32.into())))
+        }
+        ("textureDimensions", None, [Type::Texture(t)] | [Type::Texture(t), _])
+            if t.dimensions().is_d_3() =>
+        {
+            Ok(Some(Type::Vec(3, Type::U32.into())))
+        }
+        ("textureGather", None, [_, Type::Texture(t), ..]) if t.is_sampled() => Ok(Some(
+            Type::Vec(4, Box::new(t.sampled_type().unwrap().into())),
+        )),
+        ("textureGather", None, [Type::Texture(t), ..]) if t.is_depth() => {
+            Ok(Some(Type::Vec(4, Type::F32.into())))
+        }
+        ("textureGatherCompare", None, [Type::Texture(t), ..]) if t.is_depth() => {
+            Ok(Some(Type::Vec(4, Type::F32.into())))
+        }
+        ("textureLoad", None, [Type::Texture(t), ..]) if t.is_depth() => Ok(Some(Type::F32)),
+        ("textureLoad", None, [Type::Texture(t), ..]) => {
+            Ok(Some(Type::Vec(4, Box::new(t.channel_type().into()))))
+        }
+        ("textureNumLayers", None, [Type::Texture(t)])
+            if t.is_sampled() || t.is_depth() || t.is_storage() =>
+        {
+            Ok(Some(Type::U32))
+        }
+        ("textureNumLevels", None, [Type::Texture(t)]) if t.is_sampled() || t.is_depth() => {
+            Ok(Some(Type::U32))
+        }
+        ("textureNumSamples", None, [Type::Texture(t)]) if t.is_multisampled() => {
+            Ok(Some(Type::U32))
+        }
+        ("textureSample", None, [Type::Texture(t), ..]) if t.is_sampled() => {
+            Ok(Some(Type::Vec(4, Box::new(Type::F32))))
+        }
+        ("textureSample", None, [Type::Texture(t), ..]) if t.is_depth() => Ok(Some(Type::F32)),
+        ("textureSampleBias", None, [Type::Texture(t), ..]) if t.is_sampled() => {
+            Ok(Some(Type::Vec(4, Box::new(Type::F32))))
+        }
+        ("textureSampleCompare", None, [Type::Texture(t), ..]) if t.is_depth() => {
+            Ok(Some(Type::F32))
+        }
+        ("textureSampleCompareLevel", None, [Type::Texture(t), ..]) if t.is_depth() => {
+            Ok(Some(Type::F32))
+        }
+        ("textureSampleGrad", None, [Type::Texture(t), ..]) if t.is_sampled() => {
+            Ok(Some(Type::Vec(4, Box::new(Type::F32))))
+        }
+        ("textureSampleLevel", None, [Type::Texture(t), ..]) if t.is_sampled() => {
+            Ok(Some(Type::Vec(4, Box::new(Type::F32))))
+        }
+        ("textureSampleLevel", None, [Type::Texture(t), ..]) if t.is_depth() => Ok(Some(Type::F32)),
+        ("textureSampleBaseClampToEdge", None, [Type::Texture(t), ..])
+            if t.is_sampled_2_d() || t.is_external() =>
+        {
+            Ok(Some(Type::Vec(4, Box::new(Type::F32))))
+        }
+        ("textureStore", None, [Type::Texture(t), ..]) if t.is_storage() => Ok(None),
+        // atomic
+        // TODO check arguments for atomic functions
+        ("atomicLoad", None, [Type::Ptr(_, t)]) if matches!(**t, Type::Atomic(_)) => {
+            Ok(Some(*t.clone().unwrap_atomic()))
+        }
+        ("atomicStore", None, [Type::Ptr(_, t)]) if matches!(**t, Type::Atomic(_)) => Ok(None),
+        ("atomicAdd", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+            Ok(Some(*t.clone().unwrap_atomic()))
+        }
+        ("atomicSub", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+            Ok(Some(*t.clone().unwrap_atomic()))
+        }
+        ("atomicMax", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+            Ok(Some(*t.clone().unwrap_atomic()))
+        }
+        ("atomicMin", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+            Ok(Some(*t.clone().unwrap_atomic()))
+        }
+        ("atomicAnd", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+            Ok(Some(*t.clone().unwrap_atomic()))
+        }
+        ("atomicOr", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+            Ok(Some(*t.clone().unwrap_atomic()))
+        }
+        ("atomicXor", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+            Ok(Some(*t.clone().unwrap_atomic()))
+        }
+        ("atomicExchange", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+            Ok(Some(*t.clone().unwrap_atomic()))
+        }
+        ("atomicCompareExchangeWeak", None, [Type::Ptr(_, t), _, _])
+            if matches!(**t, Type::Atomic(_)) =>
+        {
+            Ok(Some(Type::Struct(
+                "__atomic_compare_exchange_result".to_string(),
+            )))
+        }
         // packing
         ("pack4x8snorm", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::F32.into())) => {
-            Ok(Type::U32)
+            Ok(Some(Type::U32))
         }
         ("pack4x8unorm", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::F32.into())) => {
-            Ok(Type::U32)
+            Ok(Some(Type::U32))
         }
         ("pack4xI8", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::I32.into())) => {
-            Ok(Type::U32)
+            Ok(Some(Type::U32))
         }
         ("pack4xU8", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::U32.into())) => {
-            Ok(Type::U32)
+            Ok(Some(Type::U32))
         }
         ("pack4xI8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
-            Ok(Type::U32)
+            Ok(Some(Type::U32))
         }
         ("pack4xU8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
-            Ok(Type::U32)
+            Ok(Some(Type::U32))
         }
         ("pack2x16snorm", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
-            Ok(Type::U32)
+            Ok(Some(Type::U32))
         }
         ("pack2x16unorm", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
-            Ok(Type::U32)
+            Ok(Some(Type::U32))
         }
         ("pack2x16float", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
-            Ok(Type::U32)
+            Ok(Some(Type::U32))
         }
         ("unpack4x8snorm", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Type::Vec(4, Type::F32.into()))
+            Ok(Some(Type::Vec(4, Type::F32.into())))
         }
         ("unpack4x8unorm", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Type::Vec(4, Type::F32.into()))
+            Ok(Some(Type::Vec(4, Type::F32.into())))
         }
         ("unpack4xI8", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Type::Vec(4, Type::I32.into()))
+            Ok(Some(Type::Vec(4, Type::I32.into())))
         }
         ("unpack4xU8", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Type::Vec(4, Type::U32.into()))
+            Ok(Some(Type::Vec(4, Type::U32.into())))
         }
         ("unpack2x16snorm", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Type::Vec(2, Type::F32.into()))
+            Ok(Some(Type::Vec(2, Type::F32.into())))
         }
         ("unpack2x16unorm", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Type::Vec(2, Type::F32.into()))
+            Ok(Some(Type::Vec(2, Type::F32.into())))
         }
         ("unpack2x16float", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Type::Vec(2, Type::F32.into()))
+            Ok(Some(Type::Vec(2, Type::F32.into())))
         }
+        // synchronization
+        ("storageBarrier", None, []) => Ok(None),
+        ("textureBarrier", None, []) => Ok(None),
+        ("workgroupBarrier", None, []) => Ok(None),
+        ("workgroupUniformLoad", None, [Type::Ptr(AddressSpace::Workgroup, t)]) => {
+            Ok(Some(*t.clone()))
+        }
+        // subgroup
+        ("subgroupAdd", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
+        ("subgroupExclusiveAdd", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
+        ("subgroupInclusiveAdd", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
+        ("subgroupAll", None, [Type::Bool]) => Ok(Some(Type::Bool)),
+        ("subgroupAnd", None, [Type::Bool]) => Ok(Some(Type::Bool)),
+        ("subgroupAny", None, [Type::Bool]) => Ok(Some(Type::Bool)),
+        ("subgroupBallot", None, [Type::Bool]) => Ok(Some(Type::Vec(4, Type::U32.into()))),
+        ("subgroupBroadcast", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
+            Ok(Some(a1.concretize()))
+        }
+        ("subgroupBroadcastFirst", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
+        ("subgroupElect", None, []) => Ok(Some(Type::Bool)),
+        ("subgroupMax", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
+        ("subgroupMin", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
+        ("subgroupMul", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
+        ("subgroupExclusiveMul", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
+        ("subgroupInclusiveMul", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
+        ("subgroupOr", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
+        ("subgroupShuffle", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
+            Ok(Some(a1.concretize()))
+        }
+        ("subgroupShuffleDown", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
+            Ok(Some(a1.concretize()))
+        }
+        ("subgroupShuffleUp", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
+            Ok(Some(a1.concretize()))
+        }
+        ("subgroupShuffleXor", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
+            Ok(Some(a1.concretize()))
+        }
+        ("subgroupXor", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
+        // quad
+        ("quadBroadcast", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
+            Ok(Some(a1.concretize()))
+        }
+        ("quadSwapDiagonal", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
+        ("quadSwapX", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
+        ("quadSwapY", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
         _ => Err(err()),
     }
 }
