@@ -25,6 +25,7 @@ pub use eval::{Eval, EvalError, Exec};
 #[cfg(feature = "generics")]
 pub use generics::GenericsError;
 
+use import::{Module, Resolutions};
 #[cfg(feature = "package")]
 pub use package::PkgBuilder;
 
@@ -38,7 +39,7 @@ pub use resolve::{
     StandardResolver, VirtualResolver,
 };
 pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
-pub use strip::strip_except;
+use strip::strip_except;
 pub use syntax_util::SyntaxUtil;
 pub use validate::{validate_wgsl, ValidateError};
 pub use wgsl_parse::syntax;
@@ -49,7 +50,6 @@ use std::{
     path::Path,
 };
 
-use itertools::Itertools;
 use validate::validate_wesl;
 use wgsl_parse::syntax::{Ident, ModulePath, PathOrigin, TranslationUnit};
 
@@ -683,6 +683,10 @@ impl<R: Resolver> Wesl<R> {
     }
 }
 
+/// What idents to keep from the root module. They should be either:
+/// * options.keep idents that exist, if it is set and options.strip is enabled,
+/// * all entrypoints, if options.strip is enabled and options.keep is not set,
+/// * all named declarations, if options.strip is disabled.
 fn keep_idents(wesl: &TranslationUnit, keep: &Option<Vec<String>>, strip: bool) -> HashSet<Ident> {
     if strip {
         if let Some(keep) = keep {
@@ -712,57 +716,48 @@ fn keep_idents(wesl: &TranslationUnit, keep: &Option<Vec<String>>, strip: bool) 
 fn compile_pre_assembly(
     root: &ModulePath,
     resolver: &impl Resolver,
-    mangler: &impl Mangler,
     options: &CompileOptions,
-    root_decls: &mut Vec<String>,
-) -> Result<TranslationUnit, Error> {
-    let resolver = Box::new(resolver);
-
+) -> Result<(Resolutions, HashSet<Ident>), Error> {
     let resolver: Box<dyn Resolver> = if options.condcomp {
         Box::new(Preprocessor::new(resolver, |wesl| {
             condcomp::run(wesl, &options.features)?;
             Ok(())
         }))
     } else {
-        resolver
+        Box::new(resolver)
     };
 
     let wesl = resolver.resolve_module(root)?;
+    let keep = keep_idents(&wesl, &options.keep, options.strip);
 
-    // hack, this is passed by &mut just to return it from the function even in error case.
-    *root_decls = wesl
-        .global_declarations
-        .iter()
-        .filter_map(|decl| decl.ident())
-        .map(|name| name.to_string())
-        .collect_vec();
+    let mut resolutions = Resolutions::new();
+    let mut module = Module::new(wesl, root.clone());
+    module.keep_idents(keep.clone());
+    resolutions.push_module(module);
 
-    let wesl = if options.imports {
-        let mut resolution = if options.lazy {
-            let keep = keep_idents(&wesl, &options.keep, options.strip);
-            import::resolve_lazy(wesl, root, keep, &resolver)?
+    if options.imports {
+        if options.lazy {
+            import::resolve_lazy(&mut resolutions, &resolver)?
         } else {
-            import::resolve_eager(wesl, root, &resolver)?
-        };
-        resolution.mangle(mangler)?;
-        if options.validate {
-            for module in resolution.modules() {
-                validate_wesl(&module.source).map_err(|d| {
-                    d.with_module_path(module.path.clone(), resolver.display_name(&module.path))
-                })?;
-            }
+            import::resolve_eager(&mut resolutions, &resolver)?
         }
-        resolution.assemble(options.strip)
-    } else {
-        wesl
-    };
-    Ok(wesl)
+    }
+
+    if options.validate {
+        for module in resolutions.modules() {
+            validate_wesl(&module.source).map_err(|d| {
+                d.with_module_path(module.path.clone(), resolver.display_name(&module.path))
+            })?;
+        }
+    }
+
+    Ok((resolutions, keep))
 }
 
 fn compile_post_assembly(
     wesl: &mut TranslationUnit,
     options: &CompileOptions,
-    keep: &[String],
+    keep: &HashSet<Ident>,
 ) -> Result<(), Error> {
     #[cfg(feature = "generics")]
     if options.generics {
@@ -773,7 +768,10 @@ fn compile_post_assembly(
         validate_wgsl(wesl)?;
     }
     if options.lower {
-        lower(wesl, keep)?;
+        lower(wesl)?;
+    }
+    if options.strip {
+        strip_except(wesl, keep);
     }
     Ok(())
 }
@@ -785,11 +783,12 @@ pub fn compile(
     mangler: &impl Mangler,
     options: &CompileOptions,
 ) -> Result<TranslationUnit, Diagnostic<Error>> {
-    let mut root_names = Vec::new();
-    let mut wesl = compile_pre_assembly(root, resolver, mangler, options, &mut root_names)?;
-    let keep = options.keep.as_deref().unwrap_or(&root_names);
-    compile_post_assembly(&mut wesl, options, keep)?;
-    Ok(wesl)
+    let (mut resolutions, keep) = compile_pre_assembly(root, resolver, options)?;
+    resolutions.mangle(mangler);
+    let mut assembly = resolutions.assemble(options.strip && options.lazy);
+    std::mem::drop(resolutions); // resolutions hold idents use-counts
+    compile_post_assembly(&mut assembly, options, &keep)?;
+    Ok(assembly)
 }
 
 /// Like [`compile`], but provides better error diagnostics and returns the sourcemap.
@@ -799,32 +798,34 @@ pub fn compile_sourcemap(
     mangler: &impl Mangler,
     options: &CompileOptions,
 ) -> (Result<TranslationUnit, Error>, BasicSourceMap) {
-    let sourcemapper = SourceMapper::new(&resolver, &mangler);
-    let mut root_names = Vec::new();
-    let comp = compile_pre_assembly(root, &sourcemapper, &sourcemapper, options, &mut root_names);
-    let mut sourcemap = sourcemapper.finish();
-    for name in &root_names {
-        sourcemap.add_decl(name.clone(), root.clone(), name.clone());
+    let sourcemapper = SourceMapper::new(root, resolver, mangler);
+
+    match compile_pre_assembly(root, &sourcemapper, options) {
+        Ok((mut resolutions, keep)) => {
+            resolutions.mangle(&sourcemapper);
+            let sourcemap = sourcemapper.finish();
+            let mut assembly = resolutions.assemble(options.strip && options.lazy);
+            std::mem::drop(resolutions); // resolutions hold idents use-counts
+            let res = compile_post_assembly(&mut assembly, options, &keep)
+                .map_err(|e| {
+                    Diagnostic::from(e)
+                        .with_output(assembly.to_string())
+                        .with_sourcemap(&sourcemap)
+                        .unmangle(Some(&sourcemap), Some(&mangler))
+                        .into()
+                })
+                .map(|()| assembly);
+            (res, sourcemap)
+        }
+        Err(e) => {
+            let sourcemap = sourcemapper.finish();
+            let err = Err(Diagnostic::from(e)
+                .with_sourcemap(&sourcemap)
+                .unmangle(Some(&sourcemap), Some(&mangler))
+                .into());
+            (err, sourcemap)
+        }
     }
-    let keep = options.keep.as_deref().unwrap_or(&root_names);
-
-    let comp = match comp {
-        Ok(mut wesl) => compile_post_assembly(&mut wesl, options, keep)
-            .map_err(|e| {
-                Diagnostic::from(e)
-                    .with_output(wesl.to_string())
-                    .with_sourcemap(&sourcemap)
-                    .unmangle(Some(&sourcemap), Some(&mangler))
-                    .into()
-            })
-            .map(|()| wesl),
-        Err(e) => Err(Diagnostic::from(e)
-            .with_sourcemap(&sourcemap)
-            .unmangle(Some(&sourcemap), Some(&mangler))
-            .into()),
-    };
-
-    (comp, sourcemap)
 }
 
 /// Evaluate a const-expression.

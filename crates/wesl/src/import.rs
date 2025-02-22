@@ -40,7 +40,7 @@ pub(crate) struct Module {
 }
 
 impl Module {
-    fn new(source: TranslationUnit, path: ModulePath) -> Self {
+    pub(crate) fn new(source: TranslationUnit, path: ModulePath) -> Self {
         let idents = source
             .global_declarations
             .iter()
@@ -57,8 +57,11 @@ impl Module {
         }
     }
     #[allow(unused)]
-    fn used_idents(&self) -> impl Iterator<Item = &Ident> {
+    pub(crate) fn used_idents(&self) -> impl Iterator<Item = &Ident> {
         self.treated_idents.iter()
+    }
+    pub(crate) fn keep_idents(&mut self, idents: impl IntoIterator<Item = Ident>) {
+        self.treated_idents.extend(idents);
     }
 }
 
@@ -68,11 +71,28 @@ pub(crate) struct Resolutions {
 }
 
 impl Resolutions {
+    /// Warning: you *must* call `push_module` right after this.
+    pub(crate) fn new() -> Self {
+        Resolutions {
+            modules: Default::default(),
+            order: Default::default(),
+        }
+    }
+    pub(crate) fn root_module(&self) -> Rc<RefCell<Module>> {
+        self.modules.get(self.root_path()).unwrap().clone() // safety: new() requires push_module
+    }
     pub(crate) fn root_path(&self) -> &ModulePath {
-        self.order.first().unwrap() // safety: new() guarantees that there is always a root module
+        self.order.first().unwrap() // safety: new() requires push_module
     }
     pub(crate) fn modules(&self) -> impl Iterator<Item = Ref<Module>> {
         self.order.iter().map(|res| self.modules[res].borrow())
+    }
+    pub(crate) fn push_module(&mut self, module: Module) -> Rc<RefCell<Module>> {
+        let path = module.path.clone();
+        let module = Rc::new(RefCell::new(module));
+        self.modules.insert(path.clone(), module.clone());
+        self.order.push(path);
+        module
     }
 }
 
@@ -104,6 +124,32 @@ fn resolve_inline_path(
     }
 }
 
+fn load_module(
+    path: &ModulePath,
+    local_decls: &mut HashSet<usize>,
+    resolutions: &mut Resolutions,
+    resolver: &impl Resolver,
+) -> Result<Rc<RefCell<Module>>, E> {
+    if let Some(module) = resolutions.modules.get(path) {
+        Ok(module.clone())
+    } else {
+        let source = resolver.resolve_module(path)?;
+        let module = Module::new(source, path.clone());
+
+        // const_asserts of used modules must be included.
+        // https://github.com/wgsl-tooling-wg/wesl-spec/issues/66
+        let const_asserts = module
+            .source
+            .global_declarations
+            .iter()
+            .enumerate()
+            .filter_map(|(i, decl)| decl.is_const_assert().then_some(i));
+        local_decls.extend(const_asserts);
+
+        Ok(resolutions.push_module(module))
+    }
+}
+
 // XXX: it's quite messy.
 /// Load all modules "used" transitively by the root module. Make external idents point at
 /// the right declaration in the external module.
@@ -118,41 +164,7 @@ fn resolve_inline_path(
 /// Returns a list of [`Module`]s with the list of their "used" idents.
 ///
 /// See also: [`resolve_eager`]
-pub fn resolve_lazy(
-    root: TranslationUnit,
-    path: &ModulePath,
-    keep: HashSet<Ident>,
-    resolver: &impl Resolver,
-) -> Result<Resolutions, E> {
-    fn load_module(
-        path: &ModulePath,
-        local_decls: &mut HashSet<usize>,
-        resolutions: &mut Resolutions,
-        resolver: &impl Resolver,
-    ) -> Result<Rc<RefCell<Module>>, E> {
-        if let Some(module) = resolutions.modules.get(path) {
-            Ok(module.clone())
-        } else {
-            let source = resolver.resolve_module(path)?;
-            let module = Module::new(source, path.clone());
-
-            // const_asserts of used modules must be included.
-            // https://github.com/wgsl-tooling-wg/wesl-spec/issues/66
-            let const_asserts = module
-                .source
-                .global_declarations
-                .iter()
-                .enumerate()
-                .filter_map(|(i, decl)| decl.is_const_assert().then_some(i));
-            local_decls.extend(const_asserts);
-
-            let module = Rc::new(RefCell::new(module));
-            resolutions.push_module(path.clone(), module.clone());
-
-            Ok(module)
-        }
-    }
-
+pub fn resolve_lazy(resolutions: &mut Resolutions, resolver: &impl Resolver) -> Result<(), E> {
     fn resolve_ty(
         mod_path: &ModulePath,
         mod_imports: &Imports,
@@ -297,60 +309,51 @@ pub fn resolve_lazy(
         Ok(())
     }
 
-    let mut resolutions = Resolutions::new();
-    let module = Module::new(root, path.clone());
+    let mut decls = {
+        let module = resolutions.root_module();
+        let mut module = module.borrow_mut();
 
-    let mut keep_decls: HashSet<usize> = keep
-        .iter()
-        .map(|id| {
-            module
-                .idents
-                .get(id)
-                .copied()
-                .ok_or_else(|| E::MissingDecl(path.clone(), id.to_string()))
-        })
-        .try_collect()?;
+        let mut keep_decls: HashSet<usize> = module
+            .used_idents()
+            .map(|id| {
+                module
+                    .idents
+                    .get(id)
+                    .copied()
+                    .ok_or_else(|| E::MissingDecl(module.path.clone(), id.to_string()))
+            })
+            .try_collect()?;
 
-    // const_asserts of used modules must be included.
-    // https://github.com/wgsl-tooling-wg/wesl-spec/issues/66
-    let const_asserts = module
-        .source
-        .global_declarations
-        .iter()
-        .enumerate()
-        .filter_map(|(i, decl)| decl.is_const_assert().then_some(i));
-    keep_decls.extend(const_asserts);
+        module.treated_idents.clear();
 
-    let mut decls = Decls::new();
+        // const_asserts of used modules must be included.
+        // https://github.com/wgsl-tooling-wg/wesl-spec/issues/66
+        let const_asserts = module
+            .source
+            .global_declarations
+            .iter()
+            .enumerate()
+            .filter_map(|(i, decl)| decl.is_const_assert().then_some(i));
+        keep_decls.extend(const_asserts);
+        let mut decls = Decls::new();
+        decls.insert(module.path.clone(), keep_decls);
+        decls
+    };
+
     let mut next_decls = Decls::new();
-    decls.insert(path.clone(), keep_decls);
-
-    let module = Rc::new(RefCell::new(module));
-    resolutions.push_module(path.clone(), module.clone());
 
     while !decls.is_empty() {
         for (path, decls) in &mut decls {
-            resolve_decls(path, decls, &mut next_decls, resolver, &mut resolutions)?;
+            resolve_decls(path, decls, &mut next_decls, resolver, resolutions)?;
         }
         std::mem::swap(&mut decls, &mut next_decls);
         next_decls.clear();
     }
 
-    Ok(resolutions)
+    Ok(())
 }
 
-pub fn resolve_eager(
-    root: TranslationUnit,
-    path: &ModulePath,
-    resolver: &impl Resolver,
-) -> Result<Resolutions, E> {
-    let mut resolutions = Resolutions::new();
-
-    let module = Module::new(root, path.clone());
-
-    let module = Rc::new(RefCell::new(module));
-    resolutions.push_module(path.clone(), module.clone());
-
+pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) -> Result<(), E> {
     fn resolve_module(
         module: &mut Module,
         resolutions: &mut Resolutions,
@@ -359,15 +362,13 @@ pub fn resolve_eager(
         for (path, _) in module.imports.values() {
             if !resolutions.modules.contains_key(path) {
                 let source = resolver.resolve_module(path)?;
-                let module = Module::new(source, path.clone());
-                let module = Rc::new(RefCell::new(module));
-                resolutions.push_module(path.clone(), module.clone());
+                let module = resolutions.push_module(Module::new(source, path.clone()));
                 resolve_module(module.borrow_mut().deref_mut(), resolutions, resolver)?;
             }
         }
 
         for ty in Visit::<TypeExpression>::visit_mut(&mut module.source) {
-            let (ext_res, ext_id) = if let Some(path) = &ty.path {
+            let (ext_path, ext_id) = if let Some(path) = &ty.path {
                 let res = resolve_inline_path(path, &module.path, &module.imports);
                 (res, ty.ident.clone())
             } else if let Some((path, ident)) = module.imports.get(&ty.ident) {
@@ -378,22 +379,20 @@ pub fn resolve_eager(
             };
 
             // if the import path points to a local decl, we stop here
-            if ext_res == module.path {
+            if ext_path == module.path {
                 if module.idents.contains_key(&ty.ident) {
                     continue;
                 } else {
-                    return Err(E::MissingDecl(ext_res, ty.ident.name().to_string()));
+                    return Err(E::MissingDecl(ext_path, ty.ident.name().to_string()));
                 }
             }
 
             // load the external module for this external ident
-            let ext_mod = if let Some(module) = resolutions.modules.get(&ext_res) {
+            let ext_mod = if let Some(module) = resolutions.modules.get(&ext_path) {
                 module.clone()
             } else {
-                let source = resolver.resolve_module(&ext_res)?;
-                let module = Module::new(source, ext_res.clone());
-                let module = Rc::new(RefCell::new(module));
-                resolutions.push_module(ext_res.clone(), module.clone());
+                let source = resolver.resolve_module(&ext_path)?;
+                let module = resolutions.push_module(Module::new(source, ext_path.clone()));
                 resolve_module(module.borrow_mut().deref_mut(), resolutions, resolver)?;
                 module
             };
@@ -405,7 +404,7 @@ pub fn resolve_eager(
                 .iter()
                 .find(|(id, _)| *id.name() == *ext_id.name())
                 .map(|(id, _)| id.clone())
-                .ok_or_else(|| E::MissingDecl(ext_res.clone(), ext_id.to_string()))?;
+                .ok_or_else(|| E::MissingDecl(ext_path.clone(), ext_id.to_string()))?;
 
             ty.path = None;
             ty.ident = ext_id;
@@ -414,9 +413,10 @@ pub fn resolve_eager(
         Ok(())
     }
 
-    resolve_module(module.borrow_mut().deref_mut(), &mut resolutions, resolver)?;
+    let module = resolutions.root_module();
+    resolve_module(module.borrow_mut().deref_mut(), resolutions, resolver)?;
 
-    Ok(resolutions)
+    Ok(())
 }
 
 /// Flatten imports to a list of module paths.
@@ -459,17 +459,7 @@ fn mangle_decls<'a>(wgsl: &'a mut TranslationUnit, path: &'a ModulePath, mangler
 }
 
 impl Resolutions {
-    fn new() -> Self {
-        Resolutions {
-            modules: Default::default(),
-            order: Default::default(),
-        }
-    }
-    fn push_module(&mut self, path: ModulePath, module: Rc<RefCell<Module>>) {
-        self.modules.insert(path.clone(), module);
-        self.order.push(path);
-    }
-    pub fn mangle(&mut self, mangler: &impl Mangler) -> Result<(), E> {
+    pub fn mangle(&mut self, mangler: &impl Mangler) {
         let root_path = self.root_path().clone();
         for (path, module) in self.modules.iter_mut() {
             if path != &root_path {
@@ -477,7 +467,6 @@ impl Resolutions {
                 mangle_decls(&mut module.source, path, mangler);
             }
         }
-        Ok(())
     }
 
     pub fn assemble(&self, strip: bool) -> TranslationUnit {

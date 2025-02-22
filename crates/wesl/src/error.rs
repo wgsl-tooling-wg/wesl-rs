@@ -191,18 +191,17 @@ impl<E: std::error::Error> Diagnostic<E> {
                     .get_source(path)
                     .map(|s| s.to_string())
                     .or(self.source);
-            } else {
-                self.source = sourcemap
-                    .get_default_source()
-                    .map(|s| s.to_string())
-                    .or(self.source);
             }
-        } else {
-            self.source = sourcemap
-                .get_default_source()
-                .map(|s| s.to_string())
-                .or(self.source);
         }
+
+        if self.source.is_none() {
+            if let Some(path) = &self.module_path {
+                self.source = sourcemap.get_source(path).map(|s| s.to_string());
+            } else {
+                self.source = sourcemap.get_default_source().map(|s| s.to_string());
+            }
+        }
+
         self
     }
 

@@ -4,7 +4,7 @@ use wgsl_parse::syntax::*;
 
 /// Performs conversions on the final syntax tree to make it more compatible with naga,
 /// catch errors early and perform optimizations.
-pub fn lower(wesl: &mut TranslationUnit, _keep: &[String]) -> Result<(), Error> {
+pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
     wesl.imports.clear();
 
     for attrs in Visit::<Attributes>::visit_mut(wesl) {
@@ -36,24 +36,12 @@ pub fn lower(wesl: &mut TranslationUnit, _keep: &[String]) -> Result<(), Error> 
                 .map_err(|e| Diagnostic::from(e).with_ctx(&ctx))?;
         }
 
-        // lowering sometimes makes const function unused, so we remove them if not in keep list.
-        // we also remove `@const` attributes.
-        wesl.global_declarations.retain_mut(|decl| {
+        // remove `@const` attributes.
+        for decl in &mut wesl.global_declarations {
             if let GlobalDeclaration::Function(decl) = decl {
-                if decl.attributes.contains(&Attribute::Const)
-                    && !_keep.contains(&*decl.ident.name())
-                    // TODO: there may be a race cond here
-                    && decl.ident.use_count() == 1
-                {
-                    false
-                } else {
-                    decl.attributes.retain(|attr| *attr != Attribute::Const);
-                    true
-                }
-            } else {
-                true
+                decl.attributes.retain(|attr| *attr != Attribute::Const);
             }
-        });
+        }
     }
     Ok(())
 }
@@ -117,28 +105,3 @@ fn remove_global_consts(wesl: &mut TranslationUnit) {
             .rename(format!("({})", decl.initializer.unwrap()));
     }
 }
-
-// /// Eliminate most uses of AbstractInt and AbstractFloat.
-// /// Naga doesn't like automatic type conversions in several places:
-// /// * return statements
-// /// * function calls
-// /// * shift when lhs is abstract
-// /// * ...probably more?
-// trait MakeExplicit {
-//     fn make_explicit(&mut self, scope: &mut Scope);
-// }
-
-// impl MakeExplicit for TranslationUnit {
-//     fn make_explicit(&mut self, scope: &mut Scope) {
-//         for decl in &mut self.global_declarations {
-//             match decl {
-//                 GlobalDeclaration::Void => todo!(),
-//                 GlobalDeclaration::Declaration(decl) => decl.make_explicit(),
-//                 GlobalDeclaration::TypeAlias(decl) => decl.make_explicit(),
-//                 GlobalDeclaration::Struct(decl) => decl.make_explicit(),
-//                 GlobalDeclaration::Function(decl) => decl.make_explicit(),
-//                 GlobalDeclaration::ConstAssert(decl) => decl.make_explicit(),
-//             }
-//         }
-//     }
-// }

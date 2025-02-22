@@ -97,6 +97,7 @@ impl SourceMap for NoSourceMap {
 /// sourcemap, invoke the compiler with this instance as both the mangler and the
 /// resolver.
 pub struct SourceMapper<'a> {
+    pub root: &'a ModulePath,
     pub resolver: &'a dyn Resolver,
     pub mangler: &'a dyn Mangler,
     pub sourcemap: RefCell<BasicSourceMap>,
@@ -104,8 +105,9 @@ pub struct SourceMapper<'a> {
 
 impl<'a> SourceMapper<'a> {
     /// Create a new `SourceMapper` from a mangler and a resolver.
-    pub fn new(resolver: &'a dyn Resolver, mangler: &'a dyn Mangler) -> Self {
+    pub fn new(root: &'a ModulePath, resolver: &'a dyn Resolver, mangler: &'a dyn Mangler) -> Self {
         Self {
+            root,
             resolver,
             mangler,
             sourcemap: Default::default(),
@@ -113,7 +115,11 @@ impl<'a> SourceMapper<'a> {
     }
     /// Consume this and return a [`BasicSourceMap`].
     pub fn finish(self) -> BasicSourceMap {
-        self.sourcemap.into_inner()
+        let mut sourcemap = self.sourcemap.into_inner();
+        if let Some(source) = sourcemap.get_source(&self.root) {
+            sourcemap.set_default_source(source.to_string());
+        }
+        sourcemap
     }
 }
 
