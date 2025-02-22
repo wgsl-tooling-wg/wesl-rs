@@ -116,19 +116,48 @@ impl Mangler for EscapeMangler {
         let mut origin = PathOrigin::Package;
         let mut components = Vec::new();
 
+        fn extract_count(part: &str) -> Option<usize> {
+            if !part.starts_with('_') {
+                return None;
+            }
+
+            let digits = part
+                .chars()
+                .skip(1)
+                .take_while(|c| c.is_ascii_digit())
+                .count();
+
+            if digits == 0 {
+                return None;
+            }
+
+            part[1..digits].parse().ok()
+        }
+
         while let Some(part) = parts.next() {
-            if part == "package" {
-                origin = PathOrigin::Absolute;
-            } else {
-                let mut part = part.to_string();
-                while parts.peek() == Some(&"") {
-                    part.push('_');
-                    parts.next();
-                    if let Some(next) = parts.next() {
-                        part.push_str(next);
+            match part {
+                "package" => {
+                    origin = PathOrigin::Absolute;
+                }
+                "super" => {
+                    if let PathOrigin::Relative(n) = &mut origin {
+                        *n += 1;
+                    } else {
+                        origin = PathOrigin::Relative(1)
                     }
                 }
-                components.push(part);
+                "self" => origin = PathOrigin::Relative(0),
+                _ => {
+                    if let Some(n) = extract_count(part) {
+                        let part = std::iter::once(part)
+                            .chain((0..n).map(|_| parts.next().expect("invalid mangled string")))
+                            .format("_")
+                            .to_string();
+                        components.push(part)
+                    } else {
+                        components.push(part.to_string())
+                    }
+                }
             }
         }
 
