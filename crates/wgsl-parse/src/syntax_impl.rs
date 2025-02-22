@@ -94,7 +94,13 @@ impl ModulePath {
         match path.origin {
             PathOrigin::Relative(n) => {
                 let to_keep = self.components.len().min(n) - n;
-                let components = self.components.iter().take(to_keep).cloned().collect_vec();
+                let components = self
+                    .components
+                    .iter()
+                    .take(to_keep)
+                    .chain(&path.components)
+                    .cloned()
+                    .collect_vec();
                 let origin = match self.origin {
                     PathOrigin::Absolute | PathOrigin::Package => {
                         if n > self.components.len() {

@@ -77,7 +77,7 @@ impl Display for ModulePath {
         match self.origin {
             PathOrigin::Absolute => write!(f, "package::")?,
             PathOrigin::Relative(0) => write!(f, "self::")?,
-            PathOrigin::Relative(n) => write!(f, "{}::", (1..n).map(|_| "super").format("::"))?,
+            PathOrigin::Relative(n) => write!(f, "{}::", (0..n).map(|_| "super").format("::"))?,
             PathOrigin::Package => (),
         };
         write!(f, "{}", self.components.iter().format("::"))
