@@ -102,6 +102,12 @@ pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
             // sampler types
             ident!("sampler"),
             ident!("sampler_comparison"),
+            // address space
+            ident!("function"),
+            ident!("private"),
+            ident!("workgroup"),
+            ident!("uniform"),
+            ident!("storage"),
             // access mode
             ident!("read"),
             ident!("write"),
@@ -192,6 +198,29 @@ impl BuiltinIdent for SampledType {
             SampledType::I32 => builtin_ident("i32"),
             SampledType::U32 => builtin_ident("u32"),
             SampledType::F32 => builtin_ident("f32"),
+        }
+    }
+}
+
+impl BuiltinIdent for AddressSpace {
+    fn builtin_ident(&self) -> Option<&'static Ident> {
+        match self {
+            AddressSpace::Function => builtin_ident("function"),
+            AddressSpace::Private => builtin_ident("private"),
+            AddressSpace::Workgroup => builtin_ident("workgroup"),
+            AddressSpace::Uniform => builtin_ident("uniform"),
+            AddressSpace::Storage(_) => builtin_ident("storage"),
+            AddressSpace::Handle => None,
+        }
+    }
+}
+
+impl BuiltinIdent for AccessMode {
+    fn builtin_ident(&self) -> Option<&'static Ident> {
+        match self {
+            AccessMode::Read => builtin_ident("read"),
+            AccessMode::Write => builtin_ident("write"),
+            AccessMode::ReadWrite => builtin_ident("read_write"),
         }
     }
 }

@@ -49,7 +49,7 @@ impl ToExpr for StructInstance {
             .decl_struct(self.name())
             .expect("struct declaration not found");
         Ok(Expression::FunctionCall(FunctionCall {
-            ty: TypeExpression::new(Ident::new(self.name().to_string())),
+            ty: TypeExpression::new(decl.ident.clone()),
             arguments: decl
                 .members
                 .iter()
@@ -111,7 +111,13 @@ impl ToExpr for Type {
             Type::U32 => Ok(TypeExpression::new(ident.unwrap())),
             Type::F32 => Ok(TypeExpression::new(ident.unwrap())),
             Type::F16 => Ok(TypeExpression::new(ident.unwrap())),
-            Type::Struct(s) => Ok(TypeExpression::new(Ident::new(s.clone()))),
+            Type::Struct(s) => {
+                let decl = ctx
+                    .source
+                    .decl_struct(s)
+                    .expect("struct declaration not found");
+                Ok(TypeExpression::new(decl.ident.clone()))
+            }
             Type::Array(Some(n), inner_ty) => {
                 let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![
@@ -155,14 +161,21 @@ impl ToExpr for Type {
             }
             Type::Ptr(space, inner_ty) => {
                 let mut ty = TypeExpression::new(ident.unwrap());
-                ty.template_args = Some(vec![
-                    TemplateArg {
-                        expression: space.to_expr(ctx)?.into(),
-                    },
-                    TemplateArg {
-                        expression: inner_ty.to_expr(ctx)?.into(),
-                    },
-                ]);
+                let t1 = TemplateArg {
+                    expression: space.to_expr(ctx)?.into(),
+                };
+                let t2 = TemplateArg {
+                    expression: inner_ty.to_expr(ctx)?.into(),
+                };
+                let args = if let AddressSpace::Storage(Some(access)) = space {
+                    let t3 = TemplateArg {
+                        expression: access.to_expr(ctx)?.into(),
+                    };
+                    vec![t1, t2, t3]
+                } else {
+                    vec![t1, t2]
+                };
+                ty.template_args = Some(args);
                 Ok(ty)
             }
             Type::Texture(tex) => {
@@ -214,8 +227,12 @@ impl ToExpr for Type {
 
 impl ToExpr for AddressSpace {
     fn to_expr(&self, _ctx: &Context) -> Result<Expression, E> {
-        Ok(Expression::TypeOrIdentifier(TypeExpression::from(
-            Ident::new(self.to_string()),
-        )))
+        Ok(TypeExpression::new(self.builtin_ident().unwrap().clone()).into())
+    }
+}
+
+impl ToExpr for AccessMode {
+    fn to_expr(&self, _ctx: &Context) -> Result<Expression, E> {
+        Ok(TypeExpression::new(self.builtin_ident().unwrap().clone()).into())
     }
 }
