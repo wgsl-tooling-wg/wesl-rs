@@ -147,8 +147,11 @@ impl<E: std::error::Error> Diagnostic<E> {
     }
     /// Provide the span (chunk of source code) where the error originated.
     /// You should also provide the source with [`Self::with_source`].
+    /// Subsequent calls to this function do not override the span.
     pub fn with_span(mut self, span: Span) -> Self {
-        self.span = Some(span);
+        if self.span.is_none() {
+            self.span = Some(span);
+        }
         self
     }
     /// Provide the declaration in which the error originated.
@@ -161,7 +164,7 @@ impl<E: std::error::Error> Diagnostic<E> {
         self.output = Some(out);
         self
     }
-    /// Provide the module path in which the error was emitted. the `disp_name` is
+    /// Provide the module path in which the error was emitted. The `disp_name` is
     /// usually the file name of the module.
     pub fn with_module_path(mut self, path: ModulePath, disp_name: Option<String>) -> Self {
         self.module_path = Some(path);

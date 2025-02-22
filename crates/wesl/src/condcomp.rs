@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
 use crate::{visit::Visit, Diagnostic};
-use itertools::Itertools;
 use thiserror::Error;
-use wgsl_parse::{syntax::*, Decorated};
+use wgsl_parse::{span::Spanned, syntax::*, Decorated};
 
 /// Conditional translation error.
 #[derive(Clone, Debug, Error)]
@@ -23,12 +22,26 @@ type Features = HashMap<String, bool>;
 const EXPR_TRUE: Expression = Expression::Literal(LiteralExpression::Bool(true));
 const EXPR_FALSE: Expression = Expression::Literal(LiteralExpression::Bool(false));
 
-pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, CondCompError> {
+pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E> {
+    fn eval_rec(expr: &ExpressionNode, features: &Features) -> Result<Expression, E> {
+        eval_attr(expr, features)
+            .map_err(|e| Diagnostic::from(e).with_span(expr.span().clone()).into())
+    }
+
     match expr {
         Expression::Literal(LiteralExpression::Bool(_)) => Ok(expr.clone()),
-        Expression::Parenthesized(paren) => eval_attr(&paren.expression, features),
+        Expression::Parenthesized(paren) => {
+            let expr = eval_rec(&paren.expression, features)?;
+            Ok(match expr {
+                Expression::Binary(_) => ParenthesizedExpression {
+                    expression: Spanned::new(expr, paren.expression.span().clone()),
+                }
+                .into(),
+                _ => expr,
+            })
+        }
         Expression::Unary(unary) => {
-            let operand = eval_attr(&unary.operand, features)?;
+            let operand = eval_rec(&unary.operand, features)?;
             match &unary.operator {
                 UnaryOperator::LogicalNegation => {
                     let expr = if operand == EXPR_TRUE {
@@ -40,12 +53,12 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, C
                     };
                     Ok(expr)
                 }
-                _ => Err(CondCompError::InvalidExpression(expr.clone())),
+                _ => Err(CondCompError::InvalidExpression(expr.clone()).into()),
             }
         }
         Expression::Binary(binary) => {
-            let left = eval_attr(&binary.left, features)?;
-            let right = eval_attr(&binary.right, features)?;
+            let left = eval_rec(&binary.left, features)?;
+            let right = eval_rec(&binary.right, features)?;
             match &binary.operator {
                 BinaryOperator::ShortCircuitOr => {
                     let expr = if left == EXPR_TRUE || right == EXPR_TRUE {
@@ -57,7 +70,12 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, C
                     } else if right == EXPR_FALSE {
                         left
                     } else {
-                        expr.clone()
+                        BinaryExpression {
+                            operator: binary.operator,
+                            left: Spanned::new(left, binary.left.span().clone()),
+                            right: Spanned::new(right, binary.right.span().clone()),
+                        }
+                        .into()
                     };
                     Ok(expr)
                 }
@@ -71,16 +89,21 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, C
                     } else if right == EXPR_TRUE {
                         left
                     } else {
-                        expr.clone()
+                        BinaryExpression {
+                            operator: binary.operator,
+                            left: Spanned::new(left, binary.left.span().clone()),
+                            right: Spanned::new(right, binary.right.span().clone()),
+                        }
+                        .into()
                     };
                     Ok(expr)
                 }
-                _ => Err(CondCompError::InvalidExpression(expr.clone())),
+                _ => Err(CondCompError::InvalidExpression(expr.clone()).into()),
             }
         }
         Expression::TypeOrIdentifier(ty) => {
             if ty.template_args.is_some() {
-                return Err(CondCompError::InvalidFeatureFlag(ty.to_string()));
+                return Err(CondCompError::InvalidFeatureFlag(ty.to_string()).into());
             }
             let feat = features.get(&*ty.ident.name());
             let expr = match feat {
@@ -90,14 +113,11 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, C
             };
             Ok(expr)
         }
-        _ => Err(CondCompError::InvalidExpression(expr.clone())),
+        _ => Err(CondCompError::InvalidExpression(expr.clone()).into()),
     }
 }
 
-fn eval_if_attr(
-    opt_node: &mut Option<impl Decorated>,
-    features: &Features,
-) -> Result<(), CondCompError> {
+fn eval_if_attr(opt_node: &mut Option<impl Decorated>, features: &Features) -> Result<(), E> {
     if let Some(node) = opt_node {
         let if_attr = node
             .attributes_mut()
@@ -121,46 +141,30 @@ fn eval_if_attr(
 }
 
 fn eval_if_attributes(nodes: &mut Vec<impl Decorated>, features: &Features) -> Result<(), E> {
-    let retains = nodes
-        .iter()
-        .map(|node| {
-            let if_attr = node.attributes().iter().find_map(|attr| match attr {
+    for node in nodes.iter_mut() {
+        for attr in node
+            .attributes_mut()
+            .iter_mut()
+            .filter_map(|attr| match attr {
                 Attribute::If(expr) => Some(expr),
                 _ => None,
-            });
+            })
+        {
+            **attr = eval_attr(attr, features)?;
+        }
+    }
 
-            if let Some(expr) = if_attr {
-                eval_attr(expr, features)
-                    .map_err(|e| Diagnostic::from(e).with_span(expr.span().clone()))
-            } else {
-                Ok(EXPR_TRUE.clone())
-            }
-        })
-        .collect::<Result<Vec<Expression>, Diagnostic<E>>>()?;
-
-    let retains = nodes
-        .iter_mut()
-        .zip(retains)
-        .map(|(node, expr)| {
-            let if_attr = node
-                .attributes_mut()
-                .iter_mut()
-                .find_map(|attr| match attr {
-                    Attribute::If(expr) => Some(expr),
-                    _ => None,
-                });
-            if let Some(if_attr) = if_attr {
-                let keep = !(expr == EXPR_FALSE);
-                **if_attr = expr;
-                keep
-            } else {
-                true
-            }
-        })
-        .collect_vec();
-
-    let mut it = retains.iter();
-    nodes.retain(|_| *it.next().unwrap());
+    nodes.retain(|node| {
+        let mut it = node
+            .attributes()
+            .iter()
+            .filter_map(|attr| match attr {
+                Attribute::If(expr) => Some(expr),
+                _ => None,
+            })
+            .peekable();
+        it.peek().is_none() || it.any(|expr| **expr != EXPR_FALSE)
+    });
     Ok(())
 }
 
