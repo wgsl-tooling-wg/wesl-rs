@@ -23,7 +23,7 @@ pub enum EvalError {
     UnknownType(String),
     #[error("unknown struct `{0}`")]
     UnknownStruct(String),
-    #[error("declaration `{0}` is not accessible at {} time", match .1 {
+    #[error("declaration `{0}` is not accessible at {stage} time", stage = match .1 {
         EvalStage::Const => "shader-module-creation",
         EvalStage::Override => "pipeline-creation",
         EvalStage::Exec => "shader-execution"
@@ -95,7 +95,7 @@ pub enum EvalError {
     UnknownFunction(String),
     #[error("declaration `{0}` is not callable")]
     NotCallable(String),
-    #[error("invalid function call signature: `{0}({})`", (.1).iter().format(", "))]
+    #[error("invalid function call signature: `{0}({args})`", args = (.1).iter().format(", "))]
     Signature(TypeExpression, Vec<Type>),
     #[error("{0}")]
     Builtin(&'static str),

@@ -9,7 +9,7 @@ repository.workspace = true
 license.workspace = true
 
 [dependencies]
-itertools = "0.13.0"
+itertools = "0.14.0"
 proc-macro2 = "1.0.86"
 quote = "1.0.37"
 syn = "2.0.77"

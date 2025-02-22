@@ -11,15 +11,15 @@ license.workspace = true
 [dependencies]
 annotate-snippets = "0.11.4"
 bytes = "1.8.0"
-derive_more = { version = "1.0.0", features = ["as_ref", "deref", "deref_mut", "display", "from", "unwrap"] }
+derive_more = { version = "2.0.1", features = ["as_ref", "deref", "deref_mut", "display", "from", "unwrap"] }
 half = { version = "2.4.1", features = ["num-traits"] }
-itertools = "0.13.0"
+itertools = "0.14.0"
 num-traits = "0.2.19"
 serde = { version = "1.0.215", features = ["derive"], optional = true }
-sourcemap = "9.0.0"
-thiserror = "1.0.63"
+thiserror = "2.0.11"
 wgsl-parse = { workspace = true, features = ["wesl"] }
 wesl-macros = { workspace = true }
+# deps for feature 'package'
 proc-macro2 = { version = "1.0.93", optional = true }
 quote = { version = "1.0.38", optional = true }
 

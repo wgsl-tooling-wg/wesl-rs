@@ -27,8 +27,8 @@ license.workspace = true
 clap = { version = "4.5.11", features = ["derive"] }
 wgsl-parse = { workspace = true }
 wesl = { workspace = true, features = ["eval", "generics", "package"] }
-thiserror = "1.0.63"
-naga = { version = "23.0.0", optional = true, features = ["wgsl-in"] }
+thiserror = "2.0.11"
+naga = { version = "24.0.0", optional = true, features = ["wgsl-in"] }
 
 [[bin]]
 name = "wesl"
