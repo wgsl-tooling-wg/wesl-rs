@@ -182,9 +182,6 @@ impl Lower for Attributes {
                 | Attribute::Size(expr) => {
                     expr.lower(ctx)?;
                 }
-                Attribute::If(expr) => {
-                    expr.lower(ctx)?;
-                }
                 Attribute::WorkgroupSize(attr) => {
                     attr.x.lower(ctx)?;
                     attr.y.lower(ctx)?;
