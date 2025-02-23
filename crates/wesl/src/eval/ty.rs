@@ -297,7 +297,7 @@ pub enum Type {
     F16,
     Struct(String),
     // TODO: swap these two members
-    Array(Option<usize>, Box<Type>),
+    Array(Box<Type>, Option<usize>),
     Vec(u8, Box<Type>),
     Mat(u8, u8, Box<Type>),
     Atomic(Box<Type>),
@@ -344,7 +344,7 @@ impl Type {
         match self {
             Type::AbstractInt => true,
             Type::AbstractFloat => true,
-            Type::Array(_, ty) | Type::Vec(_, ty) | Type::Mat(_, _, ty) => ty.is_abstract(),
+            Type::Array(ty, _) | Type::Vec(_, ty) | Type::Mat(_, _, ty) => ty.is_abstract(),
             _ => false,
         }
     }
@@ -399,7 +399,7 @@ impl Ty for Type {
             Type::F32 => self.clone(),
             Type::F16 => self.clone(),
             Type::Struct(_) => self.clone(),
-            Type::Array(_, ty) => ty.ty(),
+            Type::Array(ty, _) => ty.ty(),
             Type::Vec(_, ty) => ty.ty(),
             Type::Mat(_, _, ty) => ty.ty(),
             Type::Atomic(ty) => ty.ty(),
@@ -476,8 +476,8 @@ impl Ty for StructInstance {
 impl Ty for ArrayInstance {
     fn ty(&self) -> Type {
         Type::Array(
-            (!self.runtime_sized).then_some(self.n()),
             Box::new(self.inner_ty().clone()),
+            (!self.runtime_sized).then_some(self.n()),
         )
     }
     fn inner_ty(&self) -> Type {
@@ -708,7 +708,7 @@ impl EvalTy for IndexingExpression {
         let index_ty = self.index.eval_ty(ctx)?;
         if index_ty.is_integer() {
             match self.base.eval_ty(ctx)? {
-                Type::Array(_, ty) => Ok(*ty),
+                Type::Array(ty, _) => Ok(*ty),
                 Type::Vec(_, ty) => Ok(*ty),
                 Type::Mat(_, r, ty) => Ok(Type::Vec(r, ty)),
                 ty => Err(E::NotIndexable(ty)),

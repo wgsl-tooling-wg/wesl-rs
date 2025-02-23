@@ -118,7 +118,7 @@ impl ToExpr for Type {
                     .expect("struct declaration not found");
                 Ok(TypeExpression::new(decl.ident.clone()))
             }
-            Type::Array(Some(n), inner_ty) => {
+            Type::Array(inner_ty, Some(n)) => {
                 let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![
                     TemplateArg {
@@ -131,7 +131,7 @@ impl ToExpr for Type {
                 ]);
                 Ok(ty)
             }
-            Type::Array(None, inner_ty) => {
+            Type::Array(inner_ty, None) => {
                 let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![TemplateArg {
                     expression: inner_ty.to_expr(ctx)?.into(),

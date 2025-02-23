@@ -307,7 +307,7 @@ impl Diagnostic<Error> {
         ) {
             match mangled {
                 crate::eval::Type::Struct(name) => unmangle_name(name, sourcemap, mangler),
-                crate::eval::Type::Array(_, ty) => unmangle_ty(&mut *ty, sourcemap, mangler),
+                crate::eval::Type::Array(ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
                 crate::eval::Type::Atomic(ty) => unmangle_ty(&mut *ty, sourcemap, mangler),
                 crate::eval::Type::Ptr(_, ty) => unmangle_ty(&mut *ty, sourcemap, mangler),
                 _ => (),

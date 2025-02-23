@@ -39,9 +39,9 @@ impl Convert for Type {
     }
     fn convert_inner_to(&self, ty: &Type) -> Option<Self> {
         match self {
-            Type::Array(n, inner) => inner
+            Type::Array(inner, n) => inner
                 .convert_to(ty)
-                .map(|inner| Type::Array(*n, inner.into())),
+                .map(|inner| Type::Array(inner.into(), *n)),
             Type::Vec(n, inner) => inner
                 .convert_to(ty)
                 .map(|inner| Type::Vec(*n, inner.into())),
@@ -66,7 +66,7 @@ impl Type {
         match self {
             Self::AbstractInt => Type::I32,
             Self::AbstractFloat => Type::F32,
-            Self::Array(n, ty) => Type::Array(*n, ty.concretize().into()),
+            Self::Array(ty, n) => Type::Array(ty.concretize().into(), *n),
             Self::Vec(n, ty) => Type::Vec(*n, ty.concretize().into()),
             Self::Mat(c, r, ty) => Type::Mat(*c, *r, ty.concretize().into()),
             _ => self.clone(),
@@ -117,13 +117,13 @@ impl Convert for LiteralInstance {
 
 impl Convert for ArrayInstance {
     fn convert_to(&self, ty: &Type) -> Option<Self> {
-        if let Type::Array(Some(n), c_ty) = ty {
+        if let Type::Array(c_ty, Some(n)) = ty {
             if *n == self.n() {
                 self.convert_inner_to(c_ty)
             } else {
                 None
             }
-        } else if let Type::Array(None, c_ty) = ty {
+        } else if let Type::Array(c_ty, None) = ty {
             self.convert_inner_to(c_ty)
         } else {
             None
@@ -280,7 +280,7 @@ pub fn conversion_rank(ty1: &Type, ty2: &Type) -> Option<u32> {
                 None
             }
         }
-        (Type::Array(n1, ty1), Type::Array(n2, ty2)) if n1 == n2 => conversion_rank(ty1, ty2),
+        (Type::Array(ty1, n1), Type::Array(ty2, n2)) if n1 == n2 => conversion_rank(ty1, ty2),
         (Type::Vec(n1, ty1), Type::Vec(n2, ty2)) if n1 == n2 => conversion_rank(ty1, ty2),
         (Type::Mat(c1, r1, ty1), Type::Mat(c2, r2, ty2)) if c1 == c2 && r1 == r2 => {
             conversion_rank(ty1, ty2)

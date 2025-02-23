@@ -299,7 +299,7 @@ fn array_ctor_ty_t(tplt: ArrayTemplate, args: &[Type]) -> Result<Type, E> {
 
 fn array_ctor_ty(args: &[Type]) -> Result<Type, E> {
     let ty = convert_all_ty(args).ok_or(E::Builtin("array elements are incompatible"))?;
-    Ok(Type::Array(Some(args.len()), Box::new(ty.clone())))
+    Ok(Type::Array(Box::new(ty.clone()), Some(args.len())))
 }
 
 fn mat_ctor_ty_t(c: u8, r: u8, tplt: MatTemplate, args: &[Type]) -> Result<Type, E> {
@@ -1100,8 +1100,8 @@ impl Instance {
             Type::F32 => Ok(LiteralInstance::F32(0.0).into()),
             Type::F16 => Ok(LiteralInstance::F16(f16::zero()).into()),
             Type::Struct(name) => StructInstance::zero_value(name, ctx).map(Into::into),
-            Type::Array(Some(n), a_ty) => ArrayInstance::zero_value(*n, a_ty, ctx).map(Into::into),
-            Type::Array(None, _) => Err(E::NotConstructible(ty.clone())),
+            Type::Array(a_ty, Some(n)) => ArrayInstance::zero_value(*n, a_ty, ctx).map(Into::into),
+            Type::Array(_, None) => Err(E::NotConstructible(ty.clone())),
             Type::Vec(n, v_ty) => VecInstance::zero_value(*n, v_ty).map(Into::into),
             Type::Mat(c, r, m_ty) => MatInstance::zero_value(*c, *r, m_ty).map(Into::into),
             Type::Atomic(_) | Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => {
@@ -1213,7 +1213,7 @@ impl ArrayTemplate {
         }
     }
     pub fn ty(&self) -> Type {
-        Type::Array(self.n, Box::new(self.ty.clone()))
+        Type::Array(Box::new(self.ty.clone()), self.n)
     }
     pub fn inner_ty(&self) -> Type {
         self.ty.clone()

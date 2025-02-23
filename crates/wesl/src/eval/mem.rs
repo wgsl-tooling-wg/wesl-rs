@@ -64,7 +64,7 @@ impl Instance {
                         let ty = ty_eval_ty(&m.ty, ctx).ok()?;
                         // handle the specific case of runtime-sized arrays.
                         // they can only be the last member of a struct.
-                        let inst = if let Type::Array(None, _) = ty {
+                        let inst = if let Type::Array(_, None) = ty {
                             let buf = buf.get(offset as usize..)?;
                             Instance::from_buffer(buf, &ty, ctx)?
                         } else {
@@ -89,7 +89,7 @@ impl Instance {
                     .collect::<Option<Vec<_>>>()?;
                 Some(StructInstance::new(s.clone(), members).into())
             }
-            Type::Array(Some(n), ty) => {
+            Type::Array(ty, Some(n)) => {
                 let mut offset = 0;
                 let size = ty.size_of(ctx)?;
                 let stride = round_up(ty.align_of(ctx)?, size);
@@ -102,7 +102,7 @@ impl Instance {
                 }
                 Some(ArrayInstance::new(comps, false).into())
             }
-            Type::Array(None, ty) => {
+            Type::Array(ty, None) => {
                 let mut offset = 0;
                 let size = ty.size_of(ctx)?;
                 let stride = round_up(ty.align_of(ctx)?, size);
@@ -298,11 +298,11 @@ impl Type {
                     })?;
                 Some(round_up(self.align_of(ctx)?, past_last_mem))
             }
-            Type::Array(Some(n), ty) => {
+            Type::Array(ty, Some(n)) => {
                 let (size, align) = (ty.size_of(ctx)?, ty.align_of(ctx)?);
                 Some(*n as u32 * round_up(align, size))
             }
-            Type::Array(None, _) => None,
+            Type::Array(_, None) => None,
             Type::Vec(n, ty) => {
                 let size = ty.size_of(ctx)?;
                 Some(*n as u32 * size)
@@ -318,7 +318,7 @@ impl Type {
 
     pub fn min_size_of(&self, ctx: &mut Context) -> Option<u32> {
         match self {
-            Type::Array(None, ty) => Some(round_up(ty.align_of(ctx)?, ty.size_of(ctx)?)),
+            Type::Array(ty, None) => Some(round_up(ty.align_of(ctx)?, ty.size_of(ctx)?)),
             _ => self.size_of(ctx),
         }
     }
@@ -345,7 +345,7 @@ impl Type {
                     })
                     .try_fold(0, |a, b| Some(a.max(b?)))
             }
-            Type::Array(_, ty) => ty.align_of(ctx),
+            Type::Array(ty, _) => ty.align_of(ctx),
             Type::Vec(n, ty) => {
                 if *n == 3 {
                     match **ty {
