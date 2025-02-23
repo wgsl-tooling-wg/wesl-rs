@@ -289,13 +289,14 @@ impl Router {
         let path = path.into();
         let resolver: Box<dyn Resolver> = Box::new(resolver);
         if path.is_empty() {
+            // when the path is empty, the resolver would match any path anyways.
+            // (except external packages)
             self.fallback = Some((path, resolver));
         } else {
             self.mount_points.push((path, resolver));
         }
     }
 
-    // TODO: remove this? it's broken?
     /// Mount a fallback resolver that is used when no other prefix match.
     pub fn mount_fallback_resolver(&mut self, resolver: impl Resolver + 'static) {
         self.mount_resolver("", resolver);
@@ -307,10 +308,7 @@ impl Router {
             .iter()
             .filter(|(prefix, _)| path.starts_with(prefix))
             .max_by_key(|(prefix, _)| prefix.components.len())
-            .or(self
-                .fallback
-                .as_ref()
-                .take_if(|(prefix, _)| path.starts_with(prefix)))
+            .or(self.fallback.as_ref())
             .ok_or_else(|| E::ModuleNotFound(path.clone(), "no mount point".to_string()))?;
 
         let components = path
