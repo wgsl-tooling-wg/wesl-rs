@@ -132,6 +132,16 @@ impl ModulePath {
     }
 }
 
+impl Default for ModulePath {
+    /// The path that is represented as ``, i.e. a package import with no components.
+    fn default() -> Self {
+        Self {
+            origin: PathOrigin::Package,
+            components: Vec::new(),
+        }
+    }
+}
+
 impl<T: AsRef<std::path::Path>> From<T> for ModulePath {
     fn from(value: T) -> Self {
         ModulePath::from_path(value.as_ref())

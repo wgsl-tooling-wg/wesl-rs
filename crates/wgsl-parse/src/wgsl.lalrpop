@@ -1004,8 +1004,8 @@ pub ImportStatement: ImportStatement = {
 
 #[cfg(all(feature = "imports", feature = "attributes"))]
 pub ImportStatement: ImportStatement = {
-    <attributes: Attribute*> "import" <path: ModulePath> <content: ImportContent> ";" => ImportStatement {
-        attributes, path, content
+    <attributes: Attribute*> "import" <path: ModulePath?> <content: ImportContent> ";" => ImportStatement {
+        attributes, path: path.unwrap_or_default(), content
     }
 };
 
