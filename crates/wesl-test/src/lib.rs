@@ -11,9 +11,8 @@ use std::{
 use regex::Regex;
 use serde::Deserialize;
 use wesl::{
-    syntax::ModulePath,
-    syntax::{Expression, GlobalDeclaration, Statement, TranslationUnit},
-    CompileOptions, NoMangler, VirtualResolver,
+    syntax::{Expression, GlobalDeclaration, ModulePath, Statement, TranslationUnit},
+    CompileOptions, EscapeMangler, VirtualResolver,
 };
 
 #[datatest::files("webgpu-samples", {
@@ -193,8 +192,11 @@ struct WgslTestSrc {
     wesl_src: HashMap<String, String>,
     #[serde(default)]
     notes: Option<String>,
+    #[allow(unused)]
     #[serde(default)]
     expected_wgsl: Option<String>,
+    #[serde(default)]
+    underscore_wgsl: Option<String>,
 }
 #[derive(Deserialize)]
 struct ParsingTest {
@@ -267,19 +269,19 @@ fn sort_decls(wgsl: &mut TranslationUnit) {
             (Decl::Declaration(_), Decl::ConstAssert(_)) => Ordering::Less,
             (Decl::Declaration(_), Decl::Function(_)) => Ordering::Less,
 
-            (Decl::TypeAlias(_), Decl::Void) => Ordering::Greater,
-            (Decl::TypeAlias(_), Decl::Declaration(_)) => Ordering::Greater,
-            (Decl::TypeAlias(d1), Decl::Struct(d2)) => d1.ident.name().cmp(&d2.ident.name()),
-            (Decl::TypeAlias(_), Decl::TypeAlias(_)) => Ordering::Less,
-            (Decl::TypeAlias(_), Decl::ConstAssert(_)) => Ordering::Less,
-            (Decl::TypeAlias(_), Decl::Function(_)) => Ordering::Less,
-
             (Decl::Struct(_), Decl::Void) => Ordering::Greater,
             (Decl::Struct(_), Decl::Declaration(_)) => Ordering::Greater,
-            (Decl::Struct(_), Decl::Struct(_)) => Ordering::Greater,
-            (Decl::Struct(d1), Decl::TypeAlias(d2)) => d1.ident.name().cmp(&d2.ident.name()),
+            (Decl::Struct(d1), Decl::Struct(d2)) => d1.ident.name().cmp(&d2.ident.name()),
+            (Decl::Struct(_), Decl::TypeAlias(_)) => Ordering::Less,
             (Decl::Struct(_), Decl::ConstAssert(_)) => Ordering::Less,
             (Decl::Struct(_), Decl::Function(_)) => Ordering::Less,
+
+            (Decl::TypeAlias(_), Decl::Void) => Ordering::Greater,
+            (Decl::TypeAlias(_), Decl::Declaration(_)) => Ordering::Greater,
+            (Decl::TypeAlias(_), Decl::Struct(_)) => Ordering::Greater,
+            (Decl::TypeAlias(d1), Decl::TypeAlias(d2)) => d1.ident.name().cmp(&d2.ident.name()),
+            (Decl::TypeAlias(_), Decl::ConstAssert(_)) => Ordering::Less,
+            (Decl::TypeAlias(_), Decl::Function(_)) => Ordering::Less,
 
             (Decl::ConstAssert(_), Decl::Void) => Ordering::Greater,
             (Decl::ConstAssert(_), Decl::Declaration(_)) => Ordering::Greater,
@@ -318,11 +320,11 @@ fn wesl_testsuite_import_cases(case: WgslTestSrc) {
     let mut compile_options = CompileOptions::default();
     compile_options.strip = false;
 
-    let mut case_wgsl = wesl::compile(&root_module, &resolver, &NoMangler, &compile_options)
+    let mut case_wgsl = wesl::compile(&root_module, &resolver, &EscapeMangler, &compile_options)
         .inspect_err(|err| eprintln!("[FAIL] compile: {err}"))
         .expect("test failed");
 
-    if let Some(expect_wgsl) = case.expected_wgsl {
+    if let Some(expect_wgsl) = case.underscore_wgsl {
         let mut expect_wgsl = wgsl_parse::parse_str(&expect_wgsl)
             .inspect_err(|err| eprintln!("[FAIL] parse `expectedWgsl`: {err}"))
             .expect("parse error");
