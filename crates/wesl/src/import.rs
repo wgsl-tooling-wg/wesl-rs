@@ -9,7 +9,7 @@ use wgsl_parse::syntax::{
     TypeExpression,
 };
 
-use crate::{builtin::BUILTIN_NAMES, visit::Visit, Mangler, ResolveError, Resolver};
+use crate::{visit::Visit, Mangler, ResolveError, Resolver};
 
 type Imports = HashMap<Ident, (ModulePath, Ident)>;
 type Modules = HashMap<ModulePath, Rc<RefCell<Module>>>;
@@ -210,10 +210,8 @@ pub fn resolve_lazy<'a>(
                         module.treated_idents.borrow_mut().insert(ty.ident.clone());
                         return resolve_decl(module, decl, resolutions, resolver);
                     }
-                } else if BUILTIN_NAMES.contains(&ty.ident.name().as_str()) {
-                    continue;
                 } else {
-                    return Err(E::MissingDecl(module.path.clone(), ty.ident.to_string()));
+                    continue;
                 };
             };
 
