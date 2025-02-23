@@ -6,14 +6,14 @@ use std::{
     cmp::Ordering,
     collections::HashMap,
     fmt::{self, Display},
-    path::PathBuf,
 };
 
 use regex::Regex;
 use serde::Deserialize;
 use wesl::{
+    syntax::ModulePath,
     syntax::{Expression, GlobalDeclaration, Statement, TranslationUnit},
-    CompileOptions, ModulePath, NoMangler, VirtualResolver,
+    CompileOptions, NoMangler, VirtualResolver,
 };
 
 #[datatest::files("webgpu-samples", {
@@ -21,7 +21,7 @@ use wesl::{
 })]
 #[test]
 fn webgpu_samples(input: &str) {
-    let _wgsl = wgsl_parse::Parser::parse_str(&input)
+    let _wgsl = wgsl_parse::parse_str(&input)
         .inspect_err(|err| eprintln!("[FAIL] {err}"))
         .expect("parse error");
 }
@@ -226,12 +226,12 @@ impl fmt::Display for ParsingTest {
     }
 }
 
-#[datatest::data("wesl-testsuite/importSyntaxCases.json")]
+#[datatest::data("wesl-testsuite/src/test-cases-json/importSyntaxCases.json")]
 fn wesl_testsuite_import_syntax_cases(case: ParsingTest) {
     let expects = if case.fails { "Fail" } else { "Pass" };
     println!("case `{}`: expect {expects}", normalize_wgsl(&case.src));
 
-    let parse = wgsl_parse::Parser::parse_str(&case.src);
+    let parse = wgsl_parse::parse_str(&case.src);
     if case.fails && parse.is_ok() {
         println!("[FAIL] parse success but expected failure");
         panic!("test failed");
@@ -297,7 +297,7 @@ fn sort_decls(wgsl: &mut TranslationUnit) {
         });
 }
 
-#[datatest::data("wesl-testsuite/importCases.json")]
+#[datatest::data("wesl-testsuite/src/test-cases-json/importCases.json")]
 fn wesl_testsuite_import_cases(case: WgslTestSrc) {
     println!(
         "case: `{}`{}",
@@ -314,7 +314,7 @@ fn wesl_testsuite_import_cases(case: WgslTestSrc) {
         resolver.add_module(path, file.into());
     }
 
-    let root_module = ModulePath::new(PathBuf::from("main"));
+    let root_module = ModulePath::from_path("/main");
     let mut compile_options = CompileOptions::default();
     compile_options.strip = false;
 
@@ -323,7 +323,7 @@ fn wesl_testsuite_import_cases(case: WgslTestSrc) {
         .expect("test failed");
 
     if let Some(expect_wgsl) = case.expected_wgsl {
-        let mut expect_wgsl = wgsl_parse::Parser::parse_str(&expect_wgsl)
+        let mut expect_wgsl = wgsl_parse::parse_str(&expect_wgsl)
             .inspect_err(|err| eprintln!("[FAIL] parse `expectedWgsl`: {err}"))
             .expect("parse error");
         sort_decls(&mut case_wgsl);
