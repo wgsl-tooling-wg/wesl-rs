@@ -24,7 +24,33 @@ fn webgpu_samples(input: &str) {
     let root = ModulePath::from_path("/main");
     resolver.add_module(root.clone(), input.into());
     let mut options = CompileOptions::default();
-    options.strip = false;
+    options.imports = true;
+    options.condcomp = true;
+    options.generics = false;
+    options.strip = true;
+    options.lower = true;
+    options.validate = true;
+    wesl::compile(&root, &resolver, &NoMangler, &options)
+        .inspect_err(|err| eprintln!("[FAIL] {err}"))
+        .expect("test failed");
+}
+
+#[datatest::files("unity_web_research", {
+  // input in r"webgpu/wgsl/boat_attack/.*\.wgsl$",
+  input in r"webgpu/wgsl/boat_attack/unity_webgpu_(000001AC1A5BA040|0000026E572CD040)\.[fv]s\.wgsl$",
+})]
+#[test]
+fn unity_web_research(input: &str) {
+    let mut resolver = VirtualResolver::new();
+    let root = ModulePath::from_path("/main");
+    resolver.add_module(root.clone(), input.into());
+    let mut options = CompileOptions::default();
+    options.imports = true;
+    options.condcomp = true;
+    options.generics = false;
+    options.strip = true;
+    options.lower = true;
+    options.validate = true;
     wesl::compile(&root, &resolver, &NoMangler, &options)
         .inspect_err(|err| eprintln!("[FAIL] {err}"))
         .expect("test failed");
