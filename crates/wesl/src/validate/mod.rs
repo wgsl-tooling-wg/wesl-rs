@@ -194,10 +194,17 @@ fn check_cycles(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     Ok(())
 }
 
-/// Validate a *resolved* WESL module. Must be called on module resolutions.
-/// Resolved: has no imports, no qualified idents and no conditional translation.
-/// Used idents must have use_count > 1.
-pub(crate) fn validate_wesl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
+/// Validate an intermediate WESL module.
+///
+/// This function only checks that a WESL module is valid on its own, without looking at
+/// external modules (imports).
+///
+/// It currently does not validate a lot. It checks for:
+/// * Defined declarations: all identifiers refer to a user declaration, import or
+///   built-in name.
+/// * Duplicate declarations: declarations in the same scope cannot have the same name.
+/// * Cyclic declarations: no cycles are allowed in declarations.
+pub fn validate_wesl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     check_defined_symbols(wesl)?;
     check_duplicate_decl(wesl)?;
     check_cycles(wesl)?;
@@ -205,10 +212,17 @@ pub(crate) fn validate_wesl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Err
 }
 
 /// Validate the final output (valid WGSL).
+///
+/// It currently does not validate a lot. It checks for:
+/// * Defined declarations: all identifiers refer to a user declaration or built-in name.
+/// * Duplicate declarations: declarations in the same scope cannot have the same name.
+/// * Cyclic declarations: no cycles are allowed in declarations.
+/// * Function calls: call expressions must refer to a function or a type constructor.
+///   Check the number of arguments but not their type.
 pub fn validate_wgsl(wgsl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     check_defined_symbols(wgsl)?;
     check_duplicate_decl(wgsl)?;
-    check_function_calls(wgsl)?;
     check_cycles(wgsl)?;
+    check_function_calls(wgsl)?;
     Ok(())
 }

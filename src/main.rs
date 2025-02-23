@@ -340,8 +340,11 @@ enum CliError {
     #[error("{0}")]
     WeslDiagnostic(#[from] wesl::Diagnostic<wesl::Error>),
     #[cfg(feature = "naga")]
-    #[error("naga error: {}", .0.emit_to_string(.1))]
-    Naga(naga::front::wgsl::ParseError, String),
+    #[error("naga parse error: {}", .0.emit_to_string(.1))]
+    NagaParse(naga::front::wgsl::ParseError, String),
+    #[cfg(feature = "naga")]
+    #[error("naga validation error: {}", .0.emit_to_string(.1))]
+    NagaValid(naga::WithSpan<naga::valid::ValidationError>, String),
 }
 
 enum FileOrSource {
@@ -486,6 +489,20 @@ fn file_or_source(path: Option<PathBuf>) -> Option<FileOrSource> {
     })
 }
 
+#[cfg(feature = "naga")]
+fn naga_validate(source: &str) -> Result<(), CliError> {
+    let module = naga::front::wgsl::parse_str(source)
+        .map_err(|e| CliError::NagaParse(e, source.to_string()))?;
+    let mut validator = naga::valid::Validator::new(
+        naga::valid::ValidationFlags::all(),
+        naga::valid::Capabilities::all(),
+    );
+    validator
+        .validate(&module)
+        .map_err(|e| CliError::NagaValid(e, source.to_string()))?;
+    Ok(())
+}
+
 fn run(cli: Cli) -> Result<(), CliError> {
     match cli.command {
         Command::Check(args) => {
@@ -501,26 +518,25 @@ fn run(cli: Cli) -> Result<(), CliError> {
 
             match &args.kind {
                 CheckKind::Wgsl => {
+                    // recognize is a spec-compilant parser, it does not recognize WESL
+                    // extensions.
+                    wgsl_parse::recognize_str(&source)
+                        .map_err(|e| Diagnostic::from(e).with_source(source.clone()))?;
+                    let mut wgsl = wgsl_parse::parse_str(&source)
+                        .map_err(|e| Diagnostic::from(e).with_source(source.clone()))?;
+                    wgsl.retarget_idents();
+                    wesl::validate_wgsl(&wgsl)?;
+
                     #[cfg(feature = "naga")]
                     if args.naga {
-                        naga::front::wgsl::parse_str(&source)
-                            .map_err(|e| CliError::Naga(e, source.clone()))?;
+                        naga_validate(&source)?;
                     }
-                    wgsl_parse::recognize_str(&source)
-                        .map_err(|e| Diagnostic::from(e).with_source(source))?;
                 }
                 CheckKind::Wesl => {
                     let mut wesl = TranslationUnit::from_str(&source)
                         .map_err(|e| Diagnostic::from(e).with_source(source))?;
                     wesl.retarget_idents();
-                    todo!("validating WESL needs more work")
-                    // wesl::validate_wesl(&wesl)?;
-                    // let wgsl_source = wesl.to_string();
-                    // #[cfg(feature = "naga")]
-                    // if args.naga {
-                    //     naga::front::wgsl::parse_str(&wgsl_source)
-                    //         .map_err(|e| CliError::Naga(e, wgsl_source))?;
-                    // }
+                    wesl::validate_wesl(&wesl)?;
                 }
             }
             println!("OK");
@@ -536,8 +552,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
                 })?;
             #[cfg(feature = "naga")]
             if !args.options.no_naga {
-                let source = comp.to_string();
-                naga::front::wgsl::parse_str(&source).map_err(|e| CliError::Naga(e, source))?;
+                naga_validate(&comp.to_string())?;
             }
             println!("{}", comp);
         }

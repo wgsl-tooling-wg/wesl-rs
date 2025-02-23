@@ -8,8 +8,7 @@ use wesl_macros::query_mut;
 use wgsl_parse::{span::Spanned, syntax::*};
 
 use super::{
-    to_expr::ToExpr, with_scope, Convert, EvalStage, EvalTy, Instance, SyntaxUtil, EXPR_FALSE,
-    EXPR_TRUE,
+    to_expr::ToExpr, with_scope, EvalStage, EvalTy, Instance, SyntaxUtil, EXPR_FALSE, EXPR_TRUE,
 };
 
 type E = EvalError;
