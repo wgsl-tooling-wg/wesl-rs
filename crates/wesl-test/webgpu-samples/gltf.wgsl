@@ -1,3 +1,14 @@
+// VertexInput is not part of webgpu-samples, was added here for WESL
+// the VertexInput struct is built here:
+// https://github.com/webgpu/webgpu-samples/blob/main/sample/skinnedMesh/glbUtils.ts#L338
+struct VertexInput {
+  @location(0) position: vec3f,
+  @location(1) normal: vec3f,
+  @location(2) texcoord: vec2f,
+  @location(3) joints: vec4u,
+  @location(4) weights: vec4f,
+}
+
 // Whale.glb Vertex attributes
 // Read in VertexInput from attributes
 // f32x3    f32x3   f32x2       u8x4       f32x4

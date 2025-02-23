@@ -12,7 +12,7 @@ use regex::Regex;
 use serde::Deserialize;
 use wesl::{
     syntax::{Expression, GlobalDeclaration, ModulePath, Statement, TranslationUnit},
-    CompileOptions, EscapeMangler, VirtualResolver,
+    CompileOptions, EscapeMangler, NoMangler, VirtualResolver,
 };
 
 #[datatest::files("webgpu-samples", {
@@ -20,9 +20,14 @@ use wesl::{
 })]
 #[test]
 fn webgpu_samples(input: &str) {
-    let _wgsl = wgsl_parse::parse_str(&input)
+    let mut resolver = VirtualResolver::new();
+    let root = ModulePath::from_path("/main");
+    resolver.add_module(root.clone(), input.into());
+    let mut options = CompileOptions::default();
+    options.strip = false;
+    wesl::compile(&root, &resolver, &NoMangler, &options)
         .inspect_err(|err| eprintln!("[FAIL] {err}"))
-        .expect("parse error");
+        .expect("test failed");
 }
 
 #[derive(PartialEq, Deserialize)]
