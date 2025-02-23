@@ -183,6 +183,52 @@ pub fn resolve_lazy<'a>(
         resolve_decl(module, decl, resolutions, resolver)
     }
 
+    fn resolve_ty(
+        module: &Module,
+        ty: &TypeExpression,
+        resolutions: &mut Resolutions,
+        resolver: &impl Resolver,
+    ) -> Result<(), E> {
+        // first, the recursive call
+        for ty in Visit::<TypeExpression>::visit(ty) {
+            resolve_ty(module, ty, resolutions, resolver)?;
+        }
+
+        let (ext_path, ext_id) = if let Some(path) = &ty.path {
+            let res = resolve_inline_path(path, &module.path, &module.imports);
+            (res, ty.ident.clone())
+        } else if let Some((path, ident)) = module.imports.get(&ty.ident) {
+            (path.clone(), ident.clone())
+        } else {
+            // points to a local decl, we stop here.
+            if let Some(n) = module.idents.get(&ty.ident) {
+                let decl = module.source.global_declarations.get(*n).unwrap();
+                if module.treated_idents.borrow().contains(&ty.ident) {
+                    return Ok(());
+                } else {
+                    module.treated_idents.borrow_mut().insert(ty.ident.clone());
+                    return resolve_decl(module, decl, resolutions, resolver);
+                }
+            } else {
+                return Ok(());
+            };
+        };
+
+        // if the import path points to a local decl, we stop here
+        if ext_path == module.path {
+            if module.idents.contains_key(&ext_id) {
+                return resolve_ident(module, &ext_id.name(), resolutions, resolver);
+            } else {
+                return Err(E::MissingDecl(ext_path, ext_id.to_string()));
+            }
+        }
+
+        // load the external module for this external ident
+        let ext_mod = load_module(&ext_path, resolutions, resolver)?;
+        resolve_ident(&ext_mod.borrow(), &ext_id.name(), resolutions, resolver)?;
+        Ok(())
+    }
+
     fn resolve_decl(
         module: &Module,
         decl: &GlobalDeclaration,
@@ -190,43 +236,7 @@ pub fn resolve_lazy<'a>(
         resolver: &impl Resolver,
     ) -> Result<(), E> {
         for ty in Visit::<TypeExpression>::visit(decl) {
-            // first, the recursive call
-            for ty in Visit::<TypeExpression>::visit(ty) {
-                resolve_ident(module, &ty.ident.name(), resolutions, resolver)?;
-            }
-
-            let (ext_path, ext_id) = if let Some(path) = &ty.path {
-                let res = resolve_inline_path(path, &module.path, &module.imports);
-                (res, ty.ident.clone())
-            } else if let Some((path, ident)) = module.imports.get(&ty.ident) {
-                (path.clone(), ident.clone())
-            } else {
-                // points to a local decl, we stop here.
-                if let Some(n) = module.idents.get(&ty.ident) {
-                    let decl = module.source.global_declarations.get(*n).unwrap();
-                    if module.treated_idents.borrow().contains(&ty.ident) {
-                        continue;
-                    } else {
-                        module.treated_idents.borrow_mut().insert(ty.ident.clone());
-                        return resolve_decl(module, decl, resolutions, resolver);
-                    }
-                } else {
-                    continue;
-                };
-            };
-
-            // if the import path points to a local decl, we stop here
-            if ext_path == module.path {
-                if module.idents.contains_key(&ext_id) {
-                    return resolve_ident(module, &ext_id.name(), resolutions, resolver);
-                } else {
-                    return Err(E::MissingDecl(ext_path, ext_id.to_string()));
-                }
-            }
-
-            // load the external module for this external ident
-            let ext_mod = load_module(&ext_path, resolutions, resolver)?;
-            resolve_ident(&ext_mod.borrow(), &ext_id.name(), resolutions, resolver)?;
+            resolve_ty(module, ty, resolutions, resolver)?;
         }
 
         Ok(())
