@@ -320,6 +320,10 @@ impl Diagnostic<Error> {
                 | ValidateError::ParamCount(name, _, _)
                 | ValidateError::NotCallable(name)
                 | ValidateError::Duplicate(name) => unmangle_name(name, sourcemap, mangler),
+                ValidateError::Cycle(name1, name2) => {
+                    unmangle_name(name1, sourcemap, mangler);
+                    unmangle_name(name2, sourcemap, mangler);
+                }
             },
             Error::ResolveError(_) => {}
             Error::ImportError(_) => {}

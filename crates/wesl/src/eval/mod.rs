@@ -30,14 +30,14 @@ use derive_more::Display;
 use std::{collections::HashMap, rc::Rc};
 use wgsl_parse::{span::Span, syntax::*};
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct ScopeInner<T> {
     local: HashMap<String, T>,
     parent: Option<Rc<ScopeInner<T>>>,
     transparent: bool,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Scope<T> {
     inner: Rc<ScopeInner<T>>,
 }

@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use wesl_macros::query;
 use wgsl_parse::syntax::{
-    Expression, ExpressionNode, GlobalDeclaration, TranslationUnit, TypeExpression,
+    Expression, ExpressionNode, GlobalDeclaration, Ident, TranslationUnit, TypeExpression,
 };
 
 use crate::builtin::{BUILTIN_FUNCTIONS, BUILTIN_NAMES};
@@ -20,6 +20,8 @@ pub enum ValidateError {
     NotCallable(String),
     #[error("duplicate declaration of `{0}`")]
     Duplicate(String),
+    #[error("Declaration of `{0}` is cyclic via `{1}`")]
+    Cycle(String, String),
 }
 
 type E = ValidateError;
@@ -146,7 +148,7 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
     Ok(())
 }
 
-fn check_no_duplicate_decl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
+fn check_duplicate_decl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     let mut unique = HashSet::new();
     for decl in &wesl.global_declarations {
         if let Some(id) = decl.ident() {
@@ -160,19 +162,53 @@ fn check_no_duplicate_decl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Erro
     Ok(())
 }
 
+fn check_cycles(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
+    fn check_decl(
+        id: &Ident,
+        decl: &GlobalDeclaration,
+        unique: &mut HashSet<Ident>,
+        wesl: &TranslationUnit,
+    ) -> Result<(), E> {
+        for ty in Visit::<TypeExpression>::visit(decl) {
+            if ty.ident == *id {
+                return Err(E::Cycle(id.to_string(), decl.ident().unwrap().to_string()));
+            } else if unique.insert(ty.ident.clone()) {
+                if let Some(decl) = wesl
+                    .global_declarations
+                    .iter()
+                    .find(|decl| decl.ident() == Some(&ty.ident))
+                {
+                    check_decl(id, decl, unique, wesl)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    for decl in &wesl.global_declarations {
+        if let Some(id) = decl.ident() {
+            let mut unique = HashSet::new();
+            check_decl(id, decl, &mut unique, wesl)
+                .map_err(|e| Diagnostic::from(e).with_declaration(id.to_string()))?;
+        }
+    }
+    Ok(())
+}
+
 /// Validate a *resolved* WESL module. Must be called on module resolutions.
 /// Resolved: has no imports, no qualified idents and no conditional translation.
 /// Used idents must have use_count > 1.
 pub(crate) fn validate_wesl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     check_defined_symbols(wesl)?;
-    check_no_duplicate_decl(wesl)?;
+    check_duplicate_decl(wesl)?;
+    check_cycles(wesl)?;
     Ok(())
 }
 
 /// Validate the final output (valid WGSL).
 pub fn validate_wgsl(wgsl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     check_defined_symbols(wgsl)?;
-    check_no_duplicate_decl(wgsl)?;
+    check_duplicate_decl(wgsl)?;
     check_function_calls(wgsl)?;
+    check_cycles(wgsl)?;
     Ok(())
 }

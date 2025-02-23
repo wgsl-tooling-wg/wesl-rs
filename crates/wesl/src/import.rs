@@ -23,8 +23,6 @@ pub enum ImportError {
     ResolveError(#[from] ResolveError),
     #[error("module `{0}` has no declaration `{1}`")]
     MissingDecl(ModulePath, String),
-    #[error("circular dependency involving `{0}`")]
-    CircularDependency(ModulePath),
 }
 
 type E = ImportError;
