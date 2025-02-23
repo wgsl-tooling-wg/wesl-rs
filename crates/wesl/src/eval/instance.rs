@@ -46,21 +46,21 @@ impl Instance {
                     let inst = a
                         .components
                         .get(*i)
-                        .ok_or_else(|| E::OutOfBounds(*i, a.ty(), a.n()))?;
+                        .ok_or(E::OutOfBounds(*i, a.ty(), a.n()))?;
                     inst.view(view)
                 }
                 Instance::Vec(v) => {
                     let inst = v
                         .components
                         .get(*i)
-                        .ok_or_else(|| E::OutOfBounds(*i, v.ty(), v.n()))?;
+                        .ok_or(E::OutOfBounds(*i, v.ty(), v.n()))?;
                     inst.view(view)
                 }
                 Instance::Mat(m) => {
                     let inst = m
                         .components
                         .get(*i)
-                        .ok_or_else(|| E::OutOfBounds(*i, m.ty(), m.c()))?;
+                        .ok_or(E::OutOfBounds(*i, m.ty(), m.c()))?;
                     inst.view(view)
                 }
                 _ => Err(E::NotIndexable(self.ty())),
@@ -81,26 +81,17 @@ impl Instance {
             MemView::Index(i, view) => match self {
                 Instance::Array(a) => {
                     let n = a.n();
-                    let inst = a
-                        .components
-                        .get_mut(*i)
-                        .ok_or_else(|| E::OutOfBounds(*i, ty, n))?;
+                    let inst = a.components.get_mut(*i).ok_or(E::OutOfBounds(*i, ty, n))?;
                     inst.view_mut(view)
                 }
                 Instance::Vec(v) => {
                     let n = v.n();
-                    let inst = v
-                        .components
-                        .get_mut(*i)
-                        .ok_or_else(|| E::OutOfBounds(*i, ty, n))?;
+                    let inst = v.components.get_mut(*i).ok_or(E::OutOfBounds(*i, ty, n))?;
                     inst.view_mut(view)
                 }
                 Instance::Mat(m) => {
                     let c = m.c();
-                    let inst = m
-                        .components
-                        .get_mut(*i)
-                        .ok_or_else(|| E::OutOfBounds(*i, ty, c))?;
+                    let inst = m.components.get_mut(*i).ok_or(E::OutOfBounds(*i, ty, c))?;
                     inst.view_mut(view)
                 }
                 _ => Err(E::NotIndexable(ty)),

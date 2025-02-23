@@ -222,7 +222,7 @@ impl Lower for Declaration {
         {
             Ok(())
         } else {
-            return Err(E::DuplicateDecl(self.ident.to_string()));
+            Err(E::DuplicateDecl(self.ident.to_string()))
         }
     }
 }

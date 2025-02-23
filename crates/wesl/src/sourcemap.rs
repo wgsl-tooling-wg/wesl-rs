@@ -116,18 +116,18 @@ impl<'a> SourceMapper<'a> {
     /// Consume this and return a [`BasicSourceMap`].
     pub fn finish(self) -> BasicSourceMap {
         let mut sourcemap = self.sourcemap.into_inner();
-        if let Some(source) = sourcemap.get_source(&self.root) {
+        if let Some(source) = sourcemap.get_source(self.root) {
             sourcemap.set_default_source(source.to_string());
         }
         sourcemap
     }
 }
 
-impl<'a> Resolver for SourceMapper<'a> {
-    fn resolve_source<'b>(
-        &'b self,
+impl Resolver for SourceMapper<'_> {
+    fn resolve_source<'a>(
+        &'a self,
         path: &ModulePath,
-    ) -> Result<std::borrow::Cow<'b, str>, ResolveError> {
+    ) -> Result<std::borrow::Cow<'a, str>, ResolveError> {
         let res = self.resolver.resolve_source(path)?;
         let mut sourcemap = self.sourcemap.borrow_mut();
         sourcemap.add_source(
@@ -152,7 +152,7 @@ impl<'a> Resolver for SourceMapper<'a> {
     }
 }
 
-impl<'a> Mangler for SourceMapper<'a> {
+impl Mangler for SourceMapper<'_> {
     fn mangle(&self, path: &ModulePath, item: &str) -> String {
         let res = self.mangler.mangle(path, item);
         let mut sourcemap = self.sourcemap.borrow_mut();

@@ -642,7 +642,7 @@ impl LiteralInstance {
     pub fn op_lt(&self, rhs: &Self) -> Result<bool, E> {
         let err = || E::Binary(BinaryOperator::LessThan, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
-            both!(Self::Bool, lhs, rhs) => Ok(lhs < rhs),
+            both!(Self::Bool, lhs, rhs) => Ok(!lhs & rhs),
             both!(Self::AbstractInt, lhs, rhs) => Ok(lhs < rhs),
             both!(Self::AbstractFloat, lhs, rhs) => Ok(lhs < rhs),
             both!(Self::I32, lhs, rhs) => Ok(lhs < rhs),
@@ -668,7 +668,7 @@ impl LiteralInstance {
     pub fn op_gt(&self, rhs: &Self) -> Result<bool, E> {
         let err = || E::Binary(BinaryOperator::GreaterThan, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
-            both!(Self::Bool, lhs, rhs) => Ok(lhs > rhs),
+            both!(Self::Bool, lhs, rhs) => Ok(lhs & !rhs),
             both!(Self::AbstractInt, lhs, rhs) => Ok(lhs > rhs),
             both!(Self::AbstractFloat, lhs, rhs) => Ok(lhs > rhs),
             both!(Self::I32, lhs, rhs) => Ok(lhs > rhs),

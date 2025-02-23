@@ -298,7 +298,7 @@ fn array_ctor_ty_t(tplt: ArrayTemplate, args: &[Type]) -> Result<Type, E> {
 }
 
 fn array_ctor_ty(args: &[Type]) -> Result<Type, E> {
-    let ty = convert_all_ty(args).ok_or_else(|| E::Builtin("array elements are incompatible"))?;
+    let ty = convert_all_ty(args).ok_or(E::Builtin("array elements are incompatible"))?;
     Ok(Type::Array(Some(args.len()), Box::new(ty.clone())))
 }
 
@@ -313,11 +313,10 @@ fn mat_ctor_ty_t(c: u8, r: u8, tplt: MatTemplate, args: &[Type]) -> Result<Type,
         if args.is_empty() {
             return Err(E::Builtin("matrix constructor expects arguments"));
         }
-        let ty =
-            convert_all_ty(args).ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
+        let ty = convert_all_ty(args).ok_or(E::Builtin("matrix components are incompatible"))?;
         let ty = ty
             .convert_inner_to(tplt.inner_ty())
-            .ok_or_else(|| E::Conversion(ty.inner_ty(), tplt.inner_ty().clone()))?;
+            .ok_or(E::Conversion(ty.inner_ty(), tplt.inner_ty().clone()))?;
 
         // overload 2: mat from column vectors
         if ty.is_vec() {
@@ -350,8 +349,7 @@ fn mat_ctor_ty(c: u8, r: u8, args: &[Type]) -> Result<Type, E> {
         }
         Ok(ty.clone())
     } else {
-        let ty =
-            convert_all_ty(args).ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
+        let ty = convert_all_ty(args).ok_or(E::Builtin("matrix components are incompatible"))?;
         let inner_ty = ty.inner_ty();
 
         if !inner_ty.is_float() && !inner_ty.is_abstract_int() {
@@ -451,8 +449,7 @@ fn vec_ctor_ty(n: u8, args: &[Type]) -> Result<Type, E> {
         }
 
         let tys = args.iter().map(|arg| arg.inner_ty()).collect_vec();
-        let ty =
-            convert_all_ty(&tys).ok_or_else(|| E::Builtin("vector components are incompatible"))?;
+        let ty = convert_all_ty(&tys).ok_or(E::Builtin("vector components are incompatible"))?;
 
         Ok(Type::Vec(n, ty.clone().into()))
     }
@@ -1522,7 +1519,7 @@ fn call_array_t(tplt: ArrayTemplate, args: &[Instance]) -> Result<Instance, E> {
     Ok(ArrayInstance::new(args, false).into())
 }
 fn call_array(args: &[Instance]) -> Result<Instance, E> {
-    let args = convert_all(args).ok_or_else(|| E::Builtin("array elements are incompatible"))?;
+    let args = convert_all(args).ok_or(E::Builtin("array elements are incompatible"))?;
 
     if args.is_empty() {
         return Err(E::Builtin("array constructor expects at least 1 argument"));
@@ -1554,7 +1551,7 @@ fn call_i32_1(a1: &Instance) -> Result<Instance, E> {
                 LiteralInstance::F32(n) => Some(*n as i32),    // rounding towards 0
                 LiteralInstance::F16(n) => Some(f16::to_f32(*n) as i32), // rounding towards 0
             }
-            .ok_or_else(|| E::ConvOverflow(*l, Type::I32))?;
+            .ok_or(E::ConvOverflow(*l, Type::I32))?;
             Ok(LiteralInstance::I32(val).into())
         }
         _ => Err(E::Builtin("i32 constructor expects a scalar argument")),
@@ -1573,7 +1570,7 @@ fn call_u32_1(a1: &Instance) -> Result<Instance, E> {
                 LiteralInstance::F32(n) => Some(*n as u32),    // rounding towards 0
                 LiteralInstance::F16(n) => Some(f16::to_f32(*n) as u32), // rounding towards 0
             }
-            .ok_or_else(|| E::ConvOverflow(*l, Type::U32))?;
+            .ok_or(E::ConvOverflow(*l, Type::U32))?;
             Ok(LiteralInstance::U32(val).into())
         }
         _ => Err(E::Builtin("u32 constructor expects a scalar argument")),
@@ -1595,7 +1592,7 @@ fn call_f32_1(a1: &Instance, _stage: EvalStage) -> Result<Instance, E> {
                 LiteralInstance::F32(n) => Some(*n),           // identity operation
                 LiteralInstance::F16(n) => Some(f16::to_f32(*n)), // exactly representable
             }
-            .ok_or_else(|| E::ConvOverflow(*l, Type::F32))?;
+            .ok_or(E::ConvOverflow(*l, Type::F32))?;
             Ok(LiteralInstance::F32(val).into())
         }
         _ => Err(E::Builtin("f32 constructor expects a scalar argument")),
@@ -1654,7 +1651,7 @@ fn call_f16_1(a1: &Instance, stage: EvalStage) -> Result<Instance, E> {
                 }
                 LiteralInstance::F16(n) => Some(*n), // identity operation
             }
-            .ok_or_else(|| E::ConvOverflow(*l, Type::F16))?;
+            .ok_or(E::ConvOverflow(*l, Type::F16))?;
             Ok(LiteralInstance::F16(val).into())
         }
         _ => Err(E::Builtin("f16 constructor expects a scalar argument")),
@@ -1695,13 +1692,13 @@ fn call_mat_t(
     } else {
         let ty = args
             .first()
-            .ok_or_else(|| E::Builtin("matrix constructor expects arguments"))?
+            .ok_or(E::Builtin("matrix constructor expects arguments"))?
             .ty();
         let ty = ty
             .convert_inner_to(tplt.inner_ty())
-            .ok_or_else(|| E::Conversion(ty.inner_ty(), tplt.inner_ty().clone()))?;
-        let args = convert_all_to(args, &ty)
-            .ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
+            .ok_or(E::Conversion(ty.inner_ty(), tplt.inner_ty().clone()))?;
+        let args =
+            convert_all_to(args, &ty).ok_or(E::Builtin("matrix components are incompatible"))?;
 
         // overload 2: mat from column vectors
         if ty.is_vec() {
@@ -1742,8 +1739,7 @@ fn call_mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
         Ok(m.clone().into())
     } else {
         let tys = args.iter().map(|a| a.ty()).collect_vec();
-        let ty =
-            convert_all_ty(&tys).ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
+        let ty = convert_all_ty(&tys).ok_or(E::Builtin("matrix components are incompatible"))?;
         let mut inner_ty = ty.inner_ty();
 
         if inner_ty.is_abstract_int() {
@@ -1756,7 +1752,7 @@ fn call_mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
         }
 
         let args = convert_all_inner_to(args, &inner_ty)
-            .ok_or_else(|| E::Builtin("matrix components are incompatible"))?;
+            .ok_or(E::Builtin("matrix components are incompatible"))?;
 
         // overload 2: mat from column vectors
         if ty.is_vec() {
@@ -1885,8 +1881,7 @@ fn call_vec(n: usize, args: &[Instance]) -> Result<Instance, E> {
             return Err(E::ParamCount(format!("vec{n}"), n, args.len()));
         }
 
-        let comps =
-            convert_all(&args).ok_or_else(|| E::Builtin("vector components are incompatible"))?;
+        let comps = convert_all(&args).ok_or(E::Builtin("vector components are incompatible"))?;
 
         if !comps.first().unwrap(/* SAFETY: len() checked above */).ty().is_scalar() {
             return Err(E::Builtin("vec constructor expects scalar arguments"));
@@ -1912,17 +1907,17 @@ fn call_bitcast_t(tplt: BitcastTemplate, e: &Instance) -> Result<Instance, E> {
                 if ty == &Type::U32 {
                     n.to_u32()
                         .map(|n| n.to_le_bytes().to_vec())
-                        .ok_or_else(|| E::ConvOverflow(*l, Type::U32))
+                        .ok_or(E::ConvOverflow(*l, Type::U32))
                 } else {
                     n.to_i32()
                         .map(|n| n.to_le_bytes().to_vec())
-                        .ok_or_else(|| E::ConvOverflow(*l, Type::I32))
+                        .ok_or(E::ConvOverflow(*l, Type::I32))
                 }
             }
             LiteralInstance::AbstractFloat(n) => n
                 .to_f32()
                 .map(|n| n.to_le_bytes().to_vec())
-                .ok_or_else(|| E::ConvOverflow(*l, Type::F32)),
+                .ok_or(E::ConvOverflow(*l, Type::F32)),
             LiteralInstance::I32(n) => Ok(n.to_le_bytes().to_vec()),
             LiteralInstance::U32(n) => Ok(n.to_le_bytes().to_vec()),
             LiteralInstance::F32(n) => Ok(n.to_le_bytes().to_vec()),
@@ -2036,8 +2031,9 @@ fn call_any(e: &Instance) -> Result<Instance, E> {
 }
 
 fn call_select(f: &Instance, t: &Instance, cond: &Instance) -> Result<Instance, E> {
-    let (f, t) = convert(f, t)
-        .ok_or_else(|| E::Builtin("`select` 1st and 2nd arguments are incompatible"))?;
+    let (f, t) = convert(f, t).ok_or(E::Builtin(
+        "`select` 1st and 2nd arguments are incompatible",
+    ))?;
 
     match cond {
         Instance::Literal(LiteralInstance::Bool(b)) => Ok(b.then_some(t).unwrap_or(f)),
@@ -2106,7 +2102,7 @@ macro_rules! impl_call_float_unary {
                 LiteralInstance::AbstractInt(_) => {
                     let $n = l
                         .convert_to(&Type::AbstractFloat)
-                        .ok_or_else(|| E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
+                        .ok_or(E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
                         .unwrap_abstract_float();
                     Ok(LiteralInstance::from($expr))
                 }
@@ -2182,10 +2178,10 @@ fn call_atan2(y: &Instance, x: &Instance) -> Result<Instance, E> {
             LiteralInstance::AbstractInt(_) => {
                 let y = y
                     .convert_to(&Type::AbstractFloat)
-                    .ok_or_else(|| E::Conversion(Type::AbstractInt, Type::AbstractFloat))?;
+                    .ok_or(E::Conversion(Type::AbstractInt, Type::AbstractFloat))?;
                 let x = x
                     .convert_to(&Type::AbstractFloat)
-                    .ok_or_else(|| E::Conversion(Type::AbstractInt, Type::AbstractFloat))?;
+                    .ok_or(E::Conversion(Type::AbstractInt, Type::AbstractFloat))?;
                 Ok(LiteralInstance::from(
                     y.unwrap_abstract_float().atan2(x.unwrap_abstract_float()),
                 ))
@@ -2199,7 +2195,7 @@ fn call_atan2(y: &Instance, x: &Instance) -> Result<Instance, E> {
             LiteralInstance::F16(y) => Ok(LiteralInstance::from(y.atan2(x.unwrap_f_16()))),
         }
     }
-    let (y, x) = convert(y, x).ok_or_else(|| E::Builtin("`atan2` arguments are incompatible"))?;
+    let (y, x) = convert(y, x).ok_or(E::Builtin("`atan2` arguments are incompatible"))?;
     match (y, x) {
         (Instance::Literal(y), Instance::Literal(x)) => lit_atan2(&y, &x).map(Into::into),
         (Instance::Vec(y), Instance::Vec(x)) => y.compwise_binary(&x, lit_atan2).map(Into::into),
@@ -2524,7 +2520,7 @@ fn call_inversesqrt(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::Bool(_) => Err(ERR),
             LiteralInstance::AbstractInt(_) => l
                 .convert_to(&Type::AbstractFloat)
-                .ok_or_else(|| E::Conversion(Type::AbstractInt, Type::AbstractFloat))
+                .ok_or(E::Conversion(Type::AbstractInt, Type::AbstractFloat))
                 .map(|n| LiteralInstance::from(1.0 / n.unwrap_abstract_float().sqrt())),
             LiteralInstance::AbstractFloat(n) => Ok(LiteralInstance::from(1.0 / n.sqrt())),
             LiteralInstance::I32(_) => Err(ERR),
@@ -2659,7 +2655,7 @@ fn call_max(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.max(e2.unwrap_f_16()))),
         }
     }
-    let (e1, e2) = convert(e1, e2).ok_or_else(|| E::Builtin("`max` arguments are incompatible"))?;
+    let (e1, e2) = convert(e1, e2).ok_or(E::Builtin("`max` arguments are incompatible"))?;
     match (e1, e2) {
         (Instance::Literal(e1), Instance::Literal(e2)) => lit_max(&e1, &e2).map(Into::into),
         (Instance::Vec(e1), Instance::Vec(e2)) => e1.compwise_binary(&e2, lit_max).map(Into::into),
@@ -2684,7 +2680,7 @@ fn call_min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.min(e2.unwrap_f_16()))),
         }
     }
-    let (e1, e2) = convert(e1, e2).ok_or_else(|| E::Builtin("`min` arguments are incompatible"))?;
+    let (e1, e2) = convert(e1, e2).ok_or(E::Builtin("`min` arguments are incompatible"))?;
     match (e1, e2) {
         (Instance::Literal(e1), Instance::Literal(e2)) => lit_min(&e1, &e2).map(Into::into),
         (Instance::Vec(e1), Instance::Vec(e2)) => e1.compwise_binary(&e2, lit_min).map(Into::into),
@@ -2733,11 +2729,11 @@ fn call_pow(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             LiteralInstance::AbstractInt(_) => {
                 let e1 = e1
                     .convert_to(&Type::AbstractFloat)
-                    .ok_or_else(|| E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
+                    .ok_or(E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
                     .unwrap_abstract_float();
                 let e2 = e2
                     .convert_to(&Type::AbstractFloat)
-                    .ok_or_else(|| E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
+                    .ok_or(E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
                     .unwrap_abstract_float();
                 Ok(LiteralInstance::from(e1.powf(e2)))
             }
@@ -2750,7 +2746,7 @@ fn call_pow(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.powf(e2.unwrap_f_16()))),
         }
     }
-    let (e1, e2) = convert(e1, e2).ok_or_else(|| E::Builtin("`pow` arguments are incompatible"))?;
+    let (e1, e2) = convert(e1, e2).ok_or(E::Builtin("`pow` arguments are incompatible"))?;
     match (e1, e2) {
         (Instance::Literal(e1), Instance::Literal(e2)) => lit_powf(&e1, &e2).map(Into::into),
         (Instance::Vec(e1), Instance::Vec(e2)) => e1.compwise_binary(&e2, lit_powf).map(Into::into),
@@ -2786,7 +2782,7 @@ fn call_round(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::AbstractInt(_) => {
                 let n = l
                     .convert_to(&Type::AbstractFloat)
-                    .ok_or_else(|| E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
+                    .ok_or(E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
                     .unwrap_abstract_float();
                 Ok(LiteralInstance::from(n.round_ties_even()))
             }
@@ -2887,11 +2883,11 @@ fn call_step(edge: &Instance, x: &Instance) -> Result<Instance, E> {
             LiteralInstance::AbstractInt(_) => {
                 let edge = edge
                     .convert_to(&Type::AbstractFloat)
-                    .ok_or_else(|| E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
+                    .ok_or(E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
                     .unwrap_abstract_float();
                 let x = x
                     .convert_to(&Type::AbstractFloat)
-                    .ok_or_else(|| E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
+                    .ok_or(E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
                     .unwrap_abstract_float();
                 Ok(LiteralInstance::from(if edge <= x { 1.0 } else { 0.0 }))
             }

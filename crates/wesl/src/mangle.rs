@@ -196,7 +196,7 @@ impl<'a, T: Mangler> CacheMangler<'a, T> {
     }
 }
 
-impl<'a, T: Mangler> Mangler for CacheMangler<'a, T> {
+impl<T: Mangler> Mangler for CacheMangler<'_, T> {
     fn mangle(&self, paht: &ModulePath, item: &str) -> String {
         let res = self.mangler.mangle(paht, item);
         let mut cache = self.cache.borrow_mut();

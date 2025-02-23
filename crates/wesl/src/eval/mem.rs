@@ -259,7 +259,7 @@ impl HostShareable for MatInstance {
 }
 
 pub fn round_up(align: u32, size: u32) -> u32 {
-    ((size + align - 1) / align) * align
+    size.div_ceil(align) * align
 }
 
 impl Type {

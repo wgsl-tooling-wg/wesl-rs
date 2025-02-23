@@ -275,10 +275,8 @@ impl IsConst for FunctionCall {
             } else if let Some(decl) = wesl.decl_function(&fn_name) {
                 // TODO: this is not optimal as it will be recomputed for the same functions.
                 decl.is_const(wesl, locals)
-            } else if is_constructor_fn(&fn_name) {
-                true
             } else {
-                false
+                is_constructor_fn(&fn_name)
             }
         }
     }

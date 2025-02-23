@@ -294,12 +294,11 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
         };
 
         // get the ident of the external declaration pointed to by the type
-        if ext_mod
+        if !ext_mod
             .borrow() // safety: only 1 module is borrowed at a time, the current one.
             .idents
             .iter()
-            .find(|(id, _)| *id.name() == *ext_id.name())
-            .is_none()
+            .any(|(id, _)| *id.name() == *ext_id.name())
         {
             return Err(E::MissingDecl(ext_path.clone(), ext_id.to_string()));
         }

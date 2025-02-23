@@ -412,7 +412,7 @@ fn parse_binding(
             }
             _ => None,
         })
-        .ok_or_else(|| CliError::ResourceNotFound(b.group, b.binding))?;
+        .ok_or(CliError::ResourceNotFound(b.group, b.binding))?;
 
     let ty = ty_eval_ty(&ty_expr, &mut ctx).map_err(|e| {
         Diagnostic::from(e)

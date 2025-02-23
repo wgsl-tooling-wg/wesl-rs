@@ -4,6 +4,7 @@ mod constant;
 mod conv;
 mod display;
 mod error;
+#[allow(clippy::module_inception)]
 mod eval;
 mod exec;
 mod instance;

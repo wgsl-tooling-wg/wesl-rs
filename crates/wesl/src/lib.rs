@@ -508,7 +508,7 @@ pub struct ExecResult<'a> {
 }
 
 #[cfg(feature = "eval")]
-impl<'a> ExecResult<'a> {
+impl ExecResult<'_> {
     /// Get the function return value.
     pub fn return_value(&self) -> Option<&eval::Instance> {
         self.inst.as_ref()
@@ -539,7 +539,7 @@ pub struct EvalResult<'a> {
 }
 
 #[cfg(feature = "eval")]
-impl<'a> EvalResult<'a> {
+impl EvalResult<'_> {
     // TODO: make context non-mut
     /// Get the WGSL string representing the evaluated expression.
     pub fn to_buffer(&mut self) -> Option<Vec<u8>> {
@@ -549,7 +549,7 @@ impl<'a> EvalResult<'a> {
 }
 
 #[cfg(feature = "eval")]
-impl<'a> Display for EvalResult<'a> {
+impl Display for EvalResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.inst.fmt(f)
     }

@@ -636,7 +636,7 @@ impl Exec for Declaration {
                             let (group, binding) = self.attr_group_binding(ctx)?;
                             let inst = ctx
                                 .resource(group, binding)
-                                .ok_or_else(|| E::MissingResource(group, binding))?;
+                                .ok_or(E::MissingResource(group, binding))?;
                             if inst.ty() != ty {
                                 return Err(E::Type(ty, inst.ty()));
                             }
@@ -659,7 +659,7 @@ impl Exec for Declaration {
                             let (group, binding) = self.attr_group_binding(ctx)?;
                             let inst = ctx
                                 .resource(group, binding)
-                                .ok_or_else(|| E::MissingResource(group, binding))?;
+                                .ok_or(E::MissingResource(group, binding))?;
                             if ty != inst.ty() {
                                 return Err(E::Type(ty, inst.ty()));
                             }
