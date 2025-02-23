@@ -9,7 +9,7 @@ use wgsl_parse::syntax::{
     TypeExpression,
 };
 
-use crate::{visit::Visit, Mangler, ResolveError, Resolver};
+use crate::{builtin::BUILTIN_NAMES, visit::Visit, Mangler, ResolveError, Resolver};
 
 type Imports = HashMap<Ident, (ModulePath, Ident)>;
 type Modules = HashMap<ModulePath, Rc<RefCell<Module>>>;
@@ -202,7 +202,19 @@ pub fn resolve_lazy<'a>(
                 (path.clone(), ident.clone())
             } else {
                 // points to a local decl, we stop here.
-                return resolve_ident(module, &ty.ident.name(), resolutions, resolver);
+                if let Some(n) = module.idents.get(&ty.ident) {
+                    let decl = module.source.global_declarations.get(*n).unwrap();
+                    if module.treated_idents.borrow().contains(&ty.ident) {
+                        continue;
+                    } else {
+                        module.treated_idents.borrow_mut().insert(ty.ident.clone());
+                        return resolve_decl(module, decl, resolutions, resolver);
+                    }
+                } else if BUILTIN_NAMES.contains(&ty.ident.name().as_str()) {
+                    continue;
+                } else {
+                    return Err(E::MissingDecl(module.path.clone(), ty.ident.to_string()));
+                };
             };
 
             // if the import path points to a local decl, we stop here
