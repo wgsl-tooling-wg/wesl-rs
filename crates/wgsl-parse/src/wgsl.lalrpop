@@ -1038,9 +1038,12 @@ ModulePath: ModulePath = {
 
 #[cfg(feature = "imports")]
 Import: Import = {
-    <path: (<PathIdent> "::")*> <content: ImportContent> => Import {
-        path, content
-    }
+    <path: (<PathIdent> "::")*> <item: ImportItem> => Import {
+        path, content: ImportContent::Item(item)
+    },
+    <path: (<PathIdent> "::")+> <coll: ImportCollection> => Import {
+        path, content: ImportContent::Collection(coll)
+    },
 };
 
 #[cfg(feature = "imports")]
@@ -1053,7 +1056,7 @@ ImportContent: ImportContent = {
 ImportItem: ImportItem = {
     <ident: PathIdent> <rename: ("as" <PathIdent>)?> => ImportItem {
         ident: Ident::new(ident), rename: rename.map(Ident::new)
-    }
+    },
 };
 
 #[cfg(feature = "imports")]
