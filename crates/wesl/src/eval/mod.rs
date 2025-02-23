@@ -110,6 +110,12 @@ impl<T> Scope<T> {
             true
         }
     }
+    pub fn local_get_mut(&mut self, name: &str) -> Option<&mut T> {
+        Rc::get_mut(&mut self.inner)
+            .expect("cannot edit a parent scope")
+            .local
+            .get_mut(name)
+    }
     pub fn get(&self, name: &str) -> Option<&T> {
         self.inner.get(name)
     }

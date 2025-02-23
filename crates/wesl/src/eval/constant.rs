@@ -2,13 +2,27 @@ use super::{is_constructor_fn, Scope, SyntaxUtil};
 use itertools::Itertools;
 use wgsl_parse::{span::Spanned, syntax::*};
 
+macro_rules! with_scope {
+    ($scope:expr, $body:tt) => {{
+        $scope.push();
+        #[allow(clippy::redundant_closure_call)]
+        let body = (|| $body)();
+        $scope.pop();
+        body
+    }};
+}
+
 pub(crate) fn mark_functions_const(wesl: &mut TranslationUnit) {
+    let mut locals = Locals::new();
     let mark_const = wesl
         .global_declarations
         .iter()
         .map(|decl| {
             if let GlobalDeclaration::Function(decl) = decl {
-                if !decl.attributes.contains(&Attribute::Const) && is_function_const(decl, wesl) {
+                locals.add(decl.ident.to_string(), true); // we suppose the function is const.
+                let is_const = decl.is_const(wesl, &mut locals);
+                if !is_const {
+                    *locals.local_get_mut(&decl.ident.name()).unwrap() = is_const;
                     return true;
                 }
             }
@@ -24,19 +38,21 @@ pub(crate) fn mark_functions_const(wesl: &mut TranslationUnit) {
     }
 }
 
-pub fn is_function_const(decl: &Function, wesl: &TranslationUnit) -> bool {
-    decl.attributes.contains(&Attribute::Const) || {
-        let mut locals = Locals::new();
-        decl.attributes.is_const(wesl, &mut locals)
-            && decl.parameters.is_const(wesl, &mut locals)
-            && decl.return_attributes.is_const(wesl, &mut locals)
-            && decl.return_type.is_const(wesl, &mut locals)
-            && decl.body.attributes.is_const(wesl, &mut locals)
-            && decl.body.statements.is_const(wesl, &mut locals)
+impl IsConst for Function {
+    fn is_const(&self, wesl: &TranslationUnit, locals: &mut Locals) -> bool {
+        self.attributes.contains(&Attribute::Const)
+            || with_scope!(locals, {
+                self.attributes.is_const(wesl, locals)
+                    && self.parameters.is_const(wesl, locals)
+                    && self.return_attributes.is_const(wesl, locals)
+                    && self.return_type.is_const(wesl, locals)
+                    && self.body.attributes.is_const(wesl, locals)
+                    && self.body.statements.is_const(wesl, locals)
+            })
     }
 }
 
-type Locals = Scope<()>;
+type Locals = Scope<bool>;
 
 trait IsConst {
     fn is_const(&self, wesl: &TranslationUnit, locals: &mut Locals) -> bool;
@@ -101,7 +117,7 @@ impl IsConst for Attribute {
 impl IsConst for FormalParameter {
     fn is_const(&self, wesl: &TranslationUnit, locals: &mut Locals) -> bool {
         self.attributes.is_const(wesl, locals) && self.ty.is_const(wesl, locals) && {
-            locals.add(self.ident.to_string(), ());
+            locals.add(self.ident.to_string(), true);
             true
         }
     }
@@ -197,7 +213,7 @@ impl IsConst for Statement {
                     && stmt.ty.is_const(wesl, locals)
                     && stmt.initializer.is_const(wesl, locals)
                     && {
-                        locals.add(stmt.ident.to_string(), ());
+                        locals.add(stmt.ident.to_string(), true);
                         true
                     }
             }
@@ -252,11 +268,13 @@ impl IsConst for FunctionCall {
             let ty = wesl.resolve_ty(&self.ty);
             let fn_name = ty.ident.name();
 
-            if let Some(decl) = wesl.decl_struct(&fn_name) {
+            if let Some(is_const) = locals.get(&fn_name) {
+                *is_const
+            } else if let Some(decl) = wesl.decl_struct(&fn_name) {
                 decl.is_const(wesl, locals)
             } else if let Some(decl) = wesl.decl_function(&fn_name) {
                 // TODO: this is not optimal as it will be recomputed for the same functions.
-                is_function_const(decl, wesl)
+                decl.is_const(wesl, locals)
             } else if is_constructor_fn(&fn_name) {
                 true
             } else {

@@ -26,7 +26,6 @@ pub use eval::{Eval, EvalError, Exec};
 #[cfg(feature = "generics")]
 pub use generics::GenericsError;
 
-use import::{Module, Resolutions};
 #[cfg(feature = "package")]
 pub use package::PkgBuilder;
 
@@ -40,7 +39,6 @@ pub use resolve::{
     StandardResolver, VirtualResolver,
 };
 pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
-use strip::strip_except;
 pub use syntax_util::SyntaxUtil;
 pub use validate::{validate_wgsl, ValidateError};
 pub use wgsl_parse::syntax;
@@ -51,6 +49,8 @@ use std::{
     path::Path,
 };
 
+use import::{Module, Resolutions};
+use strip::strip_except;
 use validate::validate_wesl;
 use wgsl_parse::syntax::{Ident, ModulePath, PathOrigin, TranslationUnit};
 
@@ -732,13 +732,12 @@ fn compile_pre_assembly(
     let keep = keep_idents(&wesl, &options.keep, options.strip);
 
     let mut resolutions = Resolutions::new();
-    let mut module = Module::new(wesl, root.clone());
-    module.keep_idents(keep.clone());
+    let module = Module::new(wesl, root.clone());
     resolutions.push_module(module);
 
     if options.imports {
         if options.lazy {
-            import::resolve_lazy(&mut resolutions, &resolver)?
+            import::resolve_lazy(&keep, &mut resolutions, &resolver)?
         } else {
             import::resolve_eager(&mut resolutions, &resolver)?
         }
@@ -746,6 +745,7 @@ fn compile_pre_assembly(
 
     if options.validate {
         for module in resolutions.modules() {
+            let module = module.borrow();
             validate_wesl(&module.source).map_err(|d| {
                 d.with_module_path(module.path.clone(), resolver.display_name(&module.path))
             })?;
