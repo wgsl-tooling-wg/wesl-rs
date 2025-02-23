@@ -1582,7 +1582,7 @@ fn call_u32_1(a1: &Instance) -> Result<Instance, E> {
 
 /// see [`LiteralInstance::convert_to`]
 /// "If T is a numeric scalar (other than f32), e is converted to f32 (including invalid conversions)."
-/// TODO: implicit conversions are incorrect, I think
+/// TODO: implicit conversions are incorrect, I think. I'm not sure if f32(too_big) is correct.
 fn call_f32_1(a1: &Instance, _stage: EvalStage) -> Result<Instance, E> {
     match a1 {
         Instance::Literal(l) => {

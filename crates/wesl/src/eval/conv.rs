@@ -8,31 +8,28 @@ use super::{
 };
 
 pub trait Convert: Sized + Clone + Ty {
-    /// convert an instance to another type, if a feasible conversion exists.
+    /// Convert an instance to another type, if a feasible conversion exists.
     ///
-    /// e.g. `array<u32>.convert_inner_to(array<f32>)` becomes `array<f32>`
+    /// E.g. `array<u32>.convert_inner_to(array<f32>)` becomes `array<f32>`.
     ///
-    /// reference: <https://www.w3.org/TR/WGSL/#conversion-rank>
+    /// Reference: <https://www.w3.org/TR/WGSL/#conversion-rank>
     fn convert_to(&self, ty: &Type) -> Option<Self>;
 
-    /// convert an instance by changing its inner type to another.
+    /// Convert an instance by changing its inner type to another.
     ///
-    /// e.g. `array<u32>.convert_inner_to(f32)` becomes `array<f32>`
+    /// E.g. `array<u32>.convert_inner_to(f32)` becomes `array<f32>`.
     ///
-    /// see [`Ty::inner_ty`]
-    /// see [`Convert::convert_to`]
+    /// See [`Ty::inner_ty`]
+    /// See [`Convert::convert_to`]
     fn convert_inner_to(&self, ty: &Type) -> Option<Self> {
         self.convert_to(ty)
     }
 
-    /// convert an abstract instance to a concrete type.
+    /// Convert an abstract instance to a concrete type.
     ///
-    /// e.g. `array<vec<AbstractInt>>` becomes `array<vec<i32>>`
-    ///
-    /// concretization is supposed to never fail.
-    fn concretize(&self) -> Self {
+    /// E.g. `array<vec<AbstractInt>>` becomes `array<vec<i32>>`.
+    fn concretize(&self) -> Option<Self> {
         self.convert_to(&self.ty().concretize())
-            .expect("failed to concretize a type")
     }
 }
 
@@ -56,7 +53,16 @@ impl Convert for Type {
             _ => self.convert_to(ty), // for types that don't have an inner ty
         }
     }
-    fn concretize(&self) -> Self {
+    fn concretize(&self) -> Option<Self> {
+        Some(self.concretize())
+    }
+}
+
+impl Type {
+    pub fn is_convertible_to(&self, ty: &Type) -> bool {
+        conversion_rank(self, ty).is_some()
+    }
+    pub fn concretize(&self) -> Self {
         match self {
             Self::AbstractInt => Type::I32,
             Self::AbstractFloat => Type::F32,
@@ -65,12 +71,6 @@ impl Convert for Type {
             Self::Mat(c, r, ty) => Type::Mat(*c, *r, ty.concretize().into()),
             _ => self.clone(),
         }
-    }
-}
-
-impl Type {
-    pub fn is_convertible_to(&self, ty: &Type) -> bool {
-        conversion_rank(self, ty).is_some()
     }
 }
 
@@ -100,6 +100,7 @@ impl Convert for LiteralInstance {
         // TODO: check that these conversions are correctly implemented.
         // I think they are incorrect. the to_xyz() functions do not perform rounding.
         // reference: <https://www.w3.org/TR/WGSL/#floating-point-conversion>
+        // ... except that hex literals must be *exactly* representable in the target type.
         match (self, ty) {
             (Self::AbstractInt(n), Type::AbstractFloat) => n.to_f64().map(Self::AbstractFloat),
             (Self::AbstractInt(n), Type::I32) => n.to_i32().map(Self::I32),
