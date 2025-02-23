@@ -1402,7 +1402,6 @@ impl TextureTemplate {
             "texture_cube" => TextureType::SampledCube(Self::sampled_type(tplt)?),
             "texture_cube_array" => TextureType::SampledCubeArray(Self::sampled_type(tplt)?),
             "texture_multisampled_2d" => TextureType::Multisampled2D(Self::sampled_type(tplt)?),
-            "texture_depth_multisampled_2d" => TextureType::DepthMultisampled2D,
             "texture_storage_1d" => {
                 let (tex, acc) = Self::texel_access(tplt)?;
                 TextureType::Storage1D(tex, acc)

@@ -614,7 +614,6 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
             | "texture_cube"
             | "texture_cube_array"
             | "texture_multisampled_2d"
-            | "texture_depth_multisampled_2d"
             | "texture_storage_1d"
             | "texture_storage_2d"
             | "texture_storage_2d_array"
@@ -635,6 +634,8 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
             "u32" => Ok(Type::U32),
             "f32" => Ok(Type::F32),
             "f16" => Ok(Type::F16),
+            "texture_depth_multisampled_2d" => Ok(Type::Texture(TextureType::DepthMultisampled2D)),
+            "texture_external" => Ok(Type::Texture(TextureType::External)),
             "texture_depth_2d" => Ok(Type::Texture(TextureType::Depth2D)),
             "texture_depth_2d_array" => Ok(Type::Texture(TextureType::Depth2DArray)),
             "texture_depth_cube" => Ok(Type::Texture(TextureType::DepthCube)),
