@@ -2,9 +2,9 @@ use std::str::FromStr;
 
 use super::{
     builtin_fn_type, constructor_type, convert_ty, is_constructor_fn, ArrayInstance, ArrayTemplate,
-    AtomicInstance, AtomicTemplate, Context, Convert, EvalError, Instance, LiteralInstance,
-    MatInstance, MatTemplate, PtrInstance, PtrTemplate, RefInstance, StructInstance, SyntaxUtil,
-    TextureTemplate, VecInstance, VecTemplate, ATTR_INTRINSIC,
+    AtomicInstance, AtomicTemplate, Context, Convert, EvalError, Exec, Instance, LiteralInstance,
+    MatInstance, MatTemplate, PtrInstance, PtrTemplate, RefInstance, ScopeKind, StructInstance,
+    SyntaxUtil, TextureTemplate, VecInstance, VecTemplate, ATTR_INTRINSIC,
 };
 
 type E = EvalError;
@@ -538,20 +538,31 @@ impl<T: Ty> EvalTy for T {
 }
 
 impl EvalTy for TypeExpression {
-    /// use only when the `TypeExpression` is an identifier (`Expression::TypeOrIdentifer`), NOT when
-    /// it is a type-expression. For that, see [`ty_eval_ty`].
+    /// Use only when the `TypeExpression` is an identifier (`Expression::TypeOrIdentifer`),
+    /// NOT when it is a type-expression. For that, see [`ty_eval_ty`].
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
         if self.template_args.is_some() {
             Err(E::UnexpectedTemplate(self.ident.to_string()))
         } else if let Some(inst) = ctx.scope.get(&self.ident.name()) {
             Ok(inst.ty())
         } else {
+            if ctx.kind == ScopeKind::Module {
+                // because of module-scope hoisting, declarations may be executed out-of-order.
+                if let Some(decl) = ctx.source.decl(&self.ident.name()) {
+                    decl.exec(ctx)?;
+                    return if let Some(inst) = ctx.scope.get(&self.ident.name()) {
+                        Ok(inst.ty())
+                    } else {
+                        Err(E::UnknownDecl(self.ident.to_string()))
+                    };
+                }
+            }
             Err(E::UnknownDecl(self.ident.to_string()))
         }
     }
 }
 
-/// evaluate the type of a type-expression. A type-expression only exists in templates, e.g.
+/// Evaluate the type of a type-expression. A type-expression only exists in templates, e.g.
 /// `array<f32>`. Use [`TypeExpression::eval_ty`] if you want the type of an identifier reference.
 pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
     let ty = ctx.source.resolve_ty(expr);

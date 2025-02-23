@@ -40,6 +40,18 @@ macro_rules! with_scope {
         body
     }};
 }
+
+macro_rules! module_scope {
+    ($ctx:expr, $body:tt) => {{
+        assert!($ctx.scope.is_root());
+        let kind = $ctx.kind;
+        $ctx.kind = ScopeKind::Module;
+        #[allow(clippy::redundant_closure_call)]
+        let body = (|| $body)();
+        $ctx.kind = kind;
+        body
+    }};
+}
 pub(super) use with_scope;
 pub(super) use with_stage;
 
@@ -68,12 +80,9 @@ impl<T: Exec> Exec for Spanned<T> {
 
 impl Exec for TranslationUnit {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        fn inner(ctx: &mut Context) -> Result<Flow, E> {
+        module_scope!(ctx, {
             for decl in &ctx.source.global_declarations {
-                let flow = decl.exec(ctx).inspect_err(|_| {
-                    decl.ident()
-                        .inspect(|&ident| ctx.set_err_decl_ctx(ident.to_string()));
-                })?;
+                let flow = decl.exec(ctx)?;
                 match flow {
                     Flow::Next => (),
                     Flow::Break | Flow::Continue | Flow::Return(_) => {
@@ -85,23 +94,29 @@ impl Exec for TranslationUnit {
             }
 
             Ok(Flow::Next)
-        }
-
-        let kind = ctx.kind;
-        ctx.kind = ScopeKind::Module;
-        let res = inner(ctx);
-        ctx.kind = kind;
-        res
+        })
     }
 }
 
 impl Exec for GlobalDeclaration {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         match self {
-            GlobalDeclaration::Declaration(decl) => decl.exec(ctx),
+            GlobalDeclaration::Declaration(decl) => {
+                if ctx.scope.contains(&decl.ident.name()) {
+                    // because of module-scope hoisting, declarations may be executed out-of-order.
+                    // TODO: check no duplicate declarations?
+                    Ok(Flow::Next)
+                } else {
+                    decl.exec(ctx)
+                }
+            }
             GlobalDeclaration::ConstAssert(decl) => decl.exec(ctx),
             _ => Ok(Flow::Next),
         }
+        .inspect_err(|_| {
+            self.ident()
+                .inspect(|&ident| ctx.set_err_decl_ctx(ident.to_string()));
+        })
     }
 }
 

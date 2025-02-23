@@ -2,8 +2,8 @@ use std::iter::zip;
 
 use super::{
     call_builtin, compound_exec_no_scope, is_constructor_fn, ty_eval_ty, with_scope, Context,
-    Convert, EvalError, EvalStage, Flow, Instance, LiteralInstance, PtrInstance, RefInstance,
-    StructInstance, SyntaxUtil, Ty, Type, VecInstance, ATTR_INTRINSIC,
+    Convert, EvalError, EvalStage, Exec, Flow, Instance, LiteralInstance, PtrInstance, RefInstance,
+    ScopeKind, StructInstance, SyntaxUtil, Ty, Type, VecInstance, ATTR_INTRINSIC,
 };
 
 use half::f16;
@@ -365,6 +365,8 @@ impl Eval for FunctionCall {
 }
 
 impl Eval for TypeExpression {
+    /// See also [`ty_eval_ty`]. This implementation evaluates TypeExpression that are
+    /// identifiers, not types.
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E> {
         if self.template_args.is_some() {
             Err(E::UnexpectedTemplate(self.ident.to_string()))
@@ -375,6 +377,19 @@ impl Eval for TypeExpression {
                 Ok(inst.clone())
             }
         } else {
+            if ctx.kind == ScopeKind::Module {
+                // there is hoisting at module-scope. We may refer to a later declaration.
+                if let Some(decl) = ctx.source.decl(&self.ident.name()) {
+                    decl.exec(ctx)?;
+                    if let Some(inst) = ctx.scope.get(&self.ident.name()) {
+                        return if inst.is_deferred() {
+                            Err(E::NotAccessible(self.ident.to_string(), ctx.stage))
+                        } else {
+                            Ok(inst.clone())
+                        };
+                    }
+                }
+            }
             Err(E::UnknownDecl(self.ident.to_string()))
         }
     }

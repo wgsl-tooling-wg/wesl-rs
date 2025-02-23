@@ -159,11 +159,10 @@ impl Lower for TemplateArgs {
 impl Lower for TypeExpression {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
         // types must be const-expressions
-        let expr = ty_eval_ty(self, ctx)?.to_expr(ctx)?;
-        *self = match expr {
-            Expression::TypeOrIdentifier(ty) => ty,
-            _ => unreachable!("eval_ty must return Literal"),
-        };
+        let expr = ty_eval_ty(self, ctx)?
+            .to_expr(ctx)?
+            .unwrap_type_or_identifier();
+        *self = expr;
         Ok(())
     }
 }
@@ -197,9 +196,9 @@ impl Lower for Attributes {
 }
 
 impl Lower for Declaration {
+    // this one is called only for function-scope declarations.
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
         self.attributes.lower(ctx)?;
-        self.ty.lower(ctx)?;
         self.initializer.lower(ctx)?;
 
         // TODO: this is copy-pasted 3 times now.
@@ -216,6 +215,10 @@ impl Lower for Declaration {
             (Some(ty), _) => ty_eval_ty(ty, ctx)?,
         };
 
+        if ty.is_concrete() {
+            self.ty = Some(ty.to_expr(ctx)?.unwrap_type_or_identifier());
+        }
+
         if ctx
             .scope
             .add(self.ident.to_string(), Instance::Deferred(ty))
@@ -224,13 +227,6 @@ impl Lower for Declaration {
         } else {
             Err(E::DuplicateDecl(self.ident.to_string()))
         }
-    }
-}
-
-impl Lower for TypeAlias {
-    fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
-        self.ty.lower(ctx)?;
-        Ok(())
     }
 }
 
@@ -267,12 +263,6 @@ impl Lower for Function {
             compound_lower(&mut self.body, ctx, true)?;
             Ok(())
         })
-    }
-}
-
-impl Lower for ConstAssert {
-    fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
-        self.exec(ctx).map(|_| ())
     }
 }
 
@@ -531,21 +521,30 @@ impl Lower for FunctionCallStatement {
 
 impl Lower for TranslationUnit {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
+        self.exec(ctx)?; // populate the ctx with declarations
         for decl in &mut self.global_declarations {
             match decl {
                 GlobalDeclaration::Void => Ok(()),
                 GlobalDeclaration::Declaration(decl) => {
-                    if decl.kind == DeclarationKind::Const {
-                        // eval and add it to the scope
-                        decl.exec(ctx).map(|_| ())
-                    } else {
-                        decl.lower(ctx)
+                    decl.attributes.lower(ctx)?;
+                    decl.initializer.lower(ctx)?;
+
+                    let inst = ctx
+                        .scope
+                        .get(&decl.ident.name())
+                        .expect("module-scope declaration not present in scope");
+                    let ty = inst.ty();
+
+                    if ty.is_concrete() {
+                        decl.ty = Some(ty.to_expr(ctx)?.unwrap_type_or_identifier());
                     }
+
+                    Ok(())
                 }
-                GlobalDeclaration::TypeAlias(decl) => decl.lower(ctx),
+                GlobalDeclaration::TypeAlias(_) => Ok(()), // no need to lower it will be eliminated
                 GlobalDeclaration::Struct(decl) => decl.lower(ctx),
                 GlobalDeclaration::Function(decl) => decl.lower(ctx),
-                GlobalDeclaration::ConstAssert(decl) => decl.lower(ctx),
+                GlobalDeclaration::ConstAssert(_) => Ok(()), // handled by TranslationUnit::exec()
             }
             .inspect_err(|_| {
                 decl.ident()

@@ -80,6 +80,9 @@ impl<T> Scope<T> {
             }),
         }
     }
+    pub fn is_root(&self) -> bool {
+        self.inner.parent.is_none()
+    }
     /// variable in a 'transparent' have the same scope as the parent scope.
     /// this is useful for 'for' loops and function calls which have the same
     /// end-of-scope for initializer and formal parameters as the body.
