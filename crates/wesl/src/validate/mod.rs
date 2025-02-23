@@ -2,7 +2,8 @@ use std::collections::HashSet;
 
 use wesl_macros::query;
 use wgsl_parse::syntax::{
-    Expression, ExpressionNode, GlobalDeclaration, Ident, TranslationUnit, TypeExpression,
+    Expression, ExpressionNode, FunctionCall, GlobalDeclaration, Ident, TranslationUnit,
+    TypeExpression,
 };
 
 use crate::builtin::{BUILTIN_FUNCTIONS, BUILTIN_NAMES};
@@ -90,48 +91,53 @@ fn check_defined_symbols(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>
 }
 
 fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
+    fn check_call(call: &FunctionCall, ident: &Ident, wesl: &TranslationUnit) -> Result<(), E> {
+        let decl = wesl
+            .global_declarations
+            .iter()
+            .find(|decl| decl.ident().is_some_and(|id| id == ident));
+
+        match decl {
+            Some(GlobalDeclaration::Function(decl)) => {
+                if call.arguments.len() != decl.parameters.len() {
+                    return Err(E::ParamCount(
+                        ident.to_string(),
+                        decl.parameters.len(),
+                        call.arguments.len(),
+                    ));
+                }
+            }
+            Some(GlobalDeclaration::Struct(decl)) => {
+                if call.arguments.len() != decl.members.len() && !call.arguments.is_empty() {
+                    return Err(E::ParamCount(
+                        ident.to_string(),
+                        decl.members.len(),
+                        call.arguments.len(),
+                    ));
+                }
+            }
+            Some(GlobalDeclaration::TypeAlias(decl)) => {
+                if decl.ty.template_args.is_some() {
+                    return Err(E::NotCallable(ident.to_string()));
+                } else {
+                    check_call(call, &decl.ty.ident, wesl)?;
+                }
+            }
+            Some(_) => return Err(E::NotCallable(ident.to_string())),
+            None => {
+                if BUILTIN_FUNCTIONS.iter().any(|name| name == &*ident.name()) {
+                    // TODO: check num args for builtin functions
+                } else {
+                    // the ident is not a global declaration, it must be a local variable.
+                    return Err(E::NotCallable(ident.to_string()));
+                }
+            }
+        };
+        Ok(())
+    }
     fn check_expr(expr: &Expression, wesl: &TranslationUnit) -> Result<(), E> {
         if let Expression::FunctionCall(call) = expr {
-            let decl = wesl
-                .global_declarations
-                .iter()
-                .find(|decl| decl.ident().is_some_and(|id| id == &call.ty.ident));
-
-            match decl {
-                Some(GlobalDeclaration::Function(decl)) => {
-                    if call.arguments.len() != decl.parameters.len() {
-                        return Err(E::ParamCount(
-                            call.ty.ident.to_string(),
-                            decl.parameters.len(),
-                            call.arguments.len(),
-                        ));
-                    }
-                }
-                Some(GlobalDeclaration::Struct(decl)) => {
-                    if call.arguments.len() != decl.members.len() && !call.arguments.is_empty() {
-                        return Err(E::ParamCount(
-                            call.ty.ident.to_string(),
-                            decl.members.len(),
-                            call.arguments.len(),
-                        ));
-                    }
-                }
-                Some(GlobalDeclaration::TypeAlias(_)) => {
-                    // TODO: resolve type-alias
-                }
-                Some(_) => return Err(E::NotCallable(call.ty.ident.to_string())),
-                None => {
-                    if BUILTIN_FUNCTIONS
-                        .iter()
-                        .any(|name| name == &*call.ty.ident.name())
-                    {
-                        // TODO: check num args for builtin functions
-                    } else {
-                        // the ident is not a global declaration, it must be a local variable.
-                        return Err(E::NotCallable(call.ty.ident.to_string()));
-                    }
-                }
-            };
+            check_call(call, &call.ty.ident, wesl)?;
         }
         Ok(())
     }
