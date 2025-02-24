@@ -15,11 +15,7 @@ use wesl::{
     CompileOptions, EscapeMangler, NoMangler, VirtualResolver,
 };
 
-#[datatest::files("webgpu-samples", {
-  input in r"^.*\.wgsl$",
-})]
-#[test]
-fn webgpu_samples(input: &str) {
+fn parse_test(input: &str) {
     let mut resolver = VirtualResolver::new();
     let root = ModulePath::from_path("/main");
     resolver.add_module(root.clone(), input.into());
@@ -35,25 +31,21 @@ fn webgpu_samples(input: &str) {
         .expect("test failed");
 }
 
+#[datatest::files("webgpu-samples", {
+  input in r"^.*\.wgsl$",
+})]
+#[test]
+fn webgpu_samples(input: &str) {
+    parse_test(input);
+}
+
 #[datatest::files("unity_web_research", {
   // input in r"webgpu/wgsl/boat_attack/.*\.wgsl$",
   input in r"webgpu/wgsl/boat_attack/unity_webgpu_(000001AC1A5BA040|0000026E572CD040)\.[fv]s\.wgsl$",
 })]
 #[test]
 fn unity_web_research(input: &str) {
-    let mut resolver = VirtualResolver::new();
-    let root = ModulePath::from_path("/main");
-    resolver.add_module(root.clone(), input.into());
-    let mut options = CompileOptions::default();
-    options.imports = true;
-    options.condcomp = true;
-    options.generics = false;
-    options.strip = true;
-    options.lower = true;
-    options.validate = true;
-    wesl::compile(&root, &resolver, &NoMangler, &options)
-        .inspect_err(|err| eprintln!("[FAIL] {err}"))
-        .expect("test failed");
+    parse_test(input);
 }
 
 #[derive(PartialEq, Deserialize)]
@@ -330,8 +322,7 @@ fn sort_decls(wgsl: &mut TranslationUnit) {
         });
 }
 
-#[datatest::data("wesl-testsuite/src/test-cases-json/importCases.json")]
-fn wesl_testsuite_import_cases(case: WgslTestSrc) {
+fn testsuite_test(case: WgslTestSrc) {
     println!(
         "case: `{}`{}",
         case.name,
@@ -366,4 +357,14 @@ fn wesl_testsuite_import_cases(case: WgslTestSrc) {
             normalize_wgsl(&expect_wgsl.to_string())
         )
     }
+}
+
+#[datatest::data("wesl-testsuite/src/test-cases-json/importCases.json")]
+fn wesl_testsuite_import_cases(case: WgslTestSrc) {
+    testsuite_test(case);
+}
+
+#[datatest::data("wesl-testsuite/src/test-cases-json/conditionalTranslationCases.json")]
+fn wesl_testsuite_conditional_translation_cases(case: WgslTestSrc) {
+    testsuite_test(case);
 }
