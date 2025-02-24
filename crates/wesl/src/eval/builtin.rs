@@ -36,7 +36,9 @@ pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
             ($name, Ident::new($name.to_string()))
         };
     }
-    // TODO: it's missing many idents
+    // using these idents allow better use-count tracking and referencing.
+    // some of the buitin idents are in the PRELUDE (not here).
+    // these enumerants are not context-dependent names, and can therefore be shadowed.
     static IDENTS: LazyLock<HashMap<&str, Ident>> = LazyLock::new(|| {
         HashMap::from_iter([
             // plain types
@@ -63,24 +65,6 @@ pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
             ident!("mat2x4"),
             ident!("mat3x4"),
             ident!("mat4x4"),
-            // texel format
-            ident!("rgba8unorm"),
-            ident!("rgba8snorm"),
-            ident!("rgba8uint"),
-            ident!("rgba8sint"),
-            ident!("rgba16uint"),
-            ident!("rgba16sint"),
-            ident!("rgba16float"),
-            ident!("r32uint"),
-            ident!("r32sint"),
-            ident!("r32float"),
-            ident!("rg32uint"),
-            ident!("rg32sint"),
-            ident!("rg32float"),
-            ident!("rgba32uint"),
-            ident!("rgba32sint"),
-            ident!("rgba32float"),
-            ident!("bgra8unorm"),
             // texture types
             ident!("texture_1d"),
             ident!("texture_2d"),
@@ -102,16 +86,34 @@ pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
             // sampler types
             ident!("sampler"),
             ident!("sampler_comparison"),
-            // address space
+            // access mode (enumerant)
+            ident!("read"),
+            ident!("write"),
+            ident!("read_write"),
+            // address space (enumerant)
             ident!("function"),
             ident!("private"),
             ident!("workgroup"),
             ident!("uniform"),
             ident!("storage"),
-            // access mode
-            ident!("read"),
-            ident!("write"),
-            ident!("read_write"),
+            // texel format (enumerant)
+            ident!("rgba8unorm"),
+            ident!("rgba8snorm"),
+            ident!("rgba8uint"),
+            ident!("rgba8sint"),
+            ident!("rgba16uint"),
+            ident!("rgba16sint"),
+            ident!("rgba16float"),
+            ident!("r32uint"),
+            ident!("r32sint"),
+            ident!("r32float"),
+            ident!("rg32uint"),
+            ident!("rg32sint"),
+            ident!("rg32float"),
+            ident!("rgba32uint"),
+            ident!("rgba32sint"),
+            ident!("rgba32float"),
+            ident!("bgra8unorm"),
         ])
     });
     IDENTS.get(name)

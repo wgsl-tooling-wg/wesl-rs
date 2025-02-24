@@ -11,8 +11,6 @@ pub trait Visit<T> {
         T: 'a;
 }
 
-// TODO: find a way to avoid duplication
-
 macro_rules! impl_visit {
     ($type:ty => $visited:ty, $expr:tt) => {
         impl Visit<$visited> for $type {
