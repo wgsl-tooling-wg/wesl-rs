@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashSet, iter::Iterator};
+use std::{borrow::Cow, collections::HashMap, iter::Iterator};
 
 use crate::visit::Visit;
 use wesl_macros::query_mut;
@@ -54,7 +54,7 @@ impl SyntaxUtil for TranslationUnit {
     /// local declarations scope.
     fn retarget_idents(&mut self) {
         // keep track of declarations in a scope.
-        type Scope<'a> = Cow<'a, HashSet<Ident>>;
+        type Scope<'a> = Cow<'a, HashMap<String, Ident>>;
 
         fn flatten_imports(imports: &[ImportStatement]) -> impl Iterator<Item = Ident> + '_ {
             fn rec(content: &ImportContent) -> impl Iterator<Item = Ident> + '_ {
@@ -73,13 +73,17 @@ impl SyntaxUtil for TranslationUnit {
         let scope: Scope = Cow::Owned(
             self.global_declarations
                 .iter()
-                .filter_map(|decl| decl.ident().cloned())
-                .chain(flatten_imports(&self.imports))
-                .collect::<HashSet<_>>(),
+                .filter_map(|decl| decl.ident())
+                .map(|id| (id.to_string(), id.clone()))
+                .chain(flatten_imports(&self.imports).map(|id| (id.to_string(), id)))
+                .collect::<HashMap<_, _>>(),
         );
 
-        fn retarget_ty(ty: &mut TypeExpression, scope: &HashSet<Ident>) {
-            if let Some(id) = scope.iter().find(|ident| *ident.name() == *ty.ident.name()) {
+        fn retarget_ty(ty: &mut TypeExpression, scope: &Scope) {
+            if let Some((_, id)) = scope
+                .iter()
+                .find(|(name, _)| name.as_str() == *ty.ident.name())
+            {
                 ty.ident = id.clone();
             }
             query_mut!(ty.template_args.[].[].expression.(x => Visit::<TypeExpression>::visit_mut(&mut **x)))
@@ -272,7 +276,7 @@ impl SyntaxUtil for TranslationUnit {
                         initializer.[].(x => Visit::<TypeExpression>::visit_mut(&mut **x)),
                     })
                     .for_each(|ty| retarget_ty(ty, &scope));
-                    scope.to_mut().replace(s.ident.clone());
+                    scope.to_mut().insert(s.ident.to_string(), s.ident.clone());
                 }
             });
             scope
@@ -297,7 +301,9 @@ impl SyntaxUtil for TranslationUnit {
                         scope
                             .to_mut()
                             .extend(d.attributes.iter().filter_map(|attr| match attr {
-                                Attribute::Type(attr) => Some(attr.ident.clone()),
+                                Attribute::Type(attr) => {
+                                    Some((attr.ident.to_string(), attr.ident.clone()))
+                                }
                                 _ => None,
                             }));
                         scope
@@ -317,9 +323,11 @@ impl SyntaxUtil for TranslationUnit {
                     })
                     .for_each(|ty| retarget_ty(ty, &scope));
                     let mut scope = scope.clone();
-                    scope
-                        .to_mut()
-                        .extend(d.parameters.iter().map(|param| param.ident.clone()));
+                    scope.to_mut().extend(
+                        d.parameters
+                            .iter()
+                            .map(|param| (param.ident.to_string(), param.ident.clone())),
+                    );
                     retarget_stats(&mut d.body.statements, scope);
                 }
                 GlobalDeclaration::ConstAssert(d) => {
