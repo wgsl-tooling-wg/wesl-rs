@@ -1,3 +1,4 @@
+import random::pcg_3u_3u;
 import super::util::rotate_3u;
 
 @compute
