@@ -288,6 +288,10 @@ pub trait Decorated {
     fn attributes(&self) -> &[Attribute];
     /// List all attributes (`@name`) of a syntax node.
     fn attributes_mut(&mut self) -> &mut [Attribute];
+    /// Remove attributes with predicate.
+    fn retain_attributes_mut<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut Attribute) -> bool;
 }
 
 impl<T: Decorated> Decorated for Spanned<T> {
@@ -297,6 +301,13 @@ impl<T: Decorated> Decorated for Spanned<T> {
 
     fn attributes_mut(&mut self) -> &mut [Attribute] {
         self.node_mut().attributes_mut()
+    }
+
+    fn retain_attributes_mut<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut Attribute) -> bool,
+    {
+        self.node_mut().retain_attributes_mut(f)
     }
 }
 
@@ -308,6 +319,12 @@ macro_rules! impl_decorated_struct {
             }
             fn attributes_mut(&mut self) -> &mut [Attribute] {
                 &mut self.attributes
+            }
+            fn retain_attributes_mut<F>(&mut self, f: F)
+            where
+                F: FnMut(&mut Attribute) -> bool,
+            {
+                self.attributes.retain_mut(f)
             }
         }
     };
@@ -331,6 +348,17 @@ impl Decorated for GlobalDirective {
             GlobalDirective::Diagnostic(directive) => &mut directive.attributes,
             GlobalDirective::Enable(directive) => &mut directive.attributes,
             GlobalDirective::Requires(directive) => &mut directive.attributes,
+        }
+    }
+
+    fn retain_attributes_mut<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut Attribute) -> bool,
+    {
+        match self {
+            GlobalDirective::Diagnostic(directive) => directive.attributes.retain_mut(f),
+            GlobalDirective::Enable(directive) => directive.attributes.retain_mut(f),
+            GlobalDirective::Requires(directive) => directive.attributes.retain_mut(f),
         }
     }
 }
@@ -365,6 +393,20 @@ impl Decorated for GlobalDeclaration {
             GlobalDeclaration::Struct(decl) => &mut decl.attributes,
             GlobalDeclaration::Function(decl) => &mut decl.attributes,
             GlobalDeclaration::ConstAssert(decl) => &mut decl.attributes,
+        }
+    }
+
+    fn retain_attributes_mut<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut Attribute) -> bool,
+    {
+        match self {
+            GlobalDeclaration::Void => {}
+            GlobalDeclaration::Declaration(decl) => decl.attributes.retain_mut(f),
+            GlobalDeclaration::TypeAlias(decl) => decl.attributes.retain_mut(f),
+            GlobalDeclaration::Struct(decl) => decl.attributes.retain_mut(f),
+            GlobalDeclaration::Function(decl) => decl.attributes.retain_mut(f),
+            GlobalDeclaration::ConstAssert(decl) => decl.attributes.retain_mut(f),
         }
     }
 }
@@ -429,6 +471,31 @@ impl Decorated for Statement {
             Statement::FunctionCall(stmt) => &mut stmt.attributes,
             Statement::ConstAssert(stmt) => &mut stmt.attributes,
             Statement::Declaration(stmt) => &mut stmt.attributes,
+        }
+    }
+
+    fn retain_attributes_mut<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut Attribute) -> bool,
+    {
+        match self {
+            Statement::Void => {}
+            Statement::Compound(stmt) => stmt.attributes.retain_mut(f),
+            Statement::Assignment(stmt) => stmt.attributes.retain_mut(f),
+            Statement::Increment(stmt) => stmt.attributes.retain_mut(f),
+            Statement::Decrement(stmt) => stmt.attributes.retain_mut(f),
+            Statement::If(stmt) => stmt.attributes.retain_mut(f),
+            Statement::Switch(stmt) => stmt.attributes.retain_mut(f),
+            Statement::Loop(stmt) => stmt.attributes.retain_mut(f),
+            Statement::For(stmt) => stmt.attributes.retain_mut(f),
+            Statement::While(stmt) => stmt.attributes.retain_mut(f),
+            Statement::Break(stmt) => stmt.attributes.retain_mut(f),
+            Statement::Continue(stmt) => stmt.attributes.retain_mut(f),
+            Statement::Return(stmt) => stmt.attributes.retain_mut(f),
+            Statement::Discard(stmt) => stmt.attributes.retain_mut(f),
+            Statement::FunctionCall(stmt) => stmt.attributes.retain_mut(f),
+            Statement::ConstAssert(stmt) => stmt.attributes.retain_mut(f),
+            Statement::Declaration(stmt) => stmt.attributes.retain_mut(f),
         }
     }
 }

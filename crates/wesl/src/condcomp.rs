@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{visit::Visit, Diagnostic};
+use crate::Diagnostic;
 use thiserror::Error;
 use wgsl_parse::{span::Spanned, syntax::*, Decorated};
 
@@ -180,38 +180,51 @@ fn eval_if_attributes(nodes: &mut Vec<impl Decorated>, features: &Features) -> R
         }
     }
 
-    // remove the nodes for which the attr evaluate to false.
-    // we checked already that elif/else-decorated nodes are preceded by if/elif.
-    let mut prev_all_true = false;
-    nodes.retain(|node| {
-        let mut keep = true;
+    // * remove the nodes for which the attr evaluate to false.
+    // * remove the attributes which evaluate to true.
+    // * turn elifs into ifs when previous node was deleted.
+    // * turn elifs into elses when it evaluates to true.
+    // (we checked already that elif/else-decorated nodes are preceded by if/elif)
+    let mut prev_all_true = true;
+    let mut prev_any_false = false;
+    nodes.retain_mut(|node| {
+        let mut any_false = false;
         let mut all_true = true;
-        for attr in node.attributes() {
+        node.retain_attributes_mut(|attr| {
             if let Attribute::If(expr) = attr {
-                if **expr == EXPR_FALSE {
-                    keep = false;
-                }
                 if **expr != EXPR_TRUE {
                     all_true = false;
+                }
+                if **expr == EXPR_FALSE {
+                    any_false = true; // delete the whole node
+                } else if **expr == EXPR_TRUE {
+                    return false; // delete this attribute
                 }
             } else if let Attribute::Elif(expr) = attr {
-                if prev_all_true {
-                    return false;
-                }
-                if **expr == EXPR_FALSE {
-                    keep = false;
-                }
                 if **expr != EXPR_TRUE {
                     all_true = false;
+                }
+                if **expr == EXPR_FALSE || prev_all_true {
+                    any_false = true; // delete the whole node
+                } else if **expr == EXPR_TRUE {
+                    *attr = Attribute::Else; // elif(true) <=> else
+                } else if prev_any_false {
+                    *attr = Attribute::If(expr.clone()); // previous node is deleted, make this a if
                 }
             } else if let Attribute::Else = attr {
                 if prev_all_true {
-                    return false;
+                    any_false = true; // previous node is chosen, delete the whole node
+                } else if prev_any_false {
+                    return false; // previous node was deleted, delete this attribute
                 }
             }
-        }
+
+            true
+        });
+
         prev_all_true = all_true;
-        keep
+        prev_any_false = any_false;
+        !any_false // keep the node if any attr is unresolved or true.
     });
     Ok(())
 }
@@ -304,16 +317,5 @@ pub fn run(wesl: &mut TranslationUnit, features: &Features) -> Result<(), E> {
             .map_err(|e| Diagnostic::from(e).with_declaration(func.ident.to_string()))?;
     }
 
-    // 2. remove attributes that evaluate to true
-    // at this point, if all if/elif attributes on a node evaluate to true then the next elif/else
-    // must have been eliminated.
-
-    for attrs in Visit::<Attributes>::visit_mut(wesl) {
-        attrs.retain(|attr| match attr {
-            Attribute::If(expr) => **expr != EXPR_TRUE,
-            Attribute::Elif(expr) => **expr != EXPR_TRUE,
-            _ => true,
-        })
-    }
     Ok(())
 }
