@@ -366,6 +366,10 @@ pub enum Attribute {
     Compute,
     #[cfg(feature = "condcomp")]
     If(ExpressionNode),
+    #[cfg(feature = "condcomp")]
+    Elif(ExpressionNode),
+    #[cfg(feature = "condcomp")]
+    Else,
     #[cfg(feature = "generics")]
     Type(TypeConstraint),
     Custom(CustomAttribute),

@@ -13,6 +13,10 @@ pub enum CondCompError {
     MissingFeatureFlag(String),
     #[error("invalid if attribute expression: `{0}`")]
     InvalidExpression(Expression),
+    #[error("an @elif or @else attribute must be preceded by a @if or @elif on the previous node")]
+    NoPrecedingIf,
+    #[error("cannot have different kinds of @if/@elif/@else attributes on the same node")]
+    BothIfElse,
 }
 
 type E = crate::Error;
@@ -141,29 +145,73 @@ fn eval_if_attr(opt_node: &mut Option<impl Decorated>, features: &Features) -> R
 }
 
 fn eval_if_attributes(nodes: &mut Vec<impl Decorated>, features: &Features) -> Result<(), E> {
+    let mut prev_has_ifs = false;
     for node in nodes.iter_mut() {
-        for attr in node
-            .attributes_mut()
-            .iter_mut()
-            .filter_map(|attr| match attr {
-                Attribute::If(expr) => Some(expr),
-                _ => None,
-            })
-        {
-            **attr = eval_attr(attr, features)?;
+        let mut has_if = false;
+        let mut has_elif = false;
+        let mut has_else = false;
+        for attr in node.attributes_mut().iter_mut() {
+            if let Attribute::If(expr) = attr {
+                if has_elif || has_else {
+                    return Err(CondCompError::BothIfElse.into());
+                } else {
+                    **expr = eval_attr(expr, features)?;
+                    has_if = true;
+                }
+            } else if let Attribute::Elif(expr) = attr {
+                if has_if || has_else {
+                    return Err(CondCompError::BothIfElse.into());
+                } else if !prev_has_ifs {
+                    return Err(CondCompError::NoPrecedingIf.into());
+                } else {
+                    **expr = eval_attr(expr, features)?;
+                    has_elif = true;
+                }
+            } else if let Attribute::Else = attr {
+                if has_if || has_elif || has_else {
+                    return Err(CondCompError::BothIfElse.into());
+                } else if !prev_has_ifs {
+                    return Err(CondCompError::NoPrecedingIf.into());
+                } else {
+                    has_else = true;
+                }
+            }
+            prev_has_ifs = has_if || has_elif;
         }
     }
 
+    // remove the nodes for which the attr evaluate to false.
+    // we checked already that elif/else-decorated nodes are preceded by if/elif.
+    let mut prev_all_true = false;
     nodes.retain(|node| {
-        let mut it = node
-            .attributes()
-            .iter()
-            .filter_map(|attr| match attr {
-                Attribute::If(expr) => Some(expr),
-                _ => None,
-            })
-            .peekable();
-        it.peek().is_none() || it.any(|expr| **expr != EXPR_FALSE)
+        let mut keep = true;
+        let mut all_true = true;
+        for attr in node.attributes() {
+            if let Attribute::If(expr) = attr {
+                if **expr == EXPR_FALSE {
+                    keep = false;
+                }
+                if **expr != EXPR_TRUE {
+                    all_true = false;
+                }
+            } else if let Attribute::Elif(expr) = attr {
+                if prev_all_true {
+                    return false;
+                }
+                if **expr == EXPR_FALSE {
+                    keep = false;
+                }
+                if **expr != EXPR_TRUE {
+                    all_true = false;
+                }
+            } else if let Attribute::Else = attr {
+                if prev_all_true {
+                    return false;
+                }
+            }
+        }
+        prev_all_true = all_true;
+        keep
     });
     Ok(())
 }
@@ -257,10 +305,13 @@ pub fn run(wesl: &mut TranslationUnit, features: &Features) -> Result<(), E> {
     }
 
     // 2. remove attributes that evaluate to true
+    // at this point, if all if/elif attributes on a node evaluate to true then the next elif/else
+    // must have been eliminated.
 
     for attrs in Visit::<Attributes>::visit_mut(wesl) {
         attrs.retain(|attr| match attr {
             Attribute::If(expr) => **expr != EXPR_TRUE,
+            Attribute::Elif(expr) => **expr != EXPR_TRUE,
             _ => true,
         })
     }

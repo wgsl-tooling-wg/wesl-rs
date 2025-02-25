@@ -370,6 +370,10 @@ impl Display for Attribute {
             Attribute::Compute => write!(f, "@compute"),
             #[cfg(feature = "condcomp")]
             Attribute::If(e1) => write!(f, "@if({e1})"),
+            #[cfg(feature = "condcomp")]
+            Attribute::Elif(e1) => write!(f, "@elif({e1})"),
+            #[cfg(feature = "condcomp")]
+            Attribute::Else => write!(f, "@else"),
             #[cfg(feature = "generics")]
             Attribute::Type(e1) => write!(f, "@type({e1})"),
             Attribute::Custom(custom) => {

@@ -329,7 +329,10 @@ impl Diagnostic<Error> {
             Error::ImportError(_) => {}
             Error::CondCompError(e) => match e {
                 CondCompError::InvalidExpression(expr) => unmangle_expr(expr, sourcemap, mangler),
-                CondCompError::InvalidFeatureFlag(_) | CondCompError::MissingFeatureFlag(_) => {}
+                CondCompError::InvalidFeatureFlag(_)
+                | CondCompError::MissingFeatureFlag(_)
+                | CondCompError::NoPrecedingIf
+                | CondCompError::BothIfElse => {}
             },
             #[cfg(feature = "generics")]
             Error::GenericsError(_) => {}

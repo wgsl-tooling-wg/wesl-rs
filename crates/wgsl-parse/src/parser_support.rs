@@ -309,6 +309,16 @@ pub(crate) fn parse_attribute(
             Some(expr) => Ok(Attribute::If(expr)),
             None => Err(E::Attribute("if", "expected 1 argument")),
         },
+        #[cfg(feature = "condcomp")]
+        "elif" => match one_arg(args) {
+            Some(expr) => Ok(Attribute::Elif(expr)),
+            None => Err(E::Attribute("elif", "expected 1 argument")),
+        },
+        #[cfg(feature = "condcomp")]
+        "else" => match zero_args(args) {
+            true => Ok(Attribute::Else),
+            false => Err(E::Attribute("else", "expected 0 arguments")),
+        },
         #[cfg(feature = "generics")]
         "type" => parse_attr_type(args).map(Attribute::Type),
         _ => Ok(Attribute::Custom(CustomAttribute {
