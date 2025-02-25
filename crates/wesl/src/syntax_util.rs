@@ -8,7 +8,7 @@ use wgsl_parse::syntax::*;
 type BoxedIterator<'a, T> = Box<dyn Iterator<Item = T> + 'a>;
 
 #[allow(dead_code)]
-trait IteratorExt: Iterator {
+pub trait IteratorExt: Iterator {
     fn boxed<'a>(self) -> BoxedIterator<'a, Self::Item>
     where
         Self: Sized + 'a;

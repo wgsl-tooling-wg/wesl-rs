@@ -324,6 +324,7 @@ impl Diagnostic<Error> {
                     unmangle_name(name1, sourcemap, mangler);
                     unmangle_name(name2, sourcemap, mangler);
                 }
+                ValidateError::ReservedWord(_) => {}
             },
             Error::ResolveError(_) => {}
             Error::ImportError(_) => {}
