@@ -1,4 +1,4 @@
-use crate::{Diagnostic, Error, SyntaxUtil};
+use crate::{Diagnostic, Error};
 
 use itertools::Itertools;
 use wgsl_parse::syntax::{ModulePath, PathOrigin, TranslationUnit};
@@ -35,12 +35,11 @@ pub trait Resolver {
     fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, E>;
     /// Convert a source file into a syntax tree.
     fn source_to_module(&self, source: &str, path: &ModulePath) -> Result<TranslationUnit, E> {
-        let mut wesl: TranslationUnit = source.parse().map_err(|e| {
+        let wesl: TranslationUnit = source.parse().map_err(|e| {
             Diagnostic::from(e)
                 .with_module_path(path.clone(), self.display_name(path))
                 .with_source(source.to_string())
         })?;
-        wesl.retarget_idents(); // it's important to call that early on to have identifiers point at the right declaration.
         Ok(wesl)
     }
     /// Try to resolve a source file identified by a module path.
@@ -245,7 +244,6 @@ impl<R: Resolver, F: ResolveFn> Resolver for Preprocessor<R, F> {
                 .with_module_path(path.clone(), self.display_name(path))
                 .with_source(source.to_string())
         })?;
-        wesl.retarget_idents(); // it's important to call that early on to have identifiers point at the right declaration.
         (self.preprocess)(&mut wesl).map_err(|e| {
             Diagnostic::from(e)
                 .with_module_path(path.clone(), self.display_name(path))

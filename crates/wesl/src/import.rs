@@ -9,7 +9,7 @@ use wgsl_parse::syntax::{
     TypeExpression,
 };
 
-use crate::{visit::Visit, Mangler, ResolveError, Resolver};
+use crate::{visit::Visit, Mangler, ResolveError, Resolver, SyntaxUtil};
 
 type Imports = HashMap<Ident, (ModulePath, Ident)>;
 type Modules = HashMap<ModulePath, Rc<RefCell<Module>>>;
@@ -142,7 +142,8 @@ pub fn resolve_lazy<'a>(
         if let Some(module) = resolutions.modules.get(path) {
             Ok(module.clone())
         } else {
-            let source = resolver.resolve_module(path)?;
+            let mut source = resolver.resolve_module(path)?;
+            source.retarget_idents();
             let module = Module::new(source, path.clone());
 
             // const_asserts of used modules must be included.
@@ -287,7 +288,8 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
         let ext_mod = if let Some(module) = resolutions.modules.get(&ext_path) {
             module.clone()
         } else {
-            let source = resolver.resolve_module(&ext_path)?;
+            let mut source = resolver.resolve_module(&ext_path)?;
+            source.retarget_idents();
             let module = resolutions.push_module(Module::new(source, ext_path.clone()));
             resolve_module(&module.borrow(), resolutions, resolver)?;
             module

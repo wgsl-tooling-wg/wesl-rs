@@ -727,7 +727,8 @@ fn compile_pre_assembly(
         Box::new(resolver)
     };
 
-    let wesl = resolver.resolve_module(root)?;
+    let mut wesl = resolver.resolve_module(root)?;
+    wesl.retarget_idents();
     let keep = keep_idents(&wesl, &options.keep, options.strip);
 
     let mut resolutions = Resolutions::new();
