@@ -22,9 +22,9 @@ pub(crate) fn mark_functions_const(wesl: &mut TranslationUnit) {
                 locals.add(decl.ident.to_string(), true); // we suppose the function is const.
                 let is_const = decl.is_const(wesl, &mut locals);
                 if !is_const {
-                    *locals.local_get_mut(&decl.ident.name()).unwrap() = is_const;
-                    return true;
+                    *locals.local_get_mut(&decl.ident.name()).unwrap() = false;
                 }
+                return is_const;
             }
             false
         })
