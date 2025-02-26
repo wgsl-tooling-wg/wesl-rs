@@ -1,10 +1,11 @@
-use std::fmt::Display;
+use std::{fmt::Display, iter::zip};
 
 use crate::eval::conv::Convert;
 
 use super::{
-    attrs::EvalAttrs, is_constructor_fn, ty_eval_ty, AccessMode, Context, Eval, EvalError,
-    EvalStage, EvalTy, Instance, LiteralInstance, RefInstance, ScopeKind, SyntaxUtil, Ty, Type,
+    attrs::EvalAttrs, call_builtin, is_constructor_fn, ty_eval_ty, AccessMode, Context, Eval,
+    EvalError, EvalStage, EvalTy, Instance, LiteralInstance, RefInstance, ScopeKind,
+    StructInstance, SyntaxUtil, Ty, Type, ATTR_INTRINSIC,
 };
 
 use wgsl_parse::{span::Spanned, syntax::*};
@@ -18,6 +19,12 @@ pub enum Flow {
     Break,
     Continue,
     Return(Option<Instance>),
+}
+
+impl From<Instance> for Flow {
+    fn from(inst: Instance) -> Self {
+        Self::Return(Some(inst))
+    }
 }
 
 macro_rules! with_stage {
@@ -195,6 +202,7 @@ impl Exec for AssignmentStatement {
                     let rhs = rhs
                         .convert_to(&ty)
                         .ok_or_else(|| E::AssignType(rhs.ty(), ty))?;
+                    println!("assigned {rhs} to {r}");
                     r.write(rhs)?;
                 }
                 AssignmentOperator::PlusEqual => {
@@ -540,6 +548,114 @@ impl Exec for FunctionCallStatement {
             Ok(_) => Ok(Flow::Next),
             Err(E::Void(_)) => Ok(Flow::Next),
             Err(e) => Err(e),
+        }
+    }
+}
+
+impl Exec for FunctionCall {
+    fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
+        let ty = ctx.source.resolve_ty(&self.ty);
+        let fn_name = ty.ident.to_string();
+
+        let args = self
+            .arguments
+            .iter()
+            .map(|a| a.eval_value(ctx))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        if let Some(decl) = ctx.source.decl(&fn_name) {
+            // function call
+            if let GlobalDeclaration::Function(decl) = decl {
+                if ctx.stage == EvalStage::Const && !decl.attributes.contains(&Attribute::Const) {
+                    return Err(E::NotConst(decl.ident.to_string()));
+                }
+
+                if decl.body.attributes.contains(&ATTR_INTRINSIC) {
+                    return call_builtin(ty, args, ctx).map(Into::into);
+                }
+
+                if self.arguments.len() != decl.parameters.len() {
+                    return Err(E::ParamCount(
+                        decl.ident.to_string(),
+                        decl.parameters.len(),
+                        self.arguments.len(),
+                    ));
+                }
+
+                let ret_ty = decl
+                    .return_type
+                    .as_ref()
+                    .map(|expr| ty_eval_ty(expr, ctx))
+                    .transpose()?;
+
+                let flow = with_scope!(ctx, {
+                    let args = args
+                        .iter()
+                        .zip(&decl.parameters)
+                        .map(|(arg, param)| {
+                            let param_ty = ty_eval_ty(&param.ty, ctx)?;
+                            arg.convert_to(&param_ty)
+                                .ok_or_else(|| E::ParamType(param_ty.clone(), arg.ty()))
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
+
+                    for (a, p) in zip(args, &decl.parameters) {
+                        if !ctx.scope.add(p.ident.to_string(), a) {
+                            return Err(E::DuplicateDecl(p.ident.to_string()));
+                        }
+                    }
+
+                    // the arguments must be in the same scope as the function body.
+                    let flow = compound_exec_no_scope(&decl.body, ctx)
+                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
+
+                    Ok(flow)
+                })?;
+
+                match (flow, ret_ty) {
+                    (flow @ (Flow::Break | Flow::Continue), _) => Err(E::FlowInFunction(flow)),
+                    (Flow::Next, Some(ret_ty)) => Err(E::NoReturn(fn_name, ret_ty)),
+                    (Flow::Return(Some(inst)), Some(ret_ty)) => inst
+                        .convert_to(&ret_ty)
+                        .ok_or(E::ReturnType(inst.ty(), fn_name.clone(), ret_ty))
+                        .map(Into::into)
+                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name)),
+                    (Flow::Return(Some(inst)), None) => {
+                        Err(E::UnexpectedReturn(fn_name, inst.ty()))
+                    }
+                    (Flow::Return(None), Some(ret_ty)) => Err(E::NoReturn(fn_name, ret_ty)),
+                    (Flow::Next | Flow::Return(None), None) => Ok(Flow::Return(None)),
+                }
+            }
+            // struct constructor
+            else if let GlobalDeclaration::Struct(decl) = decl {
+                if args.len() == decl.members.len() {
+                    let members = decl
+                        .members
+                        .iter()
+                        .zip(args)
+                        .map(|(member, inst)| {
+                            let ty = ty_eval_ty(&member.ty, ctx)?;
+                            let inst = inst
+                                .convert_to(&ty)
+                                .ok_or_else(|| E::ParamType(ty, inst.ty()))?;
+                            Ok((member.ident.to_string(), inst))
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+                    Ok(Instance::Struct(StructInstance::new(fn_name, members)).into())
+                } else if args.is_empty() {
+                    Ok(Instance::Struct(StructInstance::zero_value(&fn_name, ctx)?).into())
+                } else {
+                    Err(E::ParamCount(fn_name, decl.members.len(), args.len()))
+                }
+            } else {
+                Err(E::NotCallable(fn_name))
+            }
+        } else if is_constructor_fn(&fn_name) {
+            call_builtin(ty, args, ctx).map(Into::into)
+        } else {
+            Err(E::UnknownFunction(fn_name))
         }
     }
 }

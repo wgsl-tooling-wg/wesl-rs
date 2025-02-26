@@ -1,9 +1,6 @@
-use std::iter::zip;
-
 use super::{
-    call_builtin, compound_exec_no_scope, is_constructor_fn, ty_eval_ty, with_scope, Context,
-    Convert, EvalError, EvalStage, Exec, Flow, Instance, LiteralInstance, PtrInstance, RefInstance,
-    ScopeKind, StructInstance, SyntaxUtil, Ty, Type, VecInstance, ATTR_INTRINSIC,
+    Context, EvalError, Exec, Flow, Instance, LiteralInstance, PtrInstance, RefInstance, ScopeKind,
+    SyntaxUtil, Ty, Type, VecInstance,
 };
 
 use half::f16;
@@ -263,103 +260,12 @@ impl Eval for BinaryExpression {
 
 impl Eval for FunctionCall {
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E> {
-        let ty = ctx.source.resolve_ty(&self.ty);
-        let fn_name = ty.ident.to_string();
-
-        let args = self
-            .arguments
-            .iter()
-            .map(|a| a.eval_value(ctx))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        if let Some(decl) = ctx.source.decl(&fn_name) {
-            // function call
-            if let GlobalDeclaration::Function(decl) = decl {
-                if ctx.stage == EvalStage::Const && !decl.attributes.contains(&Attribute::Const) {
-                    return Err(E::NotConst(decl.ident.to_string()));
-                }
-
-                if decl.body.attributes.contains(&ATTR_INTRINSIC) {
-                    return call_builtin(ty, args, ctx);
-                }
-
-                if self.arguments.len() != decl.parameters.len() {
-                    return Err(E::ParamCount(
-                        decl.ident.to_string(),
-                        decl.parameters.len(),
-                        self.arguments.len(),
-                    ));
-                }
-
-                let ret_ty = decl
-                    .return_type
-                    .as_ref()
-                    .ok_or_else(|| E::Void(fn_name.clone()))?;
-                let ret_ty = ty_eval_ty(ret_ty, ctx)?;
-
-                let flow = with_scope!(ctx, {
-                    let args = args
-                        .iter()
-                        .zip(&decl.parameters)
-                        .map(|(arg, param)| {
-                            let param_ty = ty_eval_ty(&param.ty, ctx)?;
-                            arg.convert_to(&param_ty)
-                                .ok_or_else(|| E::ParamType(param_ty.clone(), arg.ty()))
-                        })
-                        .collect::<Result<Vec<_>, _>>()
-                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
-
-                    for (a, p) in zip(args, &decl.parameters) {
-                        if !ctx.scope.add(p.ident.to_string(), a) {
-                            return Err(E::DuplicateDecl(p.ident.to_string()));
-                        }
-                    }
-
-                    // the arguments must be in the same scope as the function body.
-                    let flow = compound_exec_no_scope(&decl.body, ctx)
-                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
-
-                    Ok(flow)
-                })?;
-
-                match flow {
-                    Flow::Next => Err(E::NoReturn(fn_name, ret_ty)),
-                    Flow::Break | Flow::Continue => Err(E::FlowInFunction(flow)),
-                    Flow::Return(Some(inst)) => inst
-                        .convert_to(&ret_ty)
-                        .ok_or(E::ReturnType(inst.ty(), fn_name.clone(), ret_ty))
-                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name)),
-                    Flow::Return(None) => Err(E::NoReturn(fn_name, ret_ty)),
-                }
+        let flow = self.exec(ctx)?;
+        match flow {
+            Flow::Next | Flow::Break | Flow::Continue | Flow::Return(None) => {
+                Err(E::Void(self.ty.ident.to_string()))
             }
-            // struct constructor
-            else if let GlobalDeclaration::Struct(decl) = decl {
-                if args.len() == decl.members.len() {
-                    let members = decl
-                        .members
-                        .iter()
-                        .zip(args)
-                        .map(|(member, inst)| {
-                            let ty = ty_eval_ty(&member.ty, ctx)?;
-                            let inst = inst
-                                .convert_to(&ty)
-                                .ok_or_else(|| E::ParamType(ty, inst.ty()))?;
-                            Ok((member.ident.to_string(), inst))
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    Ok(StructInstance::new(fn_name, members).into())
-                } else if args.is_empty() {
-                    StructInstance::zero_value(&fn_name, ctx).map(Into::into)
-                } else {
-                    Err(E::ParamCount(fn_name, decl.members.len(), args.len()))
-                }
-            } else {
-                Err(E::NotCallable(fn_name))
-            }
-        } else if is_constructor_fn(&fn_name) {
-            call_builtin(ty, args, ctx)
-        } else {
-            Err(E::UnknownFunction(fn_name))
+            Flow::Return(Some(inst)) => Ok(inst),
         }
     }
 }
