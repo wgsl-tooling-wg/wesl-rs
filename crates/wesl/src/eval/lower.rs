@@ -106,7 +106,7 @@ impl Lower for Expression {
         match self.eval_value(ctx) {
             Ok(inst) => *self = inst.to_expr(ctx)?,
             // `NotAccessible` is supposed to be the only possible error when evaluating valid code.
-            Err(E::NotAccessible(_, EvalStage::Const)) => {
+            Err(E::NotAccessible(_, EvalStage::Const) | E::NotConst(_)) => {
                 ctx.err_span = None;
                 match self {
                     Expression::Literal(_) => (),
