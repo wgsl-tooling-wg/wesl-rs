@@ -1,4 +1,4 @@
-use crate::{visit::Visit, Error};
+use crate::{visit::Visit, Error, Exec};
 
 use wgsl_parse::syntax::*;
 
@@ -22,7 +22,7 @@ pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
     }
     #[cfg(feature = "eval")]
     {
-        use crate::eval::{make_explicit_conversions, mark_functions_const, Context, Lower};
+        use crate::eval::{mark_functions_const, Context, Lower};
         use crate::Diagnostic;
         mark_functions_const(wesl);
 
@@ -30,8 +30,7 @@ pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
         {
             let wesl2 = wesl.clone();
             let mut ctx = Context::new(&wesl2);
-            make_explicit_conversions(wesl, &mut ctx)
-                .map_err(|e| Diagnostic::from(e).with_ctx(&ctx))?;
+            wesl.exec(&mut ctx)?; // populate the ctx with module-scope declarations
             wesl.lower(&mut ctx)
                 .map_err(|e| Diagnostic::from(e).with_ctx(&ctx))?;
         }

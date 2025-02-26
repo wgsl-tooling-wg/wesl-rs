@@ -399,6 +399,10 @@ impl Diagnostic<Error> {
                     unmangle_name(name, sourcemap, mangler);
                     unmangle_ty(ty, sourcemap, mangler);
                 }
+                EvalError::UnexpectedReturn(name, ty) => {
+                    unmangle_name(name, sourcemap, mangler);
+                    unmangle_ty(ty, sourcemap, mangler);
+                }
                 EvalError::NotConst(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::Void(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::MustUse(name) => unmangle_name(name, sourcemap, mangler),

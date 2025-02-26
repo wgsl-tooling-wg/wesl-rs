@@ -109,6 +109,8 @@ pub enum EvalError {
     ReturnType(Type, String, Type),
     #[error("call to function `{0}` did not return any value, expected `{1}`")]
     NoReturn(String, Type),
+    #[error("function `{0}` has no return type, but it returns `{1}`")]
+    UnexpectedReturn(String, Type),
     #[error("calling non-const function `{0}` in const context")]
     NotConst(String),
     #[error("expected a value, but function `{0}` has no return type")]

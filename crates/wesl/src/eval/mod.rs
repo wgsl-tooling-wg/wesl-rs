@@ -174,8 +174,8 @@ pub struct Context<'s> {
     pub(crate) overrides: HashMap<String, Instance>,
     pub(crate) kind: ScopeKind,
     pub(crate) stage: EvalStage,
-    err_decl: Option<String>,
-    err_span: Option<Span>,
+    pub(crate) err_decl: Option<String>,
+    pub(crate) err_span: Option<Span>,
 }
 
 impl<'s> Context<'s> {

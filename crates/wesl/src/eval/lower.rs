@@ -1,10 +1,6 @@
 use std::iter::zip;
 
-use crate::{
-    eval::{ty_eval_ty, Context, Eval, EvalError, Exec, Ty, Type, ATTR_INTRINSIC},
-    visit::Visit,
-};
-use wesl_macros::query_mut;
+use crate::eval::{ty_eval_ty, Context, Eval, EvalError, Exec, Ty, ATTR_INTRINSIC};
 use wgsl_parse::{span::Spanned, syntax::*};
 
 use super::{
@@ -13,70 +9,70 @@ use super::{
 
 type E = EvalError;
 
-// TODO: I am aware that it is not correct to make all implicit conversions explicit.
-// I should fix that at some point, but meanwhile it fixes Naga not supporting automatic conversions.
-pub fn make_explicit_conversions(wesl: &mut TranslationUnit, ctx: &mut Context) -> Result<(), E> {
-    fn explicit_call(call: &mut FunctionCall, ctx: &mut Context) -> Result<(), E> {
-        let decl = ctx.source.decl_function(&call.ty.ident.name());
-        if let Some(decl) = decl {
+fn make_explicit_call(call: &mut FunctionCall, ctx: &mut Context) -> Result<(), E> {
+    let decl = ctx.source.decl_function(&call.ty.ident.name());
+    if let Some(decl) = decl {
+        if decl.body.attributes.contains(&ATTR_INTRINSIC) {
             // we only do explicit conversions on user-defined functions,
             // because built-in functions have overloads for abstract types.
-            if !decl.body.attributes.contains(&ATTR_INTRINSIC) {
-                for (arg, param) in zip(&mut call.arguments, &decl.parameters) {
-                    let ty = ty_eval_ty(&param.ty, ctx)?;
-                    if ty.inner_ty().is_scalar() {
-                        let ty = ty.to_expr(ctx)?.unwrap_type_or_identifier();
-                        *arg.node_mut() = Expression::FunctionCall(FunctionCall {
-                            ty,
-                            arguments: vec![arg.clone()],
-                        })
-                    }
-                }
-            }
+            return Ok(());
         }
-        Ok(())
-    }
-    fn explicit_expr(expr: &mut Expression, ctx: &mut Context) -> Result<(), E> {
-        if let Expression::FunctionCall(call) = expr {
-            explicit_call(call, ctx)?;
-        }
-        for expr in Visit::<ExpressionNode>::visit_mut(expr) {
-            explicit_expr(expr, ctx)?;
-        }
-        Ok(())
-    }
-    for expr in Visit::<ExpressionNode>::visit_mut(wesl) {
-        explicit_expr(expr, ctx)?;
-    }
 
-    fn explicit_stat(stmt: &mut Statement, ret: &Type, ctx: &mut Context) -> Result<(), E> {
-        if let Statement::Return(stmt) = stmt {
-            if let Some(expr) = &mut stmt.expression {
-                let ty = ret.to_expr(ctx)?.unwrap_type_or_identifier();
-                *expr.node_mut() = Expression::FunctionCall(FunctionCall {
-                    ty,
-                    arguments: vec![expr.clone()],
-                })
-            }
-        } else if let Statement::FunctionCall(stmt) = stmt {
-            explicit_call(&mut stmt.call, ctx)?;
-        }
-        for stmt in Visit::<StatementNode>::visit_mut(stmt) {
-            explicit_stat(stmt, ret, ctx)?;
-        }
-        Ok(())
-    }
-    for decl in query_mut!(wesl.global_declarations.[].GlobalDeclaration::Function) {
-        if let Some(ret) = &decl.return_type {
-            let ty = ty_eval_ty(ret, ctx)?;
-            if ty.inner_ty().is_scalar() {
-                for stmt in &mut decl.body.statements {
-                    explicit_stat(stmt, &ty, ctx)?;
+        for (arg, param) in zip(&mut call.arguments, &decl.parameters) {
+            let arg_ty = arg.eval_ty(ctx)?;
+            let param_ty = ty_eval_ty(&param.ty, ctx)?;
+            if arg_ty != param_ty {
+                if arg_ty.is_convertible_to(&param_ty) {
+                    let ty = param_ty.to_expr(ctx)?.unwrap_type_or_identifier();
+                    *arg.node_mut() = Expression::FunctionCall(FunctionCall {
+                        ty,
+                        arguments: vec![arg.clone()],
+                    })
+                } else {
+                    return Err(E::ParamType(param_ty, arg_ty));
                 }
             }
         }
     }
     Ok(())
+}
+
+/// Replace automatic conversions with explicit calls to the target type's constructor.
+fn make_explicit_return(stmt: &mut ReturnStatement, ctx: &mut Context) -> Result<(), E> {
+    // HACK: we use ctx.err_decl to keep track of the current function, which is not supposed to be
+    // set at this stage in normal conditions.
+    let decl = ctx
+        .source
+        .decl_function(ctx.err_decl.as_ref().unwrap())
+        .unwrap();
+
+    match (&mut stmt.expression, &decl.return_type) {
+        (None, None) => Ok(()),
+        (None, Some(ret_expr)) => {
+            let ret_ty = ty_eval_ty(ret_expr, ctx)?;
+            Err(E::NoReturn(decl.ident.to_string(), ret_ty))
+        }
+        (Some(expr), None) => {
+            let expr_ty = expr.eval_ty(ctx)?;
+            Err(E::UnexpectedReturn(decl.ident.to_string(), expr_ty))
+        }
+        (Some(expr), Some(ret_expr)) => {
+            let ret_ty = ty_eval_ty(ret_expr, ctx)?;
+            let expr_ty = expr.eval_ty(ctx)?;
+            if expr_ty != ret_ty {
+                if expr_ty.is_convertible_to(&ret_ty) {
+                    let ty = ret_ty.to_expr(ctx)?.unwrap_type_or_identifier();
+                    *expr.node_mut() = Expression::FunctionCall(FunctionCall {
+                        ty,
+                        arguments: vec![expr.clone()],
+                    })
+                } else {
+                    return Err(E::ReturnType(expr_ty, decl.ident.to_string(), ret_ty));
+                }
+            }
+            Ok(())
+        }
+    }
 }
 
 pub trait Lower {
@@ -138,9 +134,14 @@ impl Lower for Expression {
 impl Lower for FunctionCall {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
         self.ty = ctx.source.resolve_ty(&self.ty).clone();
+
+        // replace automatic conversions with explicit calls to the target type's constructor
+        make_explicit_call(self, ctx)?;
+
         for arg in &mut self.arguments {
             arg.lower(ctx)?;
         }
+
         Ok(())
     }
 }
@@ -242,9 +243,6 @@ impl Lower for Struct {
 
 impl Lower for Function {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
-        if self.attributes.contains(&Attribute::Const) && self.return_type.is_none() {
-            self.body.statements.clear();
-        }
         self.attributes.lower(ctx)?;
         for p in &mut self.parameters {
             p.attributes.lower(ctx)?;
@@ -252,6 +250,10 @@ impl Lower for Function {
         }
         self.return_attributes.lower(ctx)?;
         self.return_type.lower(ctx)?;
+
+        // HACK: we need to keep track of the declaration name to lower the return statements and
+        // we repurpose `ctx.err_ctx` for that.
+        ctx.err_decl = Some(self.ident.to_string());
 
         with_scope!(ctx, {
             for p in &self.parameters {
@@ -262,7 +264,14 @@ impl Lower for Function {
             }
             compound_lower(&mut self.body, ctx, true)?;
             Ok(())
-        })
+        })?;
+
+        // ideally we would do this first, but it would prevent validation errors from triggering
+        // in `compound_lower`.
+        if self.attributes.contains(&Attribute::Const) && self.return_type.is_none() {
+            self.body.statements.clear();
+        }
+        Ok(())
     }
 }
 
@@ -508,6 +517,10 @@ impl Lower for WhileStatement {
 
 impl Lower for ReturnStatement {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
+        // replace automatic conversions with explicit calls to the target type's constructor
+        // we call this before lower, because the explicit call can then be lowered.
+        make_explicit_return(self, ctx)?;
+
         self.expression.lower(ctx)?;
         Ok(())
     }
@@ -520,8 +533,8 @@ impl Lower for FunctionCallStatement {
 }
 
 impl Lower for TranslationUnit {
+    /// expects that `exec` was called on the TU before.
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
-        self.exec(ctx)?; // populate the ctx with declarations
         for decl in &mut self.global_declarations {
             match decl {
                 GlobalDeclaration::Void => Ok(()),
