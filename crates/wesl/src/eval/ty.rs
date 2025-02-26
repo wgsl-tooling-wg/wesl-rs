@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
 use super::{
-    builtin_fn_type, constructor_type, convert_ty, is_constructor_fn, ArrayInstance, ArrayTemplate,
-    AtomicInstance, AtomicTemplate, Context, Convert, EvalError, Exec, Instance, LiteralInstance,
-    MatInstance, MatTemplate, PtrInstance, PtrTemplate, RefInstance, ScopeKind, StructInstance,
-    SyntaxUtil, TextureTemplate, VecInstance, VecTemplate, ATTR_INTRINSIC,
+    builtin_fn_type, check_swizzle, constructor_type, convert_ty, is_constructor_fn, ArrayInstance,
+    ArrayTemplate, AtomicInstance, AtomicTemplate, Context, Convert, EvalError, Exec, Instance,
+    LiteralInstance, MatInstance, MatTemplate, PtrInstance, PtrTemplate, RefInstance, ScopeKind,
+    StructInstance, SyntaxUtil, TextureTemplate, VecInstance, VecTemplate, ATTR_INTRINSIC,
 };
 
 type E = EvalError;
@@ -296,7 +296,6 @@ pub enum Type {
     F32,
     F16,
     Struct(String),
-    // TODO: swap these two members
     Array(Box<Type>, Option<usize>),
     Vec(u8, Box<Type>),
     Mat(u8, u8, Box<Type>),
@@ -688,14 +687,13 @@ impl EvalTy for NamedComponentExpression {
                 ty_eval_ty(&m.ty, ctx)
             }
             Type::Vec(_, ty) => {
-                // TODO: check valid swizzle
                 let m = self.component.name().len();
-                if m == 1 {
-                    Ok(*ty)
-                } else if m <= 4 {
-                    Ok(Type::Vec(m as u8, ty))
-                } else {
+                if !check_swizzle(&self.component.name()) {
                     Err(E::Swizzle(self.component.to_string()))
+                } else if m == 1 {
+                    Ok(*ty)
+                } else {
+                    Ok(Type::Vec(m as u8, ty))
                 }
             }
             ty => Err(E::Component(ty, self.component.to_string())),

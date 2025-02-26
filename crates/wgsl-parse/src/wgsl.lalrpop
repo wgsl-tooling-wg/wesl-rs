@@ -220,8 +220,6 @@ MemberIdent: Ident = {
     },
 };
 
-// TODO: check context-dependent names below.
-
 BuiltinValueName: String = {
     IdentPatternToken => <>,
 };

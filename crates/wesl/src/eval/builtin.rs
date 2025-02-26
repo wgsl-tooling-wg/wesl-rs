@@ -1289,7 +1289,6 @@ pub struct PtrTemplate {
 }
 impl PtrTemplate {
     pub fn parse(tplt: &[TemplateArg], ctx: &mut Context) -> Result<PtrTemplate, E> {
-        // TODO: the first template value must be an ident, cannot just evaluate to ident
         let mut it = tplt.iter().map(|t| t.expression.node());
         match (it.next(), it.next(), it.next(), it.next()) {
             (

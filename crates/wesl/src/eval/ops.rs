@@ -465,7 +465,6 @@ impl VecInstance {
             .map(Into::into)
     }
     pub fn op_mul_mat(&self, rhs: &MatInstance, stage: EvalStage) -> Result<Self, E> {
-        // TODO must be float
         let (vec, mat) = convert_inner(self, rhs)
             .ok_or_else(|| E::Binary(BinaryOperator::Multiplication, self.ty(), rhs.ty()))?;
         let mat = mat.transpose();
@@ -491,14 +490,12 @@ impl MatInstance {
     }
 
     pub fn op_mul_sca(&self, rhs: &LiteralInstance, stage: EvalStage) -> Result<MatInstance, E> {
-        // TODO must be float
         let (lhs, rhs) = convert_inner(self, rhs)
             .ok_or_else(|| E::Binary(BinaryOperator::Multiplication, self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_mul(&rhs, stage))
     }
 
     pub fn op_mul_vec(&self, rhs: &VecInstance, stage: EvalStage) -> Result<VecInstance, E> {
-        // TODO must be float
         let (lhs, rhs) = convert_inner(self, rhs)
             .ok_or_else(|| E::Binary(BinaryOperator::Multiplication, self.ty(), rhs.ty()))?;
 
@@ -509,7 +506,6 @@ impl MatInstance {
     }
 
     pub fn op_mul(&self, rhs: &Self, stage: EvalStage) -> Result<MatInstance, E> {
-        // TODO must be float
         let (lhs, rhs) = convert_inner(self, rhs)
             .ok_or_else(|| E::Binary(BinaryOperator::Multiplication, self.ty(), rhs.ty()))?;
         let lhs = lhs.transpose();

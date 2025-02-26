@@ -128,7 +128,7 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
             Some(_) => return Err(E::NotCallable(ident.to_string())),
             None => {
                 if BUILTIN_FUNCTIONS.iter().any(|name| name == &*ident.name()) {
-                    // TODO: check num args for builtin functions
+                    // TODO: check args for builtin functions
                 } else {
                     // the ident is not a global declaration, it must be a local variable.
                     return Err(E::NotCallable(ident.to_string()));

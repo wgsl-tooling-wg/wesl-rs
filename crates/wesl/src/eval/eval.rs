@@ -401,7 +401,7 @@ impl Eval for TemplateArg {
     }
 }
 
-fn check_swizzle(swizzle: &str) -> bool {
+pub(crate) fn check_swizzle(swizzle: &str) -> bool {
     // reference: https://www.w3.org/TR/WGSL/#swizzle-names
     (1..=4).contains(&swizzle.len())
         && (swizzle.chars().all(|c| "xyzw".contains(c))
