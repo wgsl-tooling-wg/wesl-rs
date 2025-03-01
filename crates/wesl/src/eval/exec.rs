@@ -202,7 +202,6 @@ impl Exec for AssignmentStatement {
                     let rhs = rhs
                         .convert_to(&ty)
                         .ok_or_else(|| E::AssignType(rhs.ty(), ty))?;
-                    println!("assigned {rhs} to {r}");
                     r.write(rhs)?;
                 }
                 AssignmentOperator::PlusEqual => {

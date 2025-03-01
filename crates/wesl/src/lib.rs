@@ -606,7 +606,6 @@ impl CompileResult {
             arguments: Vec::new(),
         };
 
-        println!("exec {call}");
         let (inst, ctx) = exec(&call, &self.syntax, bindings, overrides);
         let inst = inst.map_err(|e| {
             if let Some(sourcemap) = &self.sourcemap {
