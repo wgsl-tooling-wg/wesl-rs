@@ -333,7 +333,7 @@ impl Diagnostic<Error> {
                 CondCompError::InvalidFeatureFlag(_)
                 | CondCompError::MissingFeatureFlag(_)
                 | CondCompError::NoPrecedingIf
-                | CondCompError::BothIfElse => {}
+                | CondCompError::DuplicateIf => {}
             },
             #[cfg(feature = "generics")]
             Error::GenericsError(_) => {}

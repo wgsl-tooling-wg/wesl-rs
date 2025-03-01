@@ -15,8 +15,8 @@ pub enum CondCompError {
     InvalidExpression(Expression),
     #[error("an @elif or @else attribute must be preceded by a @if or @elif on the previous node")]
     NoPrecedingIf,
-    #[error("cannot have different kinds of @if/@elif/@else attributes on the same node")]
-    BothIfElse,
+    #[error("cannot have multiple @if/@elif/@else attributes on the same node")]
+    DuplicateIf,
 }
 
 type E = crate::Error;
@@ -121,121 +121,149 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E
     }
 }
 
-fn eval_if_attr(opt_node: &mut Option<impl Decorated>, features: &Features) -> Result<(), E> {
-    if let Some(node) = opt_node {
-        let if_attr = node
-            .attributes_mut()
-            .iter_mut()
-            .find_map(|attr| match attr {
-                Attribute::If(expr) => Some(expr),
-                _ => None,
-            });
-
-        if let Some(if_attr) = if_attr {
-            let expr = eval_attr(if_attr, features)?;
-            let keep = !(expr == EXPR_FALSE);
-            if keep {
-                **if_attr = expr;
-            } else {
-                *opt_node = None;
-            }
-        }
-    }
-    Ok(())
-}
-
-fn eval_if_attributes(nodes: &mut Vec<impl Decorated>, features: &Features) -> Result<(), E> {
-    let mut prev_has_ifs = false;
-    for node in nodes.iter_mut() {
-        let mut has_if = false;
-        let mut has_elif = false;
-        let mut has_else = false;
-        for attr in node.attributes_mut().iter_mut() {
-            if let Attribute::If(expr) = attr {
-                if has_elif || has_else {
-                    return Err(CondCompError::BothIfElse.into());
-                } else {
-                    **expr = eval_attr(expr, features)?;
-                    has_if = true;
-                }
-            } else if let Attribute::Elif(expr) = attr {
-                if has_if || has_else {
-                    return Err(CondCompError::BothIfElse.into());
-                } else if !prev_has_ifs {
-                    return Err(CondCompError::NoPrecedingIf.into());
-                } else {
-                    **expr = eval_attr(expr, features)?;
-                    has_elif = true;
-                }
-            } else if let Attribute::Else = attr {
-                if has_if || has_elif || has_else {
-                    return Err(CondCompError::BothIfElse.into());
-                } else if !prev_has_ifs {
-                    return Err(CondCompError::NoPrecedingIf.into());
-                } else {
-                    has_else = true;
-                }
-            }
-            prev_has_ifs = has_if || has_elif;
-        }
-    }
-
-    // * remove the nodes for which the attr evaluate to false.
-    // * remove the attributes which evaluate to true.
-    // * turn elifs into ifs when previous node was deleted.
-    // * turn elifs into elses when it evaluates to true.
-    // (we checked already that elif/else-decorated nodes are preceded by if/elif)
-    let mut prev_all_true = true;
-    let mut prev_any_false = false;
-    nodes.retain_mut(|node| {
-        let mut any_false = false;
-        let mut all_true = true;
-        node.retain_attributes_mut(|attr| {
-            if let Attribute::If(expr) = attr {
-                if **expr != EXPR_TRUE {
-                    all_true = false;
-                }
-                if **expr == EXPR_FALSE {
-                    any_false = true; // delete the whole node
-                } else if **expr == EXPR_TRUE {
-                    return false; // delete this attribute
-                }
-            } else if let Attribute::Elif(expr) = attr {
-                if **expr != EXPR_TRUE {
-                    all_true = false;
-                }
-                if **expr == EXPR_FALSE || prev_all_true {
-                    any_false = true; // delete the whole node
-                } else if **expr == EXPR_TRUE {
-                    *attr = Attribute::Else; // elif(true) <=> else
-                } else if prev_any_false {
-                    *attr = Attribute::If(expr.clone()); // previous node is deleted, make this a if
-                }
-            } else if let Attribute::Else = attr {
-                if prev_all_true {
-                    any_false = true; // previous node is chosen, delete the whole node
-                } else if prev_any_false {
-                    return false; // previous node was deleted, delete this attribute
-                }
-            }
-
-            true
-        });
-
-        prev_all_true = all_true;
-        prev_any_false = any_false;
-        !any_false // keep the node if any attr is unresolved or true.
+fn get_single_attr(attrs: &mut [Attribute]) -> Result<Option<&mut Attribute>, E> {
+    let mut it = attrs.iter_mut().filter(|attr| {
+        matches!(
+            attr,
+            Attribute::If(_) | Attribute::Elif(_) | Attribute::Else
+        )
     });
+    let attr = it.next();
+
+    if it.next().is_some() {
+        Err(CondCompError::DuplicateIf.into())
+    } else {
+        Ok(attr)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PrevEval {
+    has_if: bool,
+    is_true: bool,
+    removed: bool,
+}
+
+/// * ensure there is at most one if/elif/else node.
+/// * ensure elif/else nodes are preceded by if/elif.
+/// * remove the attributes which evaluate to true.
+/// * turn elifs into ifs when previous node was deleted.
+/// * turn elifs into elses when it evaluates to true.
+fn eval_if_attr(
+    node: &mut impl Decorated,
+    prev: &mut PrevEval,
+    features: &Features,
+) -> Result<(), E> {
+    let attr = get_single_attr(node.attributes_mut())?;
+    let mut has_if = false;
+    if let Some(attr) = attr {
+        if let Attribute::If(expr) = attr {
+            **expr = eval_attr(expr, features)?;
+            has_if = true;
+        } else if let Attribute::Elif(expr) = attr {
+            if !prev.has_if {
+                return Err(CondCompError::NoPrecedingIf.into());
+            } else {
+                **expr = eval_attr(expr, features)?;
+                has_if = true;
+            }
+        } else if let Attribute::Else = attr {
+            if !prev.has_if {
+                return Err(CondCompError::NoPrecedingIf.into());
+            }
+        }
+        prev.has_if = has_if;
+    }
+
+    let mut remove_node = false;
+    let mut remove_attr = false;
+    let mut is_true = false;
+    node.retain_attributes_mut(|attr| {
+        if let Attribute::If(expr) = attr {
+            if **expr == EXPR_TRUE {
+                remove_attr = true; // if(true) => remove the attribute
+                is_true = true;
+            } else if **expr == EXPR_FALSE {
+                remove_node = true; // if(false) => remove the node
+            }
+        } else if let Attribute::Elif(expr) = attr {
+            if prev.is_true || **expr == EXPR_FALSE {
+                remove_node = true;
+            } else if **expr == EXPR_TRUE {
+                is_true = true;
+                if prev.removed {
+                    remove_attr = true;
+                } else {
+                    *attr = Attribute::Else;
+                }
+            } else {
+                if prev.removed {
+                    *attr = Attribute::If(expr.clone()); // previous node was deleted, make this an if
+                }
+            }
+        } else if let Attribute::Else = attr {
+            if prev.is_true {
+                remove_node = true; // previous node was chosen, delete the whole node
+            } else if prev.removed {
+                remove_attr = true; // previous node was deleted, delete this attribute
+            }
+        }
+
+        !remove_attr
+    });
+
+    prev.is_true = is_true || prev.is_true;
+    prev.removed = remove_node;
     Ok(())
 }
 
-fn statement_eval_if_attributes(
+fn eval_opt_attr(
+    opt_node: &mut Option<impl Decorated>,
+    prev: &mut PrevEval,
+    features: &Features,
+) -> Result<(), E> {
+    if let Some(node) = opt_node {
+        eval_if_attr(node, prev, features)?;
+        if prev.removed {
+            *opt_node = None;
+        }
+    }
+    Ok(())
+}
+
+fn eval_if_attrs(nodes: &mut Vec<impl Decorated>, features: &Features) -> Result<PrevEval, E> {
+    let mut prev = PrevEval {
+        has_if: false,
+        is_true: false,
+        removed: false,
+    };
+    let mut err = None;
+
+    // remove the nodes for which the attr evaluate to false.
+    nodes.retain_mut(|node| {
+        let res = eval_if_attr(node, &mut prev, features);
+        if let Err(e) = res {
+            err = Some(e);
+        }
+        !prev.removed // keep the node if attr is unresolved or true.
+    });
+
+    if let Some(e) = err {
+        Err(e)
+    } else {
+        Ok(prev)
+    }
+}
+
+fn stmt_eval_if_attrs(
     statements: &mut Vec<StatementNode>,
     features: &HashMap<String, bool>,
 ) -> Result<(), E> {
     fn rec_one(stmt: &mut StatementNode, feats: &HashMap<String, bool>) -> Result<(), E> {
         match stmt.node_mut() {
-            Statement::Compound(stmt) => rec(&mut stmt.statements, feats)?,
+            Statement::Compound(stmt) => {
+                rec(&mut stmt.statements, feats)?;
+            }
             Statement::If(stmt) => {
                 rec(&mut stmt.if_clause.body.statements, feats)?;
                 for elif in &mut stmt.else_if_clauses {
@@ -246,17 +274,17 @@ fn statement_eval_if_attributes(
                 }
             }
             Statement::Switch(stmt) => {
-                eval_if_attributes(&mut stmt.clauses, feats)?;
+                eval_if_attrs(&mut stmt.clauses, feats)?;
                 for clause in &mut stmt.clauses {
                     rec(&mut clause.body.statements, feats)?;
                 }
             }
             Statement::Loop(stmt) => {
-                rec(&mut stmt.body.statements, feats)?;
-                eval_if_attr(&mut stmt.continuing, feats)?;
+                let mut prev = rec(&mut stmt.body.statements, feats)?;
+                eval_opt_attr(&mut stmt.continuing, &mut prev, feats)?;
                 if let Some(cont) = &mut stmt.continuing {
                     rec(&mut cont.body.statements, feats)?;
-                    eval_if_attr(&mut cont.break_if, feats)?;
+                    eval_opt_attr(&mut cont.break_if, &mut prev, feats)?;
                 }
                 rec(&mut stmt.body.statements, feats)?;
             }
@@ -267,54 +295,40 @@ fn statement_eval_if_attributes(
                 if let Some(updt) = &mut stmt.update {
                     rec_one(&mut *updt, feats)?
                 }
-                rec(&mut stmt.body.statements, feats)?
+                rec(&mut stmt.body.statements, feats)?;
             }
-            Statement::While(stmt) => rec(&mut stmt.body.statements, feats)?,
+            Statement::While(stmt) => {
+                rec(&mut stmt.body.statements, feats)?;
+            }
             _ => (),
         };
         Ok(())
     }
-    fn rec(stats: &mut Vec<StatementNode>, feats: &HashMap<String, bool>) -> Result<(), E> {
-        eval_if_attributes(stats, feats)?;
+    fn rec(stats: &mut Vec<StatementNode>, feats: &HashMap<String, bool>) -> Result<PrevEval, E> {
+        let prev = eval_if_attrs(stats, feats)?;
         for stmt in stats {
             rec_one(stmt, feats)?;
         }
-        Ok(())
+        Ok(prev)
     }
-    rec(statements, features)
+    rec(statements, features).map(|_| ())
 }
 
 pub fn run(wesl: &mut TranslationUnit, features: &Features) -> Result<(), E> {
-    // 1. evaluate all if attributes
+    eval_if_attrs(&mut wesl.imports, features)?;
+    eval_if_attrs(&mut wesl.global_directives, features)?;
+    eval_if_attrs(&mut wesl.global_declarations, features)?;
 
-    eval_if_attributes(&mut wesl.imports, features)?;
-    eval_if_attributes(&mut wesl.global_directives, features)?;
-    eval_if_attributes(&mut wesl.global_declarations, features)?;
-
-    let structs = wesl
-        .global_declarations
-        .iter_mut()
-        .filter_map(|decl| match decl {
-            wgsl_parse::syntax::GlobalDeclaration::Struct(decl) => Some(decl),
-            _ => None,
-        });
-    for decl in structs {
-        eval_if_attributes(&mut decl.members, features)
-            .map_err(|e| Diagnostic::from(e).with_declaration(decl.ident.to_string()))?;
-    }
-
-    let functions = wesl
-        .global_declarations
-        .iter_mut()
-        .filter_map(|decl| match decl {
-            wgsl_parse::syntax::GlobalDeclaration::Function(decl) => Some(decl),
-            _ => None,
-        });
-    for func in functions {
-        eval_if_attributes(&mut func.parameters, features)
-            .map_err(|e| Diagnostic::from(e).with_declaration(func.ident.to_string()))?;
-        statement_eval_if_attributes(&mut func.body.statements, features)
-            .map_err(|e| Diagnostic::from(e).with_declaration(func.ident.to_string()))?;
+    for decl in &mut wesl.global_declarations {
+        if let GlobalDeclaration::Struct(decl) = decl {
+            eval_if_attrs(&mut decl.members, features)
+                .map_err(|e| Diagnostic::from(e).with_declaration(decl.ident.to_string()))?;
+        } else if let GlobalDeclaration::Function(decl) = decl {
+            eval_if_attrs(&mut decl.parameters, features)
+                .map_err(|e| Diagnostic::from(e).with_declaration(decl.ident.to_string()))?;
+            stmt_eval_if_attrs(&mut decl.body.statements, features)
+                .map_err(|e| Diagnostic::from(e).with_declaration(decl.ident.to_string()))?;
+        }
     }
 
     Ok(())
