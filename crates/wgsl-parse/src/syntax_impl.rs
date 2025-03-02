@@ -69,6 +69,22 @@ impl ModulePath {
 
         Self { origin, components }
     }
+    /// Create a `PathBuf` from a `ModulePath`.
+    ///
+    /// * `package::` paths are rooted (start with `/`).
+    /// * self::` or `super::` are relative (starting with `.` or `..`)`.
+    /// * There is no file extension.
+    pub fn to_path_buf(&self) -> std::path::PathBuf {
+        use std::path::PathBuf;
+        let mut fs_path = match self.origin {
+            PathOrigin::Absolute => PathBuf::from("/"),
+            PathOrigin::Relative(0) => PathBuf::from("."),
+            PathOrigin::Relative(n) => PathBuf::from_iter((0..n).map(|_| "..")),
+            PathOrigin::Package => PathBuf::new(),
+        };
+        fs_path.extend(&self.components);
+        fs_path
+    }
     /// Append a component to the path.
     ///
     /// Precondition: the `item` must be a valid WGSL identifier.
