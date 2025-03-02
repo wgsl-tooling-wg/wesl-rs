@@ -42,6 +42,7 @@ pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
 pub use syntax_util::SyntaxUtil;
 pub use validate::{validate_wesl, validate_wgsl, ValidateError};
 pub use wgsl_parse::syntax;
+pub use wgsl_parse::syntax::ModulePath;
 
 use std::{
     collections::{HashMap, HashSet},
@@ -51,7 +52,7 @@ use std::{
 
 use import::{Module, Resolutions};
 use strip::strip_except;
-use wgsl_parse::syntax::{Ident, ModulePath, PathOrigin, TranslationUnit};
+use wgsl_parse::syntax::{Ident, PathOrigin, TranslationUnit};
 
 /// Compilation options. Used in [`compile`] and [`Wesl::set_options`].
 #[derive(Debug)]
