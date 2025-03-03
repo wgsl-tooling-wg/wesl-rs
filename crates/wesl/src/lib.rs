@@ -733,7 +733,7 @@ fn compile_pre_assembly(
     let keep = keep_idents(&wesl, &options.keep, options.strip);
 
     let mut resolutions = Resolutions::new();
-    let module = Module::new(wesl, root.clone());
+    let module = Module::new(wesl, root.clone())?;
     resolutions.push_module(module);
 
     if options.imports {

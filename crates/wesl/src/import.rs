@@ -17,7 +17,7 @@ type Modules = HashMap<ModulePath, Rc<RefCell<Module>>>;
 /// Error produced during import resolution.
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum ImportError {
-    #[error("duplicate imported item `{0}`")]
+    #[error("duplicate declaration of `{0}`")]
     DuplicateSymbol(String),
     #[error("{0}")]
     ResolveError(#[from] ResolveError),
@@ -37,21 +37,31 @@ pub(crate) struct Module {
 }
 
 impl Module {
-    pub(crate) fn new(source: TranslationUnit, path: ModulePath) -> Self {
+    pub(crate) fn new(source: TranslationUnit, path: ModulePath) -> Result<Self, E> {
         let idents = source
             .global_declarations
             .iter()
             .enumerate()
             .filter_map(|(i, decl)| decl.ident().map(|id| (id.clone(), i)))
-            .collect();
-        let imports = flatten_imports(&source.imports, &path);
-        Self {
+            .collect::<HashMap<_, _>>();
+        let imports = flatten_imports(&source.imports, &path)?;
+
+        for id in idents.keys() {
+            if imports
+                .keys()
+                .any(|k| k.name().as_str() == id.name().as_str())
+            {
+                return Err(E::DuplicateSymbol(id.to_string()));
+            }
+        }
+
+        Ok(Self {
             source,
             path,
             idents,
             treated_idents: Default::default(),
             imports,
-        }
+        })
     }
 }
 
@@ -144,7 +154,7 @@ pub fn resolve_lazy<'a>(
         } else {
             let mut source = resolver.resolve_module(path)?;
             source.retarget_idents();
-            let module = Module::new(source, path.clone());
+            let module = Module::new(source, path.clone())?;
 
             // const_asserts of used modules must be included.
             // https://github.com/wgsl-tooling-wg/wesl-spec/issues/66
@@ -286,7 +296,7 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
         } else {
             let mut source = resolver.resolve_module(&ext_path)?;
             source.retarget_idents();
-            let module = resolutions.push_module(Module::new(source, ext_path.clone()));
+            let module = resolutions.push_module(Module::new(source, ext_path.clone())?);
             resolve_module(&module.borrow(), resolutions, resolver)?;
             module
         };
@@ -310,7 +320,7 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
         for (path, _) in module.imports.values() {
             if !resolutions.modules.contains_key(path) {
                 let source = resolver.resolve_module(path)?;
-                let module = resolutions.push_module(Module::new(source, path.clone()));
+                let module = resolutions.push_module(Module::new(source, path.clone())?);
                 resolve_module(&module.borrow(), resolutions, resolver)?;
             }
         }
@@ -328,20 +338,30 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
 }
 
 /// Flatten imports to a list of module paths.
-pub(crate) fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Imports {
-    fn rec(content: &ImportContent, path: ModulePath, res: &mut Imports) {
+pub(crate) fn flatten_imports(
+    imports: &[ImportStatement],
+    parent_path: &ModulePath,
+) -> Result<Imports, E> {
+    fn rec(content: &ImportContent, path: ModulePath, res: &mut Imports) -> Result<(), E> {
         match content {
             ImportContent::Item(item) => {
                 let ident = item.rename.as_ref().unwrap_or(&item.ident).clone();
+                if res
+                    .keys()
+                    .any(|k| k.name().as_str() == ident.name().as_str())
+                {
+                    return Err(E::DuplicateSymbol(ident.to_string()));
+                }
                 res.insert(ident, (path, item.ident.clone()));
             }
             ImportContent::Collection(coll) => {
                 for import in coll {
                     let path = path.clone().join(import.path.clone());
-                    rec(&import.content, path, res)
+                    rec(&import.content, path, res)?;
                 }
             }
         }
+        Ok(())
     }
 
     let mut res = Imports::new();
@@ -350,10 +370,10 @@ pub(crate) fn flatten_imports(imports: &[ImportStatement], parent_path: &ModuleP
         let path = parent_path
             .join_path(&import.path)
             .unwrap_or_else(|| import.path.clone());
-        rec(&import.content, path, &mut res);
+        rec(&import.content, path, &mut res)?;
     }
 
-    res
+    Ok(res)
 }
 
 pub(crate) fn mangle_decls<'a>(
