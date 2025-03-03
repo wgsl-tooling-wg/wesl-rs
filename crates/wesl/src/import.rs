@@ -217,11 +217,7 @@ pub fn resolve_lazy<'a>(
 
         // if the import path points to a local decl, we stop here
         if ext_path == module.path {
-            if module.idents.contains_key(&ext_id) {
-                return resolve_ident(module, &ext_id.name(), resolutions, resolver);
-            } else {
-                return Err(E::MissingDecl(ext_path, ext_id.to_string()));
-            }
+            return resolve_ident(module, &ext_id.name(), resolutions, resolver);
         }
 
         // load the external module for this external ident
