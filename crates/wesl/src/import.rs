@@ -406,13 +406,19 @@ impl Resolutions {
                     continue;
                 };
 
-                // if the import path points to a local decl, we stop here
+                // if the import path points to a local decl
                 if ext_path == module.path {
-                    continue;
+                    let ext_id = module
+                        .idents
+                        .iter()
+                        .find(|(id, _)| *id.name() == *ext_id.name())
+                        .map(|(id, _)| id.clone())
+                        .expect("external declaration not found");
+                    ty.path = None;
+                    ty.ident = ext_id;
                 }
-
                 // load the external module for this external ident
-                if let Some(module) = self.modules.get(&ext_path) {
+                else if let Some(module) = self.modules.get(&ext_path) {
                     // get the ident of the external declaration pointed to by the type
                     let ext_id = module
                         .borrow() // safety: only 1 module is borrowed at a time, the current one.
