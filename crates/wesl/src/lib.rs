@@ -310,15 +310,15 @@ impl<R: Resolver> Wesl<R> {
     /// # WESL Reference
     /// Both [`FileResolver`] and [`VirtualResolver`] are spec-compliant.
     /// Custom resolvers *must* conform to the constraints described in [`Resolver`].
-    pub fn set_custom_resolver<'a>(
+    pub fn set_custom_resolver<CustomResolver: Resolver>(
         self,
-        resolver: impl Resolver + 'a,
-    ) -> Wesl<Box<dyn Resolver + 'a>> {
+        resolver: CustomResolver,
+    ) -> Wesl<CustomResolver> {
         Wesl {
             options: self.options,
             use_sourcemap: self.use_sourcemap,
             mangler: self.mangler,
-            resolver: Box::new(resolver),
+            resolver,
         }
     }
 
