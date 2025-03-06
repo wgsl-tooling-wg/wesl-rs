@@ -36,8 +36,8 @@ pub fn recognize_str(source: &str) -> Result<(), Error> {
 }
 
 pub(crate) fn recognize_template_list(lexer: &mut Lexer) -> Result<(), Error> {
-    let parser = wgsl_recognize::TryTemplateListParser::new();
-    parser.parse(lexer).map_err(Into::into)
+    let parser = wgsl::TryTemplateListParser::new();
+    parser.parse(lexer).map(|_| ()).map_err(Into::into)
 }
 
 impl FromStr for TranslationUnit {

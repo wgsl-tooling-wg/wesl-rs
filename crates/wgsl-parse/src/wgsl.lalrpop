@@ -155,9 +155,9 @@ Keyword: String = {
 
 // custom entrypoint called by the lexer when it sees [Token::Ident, Token::SymLessThan].
 // if this parse succeeds, the next token emitted by the lexer will be TokTemplateList.
-// pub TryTemplateList: Span = {
-//    <l:@L> TokTemplateArgsStart TemplateArgCommaList TokTemplateArgsEnd <r:@R> => { (l..r) },
-//};
+ pub TryTemplateList: Span = {
+    <l:@L> TokTemplateArgsStart TemplateArgCommaList TokTemplateArgsEnd <r:@R> => Span::new(l..r),
+};
 
 // =====================
 // === Begin grammar ===
