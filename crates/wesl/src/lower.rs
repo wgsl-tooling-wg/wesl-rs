@@ -2,8 +2,25 @@ use crate::{visit::Visit, Error};
 
 use wgsl_parse::syntax::*;
 
-/// Performs conversions on the final syntax tree to make it more compatible with naga,
-/// catch errors early and perform optimizations.
+/// Performs conversions on the final syntax tree to make it more compatible with WGSL
+/// implementations like Naga, catch errors early and perform optimizations.
+///
+/// Currently, `lower` performs the following transforms:
+/// * remove aliases (inlined)
+/// * remove consts (inlined)
+/// * remove deprecated, non-standard attributes
+/// * remove import declarations
+///
+/// with the `eval` feature flag enabled, it performs additional transforms:
+/// * evaluate const-expressions (including calls to const functions)
+/// * remove unreachable code paths after const-evaluation
+/// * remove function call statements to const functions (no side-effects)
+/// * make implicit conversions from abstract types explicit (using conversion rank)
+///
+/// Customizing this behavior is not possible currently. The following transforms may
+/// be available in the future:
+/// * make variable types explicit
+/// * remove unused variables / code with no side-effects
 pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
     wesl.imports.clear();
 

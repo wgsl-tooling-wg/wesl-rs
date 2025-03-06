@@ -57,14 +57,53 @@ use wgsl_parse::syntax::{Ident, PathOrigin, TranslationUnit};
 /// Compilation options. Used in [`compile`] and [`Wesl::set_options`].
 #[derive(Debug)]
 pub struct CompileOptions {
+    /// Toggle [WESL Imports](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md).
+    ///
+    /// If disabled:
+    /// * The compiler will silently remove the import statements and inline paths.
+    /// * Validation will not trigger an error if referencing an imported item.
     pub imports: bool,
+    /// Toggle [WESL Conditional Translation](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md).
+    ///
+    /// See `features` to enable/disable each feature flag.
     pub condcomp: bool,
+    /// Toggle generics. Generics is super experimental, don't expect anything from it.
+    ///
+    /// Requires the `generics` crate feature flag.
     pub generics: bool,
+    /// Enable stripping (aka. Dead Code Elimination).
+    ///
+    /// DCE can have side-effects in rare cases, refer to the WESL docs to learn more.
     pub strip: bool,
+    /// Enable lowering/polyfills. This transforms the output code in various ways.
+    ///
+    /// See [`lower`].
     pub lower: bool,
+    /// Enable validation of individual WESL modules and the final output.
+    /// This will catch *some* errors, not all.
+    /// See [`validate_wesl`] and [`validate_wgsl`].
+    ///
+    /// Requires the `eval` crate feature flag.
     pub validate: bool,
+    /// Make the import resolution lazy (This is the default mandated by WESL).
+    ///
+    /// The "lazy" import algorithm will only read a submodule is one of its item is used
+    /// by the entrypoints or `keep` declarations (recursively via static usage analysis).
+    ///
+    /// In contrast, the "eager" import algorithm will follow all import statements.
     pub lazy: bool,
+    /// If `Some`, specify a list of root module declarations to keep. If `None`, only the
+    /// entrypoint functions (and their dependencies) are kept.
+    ///
+    /// This option has no effect if [`Self::strip`] is disabled.
     pub keep: Option<Vec<String>>,
+    /// [WESL Conditional Translation](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md) features to enable/disable.
+    ///
+    /// Conditional translation can be incremental. If not all feature flags are handled,
+    /// the output will contain unevaluated `@if` attributes and will therefore *not* be
+    /// valid WGSL.
+    ///
+    /// This option has no effect if [`Self::condcomp`] is disabled.
     pub features: HashMap<String, bool>,
 }
 
@@ -345,7 +384,7 @@ impl<R: Resolver> Wesl<R> {
         self
     }
 
-    /// Enable conditional compilation.
+    /// Enable conditional translation.
     ///
     /// # WESL Reference
     /// Conditional Compilation is a *mandatory* WESL extension.
@@ -420,22 +459,7 @@ impl<R: Resolver> Wesl<R> {
     /// Transform an output into a simplified WGSL that is better supported by
     /// implementors.
     ///
-    /// Currently, lower performs the following transforms:
-    /// * remove aliases (inlined)
-    /// * remove consts (inlined)
-    /// * remove deprecated, non-standard attributes
-    /// * remove import declarations
-    ///
-    /// with the `eval` feature flag enabled, it performs additional transforms:
-    /// * evaluate const-expressions (including calls to const functions)
-    /// * remove unreachable code paths after const-evaluation
-    /// * remove function call statements to const functions (no side-effects)
-    /// * make implicit conversions from abstract types explicit (using conversion rank)
-    ///
-    /// Customizing this behavior is not possible currently. The following transforms may
-    /// be available in the future:
-    /// * make variable types explicit
-    /// * remove unused variables / code with no side-effects
+    /// See [`lower`].
     ///
     /// # WESL Reference
     /// Lowering is an *experimental* WESL extension.
@@ -445,8 +469,8 @@ impl<R: Resolver> Wesl<R> {
         self.options.lower = val;
         self
     }
-    /// If stripping is enabled, specify which entrypoints to keep in the final WGSL.
-    /// All entrypoints are kept by default.
+    /// If stripping is enabled, specify which root module declarations to keep in the
+    /// final WGSL. Function entrypoints are kept by default.
     ///
     /// # WESL Reference
     /// Code stripping is an *optional* WESL extension.
@@ -454,8 +478,8 @@ impl<R: Resolver> Wesl<R> {
     /// spec.
     ///
     /// Spec: not yet available.
-    pub fn keep_entrypoints(&mut self, entries: Vec<String>) -> &mut Self {
-        self.options.keep = Some(entries);
+    pub fn keep_declarations(&mut self, keep: Vec<String>) -> &mut Self {
+        self.options.keep = Some(keep);
         self
     }
     /// If stripping is enabled, keep all entrypoints in the root WESL module.
