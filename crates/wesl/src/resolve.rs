@@ -32,9 +32,13 @@ type E = ResolveError;
 /// * the import path must not be relative.
 pub trait Resolver {
     /// Try to resolve a source file identified by a module path.
-    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, E>;
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError>;
     /// Convert a source file into a syntax tree.
-    fn source_to_module(&self, source: &str, path: &ModulePath) -> Result<TranslationUnit, E> {
+    fn source_to_module(
+        &self,
+        source: &str,
+        path: &ModulePath,
+    ) -> Result<TranslationUnit, ResolveError> {
         let wesl: TranslationUnit = source.parse().map_err(|e| {
             Diagnostic::from(e)
                 .with_module_path(path.clone(), self.display_name(path))
@@ -43,7 +47,7 @@ pub trait Resolver {
         Ok(wesl)
     }
     /// Try to resolve a source file identified by a module path.
-    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, E> {
+    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
         let source = self.resolve_source(path)?;
         let wesl = self.source_to_module(&source, path)?;
         Ok(wesl)
@@ -55,13 +59,17 @@ pub trait Resolver {
 }
 
 impl<T: Resolver + ?Sized> Resolver for Box<T> {
-    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, E> {
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
         (**self).resolve_source(path)
     }
-    fn source_to_module(&self, source: &str, path: &ModulePath) -> Result<TranslationUnit, E> {
+    fn source_to_module(
+        &self,
+        source: &str,
+        path: &ModulePath,
+    ) -> Result<TranslationUnit, ResolveError> {
         (**self).source_to_module(source, path)
     }
-    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, E> {
+    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
         (**self).resolve_module(path)
     }
     fn display_name(&self, path: &ModulePath) -> Option<String> {
@@ -70,13 +78,17 @@ impl<T: Resolver + ?Sized> Resolver for Box<T> {
 }
 
 impl<T: Resolver> Resolver for &T {
-    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, E> {
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
         (**self).resolve_source(path)
     }
-    fn source_to_module(&self, source: &str, path: &ModulePath) -> Result<TranslationUnit, E> {
+    fn source_to_module(
+        &self,
+        source: &str,
+        path: &ModulePath,
+    ) -> Result<TranslationUnit, ResolveError> {
         (**self).source_to_module(source, path)
     }
-    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, E> {
+    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
         (**self).resolve_module(path)
     }
     fn display_name(&self, path: &ModulePath) -> Option<String> {
@@ -91,7 +103,7 @@ impl<T: Resolver> Resolver for &T {
 pub struct NoResolver;
 
 impl Resolver for NoResolver {
-    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, E> {
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
         Err(E::ModuleNotFound(
             path.clone(),
             "no module resolver, imports are effectively disabled here".to_string(),
@@ -124,7 +136,7 @@ impl FileResolver {
         self.extension = extension;
     }
 
-    fn file_path(&self, path: &ModulePath) -> Result<PathBuf, E> {
+    fn file_path(&self, path: &ModulePath) -> Result<PathBuf, ResolveError> {
         if path.origin.is_package() {
             return Err(E::ModuleNotFound(
                 path.clone(),
@@ -149,7 +161,7 @@ impl FileResolver {
 }
 
 impl Resolver for FileResolver {
-    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, E> {
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
         let fs_path = self.file_path(path)?;
         let source = fs::read_to_string(&fs_path)
             .map_err(|_| E::FileNotFound(fs_path, "physical file".to_string()))?;
@@ -188,7 +200,7 @@ impl<'a> VirtualResolver<'a> {
     }
 
     /// Get a module registered with [`Self::add_module`].
-    pub fn get_module(&self, path: &ModulePath) -> Result<&str, E> {
+    pub fn get_module(&self, path: &ModulePath) -> Result<&str, ResolveError> {
         let source = self
             .files
             .get(path)
@@ -203,7 +215,7 @@ impl<'a> VirtualResolver<'a> {
 }
 
 impl Resolver for VirtualResolver<'_> {
-    fn resolve_source<'b>(&'b self, path: &ModulePath) -> Result<Cow<'b, str>, E> {
+    fn resolve_source<'b>(&'b self, path: &ModulePath) -> Result<Cow<'b, str>, ResolveError> {
         let source = self.get_module(path)?;
         Ok(source.into())
     }
@@ -234,11 +246,15 @@ impl<R: Resolver, F: ResolveFn> Preprocessor<R, F> {
 }
 
 impl<R: Resolver, F: ResolveFn> Resolver for Preprocessor<R, F> {
-    fn resolve_source<'b>(&'b self, path: &ModulePath) -> Result<Cow<'b, str>, E> {
+    fn resolve_source<'b>(&'b self, path: &ModulePath) -> Result<Cow<'b, str>, ResolveError> {
         let res = self.resolver.resolve_source(path)?;
         Ok(res)
     }
-    fn source_to_module(&self, source: &str, path: &ModulePath) -> Result<TranslationUnit, E> {
+    fn source_to_module(
+        &self,
+        source: &str,
+        path: &ModulePath,
+    ) -> Result<TranslationUnit, ResolveError> {
         let mut wesl: TranslationUnit = source.parse().map_err(|e| {
             Diagnostic::from(e)
                 .with_module_path(path.clone(), self.display_name(path))
@@ -300,7 +316,7 @@ impl Router {
         self.mount_resolver("", resolver);
     }
 
-    fn route(&self, path: &ModulePath) -> Result<(&dyn Resolver, ModulePath), E> {
+    fn route(&self, path: &ModulePath) -> Result<(&dyn Resolver, ModulePath), ResolveError> {
         let (mount_path, resolver) = self
             .mount_points
             .iter()
@@ -327,15 +343,19 @@ impl Default for Router {
 }
 
 impl Resolver for Router {
-    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, E> {
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
         let (resolver, path) = self.route(path)?;
         resolver.resolve_source(&path)
     }
-    fn source_to_module(&self, source: &str, path: &ModulePath) -> Result<TranslationUnit, E> {
+    fn source_to_module(
+        &self,
+        source: &str,
+        path: &ModulePath,
+    ) -> Result<TranslationUnit, ResolveError> {
         let (resolver, path) = self.route(path)?;
         resolver.source_to_module(source, &path)
     }
-    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, E> {
+    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
         let (resolver, path) = self.route(path)?;
         resolver.resolve_module(&path)
     }
@@ -389,7 +409,10 @@ impl Default for PkgResolver {
 }
 
 impl Resolver for PkgResolver {
-    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<std::borrow::Cow<'a, str>, E> {
+    fn resolve_source<'a>(
+        &'a self,
+        path: &ModulePath,
+    ) -> Result<std::borrow::Cow<'a, str>, ResolveError> {
         for pkg in &self.packages {
             // TODO: the resolution algorithm is currently not spec-compliant.
             // https://github.com/wgsl-tooling-wg/wesl-spec/blob/imports-update/Imports.md
@@ -447,14 +470,14 @@ impl StandardResolver {
 }
 
 impl Resolver for StandardResolver {
-    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, E> {
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
         if path.origin.is_package() {
             self.pkg.resolve_source(path)
         } else {
             self.files.resolve_source(path)
         }
     }
-    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, E> {
+    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
         if path.origin.is_package() {
             self.pkg.resolve_module(path)
         } else {
