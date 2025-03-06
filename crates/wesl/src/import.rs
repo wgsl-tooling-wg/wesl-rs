@@ -395,7 +395,7 @@ impl Resolutions {
         for module in self.modules.values() {
             let mut module = module.borrow_mut();
             let module = &mut *module;
-            for ty in Visit::<TypeExpression>::visit_mut(&mut module.source) {
+            Visit::<TypeExpression>::visit_rec_mut(&mut module.source, &mut |ty| {
                 let (ext_path, ext_id) = if let Some(path) = &ty.path {
                     let res = resolve_inline_path(path, &module.path, &module.imports);
                     (res, ty.ident.clone())
@@ -403,7 +403,7 @@ impl Resolutions {
                     (path.clone(), ident.clone())
                 } else {
                     // points to a local decl, we stop here.
-                    continue;
+                    return;
                 };
 
                 // if the import path points to a local decl
@@ -431,7 +431,7 @@ impl Resolutions {
                     ty.path = None;
                     ty.ident = ext_id;
                 }
-            }
+            });
         }
     }
 

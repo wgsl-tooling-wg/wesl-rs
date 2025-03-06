@@ -3,12 +3,49 @@ use wesl_macros::{query, query_mut};
 use crate::syntax::*;
 
 pub trait Visit<T> {
+    /// Visit each child node of type `T` in the subtree of `Self`.
+    ///
+    /// Implementations of Visit do not recurse past `T`, meaning that if you really want
+    /// to visit all children of type T you would have to call `<T as Visit<T>>::visit` on
+    /// each visited `T`. Alternatively, use [`Self::visit_each_mut`] which solves this
+    /// exact problem.
     fn visit<'a>(&'a self) -> impl Iterator<Item = &'a T>
     where
         T: 'a;
+
+    /// Mutable version of [`Self::visit`].
     fn visit_mut<'a>(&'a mut self) -> impl Iterator<Item = &'a mut T>
     where
         T: 'a;
+
+    /// Visit each child node of type `T` in the subtree of `Self`, recursively.
+    ///
+    /// Due to Rust's aliasing model, you can't iterate mutably on a node and its
+    /// children. This function allows visiting recursively by passing a closure instead.
+    #[allow(unused)]
+    fn visit_rec<'a, F>(&'a self, f: &mut F)
+    where
+        T: Visit<T> + 'a,
+        F: FnMut(&T),
+    {
+        Visit::<T>::visit(self).for_each(|x| {
+            f(x);
+            x.visit_rec(f);
+        });
+    }
+
+    /// Mutable version of [`Self::visit_each_rec_mut`].
+    #[allow(unused)]
+    fn visit_rec_mut<'a, F>(&'a mut self, f: &mut F)
+    where
+        T: Visit<T> + 'a,
+        F: FnMut(&mut T),
+    {
+        Visit::<T>::visit_mut(self).for_each(|x| {
+            f(x);
+            x.visit_rec_mut(f);
+        });
+    }
 }
 
 macro_rules! impl_visit {
