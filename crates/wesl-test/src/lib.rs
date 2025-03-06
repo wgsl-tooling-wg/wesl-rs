@@ -41,7 +41,7 @@ fn webgpu_samples(input: &str) {
 
 #[datatest::files("unity_web_research", {
   // input in r"webgpu/wgsl/boat_attack/.*\.wgsl$",
-  input in r"webgpu/wgsl/boat_attack/unity_webgpu_(000001AC1A5BA040|0000026E572CD040)\.[fv]s\.wgsl$",
+  input in r"unity_webgpu_(000001AC1A5BA040|0000026E572CD040)\.[fv]s\.wgsl$",
 })]
 #[test]
 fn unity_web_research(input: &str) {
