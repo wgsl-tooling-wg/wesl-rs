@@ -95,6 +95,9 @@ impl Resolutions {
         self.order.push(path);
         module
     }
+    pub(crate) fn into_module_order(self) -> Vec<ModulePath> {
+        self.order
+    }
 }
 
 fn resolve_inline_path(

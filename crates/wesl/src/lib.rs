@@ -503,10 +503,11 @@ impl<R: Resolver> Wesl<R> {
 /// [`Wesl`] was invoked with sourcemapping enabled.
 ///
 /// This type implements `Display`, call `to_string()` to get the compiled WGSL.
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct CompileResult {
     pub syntax: TranslationUnit,
     pub sourcemap: Option<BasicSourceMap>,
+    pub modules: Vec<ModulePath>,
 }
 
 impl CompileResult {
@@ -658,22 +659,18 @@ impl<R: Resolver> Wesl<R> {
     /// # WESL Reference
     /// Spec: not available yet.
     pub fn compile(&self, root: impl Into<ModulePath>) -> Result<CompileResult, Error> {
-        let mut root = root.into();
+        let mut root: ModulePath = root.into();
         root.origin = PathOrigin::Absolute; // we force absolute paths
 
         if self.use_sourcemap {
-            let (syntax, sourcemap) =
-                compile_sourcemap(&root, &self.resolver, &self.mangler, &self.options);
-            Ok(CompileResult {
-                syntax: syntax?,
-                sourcemap: Some(sourcemap),
-            })
+            compile_sourcemap(&root, &self.resolver, &self.mangler, &self.options)
         } else {
-            let syntax = compile(&root, &self.resolver, &self.mangler, &self.options);
-            Ok(CompileResult {
-                syntax: syntax?,
-                sourcemap: None,
-            })
+            Ok(compile(
+                &root,
+                &self.resolver,
+                &self.mangler,
+                &self.options,
+            )?)
         }
     }
 
@@ -806,18 +803,24 @@ fn compile_post_assembly(
 }
 
 /// Low-level version of [`Wesl::compile`].
+/// To get a source map, use [`compile_sourcemap`] instaed
 pub fn compile(
     root: &ModulePath,
     resolver: &impl Resolver,
     mangler: &impl Mangler,
     options: &CompileOptions,
-) -> Result<TranslationUnit, Diagnostic<Error>> {
+) -> Result<CompileResult, Diagnostic<Error>> {
     let (mut resolutions, keep) = compile_pre_assembly(root, resolver, options)?;
     resolutions.mangle(mangler);
     let mut assembly = resolutions.assemble(options.strip && options.lazy);
-    std::mem::drop(resolutions); // resolutions hold idents use-counts
+    // resolutions hold idents use-counts. We only need the list of modules now.
+    let modules = resolutions.into_module_order();
     compile_post_assembly(&mut assembly, options, &keep)?;
-    Ok(assembly)
+    Ok(CompileResult {
+        syntax: assembly,
+        sourcemap: None,
+        modules,
+    })
 }
 
 /// Like [`compile`], but provides better error diagnostics and returns the sourcemap.
@@ -826,7 +829,7 @@ pub fn compile_sourcemap(
     resolver: &impl Resolver,
     mangler: &impl Mangler,
     options: &CompileOptions,
-) -> (Result<TranslationUnit, Error>, BasicSourceMap) {
+) -> Result<CompileResult, Error> {
     let sourcemapper = SourceMapper::new(root, resolver, mangler);
 
     match compile_pre_assembly(root, &sourcemapper, options) {
@@ -834,8 +837,8 @@ pub fn compile_sourcemap(
             resolutions.mangle(&sourcemapper);
             let sourcemap = sourcemapper.finish();
             let mut assembly = resolutions.assemble(options.strip && options.lazy);
-            std::mem::drop(resolutions); // resolutions hold idents use-counts
-            let res = compile_post_assembly(&mut assembly, options, &keep)
+            let modules = resolutions.into_module_order();
+            compile_post_assembly(&mut assembly, options, &keep)
                 .map_err(|e| {
                     Diagnostic::from(e)
                         .with_output(assembly.to_string())
@@ -843,16 +846,18 @@ pub fn compile_sourcemap(
                         .unmangle(Some(&sourcemap), Some(&mangler))
                         .into()
                 })
-                .map(|()| assembly);
-            (res, sourcemap)
+                .map(|()| CompileResult {
+                    syntax: assembly,
+                    sourcemap: Some(sourcemap),
+                    modules,
+                })
         }
         Err(e) => {
             let sourcemap = sourcemapper.finish();
-            let err = Err(Diagnostic::from(e)
+            Err(Diagnostic::from(e)
                 .with_sourcemap(&sourcemap)
                 .unmangle(Some(&sourcemap), Some(&mangler))
-                .into());
-            (err, sourcemap)
+                .into())
         }
     }
 }

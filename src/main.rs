@@ -544,12 +544,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
         Command::Compile(args) => {
             let comp = file_or_source(args.file)
                 .map(|input| run_compile(&args.options, input))
-                .unwrap_or_else(|| {
-                    Ok(CompileResult {
-                        syntax: TranslationUnit::default(),
-                        sourcemap: None,
-                    })
-                })?;
+                .unwrap_or_else(|| Ok(CompileResult::default()))?;
             #[cfg(feature = "naga")]
             if !args.options.no_naga {
                 naga_validate(&comp.to_string())?;
@@ -559,12 +554,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
         Command::Eval(args) => {
             let comp = file_or_source(args.file)
                 .map(|input| run_compile(&args.options, input))
-                .unwrap_or_else(|| {
-                    Ok(CompileResult {
-                        syntax: TranslationUnit::default(),
-                        sourcemap: None,
-                    })
-                })?;
+                .unwrap_or_else(|| Ok(CompileResult::default()))?;
             let mut eval = comp.eval(&args.expr)?;
             if args.binary {
                 let buf = eval
@@ -579,12 +569,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
         Command::Exec(args) => {
             let comp = file_or_source(args.file)
                 .map(|input| run_compile(&args.options, input))
-                .unwrap_or_else(|| {
-                    Ok(CompileResult {
-                        syntax: TranslationUnit::default(),
-                        sourcemap: None,
-                    })
-                })?;
+                .unwrap_or_else(|| Ok(CompileResult::default()))?;
 
             let resources = args
                 .resources
