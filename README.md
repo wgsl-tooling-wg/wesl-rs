@@ -1,4 +1,10 @@
 # WESL-Rust
+[![crates.io](https://img.shields.io/crates/v/wesl)][crates-io]
+[![docs.rs](https://img.shields.io/docsrs/wesl)][docs-rs]
+
+[crates-io]: https://crates.io/crates/wesl
+[docs-rs]: https://docs.rs/wesl/
+
 
 ***A work in progress!***
 
