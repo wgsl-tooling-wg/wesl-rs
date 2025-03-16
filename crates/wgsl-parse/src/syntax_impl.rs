@@ -109,7 +109,7 @@ impl ModulePath {
     pub fn join_path(&self, path: &Self) -> Option<Self> {
         match path.origin {
             PathOrigin::Relative(n) => {
-                let to_keep = self.components.len().min(n) - n;
+                let to_keep = self.components.len().max(n) - n;
                 let components = self
                     .components
                     .iter()
