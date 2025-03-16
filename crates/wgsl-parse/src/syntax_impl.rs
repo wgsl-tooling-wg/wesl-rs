@@ -141,7 +141,11 @@ impl ModulePath {
     pub fn starts_with(&self, prefix: &Self) -> bool {
         self.origin == prefix.origin
             && prefix.components.len() >= self.components.len()
-            && prefix.components.iter().zip(&self.components).all_equal()
+            && prefix
+                .components
+                .iter()
+                .zip(&self.components)
+                .all(|(a, b)| a == b)
     }
     pub fn is_empty(&self) -> bool {
         self.origin.is_package() && self.components.is_empty()
