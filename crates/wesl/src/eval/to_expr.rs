@@ -1,8 +1,11 @@
 use super::{
-    builtin_ident, ArrayInstance, BuiltinIdent, LiteralInstance, MatInstance, StructInstance,
-    SyntaxUtil, TextureType, Ty, Type, VecInstance,
+    ArrayInstance, BuiltinIdent, LiteralInstance, MatInstance, StructInstance, SyntaxUtil,
+    TextureType, Ty, Type, VecInstance,
 };
-use crate::eval::{Context, EvalError, Instance};
+use crate::{
+    builtin::builtin_ident,
+    eval::{Context, EvalError, Instance},
+};
 use wgsl_parse::{span::Spanned, syntax::*};
 
 type E = EvalError;

@@ -1,3 +1,7 @@
+use std::{collections::HashMap, sync::LazyLock};
+
+use wgsl_parse::syntax::Ident;
+
 pub const BUILTIN_NAMES: &[&str] = &[
     // https://www.w3.org/TR/WGSL/#predeclared-types
     // types
@@ -614,3 +618,92 @@ pub const RESERVED_WORDS: &[&str] = &[
     "writeonly",
     "yield",
 ];
+
+pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
+    macro_rules! ident {
+        ($name:literal) => {
+            ($name, Ident::new($name.to_string()))
+        };
+    }
+    // using these idents allow better use-count tracking and referencing.
+    // some of the buitin idents are in the PRELUDE (not here).
+    // these enumerants are not context-dependent names, and can therefore be shadowed.
+    static IDENTS: LazyLock<HashMap<&str, Ident>> = LazyLock::new(|| {
+        HashMap::from_iter([
+            // plain types
+            ident!("bool"),
+            ident!("__AbstractInt"),
+            ident!("__AbstractFloat"),
+            ident!("i32"),
+            ident!("u32"),
+            ident!("f32"),
+            ident!("f32"),
+            ident!("f16"),
+            ident!("array"),
+            ident!("atomic"),
+            ident!("ptr"),
+            ident!("vec2"),
+            ident!("vec3"),
+            ident!("vec4"),
+            ident!("mat2x2"),
+            ident!("mat3x2"),
+            ident!("mat4x2"),
+            ident!("mat2x3"),
+            ident!("mat3x3"),
+            ident!("mat4x3"),
+            ident!("mat2x4"),
+            ident!("mat3x4"),
+            ident!("mat4x4"),
+            // texture types
+            ident!("texture_1d"),
+            ident!("texture_2d"),
+            ident!("texture_2d_array"),
+            ident!("texture_3d"),
+            ident!("texture_cube"),
+            ident!("texture_cube_array"),
+            ident!("texture_multisampled_2d"),
+            ident!("texture_depth_multisampled_2d"),
+            ident!("texture_external"),
+            ident!("texture_storage_1d"),
+            ident!("texture_storage_2d"),
+            ident!("texture_storage_2d_array"),
+            ident!("texture_storage_3d"),
+            ident!("texture_depth_2d"),
+            ident!("texture_depth_2d_array"),
+            ident!("texture_depth_cube"),
+            ident!("texture_depth_cube_array"),
+            // sampler types
+            ident!("sampler"),
+            ident!("sampler_comparison"),
+            // access mode (enumerant)
+            ident!("read"),
+            ident!("write"),
+            ident!("read_write"),
+            // address space (enumerant)
+            ident!("function"),
+            ident!("private"),
+            ident!("workgroup"),
+            ident!("uniform"),
+            ident!("storage"),
+            // texel format (enumerant)
+            ident!("rgba8unorm"),
+            ident!("rgba8snorm"),
+            ident!("rgba8uint"),
+            ident!("rgba8sint"),
+            ident!("rgba16uint"),
+            ident!("rgba16sint"),
+            ident!("rgba16float"),
+            ident!("r32uint"),
+            ident!("r32sint"),
+            ident!("r32float"),
+            ident!("rg32uint"),
+            ident!("rg32sint"),
+            ident!("rg32float"),
+            ident!("rgba32uint"),
+            ident!("rgba32sint"),
+            ident!("rgba32float"),
+            ident!("bgra8unorm"),
+        ])
+    });
+    IDENTS.get(name)
+}

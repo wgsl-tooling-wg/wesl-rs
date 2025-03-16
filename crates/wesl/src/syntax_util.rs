@@ -1,6 +1,6 @@
 use std::{borrow::Cow, collections::HashMap, iter::Iterator};
 
-use crate::visit::Visit;
+use crate::{builtin::builtin_ident, visit::Visit};
 use wesl_macros::query_mut;
 use wgsl_parse::syntax::*;
 
@@ -85,6 +85,11 @@ impl SyntaxUtil for TranslationUnit {
                 .find(|(name, _)| name.as_str() == *ty.ident.name())
             {
                 ty.ident = id.clone();
+            } else {
+                let builtin = builtin_ident(&ty.ident.name()).cloned();
+                if let Some(id) = builtin {
+                    ty.ident = id;
+                }
             }
             query_mut!(ty.template_args.[].[].expression.(x => Visit::<TypeExpression>::visit_mut(&mut **x)))
                 .for_each(|ty| retarget_ty(ty, scope));
