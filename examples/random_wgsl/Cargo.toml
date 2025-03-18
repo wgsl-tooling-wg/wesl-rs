@@ -1,0 +1,15 @@
+[package]
+name = "random_wgsl"
+description = "Random utility package for WGSL/WESL"
+documentation = "https://docs.rs/random_wgsl"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+wesl = { workspace = true }
+
+[build-dependencies]
+wesl = { workspace = true, features = ["package"] }

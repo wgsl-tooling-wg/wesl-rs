@@ -767,6 +767,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "random_wgsl"
+version = "0.1.2"
+dependencies = [
+ "wesl",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1266,8 +1273,8 @@ dependencies = [
 name = "wesl-consumer"
 version = "0.1.2"
 dependencies = [
+ "random_wgsl",
  "wesl",
- "wesl-random",
 ]
 
 [[package]]
@@ -1278,13 +1285,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "wesl-random"
-version = "0.1.2"
-dependencies = [
- "wesl",
 ]
 
 [[package]]

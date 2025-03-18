@@ -7,7 +7,7 @@ fn main() {
 
     #[cfg(not(feature = "build-time"))]
     let source = wesl::Wesl::new("src/shaders")
-        .add_package(&wesl_random::random::Mod)
+        .add_package(&random_wgsl::random::Mod)
         .compile("main")
         .inspect_err(|e| {
             eprintln!("{e}");
