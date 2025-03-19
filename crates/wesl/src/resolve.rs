@@ -194,7 +194,7 @@ impl<'a> VirtualResolver<'a> {
 
     /// Resolve imports of `path` with the given WESL string.
     pub fn add_module(&mut self, path: impl Into<ModulePath>, file: Cow<'a, str>) {
-        let mut path = path.into();
+        let mut path: ModulePath = path.into();
         path.origin = PathOrigin::Absolute; // we force absolute paths
         self.files.insert(path, file);
     }
@@ -300,7 +300,7 @@ impl Router {
         path: impl Into<ModulePath>,
         resolver: impl Resolver + 'static,
     ) {
-        let path = path.into();
+        let path: ModulePath = path.into();
         let resolver: Box<dyn Resolver> = Box::new(resolver);
         if path.is_empty() {
             // when the path is empty, the resolver would match any path anyways.
