@@ -658,7 +658,7 @@ impl<R: Resolver> Wesl<R> {
     /// # WESL Reference
     /// Spec: not available yet.
     pub fn compile(&self, root: impl Into<ModulePath>) -> Result<CompileResult, Error> {
-        let mut root = root.into();
+        let mut root: ModulePath = root.into();
         root.origin = PathOrigin::Absolute; // we force absolute paths
 
         if self.use_sourcemap {
