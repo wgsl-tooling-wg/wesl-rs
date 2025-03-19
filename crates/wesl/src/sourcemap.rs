@@ -137,13 +137,6 @@ impl Resolver for SourceMapper<'_> {
         );
         Ok(res)
     }
-    fn source_to_module(
-        &self,
-        source: &str,
-        path: &ModulePath,
-    ) -> Result<TranslationUnit, ResolveError> {
-        self.resolver.source_to_module(source, path)
-    }
     fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
         self.resolver.resolve_module(path)
     }
