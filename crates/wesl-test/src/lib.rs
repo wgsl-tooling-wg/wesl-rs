@@ -350,7 +350,7 @@ fn testsuite_test(case: WgslTestSrc) {
         let mut expect_wgsl = wgsl_parse::parse_str(&expect_wgsl)
             .inspect_err(|err| eprintln!("[FAIL] parse `expectedWgsl`: {err}"))
             .expect("parse error");
-        sort_decls(&mut case_wgsl);
+        sort_decls(&mut case_wgsl.syntax);
         sort_decls(&mut expect_wgsl);
         assert_eq!(
             normalize_wgsl(&case_wgsl.to_string()),
