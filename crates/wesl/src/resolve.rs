@@ -33,23 +33,14 @@ type E = ResolveError;
 pub trait Resolver {
     /// Try to resolve a source file identified by a module path.
     fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError>;
-    /// Convert a source file into a syntax tree.
-    fn source_to_module(
-        &self,
-        source: &str,
-        path: &ModulePath,
-    ) -> Result<TranslationUnit, ResolveError> {
+    /// Try to resolve a source file identified by a module path.
+    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
+        let source = self.resolve_source(path)?;
         let wesl: TranslationUnit = source.parse().map_err(|e| {
             Diagnostic::from(e)
                 .with_module_path(path.clone(), self.display_name(path))
                 .with_source(source.to_string())
         })?;
-        Ok(wesl)
-    }
-    /// Try to resolve a source file identified by a module path.
-    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
-        let source = self.resolve_source(path)?;
-        let wesl = self.source_to_module(&source, path)?;
         Ok(wesl)
     }
     /// Get the display name of the module path. Implementing this is optional.
@@ -62,13 +53,6 @@ impl<T: Resolver + ?Sized> Resolver for Box<T> {
     fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
         (**self).resolve_source(path)
     }
-    fn source_to_module(
-        &self,
-        source: &str,
-        path: &ModulePath,
-    ) -> Result<TranslationUnit, ResolveError> {
-        (**self).source_to_module(source, path)
-    }
     fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
         (**self).resolve_module(path)
     }
@@ -80,13 +64,6 @@ impl<T: Resolver + ?Sized> Resolver for Box<T> {
 impl<T: Resolver> Resolver for &T {
     fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
         (**self).resolve_source(path)
-    }
-    fn source_to_module(
-        &self,
-        source: &str,
-        path: &ModulePath,
-    ) -> Result<TranslationUnit, ResolveError> {
-        (**self).source_to_module(source, path)
     }
     fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
         (**self).resolve_module(path)
@@ -194,7 +171,7 @@ impl<'a> VirtualResolver<'a> {
 
     /// Resolve imports of `path` with the given WESL string.
     pub fn add_module(&mut self, path: impl Into<ModulePath>, file: Cow<'a, str>) {
-        let mut path = path.into();
+        let mut path: ModulePath = path.into();
         path.origin = PathOrigin::Absolute; // we force absolute paths
         self.files.insert(path, file);
     }
@@ -250,20 +227,12 @@ impl<R: Resolver, F: ResolveFn> Resolver for Preprocessor<R, F> {
         let res = self.resolver.resolve_source(path)?;
         Ok(res)
     }
-    fn source_to_module(
-        &self,
-        source: &str,
-        path: &ModulePath,
-    ) -> Result<TranslationUnit, ResolveError> {
-        let mut wesl: TranslationUnit = source.parse().map_err(|e| {
-            Diagnostic::from(e)
-                .with_module_path(path.clone(), self.display_name(path))
-                .with_source(source.to_string())
-        })?;
+    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
+        let mut wesl = self.resolver.resolve_module(path)?;
         (self.preprocess)(&mut wesl).map_err(|e| {
             Diagnostic::from(e)
                 .with_module_path(path.clone(), self.display_name(path))
-                .with_source(source.to_string())
+                .with_source(self.resolve_source(path).unwrap().to_string())
         })?;
         Ok(wesl)
     }
@@ -300,7 +269,7 @@ impl Router {
         path: impl Into<ModulePath>,
         resolver: impl Resolver + 'static,
     ) {
-        let path = path.into();
+        let path: ModulePath = path.into();
         let resolver: Box<dyn Resolver> = Box::new(resolver);
         if path.is_empty() {
             // when the path is empty, the resolver would match any path anyways.
@@ -346,14 +315,6 @@ impl Resolver for Router {
     fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
         let (resolver, path) = self.route(path)?;
         resolver.resolve_source(&path)
-    }
-    fn source_to_module(
-        &self,
-        source: &str,
-        path: &ModulePath,
-    ) -> Result<TranslationUnit, ResolveError> {
-        let (resolver, path) = self.route(path)?;
-        resolver.source_to_module(source, &path)
     }
     fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
         let (resolver, path) = self.route(path)?;
