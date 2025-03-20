@@ -201,14 +201,14 @@ impl<'s> Context<'s> {
             self.err_decl = Some(decl)
         }
     }
-    fn set_err_span_ctx(&mut self, expr: &Span) {
+    fn set_err_span_ctx(&mut self, expr: Span) {
         if self.err_span.is_none() {
-            self.err_span = Some(expr.clone())
+            self.err_span = Some(expr)
         }
     }
 
     pub fn err_ctx(&self) -> (Option<String>, Option<Span>) {
-        (self.err_decl.clone(), self.err_span.clone())
+        (self.err_decl.clone(), self.err_span)
     }
 
     pub fn set_stage(&mut self, stage: EvalStage) {

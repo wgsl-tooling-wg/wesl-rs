@@ -28,8 +28,7 @@ const EXPR_FALSE: Expression = Expression::Literal(LiteralExpression::Bool(false
 
 pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E> {
     fn eval_rec(expr: &ExpressionNode, features: &Features) -> Result<Expression, E> {
-        eval_attr(expr, features)
-            .map_err(|e| Diagnostic::from(e).with_span(expr.span().clone()).into())
+        eval_attr(expr, features).map_err(|e| Diagnostic::from(e).with_span(expr.span()).into())
     }
 
     match expr {
@@ -38,7 +37,7 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E
             let expr = eval_rec(&paren.expression, features)?;
             Ok(match expr {
                 Expression::Binary(_) => ParenthesizedExpression {
-                    expression: Spanned::new(expr, paren.expression.span().clone()),
+                    expression: Spanned::new(expr, paren.expression.span()),
                 }
                 .into(),
                 _ => expr,
@@ -76,8 +75,8 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E
                     } else {
                         BinaryExpression {
                             operator: binary.operator,
-                            left: Spanned::new(left, binary.left.span().clone()),
-                            right: Spanned::new(right, binary.right.span().clone()),
+                            left: Spanned::new(left, binary.left.span()),
+                            right: Spanned::new(right, binary.right.span()),
                         }
                         .into()
                     };
@@ -95,8 +94,8 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E
                     } else {
                         BinaryExpression {
                             operator: binary.operator,
-                            left: Spanned::new(left, binary.left.span().clone()),
-                            right: Spanned::new(right, binary.right.span().clone()),
+                            left: Spanned::new(left, binary.left.span()),
+                            right: Spanned::new(right, binary.right.span()),
                         }
                         .into()
                     };

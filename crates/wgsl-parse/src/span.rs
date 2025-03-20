@@ -5,18 +5,35 @@ use derive_more::derive::{AsMut, AsRef, Deref, DerefMut, From};
 pub type Id = u32;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Default, Clone, Debug, PartialEq, Eq, Deref, DerefMut, AsRef, AsMut, From)]
-pub struct Span(Range<usize>);
-
+#[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Span {
+    /// The lower bound of the span (inclusive).
+    pub start: usize,
+    /// The upper bound of the span (exclusive).
+    pub end: usize,
+}
+// Deref, DerefMut, AsRef, AsMut
 impl Span {
     pub fn new(range: Range<usize>) -> Self {
-        Self(range)
+        Self {
+            start: range.start,
+            end: range.end,
+        }
     }
     pub fn range(&self) -> Range<usize> {
-        self.0.clone()
+        self.start..self.end
     }
-    pub fn extend(&self, other: &Span) -> Self {
-        Self(self.start..other.end)
+    pub fn extend(&self, other: Span) -> Self {
+        Self {
+            start: self.start,
+            end: other.end,
+        }
+    }
+}
+
+impl From<Range<usize>> for Span {
+    fn from(value: Range<usize>) -> Self {
+        Span::new(value)
     }
 }
 
@@ -46,8 +63,8 @@ impl<T> Spanned<T> {
     pub fn new_boxed(node: Box<T>, span: Span) -> Self {
         Self { span, node }
     }
-    pub fn span(&self) -> &Span {
-        &self.span
+    pub fn span(&self) -> Span {
+        self.span
     }
     pub fn node(&self) -> &T {
         self

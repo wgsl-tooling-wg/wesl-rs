@@ -47,9 +47,9 @@ fn check_defined_symbols(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>
     }
     fn check_expr(expr: &ExpressionNode) -> Result<(), Diagnostic<Error>> {
         if let Expression::TypeOrIdentifier(ty) = expr.node() {
-            check_ty(ty).map_err(|d| d.with_span(expr.span().clone()))
+            check_ty(ty).map_err(|d| d.with_span(expr.span()))
         } else if let Expression::FunctionCall(call) = expr.node() {
-            check_ty(&call.ty).map_err(|d| d.with_span(expr.span().clone()))?;
+            check_ty(&call.ty).map_err(|d| d.with_span(expr.span()))?;
             for expr in &call.arguments {
                 check_expr(expr)?;
             }
@@ -147,7 +147,7 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
         for expr in Visit::<ExpressionNode>::visit(decl) {
             check_expr(expr, wesl).map_err(|e| {
                 let mut err = Diagnostic::from(e);
-                err.span = Some(expr.span().clone());
+                err.span = Some(expr.span());
                 err.declaration = decl.ident().map(|id| id.name().to_string());
                 err
             })?;
@@ -211,7 +211,7 @@ fn check_reserved_words(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
     }
     fn check_stmt(stmt: &StatementNode) -> Result<(), Diagnostic<Error>> {
         if let Statement::Declaration(decl) = stmt.node() {
-            check_ident(&decl.ident).map_err(|d| d.with_span(stmt.span().clone()))?;
+            check_ident(&decl.ident).map_err(|d| d.with_span(stmt.span()))?;
         }
         for stmt in Visit::<StatementNode>::visit(stmt.node()) {
             check_stmt(stmt)?;
