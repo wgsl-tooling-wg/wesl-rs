@@ -56,7 +56,7 @@ pub struct Diagnostic<E: std::error::Error> {
 
 impl From<wgsl_parse::Error> for Diagnostic<Error> {
     fn from(error: wgsl_parse::Error) -> Self {
-        let span = error.span.clone();
+        let span = error.span;
         let mut res = Self::new(Error::ParseError(error));
         res.span = Some(span);
         res
