@@ -1,7 +1,7 @@
 use std::iter::zip;
 
 use crate::eval::{ty_eval_ty, Context, Eval, EvalError, Exec, Ty, ATTR_INTRINSIC};
-use wgsl_parse::{span::Spanned, syntax::*};
+use wgsl_parse::{span::Spanned, syntax::*, Decorated};
 
 use super::{
     to_expr::ToExpr, with_scope, EvalStage, EvalTy, Instance, SyntaxUtil, EXPR_FALSE, EXPR_TRUE,
@@ -12,7 +12,7 @@ type E = EvalError;
 fn make_explicit_call(call: &mut FunctionCall, ctx: &mut Context) -> Result<(), E> {
     let decl = ctx.source.decl_function(&call.ty.ident.name());
     if let Some(decl) = decl {
-        if decl.body.attributes.contains(&ATTR_INTRINSIC) {
+        if decl.body.contains_attribute(&ATTR_INTRINSIC) {
             // we only do explicit conversions on user-defined functions,
             // because built-in functions have overloads for abstract types.
             return Ok(());
@@ -171,7 +171,7 @@ impl Lower for TypeExpression {
 impl Lower for Attributes {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
         for attr in self {
-            match attr {
+            match attr.node_mut() {
                 Attribute::Align(expr)
                 | Attribute::Binding(expr)
                 | Attribute::BlendSrc(expr)
@@ -268,7 +268,7 @@ impl Lower for Function {
 
         // ideally we would do this first, but it would prevent validation errors from triggering
         // in `compound_lower`.
-        if self.attributes.contains(&Attribute::Const) && self.return_type.is_none() {
+        if self.contains_attribute(&Attribute::Const) && self.return_type.is_none() {
             self.body.statements.clear();
         }
         Ok(())
@@ -357,8 +357,8 @@ impl Lower for Statement {
             Statement::FunctionCall(stmt) => {
                 let decl = ctx.source.decl_function(&stmt.call.ty.ident.name());
                 if let Some(decl) = decl {
-                    if decl.attributes.contains(&Attribute::Const)
-                        && !decl.attributes.contains(&Attribute::MustUse)
+                    if decl.contains_attribute(&Attribute::Const)
+                        && !decl.contains_attribute(&Attribute::MustUse)
                     {
                         *self = Statement::Void; // a const function has no side-effects
                     } else {
