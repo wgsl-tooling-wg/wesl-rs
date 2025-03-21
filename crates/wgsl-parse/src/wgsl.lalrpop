@@ -320,7 +320,7 @@ StructBodyDecl: Vec<StructMember> = {
 };
 
 StructMember: StructMember = {
-    <attributes: Attribute*> <ident: MemberIdent> ":" <ty: TypeSpecifier> => StructMember {
+    <attributes: AttributeNode*> <ident: MemberIdent> ":" <ty: TypeSpecifier> => StructMember {
         attributes, ident, ty
     },
 };
@@ -395,7 +395,7 @@ OptionallyTypedIdent: (Ident, Option<TypeExpression>) = {
 
 #[cfg(not(feature = "attributes"))]
 GlobalVariableDecl: Declaration = {
-    <attributes: Attribute*> <mut decl: VariableDecl> <initializer: ("=" <ExpressionNode>)?> => {
+    <attributes: AttributeNode*> <mut decl: VariableDecl> <initializer: ("=" <ExpressionNode>)?> => {
         decl.attributes = attributes;
         decl.initializer = initializer.map(Into::into);
         decl
@@ -414,7 +414,7 @@ GlobalValueDecl: Declaration = {
             initializer: Some(initializer),
         }
     },
-    <attributes: Attribute*> "override" <id_ty: OptionallyTypedIdent> <initializer: ("=" <ExpressionNode>)?> => {
+    <attributes: AttributeNode*> "override" <id_ty: OptionallyTypedIdent> <initializer: ("=" <ExpressionNode>)?> => {
         let (ident, ty) = id_ty;
         Declaration {
             attributes,
@@ -653,7 +653,7 @@ ExpressionNode: ExpressionNode = Spanned<Expression>;
 
 
 CompoundStatement: CompoundStatement = {
-    <attributes: Attribute*> "{" <statements: StatementNode*> "}" => CompoundStatement {
+    <attributes: AttributeNode*> "{" <statements: StatementNode*> "}" => CompoundStatement {
         attributes, statements
     },
 };
@@ -702,7 +702,7 @@ DecrementStatement: DecrementStatement = {
 };
 
 IfStatement: IfStatement = {
-    <attributes: Attribute*> <if_clause: IfClause> <else_if_clauses: ElseIfClause*> <else_clause: ElseClause?> => IfStatement {
+    <attributes: AttributeNode*> <if_clause: IfClause> <else_if_clauses: ElseIfClause*> <else_clause: ElseClause?> => IfStatement {
         attributes, if_clause, else_if_clauses, else_clause
     },
 };
@@ -722,7 +722,7 @@ ElseClause: ElseClause = "else" <body: CompoundStatement> => ElseClause {
 };
 
 SwitchStatement: SwitchStatement = {
-    <attributes: Attribute*> "switch" <expression: ExpressionNode> <body: SwitchBody> => {
+    <attributes: AttributeNode*> "switch" <expression: ExpressionNode> <body: SwitchBody> => {
         let (body_attributes, clauses) = body;
         SwitchStatement {
             attributes, expression, body_attributes, clauses
@@ -730,8 +730,8 @@ SwitchStatement: SwitchStatement = {
     },
 };
 
-SwitchBody: (Vec<Attribute>, Vec<SwitchClause>) = {
-    <Attribute*> "{" <SwitchClause+> "}",
+SwitchBody: (Vec<AttributeNode>, Vec<SwitchClause>) = {
+    <AttributeNode*> "{" <SwitchClause+> "}",
 };
 
 SwitchClause: SwitchClause = {
@@ -763,7 +763,7 @@ CaseSelector: CaseSelector = {
 };
 
 LoopStatement: LoopStatement = {
-    <attributes: Attribute*> "loop" <body_attributes: Attribute*> "{" <statements: StatementNode*> <continuing: ContinuingStatement?> "}" => {
+    <attributes: AttributeNode*> "loop" <body_attributes: AttributeNode*> "{" <statements: StatementNode*> <continuing: ContinuingStatement?> "}" => {
         let body = CompoundStatement { attributes: body_attributes, statements };
         LoopStatement {
             attributes, body, continuing
@@ -772,7 +772,7 @@ LoopStatement: LoopStatement = {
 };
 
 ForStatement: ForStatement = {
-     <attributes: Attribute*> "for" "(" <header: ForHeader> ")" <body: CompoundStatement> => {
+     <attributes: AttributeNode*> "for" "(" <header: ForHeader> ")" <body: CompoundStatement> => {
         let (initializer, condition, update) = header;
         ForStatement {
             attributes, initializer: initializer.map(Into::into), condition, update: update.map(Into::into), body
@@ -811,7 +811,7 @@ ForUpdate: StatementNode = {
 };
 
 WhileStatement: WhileStatement = {
-    <attributes: Attribute*> "while" <condition: ExpressionNode> <body: CompoundStatement> => WhileStatement {
+    <attributes: AttributeNode*> "while" <condition: ExpressionNode> <body: CompoundStatement> => WhileStatement {
         attributes, condition, body
     },
 };
@@ -838,7 +838,7 @@ ContinuingStatement = "continuing" <ContinuingCompoundStatement>;
 
 #[cfg(not(feature = "attributes"))]
 ContinuingCompoundStatement: ContinuingStatement = {
-    <attributes: Attribute*> "{" <statements: StatementNode*> <break_if: BreakIfStatement?> "}" => {
+    <attributes: AttributeNode*> "{" <statements: StatementNode*> <break_if: BreakIfStatement?> "}" => {
         let body = CompoundStatement { attributes, statements };
         ContinuingStatement { body, break_if }
     },
@@ -898,14 +898,14 @@ VariableUpdatingStatement: Statement = {
 // https://www.w3.org/TR/WGSL/#functions
 
 FunctionDecl: Function = {
-    <attributes: Attribute*> <header: FunctionHeader> <body: CompoundStatement> => {
+    <attributes: AttributeNode*> <header: FunctionHeader> <body: CompoundStatement> => {
         let (ident, parameters, return_attributes, return_type) = header;
         Function { attributes, ident, parameters, return_attributes, return_type, body }
     },
 };
 
-FunctionHeader: (Ident, Vec<FormalParameter>, Vec<Attribute>, Option<TypeExpression>) = {
-    "fn" <ident: Ident> "(" <parameters: ParamList?> ")" <ret: ("->" <Attribute*> <TemplateElaboratedIdent>)?> => {
+FunctionHeader: (Ident, Vec<FormalParameter>, Vec<AttributeNode>, Option<TypeExpression>) = {
+    "fn" <ident: Ident> "(" <parameters: ParamList?> ")" <ret: ("->" <AttributeNode*> <TemplateElaboratedIdent>)?> => {
         let (return_attributes, return_type) = ret.map(|(return_attributes, return_type)| {
             (return_attributes, Some(return_type))
         }).unwrap_or_default();
@@ -919,7 +919,7 @@ ParamList: Vec<FormalParameter> = {
 };
 
 Param: FormalParameter = {
-    <attributes: Attribute*> <ident: Ident> ":" <ty: TypeSpecifier> => FormalParameter {
+    <attributes: AttributeNode*> <ident: Ident> ":" <ty: TypeSpecifier> => FormalParameter {
         attributes, ident, ty
     },
 };
@@ -937,6 +937,8 @@ Attribute: Attribute = {
             .map_err(|e| lalrpop_util::ParseError::User{ error: (l, e, r) })
     },
 };
+
+AttributeNode: AttributeNode = Spanned<Attribute>;
 
 DiagnosticControl: (DiagnosticSeverity, String) = {
     "(" <SeverityControlName> "," <DiagnosticRuleName> ","? ")",
@@ -1002,7 +1004,7 @@ pub ImportStatement: ImportStatement = {
 
 #[cfg(all(feature = "imports", feature = "attributes"))]
 pub ImportStatement: ImportStatement = {
-    <attributes: Attribute*> "import" <path: ModulePath?> <content: ImportContent> ";" => ImportStatement {
+    <attributes: AttributeNode*> "import" <path: ModulePath?> <content: ImportContent> ";" => ImportStatement {
         attributes, path: path.unwrap_or_default(), content
     }
 };
@@ -1100,21 +1102,21 @@ Keyword: String = {
 
 #[cfg(feature = "attributes")]
 EnableDirective: EnableDirective = {
-    <attributes: Attribute*> "enable" <extensions: EnableExtensionList> ";" => EnableDirective {
+    <attributes: AttributeNode*> "enable" <extensions: EnableExtensionList> ";" => EnableDirective {
         attributes, extensions
     },
 };
 
 #[cfg(feature = "attributes")]
 RequiresDirective: RequiresDirective = {
-    <attributes: Attribute*> "requires" <extensions: SoftwareExtensionList> ";" => RequiresDirective {
+    <attributes: AttributeNode*> "requires" <extensions: SoftwareExtensionList> ";" => RequiresDirective {
         attributes, extensions
     },
 };
 
 #[cfg(feature = "attributes")]
 DiagnosticDirective: DiagnosticDirective = {
-    <Attribute*> "diagnostic" <DiagnosticControl> ";" => {
+    <AttributeNode*> "diagnostic" <DiagnosticControl> ";" => {
         let (attributes, (severity, rule_name)) = (<>);
         DiagnosticDirective { attributes, severity, rule_name }
     },
@@ -1122,14 +1124,14 @@ DiagnosticDirective: DiagnosticDirective = {
 
 #[cfg(feature = "attributes")]
 StructDecl: Struct = {
-    <attributes: Attribute*> "struct" <ident: Ident> <members: StructBodyDecl> => Struct {
+    <attributes: AttributeNode*> "struct" <ident: Ident> <members: StructBodyDecl> => Struct {
         attributes, ident, members
     },
 };
 
 #[cfg(feature = "attributes")]
 TypeAliasDecl: TypeAlias = {
-    <attributes: Attribute*> "alias" <ident: Ident> "=" <ty: TypeSpecifier> => TypeAlias {
+    <attributes: AttributeNode*> "alias" <ident: Ident> "=" <ty: TypeSpecifier> => TypeAlias {
         attributes, ident, ty
     },
 };
@@ -1141,7 +1143,7 @@ VariableOrValueStatement: Declaration = {
         decl.initializer = Some(initializer);
         decl
     },
-    <attributes: Attribute*> "let" <id_ty: OptionallyTypedIdent> "=" <initializer: ExpressionNode> => {
+    <attributes: AttributeNode*> "let" <id_ty: OptionallyTypedIdent> "=" <initializer: ExpressionNode> => {
         let (ident, ty) = id_ty;
         Declaration {
             attributes,
@@ -1151,7 +1153,7 @@ VariableOrValueStatement: Declaration = {
             initializer: Some(initializer),
         }
     },
-    <attributes: Attribute*> "const" <id_ty: OptionallyTypedIdent> "=" <initializer: ExpressionNode> => {
+    <attributes: AttributeNode*> "const" <id_ty: OptionallyTypedIdent> "=" <initializer: ExpressionNode> => {
         let (ident, ty) = id_ty;
         Declaration {
             attributes,
@@ -1165,7 +1167,7 @@ VariableOrValueStatement: Declaration = {
 
 #[cfg(feature = "attributes")]
 VariableDecl: Declaration = {
-    <attributes: Attribute*> <l: @L> "var" <template_args: TemplateList?> <r: @R> <id_ty: OptionallyTypedIdent> =>? {
+    <attributes: AttributeNode*> <l: @L> "var" <template_args: TemplateList?> <r: @R> <id_ty: OptionallyTypedIdent> =>? {
         let (ident, ty) = id_ty;
         let address_space = parse_var_template(template_args)
             .map_err(|e| lalrpop_util::ParseError::User{ error: (l, e, r) })?;
@@ -1189,7 +1191,7 @@ GlobalVariableDecl: Declaration = {
 
 #[cfg(feature = "attributes")]
 GlobalValueDecl: Declaration = {
-    <attributes: Attribute*> "const" <id_ty: OptionallyTypedIdent> "=" <initializer: ExpressionNode> => {
+    <attributes: AttributeNode*> "const" <id_ty: OptionallyTypedIdent> "=" <initializer: ExpressionNode> => {
         let (ident, ty) = id_ty;
         Declaration {
             attributes,
@@ -1199,7 +1201,7 @@ GlobalValueDecl: Declaration = {
             initializer: Some(initializer),
         }
     },
-    <attributes: Attribute*> "override" <id_ty: OptionallyTypedIdent> <initializer: ("=" <ExpressionNode>)?> => {
+    <attributes: AttributeNode*> "override" <id_ty: OptionallyTypedIdent> <initializer: ("=" <ExpressionNode>)?> => {
         let (ident, ty) = id_ty;
         Declaration {
             attributes,
@@ -1253,41 +1255,41 @@ ElseClause: ElseClause = "else" <body: CompoundStatement> => ElseClause {
 
 #[cfg(feature = "attributes")]
 CaseClause: SwitchClause = {
-    <attributes: Attribute*> "case" <case_selectors: CaseSelectors> ":"? <body: CompoundStatement> => SwitchClause {
+    <attributes: AttributeNode*> "case" <case_selectors: CaseSelectors> ":"? <body: CompoundStatement> => SwitchClause {
         attributes, case_selectors, body
     },
 };
 
 #[cfg(feature = "attributes")]
 DefaultAloneClause: SwitchClause = {
-    <attributes: Attribute*> "default" ":"? <body: CompoundStatement> => SwitchClause {
+    <attributes: AttributeNode*> "default" ":"? <body: CompoundStatement> => SwitchClause {
         attributes, case_selectors: vec![CaseSelector::Default], body
     },
 };
 
 #[cfg(feature = "attributes")]
 BreakStatement: BreakStatement = {
-    <attributes: Attribute*> "break" => BreakStatement {
+    <attributes: AttributeNode*> "break" => BreakStatement {
         attributes
     },
 };
 
 #[cfg(feature = "attributes")]
 BreakIfStatement: BreakIfStatement = {
-    <attributes: Attribute*> "break" "if" <expression: ExpressionNode> ";" => BreakIfStatement {
+    <attributes: AttributeNode*> "break" "if" <expression: ExpressionNode> ";" => BreakIfStatement {
         attributes, expression
     },
 };
 
 #[cfg(feature = "attributes")]
 ContinueStatement: ContinueStatement = {
-    <attributes: Attribute*> "continue" => ContinueStatement {
+    <attributes: AttributeNode*> "continue" => ContinueStatement {
         attributes
     },
 };
 
 #[cfg(feature = "attributes")]
-ContinuingStatement: ContinuingStatement = <Attribute*> "continuing" <ContinuingCompoundStatement> => {
+ContinuingStatement: ContinuingStatement = <AttributeNode*> "continuing" <ContinuingCompoundStatement> => {
     let (attributes, mut statement) = (<>);
     statement.attributes = attributes;
     statement
@@ -1295,7 +1297,7 @@ ContinuingStatement: ContinuingStatement = <Attribute*> "continuing" <Continuing
 
 #[cfg(feature = "attributes")]
 ContinuingCompoundStatement: ContinuingStatement = {
-    <attributes: Attribute*> "{" <statements: StatementNode*> <break_if: BreakIfStatement?> "}" => {
+    <attributes: AttributeNode*> "{" <statements: StatementNode*> <break_if: BreakIfStatement?> "}" => {
         let body = CompoundStatement { attributes, statements };
         ContinuingStatement { attributes: Vec::new(), body, break_if }
     },
@@ -1303,26 +1305,26 @@ ContinuingCompoundStatement: ContinuingStatement = {
 
 #[cfg(feature = "attributes")]
 ReturnStatement: ReturnStatement = {
-    <attributes: Attribute*> "return" <expression: ExpressionNode?> => ReturnStatement {
+    <attributes: AttributeNode*> "return" <expression: ExpressionNode?> => ReturnStatement {
         attributes, expression
     },
 };
 
 #[cfg(feature = "attributes")]
 DiscardStatement: DiscardStatement = {
-    <attributes: Attribute*> "discard" => DiscardStatement {
+    <attributes: AttributeNode*> "discard" => DiscardStatement {
         attributes
     },
 };
 
 #[cfg(feature = "attributes")]
-FuncCallStatement: FunctionCallStatement = <attributes: Attribute*> <call: CallPhrase> => FunctionCallStatement {
+FuncCallStatement: FunctionCallStatement = <attributes: AttributeNode*> <call: CallPhrase> => FunctionCallStatement {
     attributes, call
 };
 
 #[cfg(feature = "attributes")]
 ConstAssertStatement: ConstAssertStatement = {
-    <attributes: Attribute*> "const_assert" <expression: ExpressionNode> => ConstAssertStatement {
+    <attributes: AttributeNode*> "const_assert" <expression: ExpressionNode> => ConstAssertStatement {
         attributes, expression
     },
 };
