@@ -47,6 +47,11 @@ pub trait Resolver {
     fn display_name(&self, _path: &ModulePath) -> Option<String> {
         None
     }
+    /// Get the filesystem path of the module path. Implementing this is optional.
+    /// Used by build scripts for dependency tracking
+    fn fs_path(&self, _path: &ModulePath) -> Option<PathBuf> {
+        None
+    }
 }
 
 impl<T: Resolver + ?Sized> Resolver for Box<T> {
@@ -59,6 +64,9 @@ impl<T: Resolver + ?Sized> Resolver for Box<T> {
     fn display_name(&self, path: &ModulePath) -> Option<String> {
         (**self).display_name(path)
     }
+    fn fs_path(&self, path: &ModulePath) -> Option<PathBuf> {
+        (**self).fs_path(path)
+    }
 }
 
 impl<T: Resolver> Resolver for &T {
@@ -70,6 +78,9 @@ impl<T: Resolver> Resolver for &T {
     }
     fn display_name(&self, path: &ModulePath) -> Option<String> {
         (**self).display_name(path)
+    }
+    fn fs_path(&self, path: &ModulePath) -> Option<PathBuf> {
+        (**self).fs_path(path)
     }
 }
 
@@ -149,6 +160,9 @@ impl Resolver for FileResolver {
         self.file_path(path)
             .ok()
             .map(|fs_path| fs_path.display().to_string())
+    }
+    fn fs_path(&self, path: &ModulePath) -> Option<PathBuf> {
+        self.file_path(path).ok()
     }
 }
 
@@ -239,6 +253,10 @@ impl<R: Resolver, F: ResolveFn> Resolver for Preprocessor<R, F> {
     fn display_name(&self, path: &ModulePath) -> Option<String> {
         self.resolver.display_name(path)
     }
+
+    fn fs_path(&self, path: &ModulePath) -> Option<PathBuf> {
+        self.resolver.fs_path(path)
+    }
 }
 
 /// A resolver that can dispatch imports to several sub-resolvers based on the import
@@ -323,6 +341,10 @@ impl Resolver for Router {
     fn display_name(&self, path: &ModulePath) -> Option<String> {
         let (resolver, path) = self.route(path).ok()?;
         resolver.display_name(&path)
+    }
+    fn fs_path(&self, path: &ModulePath) -> Option<PathBuf> {
+        let (resolver, path) = self.route(path).ok()?;
+        resolver.fs_path(&path)
     }
 }
 
@@ -469,6 +491,13 @@ impl Resolver for StandardResolver {
             self.pkg.display_name(path)
         } else {
             self.files.display_name(path)
+        }
+    }
+    fn fs_path(&self, path: &ModulePath) -> Option<PathBuf> {
+        if path.origin.is_package() {
+            self.pkg.fs_path(path)
+        } else {
+            self.files.fs_path(path)
         }
     }
 }

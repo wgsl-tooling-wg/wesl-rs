@@ -229,3 +229,12 @@ impl Module {
         Ok(())
     }
 }
+
+pub(crate) fn emit_rerun_if_changed(modules: &[ModulePath], resolver: &impl Resolver) {
+    for module in modules {
+        if let Some(path) = resolver.fs_path(module) {
+            // Path::display is safe here, because of the ModulePath naming restrictions
+            println!("cargo::rerun-if-changed={}", path.display());
+        }
+    }
+}
