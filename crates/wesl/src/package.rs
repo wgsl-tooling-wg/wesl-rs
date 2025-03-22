@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use wgsl_parse::syntax::{PathOrigin, TranslationUnit};
 
-use crate::{validate::validate_wesl, Diagnostic, Error, ModulePath, SyntaxUtil};
+use crate::{validate::validate_wesl, Diagnostic, Error, ModulePath, Resolver, SyntaxUtil};
 
 /// A builder that generates code for WESL packages.
 ///
@@ -225,5 +225,14 @@ impl Module {
         .join(format!("{}.rs", self.name));
         std::fs::write(&out_dir, code)?;
         Ok(())
+    }
+}
+
+pub(crate) fn emit_rerun_if_changed(modules: &[ModulePath], resolver: &impl Resolver) {
+    for module in modules {
+        if let Some(path) = resolver.fs_path(module) {
+            // Path::display is safe here, because of the ModulePath naming restrictions
+            println!("cargo::rerun-if-changed={}", path.display());
+        }
     }
 }
