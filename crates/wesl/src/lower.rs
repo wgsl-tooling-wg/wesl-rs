@@ -26,7 +26,7 @@ pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
 
     for attrs in Visit::<Attributes>::visit_mut(wesl) {
         attrs.retain(|attr| {
-            !matches!(attr, 
+            !matches!(attr.node(), 
             Attribute::Custom(CustomAttribute { name, .. }) if name == "generic")
         })
     }
@@ -41,6 +41,7 @@ pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
     {
         use crate::eval::{mark_functions_const, Context, Exec, Lower};
         use crate::Diagnostic;
+        use wgsl_parse::Decorated;
         mark_functions_const(wesl);
 
         // we want to drop wesl2 at the end of the block for idents use_count
@@ -55,7 +56,7 @@ pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
         // remove `@const` attributes.
         for decl in &mut wesl.global_declarations {
             if let GlobalDeclaration::Function(decl) = decl {
-                decl.attributes.retain(|attr| *attr != Attribute::Const);
+                decl.retain_attributes_mut(|attr| *attr != Attribute::Const);
             }
         }
     }
