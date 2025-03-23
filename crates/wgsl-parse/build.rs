@@ -1,3 +1,10 @@
+use lalrpop::Configuration;
+
 fn main() {
-    lalrpop::process_root().unwrap();
+    println!("cargo::rerun-if-changed=build.rs");
+    Configuration::new()
+        .use_cargo_dir_conventions()
+        .emit_rerun_directives(true)
+        .process()
+        .unwrap();
 }

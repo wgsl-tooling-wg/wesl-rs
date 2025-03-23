@@ -18,7 +18,7 @@ This project can be used as a rust library or as a standalone CLI.
 
 ### Using the CLI
 
-- Install `cargo install --git https://github.com/wgsl-tooling-wg/wesl-rs`
+- Install `cargo install wesl-cli --git https://github.com/wgsl-tooling-wg/wesl-rs`
 - Compile a WESL shader `wesl compile <entrypoint.wgsl>`
 - Run eval() `wesl eval <entrypoint.wgsl> <expression to eval>`
 
