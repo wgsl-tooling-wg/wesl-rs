@@ -9,8 +9,8 @@ use wgsl_parse::{span::Spanned, syntax::*, Decorated};
 pub enum CondCompError {
     #[error("invalid feature flag: `{0}`")]
     InvalidFeatureFlag(String),
-    #[error("missing feature flag: `{0}`")]
-    MissingFeatureFlag(String),
+    #[error("unspecified feature flag: `{0}`")]
+    UnspecifiedFeatureFlag(String),
     #[error("invalid if attribute expression: `{0}`")]
     InvalidExpression(Expression),
     #[error("an @elif or @else attribute must be preceded by a @if or @elif on the previous node")]
@@ -21,7 +21,42 @@ pub enum CondCompError {
 
 type E = crate::Error;
 
-type Features = HashMap<String, bool>;
+/// Set the behavior for a feature flag during conditional translation.
+///
+/// * `Keep` means that the feature flag will be left as-is. This is useful for
+///   incremental compilation, e.g. for generating shader variants
+/// * `Error` means that unspecified feature flags will trigger a
+///   [`CondCompError::UnspecifiedFeatureFlag`].
+///
+/// Default is `Disable`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Feature {
+    Enable,
+    #[default]
+    Disable,
+    Keep,
+    Error,
+}
+
+/// Toggle conditional compilation feature flags.
+///
+/// Feature flags set to `true` are enabled, and `false` are disabled. Feature flags not
+/// present in `flags` are treated according to `default`, see [`DefaultFeatureBehavior`].
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Features {
+    pub default: Feature,
+    pub flags: HashMap<String, Feature>,
+}
+
+impl From<bool> for Feature {
+    fn from(value: bool) -> Self {
+        if value {
+            Feature::Enable
+        } else {
+            Feature::Disable
+        }
+    }
+}
 
 const EXPR_TRUE: Expression = Expression::Literal(LiteralExpression::Bool(true));
 const EXPR_FALSE: Expression = Expression::Literal(LiteralExpression::Bool(false));
@@ -108,11 +143,19 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E
             if ty.template_args.is_some() {
                 return Err(CondCompError::InvalidFeatureFlag(ty.to_string()).into());
             }
-            let feat = features.get(&*ty.ident.name());
+            let feat = features
+                .flags
+                .get(&*ty.ident.name())
+                .unwrap_or(&features.default);
             let expr = match feat {
-                Some(true) => EXPR_TRUE.clone(),
-                Some(false) => EXPR_FALSE.clone(),
-                None => expr.clone(),
+                Feature::Enable => EXPR_TRUE.clone(),
+                Feature::Disable => EXPR_FALSE.clone(),
+                Feature::Keep => expr.clone(),
+                Feature::Error => {
+                    return Err(
+                        CondCompError::UnspecifiedFeatureFlag(ty.ident.name().to_string()).into(),
+                    )
+                }
             };
             Ok(expr)
         }
@@ -254,11 +297,8 @@ fn eval_if_attrs(nodes: &mut Vec<impl Decorated>, features: &Features) -> Result
     }
 }
 
-fn stmt_eval_if_attrs(
-    statements: &mut Vec<StatementNode>,
-    features: &HashMap<String, bool>,
-) -> Result<(), E> {
-    fn rec_one(stmt: &mut StatementNode, feats: &HashMap<String, bool>) -> Result<(), E> {
+fn stmt_eval_if_attrs(statements: &mut Vec<StatementNode>, features: &Features) -> Result<(), E> {
+    fn rec_one(stmt: &mut StatementNode, feats: &Features) -> Result<(), E> {
         match stmt.node_mut() {
             Statement::Compound(stmt) => {
                 rec(&mut stmt.statements, feats)?;
@@ -303,7 +343,7 @@ fn stmt_eval_if_attrs(
         };
         Ok(())
     }
-    fn rec(stats: &mut Vec<StatementNode>, feats: &HashMap<String, bool>) -> Result<PrevEval, E> {
+    fn rec(stats: &mut Vec<StatementNode>, feats: &Features) -> Result<PrevEval, E> {
         let prev = eval_if_attrs(stats, feats)?;
         for stmt in stats {
             rec_one(stmt, feats)?;

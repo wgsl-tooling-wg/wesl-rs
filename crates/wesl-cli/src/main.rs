@@ -12,8 +12,8 @@ use std::{
 use wesl::{
     eval::{ty_eval_ty, Eval, EvalAttrs, HostShareable, Instance, RefInstance, Ty},
     syntax::{self, AccessMode, AddressSpace},
-    CompileOptions, CompileResult, Diagnostic, FileResolver, ManglerKind, PkgBuilder, Router,
-    SyntaxUtil, VirtualResolver, Wesl,
+    CompileOptions, CompileResult, Diagnostic, Feature, Features, FileResolver, ManglerKind,
+    PkgBuilder, Router, SyntaxUtil, VirtualResolver, Wesl,
 };
 use wgsl_parse::syntax::TranslationUnit;
 
@@ -120,9 +120,9 @@ struct CompOptsArgs {
 
 impl From<&CompOptsArgs> for CompileOptions {
     fn from(opts: &CompOptsArgs) -> Self {
-        let mut features = HashMap::new();
-        features.extend(opts.enable.iter().map(|f| (f.clone(), true)));
-        features.extend(opts.disable.iter().map(|f| (f.clone(), false)));
+        let mut flags = HashMap::new();
+        flags.extend(opts.enable.iter().map(|f| (f.clone(), true.into())));
+        flags.extend(opts.disable.iter().map(|f| (f.clone(), false.into())));
 
         Self {
             imports: !opts.no_imports,
@@ -137,7 +137,10 @@ impl From<&CompOptsArgs> for CompileOptions {
             } else {
                 opts.keep.clone()
             },
-            features,
+            features: Features {
+                default: Feature::Disable,
+                flags,
+            },
         }
     }
 }
