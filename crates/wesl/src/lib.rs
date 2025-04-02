@@ -442,6 +442,20 @@ impl<R: Resolver> Wesl<R> {
         self.options.features.flags.remove(feat);
         self
     }
+    /// Set the behavior for unspecified conditional compilation feature flags.
+    ///
+    /// Controls what happens when a feature flag is used in shader code but not set with
+    /// [`Wesl::set_feature`]. By default it turns off the feature, but it can also be set to leave
+    /// it in the code ([`Feature::Keep`]) or to trigger compilation error ([`Feature::Error`]).
+    ///
+    /// # WESL Reference
+    /// Conditional translation is a *mandatory* WESL extension.
+    ///
+    /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
+    pub fn set_missing_feature_behavior(&mut self, val: impl Into<Feature>) -> &mut Self {
+        self.options.features.default = val.into();
+        self
+    }
     /// Remove unused declarations from the final WGSL output.
     ///
     /// Unused declarations are all declarations not used (directly or indirectly) by any
