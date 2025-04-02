@@ -446,7 +446,7 @@ impl<R: Resolver> Wesl<R> {
     /// of the entrypoints (functions marked `@compute`, `@vertex` or `@fragment`) in the
     /// root module.
     ///
-    /// see also: [`Wesl::keep_entrypoints`]
+    /// see also: [`Wesl::keep_declarations`]
     ///
     /// # WESL Reference
     /// Code stripping is an *optional* WESL extension.
@@ -460,7 +460,7 @@ impl<R: Resolver> Wesl<R> {
     /// Transform an output into a simplified WGSL that is better supported by
     /// implementors.
     ///
-    /// See [`lower`].
+    /// See also: [`lower`].
     ///
     /// # WESL Reference
     /// Lowering is an *experimental* WESL extension.
@@ -484,7 +484,9 @@ impl<R: Resolver> Wesl<R> {
         self
     }
     /// If stripping is enabled, keep all entrypoints in the root WESL module.
-    /// This is the default. See [`Wesl::keep_entrypoints`].
+    ///
+    /// Entrypoints are functions with `@compute`, `@vertex` or `@fragment`.
+    /// This is the default. See also: [`Wesl::keep_declarations`].
     ///
     /// # WESL Reference
     /// Code stripping is an *optional* WESL extension.
