@@ -183,7 +183,14 @@ fn run_compile(args: CompileOptions) -> Result<CompileResult, wesl::Error> {
             validate: args.validate,
             lazy: args.lazy,
             keep: args.keep,
-            features: args.features,
+            features: wesl::Features {
+                default: wesl::Feature::Disable,
+                flags: args
+                    .features
+                    .into_iter()
+                    .map(|(k, v)| (k, v.into()))
+                    .collect(),
+            },
         })
         .use_sourcemap(args.sourcemap)
         .set_mangler(args.mangler.into())

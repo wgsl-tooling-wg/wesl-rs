@@ -271,7 +271,7 @@ impl Eval for FunctionCall {
 }
 
 impl Eval for TypeExpression {
-    /// See also [`ty_eval_ty`]. This implementation evaluates TypeExpression that are
+    /// See also [`ty_eval_ty`][super::ty::ty_eval_ty]. This implementation evaluates TypeExpression that are
     /// identifiers, not types.
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E> {
         if self.template_args.is_some() {
