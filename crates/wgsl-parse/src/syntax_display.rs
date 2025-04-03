@@ -396,7 +396,7 @@ impl Display for TypeConstraint {
     }
 }
 
-fn fmt_attrs(attrs: &[Attribute], inline: bool) -> impl fmt::Display + '_ {
+fn fmt_attrs(attrs: &[AttributeNode], inline: bool) -> impl fmt::Display + '_ {
     FormatFn(move |f| {
         let print = attrs.iter().format(" ");
         let suffix = if attrs.is_empty() {

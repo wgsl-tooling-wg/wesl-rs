@@ -8,7 +8,7 @@ use super::{
     StructInstance, SyntaxUtil, Ty, Type, ATTR_INTRINSIC,
 };
 
-use wgsl_parse::{span::Spanned, syntax::*};
+use wgsl_parse::{span::Spanned, syntax::*, Decorated};
 
 type E = EvalError;
 
@@ -525,9 +525,7 @@ impl Exec for FunctionCallStatement {
         let fn_name = self.call.ty.ident.to_string();
 
         let is_must_use = match ctx.source.decl(&fn_name) {
-            Some(GlobalDeclaration::Function(decl)) => {
-                decl.attributes.contains(&Attribute::MustUse)
-            }
+            Some(GlobalDeclaration::Function(decl)) => decl.contains_attribute(&Attribute::MustUse),
             Some(GlobalDeclaration::Struct(_)) => true,
             Some(_) => return Err(E::NotCallable(fn_name)),
             None => {
@@ -565,11 +563,11 @@ impl Exec for FunctionCall {
         if let Some(decl) = ctx.source.decl(&fn_name) {
             // function call
             if let GlobalDeclaration::Function(decl) = decl {
-                if ctx.stage == EvalStage::Const && !decl.attributes.contains(&Attribute::Const) {
+                if ctx.stage == EvalStage::Const && !decl.contains_attribute(&Attribute::Const) {
                     return Err(E::NotConst(decl.ident.to_string()));
                 }
 
-                if decl.body.attributes.contains(&ATTR_INTRINSIC) {
+                if decl.body.contains_attribute(&ATTR_INTRINSIC) {
                     return call_builtin(ty, args, ctx).map(Into::into);
                 }
 

@@ -10,7 +10,7 @@ use super::{
 type E = EvalError;
 
 use derive_more::derive::{IsVariant, Unwrap};
-use wgsl_parse::{span::Spanned, syntax::*};
+use wgsl_parse::{span::Spanned, syntax::*, Decorated};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant, Unwrap)]
 pub enum SampledType {
@@ -859,7 +859,7 @@ impl EvalTy for FunctionCallExpression {
                     Ok(Type::Struct(decl.ident.to_string()))
                 }
                 GlobalDeclaration::Function(decl) => {
-                    if decl.body.attributes.contains(&ATTR_INTRINSIC) {
+                    if decl.body.contains_attribute(&ATTR_INTRINSIC) {
                         let args = self
                             .arguments
                             .iter()
