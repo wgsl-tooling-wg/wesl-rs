@@ -137,9 +137,6 @@ impl Resolver for SourceMapper<'_> {
         );
         Ok(res)
     }
-    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
-        self.resolver.resolve_module(path)
-    }
     fn display_name(&self, path: &ModulePath) -> Option<String> {
         self.resolver.display_name(path)
     }
