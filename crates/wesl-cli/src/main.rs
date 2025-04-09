@@ -401,7 +401,7 @@ fn parse_binding(
     let ty_expr = wgsl
         .global_declarations
         .iter()
-        .find_map(|d| match d {
+        .find_map(|d| match d.node() {
             syntax::GlobalDeclaration::Declaration(d) => {
                 let (group, binding) = d.attr_group_binding(&mut ctx).ok()?;
                 if group == b.group && binding == b.binding {

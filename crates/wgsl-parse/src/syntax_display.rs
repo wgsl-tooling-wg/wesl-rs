@@ -48,7 +48,7 @@ impl Display for TranslationUnit {
         let declarations = self
             .global_declarations
             .iter()
-            .filter(|decl| !matches!(decl, GlobalDeclaration::Void))
+            .filter(|decl| !matches!(decl.node(), GlobalDeclaration::Void))
             .format("\n\n");
         writeln!(f, "{declarations}")
     }

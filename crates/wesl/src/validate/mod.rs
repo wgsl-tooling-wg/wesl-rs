@@ -97,7 +97,8 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
         let decl = wesl
             .global_declarations
             .iter()
-            .find(|decl| decl.ident().is_some_and(|id| id == ident));
+            .find(|decl| decl.ident().is_some_and(|id| id == ident))
+            .map(|decl| decl.node());
 
         match decl {
             Some(GlobalDeclaration::Function(decl)) => {
@@ -144,7 +145,7 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
         Ok(())
     }
     for decl in &wesl.global_declarations {
-        for expr in Visit::<ExpressionNode>::visit(decl) {
+        for expr in Visit::<ExpressionNode>::visit(decl.node()) {
             check_expr(expr, wesl).map_err(|e| {
                 let mut err = Diagnostic::from(e);
                 err.span = Some(expr.span());

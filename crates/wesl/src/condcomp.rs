@@ -319,10 +319,10 @@ pub fn run(wesl: &mut TranslationUnit, features: &Features) -> Result<(), E> {
     eval_if_attrs(&mut wesl.global_declarations, features)?;
 
     for decl in &mut wesl.global_declarations {
-        if let GlobalDeclaration::Struct(decl) = decl {
+        if let GlobalDeclaration::Struct(decl) = decl.node_mut() {
             eval_if_attrs(&mut decl.members, features)
                 .map_err(|e| Diagnostic::from(e).with_declaration(decl.ident.to_string()))?;
-        } else if let GlobalDeclaration::Function(decl) = decl {
+        } else if let GlobalDeclaration::Function(decl) = decl.node_mut() {
             eval_if_attrs(&mut decl.parameters, features)
                 .map_err(|e| Diagnostic::from(e).with_declaration(decl.ident.to_string()))?;
             stmt_eval_if_attrs(&mut decl.body.statements, features)

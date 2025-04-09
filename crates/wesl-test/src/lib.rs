@@ -277,7 +277,7 @@ fn normalize_wgsl(wgsl: &str) -> String {
 fn sort_decls(wgsl: &mut TranslationUnit) {
     type Decl = GlobalDeclaration;
     wgsl.global_declarations
-        .sort_unstable_by(|a, b| match (a, b) {
+        .sort_unstable_by(|a, b| match (a.node(), b.node()) {
             (Decl::Void, Decl::Void) => Ordering::Equal,
             (Decl::Void, Decl::Declaration(_)) => Ordering::Less,
             (Decl::Void, Decl::Struct(_)) => Ordering::Less,
