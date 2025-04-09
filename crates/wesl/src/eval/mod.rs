@@ -29,7 +29,10 @@ pub use ty::*;
 
 use derive_more::Display;
 use std::{collections::HashMap, rc::Rc};
-use wgsl_parse::{span::Span, syntax::*};
+use wgsl_parse::{
+    span::{Span, Spanned},
+    syntax::*,
+};
 
 #[derive(Debug)]
 struct ScopeInner<T> {
@@ -268,19 +271,23 @@ pub trait SyntaxUtil {
 impl SyntaxUtil for TranslationUnit {
     fn user_decl(&self, name: &str) -> Option<&GlobalDeclaration> {
         // note: declarations in PRELUDE can be shadowed by user-defined declarations.
-        self.global_declarations.iter().find(|d| match d {
-            GlobalDeclaration::Declaration(d) => *d.ident.name() == name,
-            GlobalDeclaration::TypeAlias(d) => *d.ident.name() == name,
-            GlobalDeclaration::Struct(d) => *d.ident.name() == name,
-            GlobalDeclaration::Function(d) => *d.ident.name() == name,
-            _ => false,
-        })
+        self.global_declarations
+            .iter()
+            .map(Spanned::node)
+            .find(|d| match d {
+                GlobalDeclaration::Declaration(d) => *d.ident.name() == name,
+                GlobalDeclaration::TypeAlias(d) => *d.ident.name() == name,
+                GlobalDeclaration::Struct(d) => *d.ident.name() == name,
+                GlobalDeclaration::Function(d) => *d.ident.name() == name,
+                _ => false,
+            })
     }
     fn decl(&self, name: &str) -> Option<&GlobalDeclaration> {
         // note: declarations in PRELUDE can be shadowed by user-defined declarations.
         self.global_declarations
             .iter()
             .chain(PRELUDE.global_declarations.iter())
+            .map(Spanned::node)
             .find(|d| match d {
                 GlobalDeclaration::Declaration(d) => *d.ident.name() == name,
                 GlobalDeclaration::TypeAlias(d) => *d.ident.name() == name,

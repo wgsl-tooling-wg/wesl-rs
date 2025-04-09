@@ -174,7 +174,7 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
     }
 
     for decl in &mut prelude.global_declarations {
-        match decl {
+        match decl.node_mut() {
             GlobalDeclaration::Struct(s) => {
                 if s.attributes.contains(&attr_internal) {
                     s.ident = Ident::new(format!("__{}", s.ident));

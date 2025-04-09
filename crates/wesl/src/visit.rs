@@ -403,7 +403,13 @@ impl_visit! { GlobalDeclaration => ExpressionNode,
 
 impl_visit! { TranslationUnit => StatementNode,
     {
-        global_declarations.[].GlobalDeclaration::Function.body.statements.[]
+        global_declarations.[].(x => visit::<GlobalDeclaration, StatementNode>(x)),
+    }
+}
+
+impl_visit! { GlobalDeclaration => StatementNode,
+    {
+        GlobalDeclaration::Function.body.statements.[]
     }
 }
 
@@ -415,20 +421,24 @@ impl_visit! { TranslationUnit => Attributes,
             GlobalDirective::Enable.attributes,
             GlobalDirective::Requires.attributes,
         },
-        global_declarations.[].{
-            GlobalDeclaration::Declaration.attributes,
-            GlobalDeclaration::TypeAlias.attributes,
-            GlobalDeclaration::Struct.{
-                attributes,
-                members.[].attributes,
-            },
-            GlobalDeclaration::Function.{
-                attributes,
-                parameters.[].attributes,
-                body.{ attributes, statements.[].(x => visit::<Statement, Attributes>(x)) }
-            },
-            GlobalDeclaration::ConstAssert.attributes,
-        }
+        global_declarations.[].(x => visit::<GlobalDeclaration, Attributes>(x)),
+    }
+}
+
+impl_visit! { GlobalDeclaration => Attributes,
+    {
+        GlobalDeclaration::Declaration.attributes,
+        GlobalDeclaration::TypeAlias.attributes,
+        GlobalDeclaration::Struct.{
+            attributes,
+            members.[].attributes,
+        },
+        GlobalDeclaration::Function.{
+            attributes,
+            parameters.[].attributes,
+            body.{ attributes, statements.[].(x => visit::<Statement, Attributes>(x)) }
+        },
+        GlobalDeclaration::ConstAssert.attributes,
     }
 }
 

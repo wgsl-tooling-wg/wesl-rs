@@ -18,7 +18,7 @@ pub(crate) fn mark_functions_const(wesl: &mut TranslationUnit) {
         .global_declarations
         .iter()
         .map(|decl| {
-            if let GlobalDeclaration::Function(decl) = decl {
+            if let GlobalDeclaration::Function(decl) = decl.node() {
                 locals.add(decl.ident.to_string(), true); // we suppose the function is const.
                 let is_const = decl.is_const(wesl, &mut locals);
                 if !is_const {
@@ -30,7 +30,7 @@ pub(crate) fn mark_functions_const(wesl: &mut TranslationUnit) {
         })
         .collect_vec();
     for (decl, mark_const) in wesl.global_declarations.iter_mut().zip(mark_const) {
-        if let GlobalDeclaration::Function(decl) = decl {
+        if let GlobalDeclaration::Function(decl) = decl.node_mut() {
             if mark_const {
                 decl.attributes.push(Attribute::Const)
             }

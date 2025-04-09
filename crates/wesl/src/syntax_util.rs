@@ -32,7 +32,7 @@ impl SyntaxUtil for TranslationUnit {
     fn entry_points(&self) -> impl Iterator<Item = &Ident> {
         self.global_declarations
             .iter()
-            .filter_map(|decl| match decl {
+            .filter_map(|decl| match decl.node() {
                 GlobalDeclaration::Function(decl) => decl
                     .attributes
                     .iter()
@@ -288,7 +288,7 @@ impl SyntaxUtil for TranslationUnit {
         }
 
         for decl in &mut self.global_declarations {
-            match decl {
+            match decl.node_mut() {
                 GlobalDeclaration::Void => (),
                 GlobalDeclaration::Declaration(d) => {
                     Visit::<TypeExpression>::visit_mut(d).for_each(|ty| retarget_ty(ty, &scope))

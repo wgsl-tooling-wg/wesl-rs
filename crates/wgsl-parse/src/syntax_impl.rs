@@ -12,13 +12,14 @@ impl TranslationUnit {
 
     /// Remove all [`GlobalDeclaration::Void`] and [`Statement::Void`]
     pub fn remove_voids(&mut self) {
-        self.global_declarations.retain_mut(|decl| match decl {
-            GlobalDeclaration::Void => false,
-            _ => {
-                decl.remove_voids();
-                true
-            }
-        })
+        self.global_declarations
+            .retain_mut(|decl| match decl.node() {
+                GlobalDeclaration::Void => false,
+                _ => {
+                    decl.remove_voids();
+                    true
+                }
+            })
     }
 }
 
