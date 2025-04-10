@@ -49,7 +49,7 @@ fn main() {
 
 Include the compiled WGSL string in your code:
 
-```rust
+```rust,ignore
 let module = device.create_shader_module(ShaderModuleDescriptor {
     label: Some("my_shader"),
     source: ShaderSource::Wgsl(include_wesl!("my_shader")),
