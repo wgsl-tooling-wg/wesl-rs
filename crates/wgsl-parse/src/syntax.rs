@@ -244,7 +244,7 @@ pub struct Struct {
     #[cfg(feature = "attributes")]
     pub attributes: Attributes,
     pub ident: Ident,
-    pub members: Vec<StructMember>,
+    pub members: Vec<StructMemberNode>,
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -254,6 +254,8 @@ pub struct StructMember {
     pub ident: Ident,
     pub ty: TypeExpression,
 }
+
+pub type StructMemberNode = Spanned<StructMember>;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
