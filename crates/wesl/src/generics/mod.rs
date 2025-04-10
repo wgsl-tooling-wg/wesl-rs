@@ -2,7 +2,7 @@ mod mangle;
 
 use itertools::Itertools;
 use thiserror::Error;
-use wgsl_parse::{span::Spanned, syntax::*, Decorated};
+use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
 use crate::visit::Visit;
 

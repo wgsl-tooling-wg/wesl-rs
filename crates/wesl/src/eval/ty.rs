@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
 use super::{
-    builtin_fn_type, check_swizzle, constructor_type, convert_ty, is_constructor_fn, ArrayInstance,
-    ArrayTemplate, AtomicInstance, AtomicTemplate, Context, Convert, EvalError, Exec, Instance,
-    LiteralInstance, MatInstance, MatTemplate, PtrInstance, PtrTemplate, RefInstance, ScopeKind,
-    StructInstance, SyntaxUtil, TextureTemplate, VecInstance, VecTemplate, ATTR_INTRINSIC,
+    ATTR_INTRINSIC, ArrayInstance, ArrayTemplate, AtomicInstance, AtomicTemplate, Context, Convert,
+    EvalError, Exec, Instance, LiteralInstance, MatInstance, MatTemplate, PtrInstance, PtrTemplate,
+    RefInstance, ScopeKind, StructInstance, SyntaxUtil, TextureTemplate, VecInstance, VecTemplate,
+    builtin_fn_type, check_swizzle, constructor_type, convert_ty, is_constructor_fn,
 };
 
 type E = EvalError;

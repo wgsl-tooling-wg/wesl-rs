@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use tsify::Tsify;
 use wasm_bindgen::prelude::*;
 use wesl::{
-    eval::{ty_eval_ty, EvalAttrs, HostShareable, Instance, RefInstance, Ty},
-    syntax::{self, AccessMode, AddressSpace, TranslationUnit},
     CompileResult, Eval, VirtualResolver, Wesl,
+    eval::{EvalAttrs, HostShareable, Instance, RefInstance, Ty, ty_eval_ty},
+    syntax::{self, AccessMode, AddressSpace, TranslationUnit},
 };
 
 #[derive(Tsify, Clone, Copy, Debug, Default, Serialize, Deserialize)]

@@ -1,10 +1,10 @@
 use std::iter::zip;
 
-use crate::eval::{ty_eval_ty, Context, Eval, EvalError, Exec, Ty, ATTR_INTRINSIC};
+use crate::eval::{ATTR_INTRINSIC, Context, Eval, EvalError, Exec, Ty, ty_eval_ty};
 use wgsl_parse::{span::Spanned, syntax::*};
 
 use super::{
-    to_expr::ToExpr, with_scope, EvalStage, EvalTy, Instance, SyntaxUtil, EXPR_FALSE, EXPR_TRUE,
+    EXPR_FALSE, EXPR_TRUE, EvalStage, EvalTy, Instance, SyntaxUtil, to_expr::ToExpr, with_scope,
 };
 
 type E = EvalError;

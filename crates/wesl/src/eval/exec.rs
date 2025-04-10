@@ -3,9 +3,9 @@ use std::{fmt::Display, iter::zip};
 use crate::eval::conv::Convert;
 
 use super::{
-    attrs::EvalAttrs, call_builtin, is_constructor_fn, ty_eval_ty, AccessMode, Context, Eval,
-    EvalError, EvalStage, EvalTy, Instance, LiteralInstance, RefInstance, ScopeKind,
-    StructInstance, SyntaxUtil, Ty, Type, ATTR_INTRINSIC,
+    ATTR_INTRINSIC, AccessMode, Context, Eval, EvalError, EvalStage, EvalTy, Instance,
+    LiteralInstance, RefInstance, ScopeKind, StructInstance, SyntaxUtil, Ty, Type,
+    attrs::EvalAttrs, call_builtin, is_constructor_fn, ty_eval_ty,
 };
 
 use wgsl_parse::{span::Spanned, syntax::*};

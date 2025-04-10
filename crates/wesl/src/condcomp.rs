@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::Diagnostic;
 use thiserror::Error;
-use wgsl_parse::{span::Spanned, syntax::*, Decorated};
+use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
 /// Conditional translation error.
 #[derive(Clone, Debug, Error)]
@@ -247,11 +247,7 @@ fn eval_if_attrs(nodes: &mut Vec<impl Decorated>, features: &Features) -> Result
         !prev.removed // keep the node if attr is unresolved or true.
     });
 
-    if let Some(e) = err {
-        Err(e)
-    } else {
-        Ok(prev)
-    }
+    if let Some(e) = err { Err(e) } else { Ok(prev) }
 }
 
 fn stmt_eval_if_attrs(

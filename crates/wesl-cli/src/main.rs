@@ -1,6 +1,6 @@
 //! The Command-line interface for `wesl-rs`.
 
-use clap::{command, Args, Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum, command};
 use std::{
     collections::HashMap,
     error::Error,
@@ -10,10 +10,10 @@ use std::{
     str::FromStr,
 };
 use wesl::{
-    eval::{ty_eval_ty, Eval, EvalAttrs, HostShareable, Instance, RefInstance, Ty},
-    syntax::{self, AccessMode, AddressSpace},
     CompileOptions, CompileResult, Diagnostic, FileResolver, ManglerKind, PkgBuilder, Router,
     SyntaxUtil, VirtualResolver, Wesl,
+    eval::{Eval, EvalAttrs, HostShareable, Instance, RefInstance, Ty, ty_eval_ty},
+    syntax::{self, AccessMode, AddressSpace},
 };
 use wgsl_parse::syntax::TranslationUnit;
 
