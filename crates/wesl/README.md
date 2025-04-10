@@ -39,7 +39,7 @@ wesl = "0.1"
 
 Create the `build.rs` file with the following content:
 
-```rust
+```rust,ignore
 # use wesl::{Wesl, FileResolver};
 fn main() {
     Wesl::new("src/shaders")
