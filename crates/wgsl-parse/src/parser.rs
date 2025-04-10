@@ -9,11 +9,11 @@ use crate::{
 use lalrpop_util::lalrpop_mod;
 
 lalrpop_mod!(
-    #[allow(clippy::all)]
+    #[allow(clippy::all, reason = "generated code")]
     wgsl
 );
 lalrpop_mod!(
-    #[allow(clippy::all)]
+    #[allow(clippy::all, reason = "generated code")]
     wgsl_recognize
 );
 
