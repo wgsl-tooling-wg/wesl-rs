@@ -537,7 +537,7 @@ impl<T: Ty> EvalTy for T {
 }
 
 impl EvalTy for TypeExpression {
-    /// Use only when the `TypeExpression` is an identifier (`Expression::TypeOrIdentifer`),
+    /// Use only when the `TypeExpression` is an identifier (`Expression::TypeOrIdentifier`),
     /// NOT when it is a type-expression. For that, see [`ty_eval_ty`].
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
         if self.template_args.is_some() {

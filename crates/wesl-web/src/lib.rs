@@ -276,6 +276,10 @@ fn parse_override(src: &str, wgsl: &TranslationUnit) -> Result<Instance, CliErro
 }
 
 #[wasm_bindgen]
+#[cfg_attr(
+    not(feature = "debug"),
+    allow(unused_variables, reason = "must exist, but not needed")
+)]
 pub fn init_log(_level: &str) {
     #[cfg(feature = "debug")]
     {

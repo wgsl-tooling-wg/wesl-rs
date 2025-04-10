@@ -7,11 +7,19 @@ edition.workspace = true
 authors.workspace = true
 repository.workspace = true
 license.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 annotate-snippets = "0.11.4"
 bytes = "1.8.0"
-derive_more = { version = "2.0.1", features = ["as_ref", "deref", "deref_mut", "display", "from", "unwrap"] }
+derive_more = { version = "2.0.1", features = [
+  "as_ref",
+  "deref",
+  "deref_mut",
+  "display",
+  "from",
+  "unwrap",
+] }
 half = { version = "2.4.1", features = ["num-traits"] }
 itertools = "0.14.0"
 num-traits = "0.2.19"
@@ -29,10 +37,9 @@ generics = ["wgsl-parse/generics"]
 serde = ["wgsl-parse/serde", "dep:serde"]
 package = ["dep:proc-macro2", "dep:quote"]
 
-[lints.clippy]
-# TODO: I would like to change that eventually.
-mutable_key_type = "allow"
-
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
+
+[lints]
+workspace = true

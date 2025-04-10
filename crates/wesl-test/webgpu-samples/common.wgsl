@@ -26,7 +26,7 @@ struct Ray {
   dir   : vec3f,
 }
 
-// Value for HitInfo.quad if no intersection occured.
+// Value for HitInfo.quad if no intersection occurred.
 const kNoHit = 0xffffffff;
 
 // HitInfo describes the hit location of a ray-quad intersection
@@ -90,7 +90,7 @@ fn raytrace(ray : Ray) -> HitInfo {
   return hit;
 }
 
-// A psuedo random number. Initialized with init_rand(), updated with rand().
+// A pseudo random number. Initialized with init_rand(), updated with rand().
 var<private> rnd : vec3u;
 
 // Initializes the random number generator.

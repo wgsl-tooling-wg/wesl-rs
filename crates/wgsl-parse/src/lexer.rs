@@ -179,7 +179,7 @@ pub(crate) struct LexerState {
     lookahead: Option<Token>,
 }
 
-// follwing the spec at this date: https://www.w3.org/TR/2024/WD-WGSL-20240731/
+// following the spec at this date: https://www.w3.org/TR/2024/WD-WGSL-20240731/
 #[derive(Logos, Clone, Debug, PartialEq)]
 #[logos(
     skip r"[\s\u0085\u200e\u200f\u2028\u2029]+",
