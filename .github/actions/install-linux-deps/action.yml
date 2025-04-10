@@ -1,0 +1,9 @@
+# This action installs a few dependencies necessary to build on Linux.
+
+name: Install Linux dependencies
+description: Installs the dependencies necessary to build on Linux.
+inputs:
+  # none
+runs:
+  using: composite
+  steps:
