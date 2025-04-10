@@ -1,6 +1,6 @@
-use super::{is_constructor_fn, Scope, SyntaxUtil};
+use super::{Scope, SyntaxUtil, is_constructor_fn};
 use itertools::Itertools;
-use wgsl_parse::{span::Spanned, syntax::*, Decorated};
+use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
 macro_rules! with_scope {
     ($scope:expr, $body:tt) => {{

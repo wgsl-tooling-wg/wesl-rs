@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::Diagnostic;
 use thiserror::Error;
-use wgsl_parse::{span::Spanned, syntax::*, Decorated};
+use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
 /// Conditional translation error.
 #[derive(Clone, Debug, Error)]
@@ -154,7 +154,7 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E
                 Feature::Error => {
                     return Err(
                         CondCompError::UnexpectedFeatureFlag(ty.ident.name().to_string()).into(),
-                    )
+                    );
                 }
             };
             Ok(expr)
@@ -288,11 +288,7 @@ fn eval_if_attrs(nodes: &mut Vec<impl Decorated>, features: &Features) -> Result
         !prev.removed // keep the node if attr is unresolved or true.
     });
 
-    if let Some(e) = err {
-        Err(e)
-    } else {
-        Ok(prev)
-    }
+    if let Some(e) = err { Err(e) } else { Ok(prev) }
 }
 
 fn stmt_eval_if_attrs(statements: &mut Vec<StatementNode>, features: &Features) -> Result<(), E> {
