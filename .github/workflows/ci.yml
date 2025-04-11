@@ -25,6 +25,7 @@ env:
   # If nightly is breaking CI, modify this variable to target a specific nightly version.
   NIGHTLY_TOOLCHAIN: nightly
   STABLE_TOOLCHAIN: "1.86.0"
+  MIRIFLAGS: "-Zmiri-disable-isolation"
 
 concurrency:
   group: ${{github.workflow}}-${{github.ref}}
@@ -40,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: "true"
       - uses: actions/cache@v4
         with:
           path: |
@@ -65,7 +66,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: "true"
       - uses: actions/cache@v4
         with:
           path: |
@@ -92,7 +93,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: "true"
       - uses: actions/cache@v4
         with:
           path: |
@@ -118,7 +119,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: "true"
       - uses: actions/cache@v4
         with:
           path: |
@@ -146,7 +147,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: "true"
           # Full git history is needed to get a proper list of changed files within `super-linter`
           fetch-depth: 0
       - name: Run Markdown Lint
@@ -163,7 +164,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: "true"
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ env.STABLE_TOOLCHAIN }}
@@ -203,7 +204,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: "true"
       - uses: actions/cache@v4
         with:
           path: |
@@ -226,7 +227,7 @@ jobs:
         env:
           CARGO_INCREMENTAL: 0
           RUSTFLAGS: "-C debuginfo=0 --cfg docsrs_dep"
-      - name: Installs cargo-deadlinks
+      - name: Install cargo-deadlinks
         run: cargo install --force cargo-deadlinks
       - name: Checks dead links
         run: cargo deadlinks --dir target/doc
@@ -240,7 +241,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: "true"
 
       - name: Cache
         uses: actions/cache@v4
