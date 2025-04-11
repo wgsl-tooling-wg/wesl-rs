@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashMap, path::PathBuf};
 
 use wgsl_parse::syntax::TypeExpression;
 
@@ -139,6 +139,9 @@ impl Resolver for SourceMapper<'_> {
     }
     fn display_name(&self, path: &ModulePath) -> Option<String> {
         self.resolver.display_name(path)
+    }
+    fn fs_path(&self, path: &ModulePath) -> Option<PathBuf> {
+        self.resolver.fs_path(path)
     }
 }
 
