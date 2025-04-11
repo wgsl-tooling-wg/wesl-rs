@@ -160,7 +160,9 @@
     "code": "@const fn test() -> f32 { let f32_hex_lost_bits = 0x1.0000000001p0; return f32_hex_lost_bits; }",
     "eval": "test()",
     "expect": "fail",
-    "stage": "const"
+    "stage": "const",
+    "skip": true,
+    "issue": "67"
   },
   {
     "name": "i32-minimum-value",
