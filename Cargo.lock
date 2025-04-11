@@ -145,12 +145,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1628fb46dfa0b37568d12e5edd512553eccf6a22a78e8bde00bb4aed84d5bdbf"
 
 [[package]]
-name = "bytes"
-version = "1.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f61dac84819c6588b558454b194026eb1f09c293b9036ae9b159e74e73ab6cf9"
-
-[[package]]
 name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -922,18 +916,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_json"
-version = "1.0.139"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "44f86c3acccc9c65b153fe1b85a3be07fe5515274ec9f0653b4a0875731c72a6"
-dependencies = [
- "itoa",
- "memchr",
- "ryu",
- "serde",
-]
-
-[[package]]
 name = "serde_yaml"
 version = "0.9.34+deprecated"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1245,7 +1227,6 @@ name = "wesl"
 version = "0.1.2"
 dependencies = [
  "annotate-snippets",
- "bytes",
  "derive_more",
  "half",
  "itertools",
@@ -1327,7 +1308,6 @@ dependencies = [
  "datatest",
  "regex",
  "serde",
- "serde_json",
  "wesl",
  "wgsl-parse",
 ]

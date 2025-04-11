@@ -11,7 +11,6 @@ rust-version.workspace = true
 
 [dependencies]
 annotate-snippets = "0.11.4"
-bytes = "1.8.0"
 derive_more = { version = "2.0.1", features = [
   "as_ref",
   "deref",
