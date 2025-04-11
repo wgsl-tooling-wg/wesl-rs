@@ -2,7 +2,7 @@
 
 use clap::{command, Args, Parser, Subcommand, ValueEnum};
 use std::{
-    collections::HashMap,
+    convert::Infallible,
     error::Error,
     fs::{self, File},
     io::{Read, Write},
@@ -16,6 +16,22 @@ use wesl::{
     PkgBuilder, Router, SyntaxUtil, VirtualResolver, Wesl,
 };
 use wgsl_parse::syntax::TranslationUnit;
+
+// adapted from clap cookbook: https://docs.rs/clap/latest/clap/_derive/_cookbook/typed_derive/index.html
+fn parse_key_val<T, U>(s: &str) -> Result<(T, U), Box<dyn Error + Send + Sync + 'static>>
+where
+    T: FromStr,
+    T::Err: Error + Send + Sync + 'static,
+    U: FromStr + Default,
+    U::Err: Error + Send + Sync + 'static,
+{
+    let pos = s.find('=');
+    if let Some(pos) = pos {
+        Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
+    } else {
+        Ok((s.parse()?, U::default()))
+    }
+}
 
 #[derive(Parser)]
 #[command(version, author, about)]
@@ -61,10 +77,48 @@ pub enum ClapManglerKind {
 impl From<ClapManglerKind> for ManglerKind {
     fn from(value: ClapManglerKind) -> Self {
         match value {
-            ClapManglerKind::Escape => ManglerKind::Escape,
-            ClapManglerKind::Hash => ManglerKind::Hash,
-            ClapManglerKind::Unicode => ManglerKind::Unicode,
-            ClapManglerKind::None => ManglerKind::None,
+            ClapManglerKind::Escape => Self::Escape,
+            ClapManglerKind::Hash => Self::Hash,
+            ClapManglerKind::Unicode => Self::Unicode,
+            ClapManglerKind::None => Self::None,
+        }
+    }
+}
+
+#[derive(Default, Clone, Copy, Debug, ValueEnum)]
+pub enum ClapFeature {
+    #[default]
+    #[value(alias("true"))]
+    Enable,
+    #[value(alias("false"))]
+    Disable,
+    Keep,
+    Error,
+}
+
+impl FromStr for ClapFeature {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "enable" | "true" => Ok(Self::Enable),
+            "disable" | "false" => Ok(Self::Disable),
+            "keep" => Ok(Self::Keep),
+            "error" => Ok(Self::Error),
+            _ => {
+                panic!("not a valid feature value, expected `enable`, `disable`, `keep` or `error`")
+            }
+        }
+    }
+}
+
+impl From<ClapFeature> for Feature {
+    fn from(value: ClapFeature) -> Self {
+        match value {
+            ClapFeature::Enable => Self::Enable,
+            ClapFeature::Disable => Self::Disable,
+            ClapFeature::Keep => Self::Keep,
+            ClapFeature::Error => Self::Error,
         }
     }
 }
@@ -107,22 +161,24 @@ struct CompOptsArgs {
     /// default. Can be repeated to keep multiple declarations
     #[arg(long)]
     keep: Option<Vec<String>>,
-    /// Conditional compilation features to enable. Can be repeated
-    #[arg(long)]
-    enable: Vec<String>,
-    /// Conditional compilation features to disable. Can be repeated
-    #[arg(long)]
-    disable: Vec<String>,
-    /// Root folder for `package::` imports. Defaults to the parent directory of the root module.
+    /// Set a conditional compilation feature flag. Can be repeated
+    #[arg(short='D', long, value_name="NAME | NAME=[enable, disable, keep, error]", value_parser = parse_key_val::<String, ClapFeature>)]
+    feature: Vec<(String, ClapFeature)>,
+    /// Default behavior for unspecified conditional compilation features
+    #[arg(long, default_value = "disable")]
+    feature_default: ClapFeature,
+    /// Root folder for `package::` imports. Defaults to the parent directory of the root module
     #[arg(long)]
     base: Option<PathBuf>,
 }
 
 impl From<&CompOptsArgs> for CompileOptions {
     fn from(opts: &CompOptsArgs) -> Self {
-        let mut flags = HashMap::new();
-        flags.extend(opts.enable.iter().map(|f| (f.clone(), true.into())));
-        flags.extend(opts.disable.iter().map(|f| (f.clone(), false.into())));
+        let flags = opts
+            .feature
+            .iter()
+            .map(|(k, v)| (k.clone(), (*v).into()))
+            .collect();
 
         Self {
             imports: !opts.no_imports,
@@ -138,7 +194,7 @@ impl From<&CompOptsArgs> for CompileOptions {
                 opts.keep.clone()
             },
             features: Features {
-                default: Feature::Disable,
+                default: opts.feature_default.into(),
                 flags,
             },
         }
@@ -173,20 +229,6 @@ enum CheckKind {
     /// Check that an input file is valid WESL
     #[default]
     Wesl,
-}
-
-// from clap cookbook: https://docs.rs/clap/latest/clap/_derive/_cookbook/typed_derive/index.html
-fn parse_key_val<T, U>(s: &str) -> Result<(T, U), Box<dyn Error + Send + Sync + 'static>>
-where
-    T: FromStr,
-    T::Err: Error + Send + Sync + 'static,
-    U: FromStr,
-    U::Err: Error + Send + Sync + 'static,
-{
-    let pos = s
-        .find('=')
-        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{}`", s))?;
-    Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
 }
 
 /// reference: <https://gpuweb.github.io/gpuweb/#binding-type>
@@ -305,8 +347,7 @@ struct ExecArgs {
     #[arg(long = "resource", value_parser = Binding::from_str, verbatim_doc_comment)]
     resources: Vec<Binding>,
     /// Pipeline-overridable constants.
-    /// Syntax: name=expression
-    #[arg(long = "override", value_parser = parse_key_val::<String, String>)]
+    #[arg(long = "override", value_name="NAME=EXPRESSION", value_parser = parse_key_val::<String, String>)]
     overrides: Vec<(String, String)>,
     /// Output as binary (WGSL memory representation) for storable types
     #[arg(short, long = "out-binary")]
