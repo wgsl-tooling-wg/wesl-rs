@@ -313,10 +313,7 @@ pub trait Decorated {
     fn attributes_mut(&mut self) -> &mut [AttributeNode];
     /// Remove attributes with predicate.
     fn contains_attribute(&self, attribute: &Attribute) -> bool {
-        self.attributes()
-            .iter()
-            .find(|v| v.node() == attribute)
-            .is_some()
+        self.attributes().iter().any(|v| v.node() == attribute)
     }
     /// Remove attributes with predicate.
     fn retain_attributes_mut<F>(&mut self, f: F)

@@ -399,7 +399,7 @@ OptionallyTypedIdent: (Ident, Option<TypeExpression>) = {
 GlobalVariableDecl: Declaration = {
     <attributes: AttributeNode*> <mut decl: VariableDecl> <initializer: ("=" <ExpressionNode>)?> => {
         decl.attributes = attributes;
-        decl.initializer = initializer.map(Into::into);
+        decl.initializer = initializer;
         decl
     },
 };
@@ -423,7 +423,7 @@ GlobalValueDecl: Declaration = {
             kind: DeclarationKind::Override,
             ident,
             ty,
-            initializer: initializer.map(Into::into),
+            initializer,
         }
     },
 };
@@ -777,7 +777,7 @@ ForStatement: ForStatement = {
      <attributes: AttributeNode*> "for" "(" <header: ForHeader> ")" <body: CompoundStatement> => {
         let (initializer, condition, update) = header;
         ForStatement {
-            attributes, initializer: initializer.map(Into::into), condition, update: update.map(Into::into), body
+            attributes, initializer, condition, update, body
         }
     },
 };
@@ -1186,7 +1186,7 @@ VariableDecl: Declaration = {
 #[cfg(feature = "attributes")]
 GlobalVariableDecl: Declaration = {
     <mut decl: VariableDecl> <initializer: ("=" <ExpressionNode>)?> => {
-        decl.initializer = initializer.map(Into::into);
+        decl.initializer = initializer;
         decl
     },
 };
@@ -1210,7 +1210,7 @@ GlobalValueDecl: Declaration = {
             kind: DeclarationKind::Override,
             ident,
             ty,
-            initializer: initializer.map(Into::into),
+            initializer,
         }
     },
 };

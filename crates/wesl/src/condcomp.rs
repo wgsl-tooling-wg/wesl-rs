@@ -238,10 +238,8 @@ fn eval_if_attr(
                 } else {
                     *attr = Attribute::Else;
                 }
-            } else {
-                if prev.removed {
-                    *attr = Attribute::If(expr.clone()); // previous node was deleted, make this an if
-                }
+            } else if prev.removed {
+                *attr = Attribute::If(expr.clone()); // previous node was deleted, make this an if
             }
         } else if let Attribute::Else = attr {
             if prev.is_true {

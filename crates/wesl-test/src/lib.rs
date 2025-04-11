@@ -19,13 +19,15 @@ fn parse_test(input: &str) {
     let mut resolver = VirtualResolver::new();
     let root = ModulePath::from_path("/main");
     resolver.add_module(root.clone(), input.into());
-    let mut options = CompileOptions::default();
-    options.imports = true;
-    options.condcomp = true;
-    options.generics = false;
-    options.strip = true;
-    options.lower = true;
-    options.validate = true;
+    let options = CompileOptions {
+        imports: true,
+        condcomp: true,
+        generics: false,
+        strip: true,
+        lower: true,
+        validate: true,
+        ..Default::default()
+    };
     wesl::compile(&root, &resolver, &NoMangler, &options)
         .inspect_err(|err| eprintln!("[FAIL] {err}"))
         .expect("test failed");
@@ -347,8 +349,10 @@ fn testsuite_test(case: WgslTestSrc) {
     }
 
     let root_module = ModulePath::from_path("/main");
-    let mut compile_options = CompileOptions::default();
-    compile_options.strip = false;
+    let compile_options = CompileOptions {
+        strip: false,
+        ..Default::default()
+    };
 
     let mut case_wgsl = wesl::compile(&root_module, &resolver, &EscapeMangler, &compile_options)
         .inspect_err(|err| eprintln!("[FAIL] compile: {err}"))

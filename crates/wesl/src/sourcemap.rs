@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap};
 
-use wgsl_parse::syntax::{TranslationUnit, TypeExpression};
+use wgsl_parse::syntax::TypeExpression;
 
 use crate::{Mangler, ModulePath, ResolveError, Resolver};
 

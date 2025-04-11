@@ -11,7 +11,7 @@ use crate::{validate::validate_wesl, Diagnostic, Error, ModulePath, SyntaxUtil};
 /// It is designed to be used in a build script (`build.rs` file). Add `wesl` to the
 /// build-dependencies of your project and enable the `package` feature flag.
 ///
-/// ```rust
+/// ```ignore
 /// // in build.rs
 /// fn main() {
 ///    wesl::PkgBuilder::new("my_package")
@@ -28,7 +28,7 @@ use crate::{validate::validate_wesl, Diagnostic, Error, ModulePath, SyntaxUtil};
 /// }
 /// ```
 /// Then, in your `lib.rs` file, expose the generated module with the [`crate::wesl_pkg`] macro.
-/// ```rust
+/// ```ignore
 /// // in src/lib.rs
 /// use wesl::wesl_pkg;
 /// wesl_pkg!(my_package);
@@ -169,9 +169,10 @@ impl Module {
                         static SUBMODULES: &[&dyn PkgModule] = &[
                             #(#submodules)*
                         ];
-                        &SUBMODULES
+                        SUBMODULES
                     }
                     fn submodule(&self, name: &str) -> Option<&'static dyn PkgModule> {
+                        #[allow(clippy::match_single_binding)]
                         match name {
                             #(#match_arms)*
                             _ => None,

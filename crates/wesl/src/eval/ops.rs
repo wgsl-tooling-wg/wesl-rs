@@ -385,7 +385,7 @@ impl LiteralInstance {
     pub fn op_sub_vec(&self, rhs: &VecInstance, stage: EvalStage) -> Result<VecInstance, E> {
         let (lhs, rhs) = convert_inner(self, rhs)
             .ok_or_else(|| E::Binary(BinaryOperator::Subtraction, self.ty(), rhs.ty()))?;
-        rhs.compwise_unary(|r| lhs.op_sub(r, stage)).map(Into::into)
+        rhs.compwise_unary(|r| lhs.op_sub(r, stage))
     }
     pub fn op_mul_vec(&self, rhs: &VecInstance, stage: EvalStage) -> Result<VecInstance, E> {
         rhs.op_mul_sca(self, stage)
@@ -393,12 +393,12 @@ impl LiteralInstance {
     pub fn op_div_vec(&self, rhs: &VecInstance, stage: EvalStage) -> Result<VecInstance, E> {
         let (lhs, rhs) = convert_inner(self, rhs)
             .ok_or_else(|| E::Binary(BinaryOperator::Division, self.ty(), rhs.ty()))?;
-        rhs.compwise_unary(|r| lhs.op_div(r, stage)).map(Into::into)
+        rhs.compwise_unary(|r| lhs.op_div(r, stage))
     }
     pub fn op_rem_vec(&self, rhs: &VecInstance, stage: EvalStage) -> Result<VecInstance, E> {
         let (lhs, rhs) = convert_inner(self, rhs)
             .ok_or_else(|| E::Binary(BinaryOperator::Remainder, self.ty(), rhs.ty()))?;
-        rhs.compwise_unary(|r| lhs.op_rem(r, stage)).map(Into::into)
+        rhs.compwise_unary(|r| lhs.op_rem(r, stage))
     }
     pub fn op_mul_mat(&self, rhs: &MatInstance, stage: EvalStage) -> Result<MatInstance, E> {
         rhs.op_mul_sca(self, stage)
@@ -438,31 +438,26 @@ impl VecInstance {
         let (lhs, rhs) = convert_inner(self, rhs)
             .ok_or_else(|| E::Binary(BinaryOperator::Addition, self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_add(&rhs, stage))
-            .map(Into::into)
     }
     pub fn op_sub_sca(&self, rhs: &LiteralInstance, stage: EvalStage) -> Result<Self, E> {
         let (lhs, rhs) = convert_inner(self, rhs)
             .ok_or_else(|| E::Binary(BinaryOperator::Subtraction, self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_sub(&rhs, stage))
-            .map(Into::into)
     }
     pub fn op_mul_sca(&self, rhs: &LiteralInstance, stage: EvalStage) -> Result<Self, E> {
         let (lhs, rhs) = convert_inner(self, rhs)
             .ok_or_else(|| E::Binary(BinaryOperator::Multiplication, self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_mul(&rhs, stage))
-            .map(Into::into)
     }
     pub fn op_div_sca(&self, rhs: &LiteralInstance, stage: EvalStage) -> Result<Self, E> {
         let (lhs, rhs) = convert_inner(self, rhs)
             .ok_or_else(|| E::Binary(BinaryOperator::Division, self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_div(&rhs, stage))
-            .map(Into::into)
     }
     pub fn op_rem_sca(&self, rhs: &LiteralInstance, stage: EvalStage) -> Result<Self, E> {
         let (lhs, rhs) = convert_inner(self, rhs)
             .ok_or_else(|| E::Binary(BinaryOperator::Remainder, self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_rem(&rhs, stage))
-            .map(Into::into)
     }
     pub fn op_mul_mat(&self, rhs: &MatInstance, stage: EvalStage) -> Result<Self, E> {
         let (vec, mat) = convert_inner(self, rhs)
