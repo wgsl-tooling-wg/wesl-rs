@@ -41,10 +41,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: "true"
       - uses: dtolnay/rust-toolchain@beta
-      - name: Install Linux dependencies
-        uses: ./.github/actions/install-linux-deps
       - name: Build & run tests
         # See tools/ci/src/main.rs for the commands this runs
         run: cargo run -p ci -- test
@@ -59,15 +57,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: "true"
       - uses: dtolnay/rust-toolchain@beta
         with:
           components: rustfmt, clippy
-      - name: Install Linux dependencies
-        uses: ./.github/actions/install-linux-deps
-        with:
-          wayland: true
-          xkb: true
       - name: Run lints
         # See tools/ci/src/main.rs for the commands this runs
         run: cargo run -p ci -- lints
@@ -77,13 +70,12 @@ jobs:
     # Disable this job when running on a fork.
     if: github.repository == 'wgsl-tooling-wg/wesl-rs/issues'
     timeout-minutes: 30
-    needs: test
+    needs: ["test"]
+    steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'true'
+          submodules: "true"
       - uses: dtolnay/rust-toolchain@beta
-      - name: Install Linux dependencies
-        uses: ./.github/actions/install-linux-deps
       - name: Check compile test
         # See tools/ci/src/main.rs for the commands this runs
         run: cargo run -p ci -- compile

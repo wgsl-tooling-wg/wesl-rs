@@ -259,8 +259,8 @@ jobs:
         with:
           toolchain: ${{ env.NIGHTLY_TOOLCHAIN }}
 
-      - name: Install cargo-udeps
-        run: cargo install --locked cargo-udeps
+      - name: Installs cargo-udeps
+        run: cargo install --force cargo-udeps
 
       - name: Run cargo udeps
         run: cargo udeps
