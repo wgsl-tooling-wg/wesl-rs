@@ -1,5 +1,7 @@
 # wgsl-parse
 
+<!-- markdownlint-disable reference-links-images -->
+
 A parser and syntax tree for WGSL files, written directly from the [specification] with [lalrpop].
 
 It supports WESL language extensions guarded by feature flags.
