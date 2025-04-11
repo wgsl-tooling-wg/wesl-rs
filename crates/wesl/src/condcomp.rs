@@ -163,10 +163,10 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E
     }
 }
 
-fn get_single_attr(attrs: &mut [Attribute]) -> Result<Option<&mut Attribute>, E> {
+fn get_single_attr(attrs: &mut [AttributeNode]) -> Result<Option<&mut AttributeNode>, E> {
     let mut it = attrs.iter_mut().filter(|attr| {
         matches!(
-            attr,
+            attr.node(),
             Attribute::If(_) | Attribute::Elif(_) | Attribute::Else
         )
     });
@@ -199,17 +199,17 @@ fn eval_if_attr(
     let attr = get_single_attr(node.attributes_mut())?;
     let mut has_if = false;
     if let Some(attr) = attr {
-        if let Attribute::If(expr) = attr {
+        if let Attribute::If(expr) = attr.node_mut() {
             **expr = eval_attr(expr, features)?;
             has_if = true;
-        } else if let Attribute::Elif(expr) = attr {
+        } else if let Attribute::Elif(expr) = attr.node_mut() {
             if !prev.has_if {
                 return Err(CondCompError::NoPrecedingIf.into());
             } else {
                 **expr = eval_attr(expr, features)?;
                 has_if = true;
             }
-        } else if let Attribute::Else = attr {
+        } else if let Attribute::Else = attr.node() {
             if !prev.has_if {
                 return Err(CondCompError::NoPrecedingIf.into());
             }

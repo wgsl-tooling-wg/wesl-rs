@@ -377,6 +377,8 @@ pub enum Attribute {
     Custom(CustomAttribute),
 }
 
+pub type AttributeNode = Spanned<Attribute>;
+
 #[cfg(feature = "generics")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, From)]
@@ -385,7 +387,7 @@ pub struct TypeConstraint {
     pub variants: Vec<TypeExpression>,
 }
 
-pub type Attributes = Vec<Attribute>;
+pub type Attributes = Vec<AttributeNode>;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, From, IsVariant, Unwrap)]

@@ -308,9 +308,16 @@ impl GlobalDeclaration {
 /// A trait implemented on all types that can be prefixed by attributes.
 pub trait Decorated {
     /// List all attributes (`@name`) of a syntax node.
-    fn attributes(&self) -> &[Attribute];
+    fn attributes(&self) -> &[AttributeNode];
     /// List all attributes (`@name`) of a syntax node.
-    fn attributes_mut(&mut self) -> &mut [Attribute];
+    fn attributes_mut(&mut self) -> &mut [AttributeNode];
+    /// Remove attributes with predicate.
+    fn contains_attribute(&self, attribute: &Attribute) -> bool {
+        self.attributes()
+            .iter()
+            .find(|v| v.node() == attribute)
+            .is_some()
+    }
     /// Remove attributes with predicate.
     fn retain_attributes_mut<F>(&mut self, f: F)
     where
@@ -318,36 +325,36 @@ pub trait Decorated {
 }
 
 impl<T: Decorated> Decorated for Spanned<T> {
-    fn attributes(&self) -> &[Attribute] {
+    fn attributes(&self) -> &[AttributeNode] {
         self.node().attributes()
     }
 
-    fn attributes_mut(&mut self) -> &mut [Attribute] {
+    fn attributes_mut(&mut self) -> &mut [AttributeNode] {
         self.node_mut().attributes_mut()
     }
 
-    fn retain_attributes_mut<F>(&mut self, f: F)
+    fn retain_attributes_mut<F>(&mut self, mut f: F)
     where
         F: FnMut(&mut Attribute) -> bool,
     {
-        self.node_mut().retain_attributes_mut(f)
+        self.node_mut().retain_attributes_mut(|v| f(v))
     }
 }
 
 macro_rules! impl_decorated_struct {
     ($ty:ty) => {
         impl Decorated for $ty {
-            fn attributes(&self) -> &[Attribute] {
+            fn attributes(&self) -> &[AttributeNode] {
                 &self.attributes
             }
-            fn attributes_mut(&mut self) -> &mut [Attribute] {
+            fn attributes_mut(&mut self) -> &mut [AttributeNode] {
                 &mut self.attributes
             }
-            fn retain_attributes_mut<F>(&mut self, f: F)
+            fn retain_attributes_mut<F>(&mut self, mut f: F)
             where
                 F: FnMut(&mut Attribute) -> bool,
             {
-                self.attributes.retain_mut(f)
+                self.attributes.retain_mut(|v| f(v))
             }
         }
     };
@@ -358,7 +365,7 @@ impl_decorated_struct!(ImportStatement);
 
 #[cfg(feature = "attributes")]
 impl Decorated for GlobalDirective {
-    fn attributes(&self) -> &[Attribute] {
+    fn attributes(&self) -> &[AttributeNode] {
         match self {
             GlobalDirective::Diagnostic(directive) => &directive.attributes,
             GlobalDirective::Enable(directive) => &directive.attributes,
@@ -366,7 +373,7 @@ impl Decorated for GlobalDirective {
         }
     }
 
-    fn attributes_mut(&mut self) -> &mut [Attribute] {
+    fn attributes_mut(&mut self) -> &mut [AttributeNode] {
         match self {
             GlobalDirective::Diagnostic(directive) => &mut directive.attributes,
             GlobalDirective::Enable(directive) => &mut directive.attributes,
@@ -374,14 +381,14 @@ impl Decorated for GlobalDirective {
         }
     }
 
-    fn retain_attributes_mut<F>(&mut self, f: F)
+    fn retain_attributes_mut<F>(&mut self, mut f: F)
     where
         F: FnMut(&mut Attribute) -> bool,
     {
         match self {
-            GlobalDirective::Diagnostic(directive) => directive.attributes.retain_mut(f),
-            GlobalDirective::Enable(directive) => directive.attributes.retain_mut(f),
-            GlobalDirective::Requires(directive) => directive.attributes.retain_mut(f),
+            GlobalDirective::Diagnostic(directive) => directive.attributes.retain_mut(|v| f(v)),
+            GlobalDirective::Enable(directive) => directive.attributes.retain_mut(|v| f(v)),
+            GlobalDirective::Requires(directive) => directive.attributes.retain_mut(|v| f(v)),
         }
     }
 }
@@ -397,7 +404,7 @@ impl_decorated_struct!(RequiresDirective);
 
 #[cfg(feature = "attributes")]
 impl Decorated for GlobalDeclaration {
-    fn attributes(&self) -> &[Attribute] {
+    fn attributes(&self) -> &[AttributeNode] {
         match self {
             GlobalDeclaration::Void => &[],
             GlobalDeclaration::Declaration(decl) => &decl.attributes,
@@ -408,7 +415,7 @@ impl Decorated for GlobalDeclaration {
         }
     }
 
-    fn attributes_mut(&mut self) -> &mut [Attribute] {
+    fn attributes_mut(&mut self) -> &mut [AttributeNode] {
         match self {
             GlobalDeclaration::Void => &mut [],
             GlobalDeclaration::Declaration(decl) => &mut decl.attributes,
@@ -419,17 +426,17 @@ impl Decorated for GlobalDeclaration {
         }
     }
 
-    fn retain_attributes_mut<F>(&mut self, f: F)
+    fn retain_attributes_mut<F>(&mut self, mut f: F)
     where
         F: FnMut(&mut Attribute) -> bool,
     {
         match self {
             GlobalDeclaration::Void => {}
-            GlobalDeclaration::Declaration(decl) => decl.attributes.retain_mut(f),
-            GlobalDeclaration::TypeAlias(decl) => decl.attributes.retain_mut(f),
-            GlobalDeclaration::Struct(decl) => decl.attributes.retain_mut(f),
-            GlobalDeclaration::Function(decl) => decl.attributes.retain_mut(f),
-            GlobalDeclaration::ConstAssert(decl) => decl.attributes.retain_mut(f),
+            GlobalDeclaration::Declaration(decl) => decl.attributes.retain_mut(|v| f(v)),
+            GlobalDeclaration::TypeAlias(decl) => decl.attributes.retain_mut(|v| f(v)),
+            GlobalDeclaration::Struct(decl) => decl.attributes.retain_mut(|v| f(v)),
+            GlobalDeclaration::Function(decl) => decl.attributes.retain_mut(|v| f(v)),
+            GlobalDeclaration::ConstAssert(decl) => decl.attributes.retain_mut(|v| f(v)),
         }
     }
 }
@@ -453,7 +460,7 @@ impl_decorated_struct!(ConstAssert);
 
 #[cfg(feature = "attributes")]
 impl Decorated for Statement {
-    fn attributes(&self) -> &[Attribute] {
+    fn attributes(&self) -> &[AttributeNode] {
         match self {
             Statement::Void => &[],
             Statement::Compound(stmt) => &stmt.attributes,
@@ -475,7 +482,7 @@ impl Decorated for Statement {
         }
     }
 
-    fn attributes_mut(&mut self) -> &mut [Attribute] {
+    fn attributes_mut(&mut self) -> &mut [AttributeNode] {
         match self {
             Statement::Void => &mut [],
             Statement::Compound(stmt) => &mut stmt.attributes,
@@ -497,28 +504,28 @@ impl Decorated for Statement {
         }
     }
 
-    fn retain_attributes_mut<F>(&mut self, f: F)
+    fn retain_attributes_mut<F>(&mut self, mut f: F)
     where
         F: FnMut(&mut Attribute) -> bool,
     {
         match self {
             Statement::Void => {}
-            Statement::Compound(stmt) => stmt.attributes.retain_mut(f),
-            Statement::Assignment(stmt) => stmt.attributes.retain_mut(f),
-            Statement::Increment(stmt) => stmt.attributes.retain_mut(f),
-            Statement::Decrement(stmt) => stmt.attributes.retain_mut(f),
-            Statement::If(stmt) => stmt.attributes.retain_mut(f),
-            Statement::Switch(stmt) => stmt.attributes.retain_mut(f),
-            Statement::Loop(stmt) => stmt.attributes.retain_mut(f),
-            Statement::For(stmt) => stmt.attributes.retain_mut(f),
-            Statement::While(stmt) => stmt.attributes.retain_mut(f),
-            Statement::Break(stmt) => stmt.attributes.retain_mut(f),
-            Statement::Continue(stmt) => stmt.attributes.retain_mut(f),
-            Statement::Return(stmt) => stmt.attributes.retain_mut(f),
-            Statement::Discard(stmt) => stmt.attributes.retain_mut(f),
-            Statement::FunctionCall(stmt) => stmt.attributes.retain_mut(f),
-            Statement::ConstAssert(stmt) => stmt.attributes.retain_mut(f),
-            Statement::Declaration(stmt) => stmt.attributes.retain_mut(f),
+            Statement::Compound(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::Assignment(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::Increment(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::Decrement(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::If(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::Switch(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::Loop(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::For(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::While(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::Break(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::Continue(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::Return(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::Discard(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::FunctionCall(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::ConstAssert(stmt) => stmt.attributes.retain_mut(|v| f(v)),
+            Statement::Declaration(stmt) => stmt.attributes.retain_mut(|v| f(v)),
         }
     }
 }

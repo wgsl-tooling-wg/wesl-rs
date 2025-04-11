@@ -20,10 +20,14 @@ pub fn generate_variants(wesl: &mut TranslationUnit) -> Result<(), E> {
     for decl in &wesl.global_declarations {
         let decl_span = decl.span();
         if let GlobalDeclaration::Function(decl) = decl.node() {
-            let ty_constrs = decl.attributes.iter().rev().filter_map(|attr| match attr {
-                Attribute::Type(t) => Some(t),
-                _ => None,
-            });
+            let ty_constrs = decl
+                .attributes
+                .iter()
+                .rev()
+                .filter_map(|attr| match attr.node() {
+                    Attribute::Type(t) => Some(t),
+                    _ => None,
+                });
 
             let variants = ty_constrs
                 .map(|t| t.variants.iter().map(|v| (&t.ident, v)))
@@ -35,7 +39,7 @@ pub fn generate_variants(wesl: &mut TranslationUnit) -> Result<(), E> {
                 }
                 let mut decl = decl.clone();
                 decl.attributes
-                    .retain(|attr| !matches!(attr, Attribute::Type(_)));
+                    .retain(|attr| !matches!(attr.node(), Attribute::Type(_)));
 
                 // rename uses of the generic args with the concrete variant
                 for (old_id, new_ty) in &variant {
@@ -66,7 +70,7 @@ pub fn generate_variants(wesl: &mut TranslationUnit) -> Result<(), E> {
                 // remove evaluated type attributes
                 for stmt in &mut decl.body.statements {
                     for attrs in Visit::<Attributes>::visit_mut(stmt.node_mut()) {
-                        attrs.retain(|attr| match attr {
+                        attrs.retain(|attr| match attr.node() {
                             Attribute::Type(c) => !c.variants.is_empty(),
                             _ => true,
                         })
@@ -130,7 +134,7 @@ fn eval_ty_attr(opt_node: &mut Option<impl Decorated>, ty: &TypeConstraint) -> R
         let vars = node
             .attributes_mut()
             .iter_mut()
-            .find_map(|attr| match attr {
+            .find_map(|attr| match attr.node() {
                 Attribute::Type(TypeConstraint {
                     ident: name,
                     variants,
@@ -152,7 +156,7 @@ fn eval_ty_attrs(nodes: &mut Vec<impl Decorated>, ty: &TypeConstraint) -> Result
     let retains = nodes
         .iter()
         .map(|node| {
-            let vars = node.attributes().iter().find_map(|attr| match attr {
+            let vars = node.attributes().iter().find_map(|attr| match attr.node() {
                 Attribute::Type(TypeConstraint {
                     ident: name,
                     variants,
@@ -175,7 +179,7 @@ fn eval_ty_attrs(nodes: &mut Vec<impl Decorated>, ty: &TypeConstraint) -> Result
             let ty_attr = node
                 .attributes_mut()
                 .iter_mut()
-                .find_map(|attr| match attr {
+                .find_map(|attr| match attr.node_mut() {
                     Attribute::Type(TypeConstraint {
                         ident: name,
                         variants,

@@ -1,6 +1,6 @@
 use super::{is_constructor_fn, Scope, SyntaxUtil};
 use itertools::Itertools;
-use wgsl_parse::{span::Spanned, syntax::*};
+use wgsl_parse::{span::Spanned, syntax::*, Decorated};
 
 macro_rules! with_scope {
     ($scope:expr, $body:tt) => {{
@@ -32,7 +32,7 @@ pub(crate) fn mark_functions_const(wesl: &mut TranslationUnit) {
     for (decl, mark_const) in wesl.global_declarations.iter_mut().zip(mark_const) {
         if let GlobalDeclaration::Function(decl) = decl.node_mut() {
             if mark_const {
-                decl.attributes.push(Attribute::Const)
+                decl.attributes.push(Attribute::Const.into())
             }
         }
     }
@@ -40,7 +40,7 @@ pub(crate) fn mark_functions_const(wesl: &mut TranslationUnit) {
 
 impl IsConst for Function {
     fn is_const(&self, wesl: &TranslationUnit, locals: &mut Locals) -> bool {
-        self.attributes.contains(&Attribute::Const)
+        self.contains_attribute(&Attribute::Const)
             || with_scope!(locals, {
                 self.attributes.is_const(wesl, locals)
                     && self.parameters.is_const(wesl, locals)

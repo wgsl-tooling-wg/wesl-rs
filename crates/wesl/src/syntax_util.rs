@@ -38,7 +38,7 @@ impl SyntaxUtil for TranslationUnit {
                     .iter()
                     .any(|attr| {
                         matches!(
-                            attr,
+                            attr.node(),
                             Attribute::Vertex | Attribute::Fragment | Attribute::Compute
                         )
                     })
@@ -305,7 +305,7 @@ impl SyntaxUtil for TranslationUnit {
                         let mut scope = scope.clone();
                         scope
                             .to_mut()
-                            .extend(d.attributes.iter().filter_map(|attr| match attr {
+                            .extend(d.attributes.iter().filter_map(|attr| match attr.node() {
                                 Attribute::Type(attr) => {
                                     Some((attr.ident.to_string(), attr.ident.clone()))
                                 }

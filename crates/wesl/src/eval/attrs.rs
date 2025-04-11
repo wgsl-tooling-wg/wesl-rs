@@ -1,5 +1,5 @@
 use wgsl_parse::{
-    syntax::{Attribute, Expression},
+    syntax::{Attribute, AttributeNode, Expression},
     Decorated,
 };
 
@@ -50,12 +50,12 @@ fn eval_positive_integer(expr: &Expression, ctx: &mut Context) -> Result<u32, E>
     }
 }
 
-fn attr_group_binding(attrs: &[Attribute], ctx: &mut Context) -> Result<(u32, u32), E> {
-    let group = attrs.iter().find_map(|attr| match attr {
+fn attr_group_binding(attrs: &[AttributeNode], ctx: &mut Context) -> Result<(u32, u32), E> {
+    let group = attrs.iter().find_map(|attr| match attr.node() {
         Attribute::Group(g) => Some(g),
         _ => None,
     });
-    let binding = attrs.iter().find_map(|attr| match attr {
+    let binding = attrs.iter().find_map(|attr| match attr.node() {
         Attribute::Binding(b) => Some(b),
         _ => None,
     });
@@ -70,8 +70,8 @@ fn attr_group_binding(attrs: &[Attribute], ctx: &mut Context) -> Result<(u32, u3
     Ok((group, binding))
 }
 
-fn attr_size(attrs: &[Attribute], ctx: &mut Context) -> Option<Result<u32, E>> {
-    let expr = attrs.iter().find_map(|attr| match attr {
+fn attr_size(attrs: &[AttributeNode], ctx: &mut Context) -> Option<Result<u32, E>> {
+    let expr = attrs.iter().find_map(|attr| match attr.node() {
         Attribute::Size(e) => Some(e),
         _ => None,
     })?;
@@ -79,8 +79,8 @@ fn attr_size(attrs: &[Attribute], ctx: &mut Context) -> Option<Result<u32, E>> {
     Some(eval_positive_integer(expr, ctx))
 }
 
-fn attr_align(attrs: &[Attribute], ctx: &mut Context) -> Option<Result<u32, E>> {
-    let expr = attrs.iter().find_map(|attr| match attr {
+fn attr_align(attrs: &[AttributeNode], ctx: &mut Context) -> Option<Result<u32, E>> {
+    let expr = attrs.iter().find_map(|attr| match attr.node() {
         Attribute::Align(e) => Some(e),
         _ => None,
     })?;
@@ -88,8 +88,8 @@ fn attr_align(attrs: &[Attribute], ctx: &mut Context) -> Option<Result<u32, E>> 
     Some(eval_positive_integer(expr, ctx))
 }
 
-fn attr_id(attrs: &[Attribute], ctx: &mut Context) -> Option<Result<u32, E>> {
-    let expr = attrs.iter().find_map(|attr| match attr {
+fn attr_id(attrs: &[AttributeNode], ctx: &mut Context) -> Option<Result<u32, E>> {
+    let expr = attrs.iter().find_map(|attr| match attr.node() {
         Attribute::Id(e) => Some(e),
         _ => None,
     })?;
@@ -97,8 +97,8 @@ fn attr_id(attrs: &[Attribute], ctx: &mut Context) -> Option<Result<u32, E>> {
     Some(eval_positive_integer(expr, ctx))
 }
 
-fn attr_location(attrs: &[Attribute], ctx: &mut Context) -> Option<Result<u32, E>> {
-    let expr = attrs.iter().find_map(|attr| match attr {
+fn attr_location(attrs: &[AttributeNode], ctx: &mut Context) -> Option<Result<u32, E>> {
+    let expr = attrs.iter().find_map(|attr| match attr.node() {
         Attribute::Location(e) => Some(e),
         _ => None,
     })?;
@@ -107,12 +107,12 @@ fn attr_location(attrs: &[Attribute], ctx: &mut Context) -> Option<Result<u32, E
 }
 
 fn attr_workgroup_size(
-    attrs: &[Attribute],
+    attrs: &[AttributeNode],
     ctx: &mut Context,
 ) -> Result<(u32, Option<u32>, Option<u32>), E> {
     let attr = attrs
         .iter()
-        .find_map(|attr| match attr {
+        .find_map(|attr| match attr.node() {
             Attribute::WorkgroupSize(attr) => Some(attr),
             _ => None,
         })
@@ -132,8 +132,8 @@ fn attr_workgroup_size(
     Ok((x, y, z))
 }
 
-fn attr_blend_src(attrs: &[Attribute], ctx: &mut Context) -> Option<Result<bool, E>> {
-    let expr = attrs.iter().find_map(|attr| match attr {
+fn attr_blend_src(attrs: &[AttributeNode], ctx: &mut Context) -> Option<Result<bool, E>> {
+    let expr = attrs.iter().find_map(|attr| match attr.node() {
         Attribute::BlendSrc(attr) => Some(attr),
         _ => None,
     })?;

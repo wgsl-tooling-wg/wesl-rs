@@ -4,9 +4,12 @@ use half::prelude::*;
 use num_traits::{real::Real, FromPrimitive, One, ToBytes, ToPrimitive, Zero};
 
 use itertools::{chain, izip, Itertools};
-use wgsl_parse::syntax::{
-    AccessMode, AddressSpace, Attribute, CustomAttribute, Expression, GlobalDeclaration, Ident,
-    LiteralExpression, TemplateArg, TranslationUnit, TypeExpression,
+use wgsl_parse::{
+    syntax::{
+        AccessMode, AddressSpace, Attribute, CustomAttribute, Expression, GlobalDeclaration, Ident,
+        LiteralExpression, TemplateArg, TranslationUnit, TypeExpression,
+    },
+    Decorated,
 };
 
 use crate::{
@@ -176,7 +179,7 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
     for decl in &mut prelude.global_declarations {
         match decl.node_mut() {
             GlobalDeclaration::Struct(s) => {
-                if s.attributes.contains(&attr_internal) {
+                if s.contains_attribute(&attr_internal) {
                     s.ident = Ident::new(format!("__{}", s.ident));
                     for m in &mut s.members {
                         repl_ty(&mut m.ty);
@@ -188,9 +191,9 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
                     .body
                     .attributes
                     .iter_mut()
-                    .find(|attr| **attr == attr_intrinsic)
+                    .find(|attr| attr.node() == &attr_intrinsic)
                 {
-                    *attr = ATTR_INTRINSIC.clone();
+                    *attr.node_mut() = ATTR_INTRINSIC.clone();
                 }
             }
             _ => (),
