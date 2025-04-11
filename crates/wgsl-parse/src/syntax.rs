@@ -36,7 +36,7 @@ pub struct TranslationUnit {
     #[cfg(feature = "imports")]
     pub imports: Vec<ImportStatement>,
     pub global_directives: Vec<GlobalDirective>,
-    pub global_declarations: Vec<GlobalDeclaration>,
+    pub global_declarations: Vec<GlobalDeclarationNode>,
 }
 
 /// Identifiers correspond to WGSL `ident` syntax node, except that they have several
@@ -188,6 +188,8 @@ pub enum GlobalDeclaration {
     Function(Function),
     ConstAssert(ConstAssert),
 }
+
+pub type GlobalDeclarationNode = Spanned<GlobalDeclaration>;
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]

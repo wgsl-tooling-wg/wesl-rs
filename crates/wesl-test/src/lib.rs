@@ -115,6 +115,8 @@ struct Test {
     code: String,
     expect: Expectation,
     note: Option<String>,
+    skip: Option<bool>,
+    issue: Option<String>,
 }
 
 impl fmt::Display for Test {
@@ -131,7 +133,7 @@ fn spec_tests(case: Test) {
 
 fn json_case(case: Test) {
     println!(
-        "case: `{}`\n* desc: {}{}\n* kind: {}\n* expect: {}",
+        "case: `{}`\n* desc: {}{}\n* kind: {}\n* expect: {}\n* skip: {}\n* issue: {}",
         case.name,
         case.desc,
         case.note
@@ -139,8 +141,14 @@ fn json_case(case: Test) {
             .map(|n| format!(" (note: {n})"))
             .unwrap_or_default(),
         case.kind,
-        case.expect
+        case.expect,
+        case.skip.unwrap_or(false),
+        case.issue.unwrap_or("<none>".to_string())
     );
+
+    if case.skip.unwrap_or(false) {
+        return;
+    }
 
     match &case.kind {
         TestKind::Syntax { syntax } => {
@@ -277,7 +285,7 @@ fn normalize_wgsl(wgsl: &str) -> String {
 fn sort_decls(wgsl: &mut TranslationUnit) {
     type Decl = GlobalDeclaration;
     wgsl.global_declarations
-        .sort_unstable_by(|a, b| match (a, b) {
+        .sort_unstable_by(|a, b| match (a.node(), b.node()) {
             (Decl::Void, Decl::Void) => Ordering::Equal,
             (Decl::Void, Decl::Declaration(_)) => Ordering::Less,
             (Decl::Void, Decl::Struct(_)) => Ordering::Less,

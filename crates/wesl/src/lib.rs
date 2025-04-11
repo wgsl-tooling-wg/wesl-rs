@@ -1,4 +1,5 @@
 #![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 #[cfg(feature = "eval")]
 pub mod eval;
@@ -29,7 +30,7 @@ pub use generics::GenericsError;
 #[cfg(feature = "package")]
 pub use package::PkgBuilder;
 
-pub use condcomp::CondCompError;
+pub use condcomp::{CondCompError, Feature, Features};
 pub use error::{Diagnostic, Error};
 pub use import::ImportError;
 pub use lower::lower;
@@ -44,18 +45,16 @@ pub use validate::{validate_wesl, validate_wgsl, ValidateError};
 pub use wgsl_parse::syntax;
 pub use wgsl_parse::syntax::ModulePath;
 
-use std::{
-    collections::{HashMap, HashSet},
-    fmt::Display,
-    path::Path,
-};
+#[cfg(feature = "eval")]
+use std::collections::HashMap;
+use std::{collections::HashSet, fmt::Display, path::Path};
 
 use import::{Module, Resolutions};
 use strip::strip_except;
 use wgsl_parse::syntax::{Ident, PathOrigin, TranslationUnit};
 
 /// Compilation options. Used in [`compile`] and [`Wesl::set_options`].
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompileOptions {
     /// Toggle [WESL Imports](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md).
     ///
@@ -104,7 +103,7 @@ pub struct CompileOptions {
     /// valid WGSL.
     ///
     /// This option has no effect if [`Self::condcomp`] is disabled.
-    pub features: HashMap<String, bool>,
+    pub features: Features,
 }
 
 impl Default for CompileOptions {
@@ -411,8 +410,11 @@ impl<R: Resolver> Wesl<R> {
     /// Conditional translation is a *mandatory* WESL extension.
     ///
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
-    pub fn set_feature(&mut self, feat: &str, val: bool) -> &mut Self {
-        self.options.features.insert(feat.to_string(), val);
+    pub fn set_feature(&mut self, feat: &str, val: impl Into<Feature>) -> &mut Self {
+        self.options
+            .features
+            .flags
+            .insert(feat.to_string(), val.into());
         self
     }
     /// Set conditional compilation feature flags.
@@ -422,11 +424,12 @@ impl<R: Resolver> Wesl<R> {
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
     pub fn set_features<'a>(
         &mut self,
-        feats: impl IntoIterator<Item = (&'a str, bool)>,
+        feats: impl IntoIterator<Item = (&'a str, impl Into<Feature>)>,
     ) -> &mut Self {
         self.options
             .features
-            .extend(feats.into_iter().map(|(k, v)| (k.to_string(), v)));
+            .flags
+            .extend(feats.into_iter().map(|(k, v)| (k.to_string(), v.into())));
         self
     }
     /// Unset a conditional compilation feature flag.
@@ -436,7 +439,21 @@ impl<R: Resolver> Wesl<R> {
     ///
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
     pub fn unset_feature(&mut self, feat: &str) -> &mut Self {
-        self.options.features.remove(feat);
+        self.options.features.flags.remove(feat);
+        self
+    }
+    /// Set the behavior for unspecified conditional compilation feature flags.
+    ///
+    /// Controls what happens when a feature flag is used in shader code but not set with
+    /// [`Wesl::set_feature`]. By default it turns off the feature, but it can also be set to leave
+    /// it in the code ([`Feature::Keep`]) or to trigger compilation error ([`Feature::Error`]).
+    ///
+    /// # WESL Reference
+    /// Conditional translation is a *mandatory* WESL extension.
+    ///
+    /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
+    pub fn set_missing_feature_behavior(&mut self, val: impl Into<Feature>) -> &mut Self {
+        self.options.features.default = val.into();
         self
     }
     /// Remove unused declarations from the final WGSL output.
@@ -445,7 +462,7 @@ impl<R: Resolver> Wesl<R> {
     /// of the entrypoints (functions marked `@compute`, `@vertex` or `@fragment`) in the
     /// root module.
     ///
-    /// see also: [`Wesl::keep_entrypoints`]
+    /// see also: [`Wesl::keep_declarations`]
     ///
     /// # WESL Reference
     /// Code stripping is an *optional* WESL extension.
@@ -459,7 +476,7 @@ impl<R: Resolver> Wesl<R> {
     /// Transform an output into a simplified WGSL that is better supported by
     /// implementors.
     ///
-    /// See [`lower`].
+    /// See also: [`lower`].
     ///
     /// # WESL Reference
     /// Lowering is an *experimental* WESL extension.
@@ -483,7 +500,9 @@ impl<R: Resolver> Wesl<R> {
         self
     }
     /// If stripping is enabled, keep all entrypoints in the root WESL module.
-    /// This is the default. See [`Wesl::keep_entrypoints`].
+    ///
+    /// Entrypoints are functions with `@compute`, `@vertex` or `@fragment`.
+    /// This is the default. See also: [`Wesl::keep_declarations`].
     ///
     /// # WESL Reference
     /// Code stripping is an *optional* WESL extension.

@@ -536,7 +536,7 @@ impl Lower for TranslationUnit {
     /// expects that `exec` was called on the TU before.
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
         for decl in &mut self.global_declarations {
-            match decl {
+            match decl.node_mut() {
                 GlobalDeclaration::Void => Ok(()),
                 GlobalDeclaration::Declaration(decl) => {
                     decl.attributes.lower(ctx)?;
@@ -564,7 +564,7 @@ impl Lower for TranslationUnit {
                     .inspect(|&ident| ctx.set_err_decl_ctx(ident.to_string()));
             })?;
         }
-        self.global_declarations.retain(|decl| match decl {
+        self.global_declarations.retain(|decl| match decl.node() {
             GlobalDeclaration::Void => false,
             GlobalDeclaration::Declaration(decl) => decl.kind != DeclarationKind::Const,
             GlobalDeclaration::TypeAlias(_) => false,

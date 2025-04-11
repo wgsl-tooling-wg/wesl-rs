@@ -183,7 +183,14 @@ fn run_compile(args: CompileOptions) -> Result<CompileResult, wesl::Error> {
             validate: args.validate,
             lazy: args.lazy,
             keep: args.keep,
-            features: args.features,
+            features: wesl::Features {
+                default: wesl::Feature::Disable,
+                flags: args
+                    .features
+                    .into_iter()
+                    .map(|(k, v)| (k, v.into()))
+                    .collect(),
+            },
         })
         .use_sourcemap(args.sourcemap)
         .set_mangler(args.mangler.into())
@@ -200,7 +207,7 @@ fn parse_binding(
     let ty_expr = wgsl
         .global_declarations
         .iter()
-        .find_map(|d| match d {
+        .find_map(|d| match d.node() {
             syntax::GlobalDeclaration::Declaration(d) => {
                 let (group, binding) = d.attr_group_binding(&mut ctx).ok()?;
                 if group == b.group && binding == b.binding {

@@ -2,7 +2,7 @@ mod mangle;
 
 use itertools::Itertools;
 use thiserror::Error;
-use wgsl_parse::{syntax::*, Decorated};
+use wgsl_parse::{span::Spanned, syntax::*, Decorated};
 
 use crate::visit::Visit;
 
@@ -18,7 +18,8 @@ type E = GenericsError;
 pub fn generate_variants(wesl: &mut TranslationUnit) -> Result<(), E> {
     let mut new_decls = Vec::new();
     for decl in &wesl.global_declarations {
-        if let GlobalDeclaration::Function(decl) = decl {
+        let decl_span = decl.span();
+        if let GlobalDeclaration::Function(decl) = decl.node() {
             let ty_constrs = decl
                 .attributes
                 .iter()
@@ -80,13 +81,13 @@ pub fn generate_variants(wesl: &mut TranslationUnit) -> Result<(), E> {
 
                 let new_name = mangle::mangle(&decl.ident.name(), &signature);
                 decl.ident = Ident::new(new_name);
-                new_decls.push(decl.into());
+                new_decls.push(Spanned::new(decl.into(), decl_span));
             }
         }
     }
 
     // remove generic function declarations
-    wesl.global_declarations.retain(|decl| !matches!(decl, GlobalDeclaration::Function(f) if f.attributes.iter().any(|attr| attr.is_type())));
+    wesl.global_declarations.retain(|decl| !matches!(decl.node(), GlobalDeclaration::Function(f) if f.attributes.iter().any(|attr| attr.is_type())));
 
     // add generic variants
     wesl.global_declarations.extend(new_decls);

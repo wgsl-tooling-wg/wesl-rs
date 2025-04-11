@@ -55,7 +55,7 @@ pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
 
         // remove `@const` attributes.
         for decl in &mut wesl.global_declarations {
-            if let GlobalDeclaration::Function(decl) = decl {
+            if let GlobalDeclaration::Function(decl) = decl.node_mut() {
                 decl.retain_attributes_mut(|attr| *attr != Attribute::Const);
             }
         }
@@ -71,10 +71,10 @@ fn remove_type_aliases(wesl: &mut TranslationUnit) {
         let index = wesl
             .global_declarations
             .iter()
-            .position(|decl| matches!(decl, GlobalDeclaration::TypeAlias(_)));
+            .position(|decl| matches!(decl.node(), GlobalDeclaration::TypeAlias(_)));
         index.map(|index| {
             let decl = wesl.global_declarations.swap_remove(index);
-            match decl {
+            match decl.into_inner() {
                 GlobalDeclaration::TypeAlias(alias) => alias,
                 _ => unreachable!(),
             }
@@ -99,7 +99,7 @@ fn remove_global_consts(wesl: &mut TranslationUnit) {
     let take_next_const = |wesl: &mut TranslationUnit| {
         let index = wesl.global_declarations.iter().position(|decl| {
             matches!(
-                decl,
+                decl.node(),
                 GlobalDeclaration::Declaration(Declaration {
                     kind: DeclarationKind::Const,
                     ..
@@ -108,7 +108,7 @@ fn remove_global_consts(wesl: &mut TranslationUnit) {
         });
         index.map(|index| {
             let decl = wesl.global_declarations.swap_remove(index);
-            match decl {
+            match decl.into_inner() {
                 GlobalDeclaration::Declaration(d) => d,
                 _ => unreachable!(),
             }

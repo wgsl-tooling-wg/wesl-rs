@@ -331,7 +331,7 @@ impl Diagnostic<Error> {
             Error::CondCompError(e) => match e {
                 CondCompError::InvalidExpression(expr) => unmangle_expr(expr, sourcemap, mangler),
                 CondCompError::InvalidFeatureFlag(_)
-                | CondCompError::MissingFeatureFlag(_)
+                | CondCompError::UnexpectedFeatureFlag(_)
                 | CondCompError::NoPrecedingIf
                 | CondCompError::DuplicateIf => {}
             },

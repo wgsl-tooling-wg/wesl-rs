@@ -168,7 +168,7 @@ Keyword: String = {
 
 #[cfg(not(feature = "imports"))]
 pub TranslationUnit: TranslationUnit = {
-    <global_directives: GlobalDirective*> <global_declarations: GlobalDecl*> => TranslationUnit {
+    <global_directives: GlobalDirective*> <global_declarations: GlobalDeclarationNode*> => TranslationUnit {
         global_directives, global_declarations
     },
 };
@@ -182,6 +182,8 @@ pub GlobalDecl: GlobalDeclaration = {
     <FunctionDecl>             => GlobalDeclaration::Function(<>),
     <ConstAssertStatement> ";" => GlobalDeclaration::ConstAssert(<>),
 };
+
+GlobalDeclarationNode: GlobalDeclarationNode = Spanned<GlobalDecl>;
 
 DiagnosticRuleName: String = {
     DiagnosticNameToken,
@@ -990,7 +992,7 @@ TemplateElaboratedIdent: TypeExpression = <path: ModulePath?> <ident: Ident> <te
 
 #[cfg(feature = "imports")]
 pub TranslationUnit: TranslationUnit = {
-    <imports: ImportStatement*> <global_directives: GlobalDirective*> <global_declarations: GlobalDecl*> => TranslationUnit {
+    <imports: ImportStatement*> <global_directives: GlobalDirective*> <global_declarations: GlobalDeclarationNode*> => TranslationUnit {
         imports, global_directives, global_declarations
     },
 };
