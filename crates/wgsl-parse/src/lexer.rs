@@ -1,4 +1,4 @@
-//! Prefer using [`Parser::parse_str`]. You shouldn't need to manipulate the lexer.
+//! Prefer using [`crate::parse_str`]. You shouldn't need to manipulate the lexer.
 
 use crate::error::CustomLalrError;
 use logos::{Logos, SpannedIter};
@@ -179,7 +179,7 @@ pub(crate) struct LexerState {
     lookahead: Option<Token>,
 }
 
-// follwing the spec at this date: https://www.w3.org/TR/2024/WD-WGSL-20240731/
+// following the spec at this date: https://www.w3.org/TR/2024/WD-WGSL-20240731/
 #[derive(Logos, Clone, Debug, PartialEq)]
 #[logos(
     skip r"[\s\u0085\u200e\u200f\u2028\u2029]+",

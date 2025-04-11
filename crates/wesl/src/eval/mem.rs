@@ -2,8 +2,8 @@ use half::f16;
 use itertools::Itertools;
 
 use super::{
-    ty_eval_ty, ArrayInstance, AtomicInstance, Context, EvalAttrs, Instance, LiteralInstance,
-    MatInstance, StructInstance, SyntaxUtil, Ty, Type, VecInstance,
+    ArrayInstance, AtomicInstance, Context, EvalAttrs, Instance, LiteralInstance, MatInstance,
+    StructInstance, SyntaxUtil, Ty, Type, VecInstance, ty_eval_ty,
 };
 
 pub trait HostShareable: Ty + Sized {

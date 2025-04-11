@@ -3,8 +3,8 @@ use std::iter::zip;
 use crate::EvalError;
 
 use super::{
-    convert, convert_inner, Convert, EvalStage, Instance, LiteralInstance, MatInstance, Ty, Type,
-    VecInstance,
+    Convert, EvalStage, Instance, LiteralInstance, MatInstance, Ty, Type, VecInstance, convert,
+    convert_inner,
 };
 
 use num_traits::{WrappingNeg, WrappingShl};

@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use tsify::Tsify;
+use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 use wesl::{
-    eval::{ty_eval_ty, EvalAttrs, HostShareable, Instance, RefInstance, Ty},
-    syntax::{self, AccessMode, AddressSpace, TranslationUnit},
     CompileResult, Eval, VirtualResolver, Wesl,
+    eval::{EvalAttrs, HostShareable, Instance, RefInstance, Ty, ty_eval_ty},
+    syntax::{self, AccessMode, AddressSpace, TranslationUnit},
 };
 
 #[derive(Tsify, Clone, Copy, Debug, Default, Serialize, Deserialize)]
@@ -276,6 +276,10 @@ fn parse_override(src: &str, wgsl: &TranslationUnit) -> Result<Instance, CliErro
 }
 
 #[wasm_bindgen]
+#[cfg_attr(
+    not(feature = "debug"),
+    allow(unused_variables, reason = "must exist, but not needed")
+)]
 pub fn init_log(_level: &str) {
     #[cfg(feature = "debug")]
     {

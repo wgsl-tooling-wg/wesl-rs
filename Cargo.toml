@@ -1,25 +1,34 @@
 [workspace]
 members = [
-    "crates/wgsl-parse",
-    "crates/wesl-macros",
-    "crates/wesl",
-    "crates/wesl-test",
-    "crates/wesl-web",
-    "crates/wesl-cli",
-    "examples/random_wgsl",
-    "examples/wesl-consumer",
+  "crates/wgsl-parse",
+  "crates/wesl-macros",
+  "crates/wesl",
+  "crates/wesl-test",
+  "crates/wesl-web",
+  "crates/wesl-cli",
+  "examples/random_wgsl",
+  "examples/wesl-consumer",
 ]
 
 resolver = "3"
 
 [workspace.package]
-authors = ["Mathis Brossier <mathis.brossier@gmail.com>"]
-edition = "2021"
+authors = ["WGSL Contributors", "Mathis Brossier <mathis.brossier@gmail.com>"]
+edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/wgsl-tooling-wg/wesl-rs"
 version = "0.1.2"
+rust-version = "1.86.0"
 
 [workspace.dependencies]
 wesl = { path = "crates/wesl", version = "0.1.2" }
 wesl-macros = { path = "crates/wesl-macros", version = "0.1.2" }
 wgsl-parse = { path = "crates/wgsl-parse", version = "0.1.2" }
+
+[workspace.lints.rust]
+
+[workspace.lints.clippy]
+result_large_err = "allow" # TODO
+
+# TODO: change eventually
+mutable_key_type = "allow"

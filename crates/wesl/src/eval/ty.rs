@@ -1,16 +1,16 @@
 use std::str::FromStr;
 
 use super::{
-    builtin_fn_type, check_swizzle, constructor_type, convert_ty, is_constructor_fn, ArrayInstance,
-    ArrayTemplate, AtomicInstance, AtomicTemplate, Context, Convert, EvalError, Exec, Instance,
-    LiteralInstance, MatInstance, MatTemplate, PtrInstance, PtrTemplate, RefInstance, ScopeKind,
-    StructInstance, SyntaxUtil, TextureTemplate, VecInstance, VecTemplate, ATTR_INTRINSIC,
+    ATTR_INTRINSIC, ArrayInstance, ArrayTemplate, AtomicInstance, AtomicTemplate, Context, Convert,
+    EvalError, Exec, Instance, LiteralInstance, MatInstance, MatTemplate, PtrInstance, PtrTemplate,
+    RefInstance, ScopeKind, StructInstance, SyntaxUtil, TextureTemplate, VecInstance, VecTemplate,
+    builtin_fn_type, check_swizzle, constructor_type, convert_ty, is_constructor_fn,
 };
 
 type E = EvalError;
 
 use derive_more::derive::{IsVariant, Unwrap};
-use wgsl_parse::{span::Spanned, syntax::*, Decorated};
+use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant, Unwrap)]
 pub enum SampledType {
@@ -537,7 +537,7 @@ impl<T: Ty> EvalTy for T {
 }
 
 impl EvalTy for TypeExpression {
-    /// Use only when the `TypeExpression` is an identifier (`Expression::TypeOrIdentifer`),
+    /// Use only when the `TypeExpression` is an identifier (`Expression::TypeOrIdentifier`),
     /// NOT when it is a type-expression. For that, see [`ty_eval_ty`].
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
         if self.template_args.is_some() {

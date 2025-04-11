@@ -11,8 +11,8 @@ use std::{
 use regex::Regex;
 use serde::Deserialize;
 use wesl::{
-    syntax::{Expression, GlobalDeclaration, ModulePath, Statement, TranslationUnit},
     CompileOptions, EscapeMangler, NoMangler, VirtualResolver,
+    syntax::{Expression, GlobalDeclaration, ModulePath, Statement, TranslationUnit},
 };
 
 fn parse_test(input: &str) {
@@ -91,11 +91,7 @@ enum Expectation {
 
 impl From<bool> for Expectation {
     fn from(value: bool) -> Self {
-        if value {
-            Self::Pass
-        } else {
-            Self::Fail
-        }
+        if value { Self::Pass } else { Self::Fail }
     }
 }
 

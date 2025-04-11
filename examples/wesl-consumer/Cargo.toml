@@ -5,6 +5,9 @@ edition.workspace = true
 authors.workspace = true
 repository.workspace = true
 license.workspace = true
+rust-version.workspace = true
+
+publish = false
 
 [dependencies]
 random_wgsl = { path = "../random_wgsl" }
@@ -17,3 +20,6 @@ wesl = { path = "../../crates/wesl" }
 [features]
 # use WESL at build-time (in build.rs) instead of run-time (in main.rs)
 build-time = []
+
+[lints]
+workspace = true

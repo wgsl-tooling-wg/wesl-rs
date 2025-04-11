@@ -8,6 +8,7 @@ See also the [standalone CLI](https://github.com/wgsl-tooling-wg/wesl-rs).
 ## Basic Usage
 
 See [`Wesl`] for an overview of the high-level API.
+
 ```rust
 # use wesl::{Wesl, VirtualResolver};
 let compiler = Wesl::new("src/shaders");
@@ -30,22 +31,25 @@ In your rust project you probably want to have your WESL code converted automati
 to a WGSL string at build-time, unless your WGSL code must be assembled at runtime.
 
 Add this crate to your build dependencies in `Cargo.toml`:
+
 ```toml
 [build-dependencies]
 wesl = "0.1"
 ```
 
 Create the `build.rs` file with the following content:
-```ignore
+
+```rust,ignore
 # use wesl::{Wesl, FileResolver};
 fn main() {
     Wesl::new("src/shaders")
-        .build_artefact("main.wesl", "my_shader");
+        .build_artifact("main.wesl", "my_shader");
 }
 ```
 
 Include the compiled WGSL string in your code:
-```ignore
+
+```rust,ignore
 let module = device.create_shader_module(ShaderModuleDescriptor {
     label: Some("my_shader"),
     source: ShaderSource::Wgsl(include_wesl!("my_shader")),
@@ -55,6 +59,7 @@ let module = device.create_shader_module(ShaderModuleDescriptor {
 ## Advanced Examples
 
 Evaluate const-expressions.
+
 ```rust
 # use wesl::{Wesl, VirtualResolver, eval_str};
 // ...standalone expression

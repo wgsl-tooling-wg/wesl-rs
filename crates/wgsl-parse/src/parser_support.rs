@@ -384,7 +384,9 @@ pub(crate) fn parse_var_template(template_args: TemplateArgs) -> Result<Option<A
                                     .ok_or(E::VarTemplate("invalid access mode"))?,
                             );
                         } else {
-                            return Err(E::VarTemplate("only variables with `storage` address space can have an access mode"));
+                            return Err(E::VarTemplate(
+                                "only variables with `storage` address space can have an access mode",
+                            ));
                         }
                     }
                     Ok(Some(addr_space))

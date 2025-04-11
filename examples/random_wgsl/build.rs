@@ -8,6 +8,6 @@ fn main() {
             panic!();
         })
         .unwrap()
-        .build_artefact()
-        .expect("failed to build artefact")
+        .build_artifact()
+        .expect("failed to build artifact")
 }

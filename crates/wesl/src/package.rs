@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use wgsl_parse::syntax::{PathOrigin, TranslationUnit};
 
-use crate::{validate::validate_wesl, Diagnostic, Error, ModulePath, SyntaxUtil};
+use crate::{Diagnostic, Error, ModulePath, SyntaxUtil, validate::validate_wesl};
 
 /// A builder that generates code for WESL packages.
 ///
@@ -23,8 +23,8 @@ use crate::{validate::validate_wesl, Diagnostic, Error, ModulePath, SyntaxUtil};
 ///        .map_err(|e| eprintln!("{e}"))
 ///        .expect("validation error")
 ///        // write "my_package.rs" in OUT_DIR
-///        .build_artefact()
-///        .expect("failed to build artefact");
+///        .build_artifact()
+///        .expect("failed to build artifact");
 /// }
 /// ```
 /// Then, in your `lib.rs` file, expose the generated module with the [`crate::wesl_pkg`] macro.
@@ -210,7 +210,7 @@ impl Module {
         Ok(self)
     }
 
-    /// generate the build artefact that can then be exposed by the [`super::wesl_pkg`] macro.
+    /// generate the build artifact that can then be exposed by the [`super::wesl_pkg`] macro.
     ///
     /// this function must be called from a `build.rs` file. Refer to the crate documentation
     /// for more details.
@@ -218,7 +218,7 @@ impl Module {
     /// # Panics
     /// panics if the OUT_DIR environment variable is not set. This should not happen if
     /// ran from a `build.rs` file.
-    pub fn build_artefact(&self) -> std::io::Result<()> {
+    pub fn build_artifact(&self) -> std::io::Result<()> {
         let code = self.codegen()?;
         let out_dir = Path::new(
             &std::env::var_os("OUT_DIR").expect("OUT_DIR environment variable is not defined"),

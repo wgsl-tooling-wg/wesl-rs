@@ -254,7 +254,7 @@ impl MatInstance {
     ///
     /// # Panics
     /// * if the number of columns is not [2, 3, 4]
-    /// * if the colums don't have the same number of rows
+    /// * if the columns don't have the same number of rows
     /// * if the number of rows is not [2, 3, 4]
     /// * if the elements don't have the same type
     /// * if the type is not a scalar

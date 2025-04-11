@@ -2,11 +2,11 @@ use itertools::Itertools;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    braced, parenthesized,
+    Attribute, Expr, Ident, LitInt, Token, braced, parenthesized,
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
-    token, Attribute, Expr, Ident, LitInt, Token,
+    token,
 };
 
 struct WithAttrs<T> {

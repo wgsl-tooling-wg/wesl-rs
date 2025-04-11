@@ -3,8 +3,8 @@ use itertools::Itertools;
 use num_traits::{FromPrimitive, ToPrimitive};
 
 use super::{
-    ArrayInstance, Instance, LiteralInstance, MatInstance, StructInstance, SyntaxUtil, Ty, Type,
-    VecInstance, PRELUDE,
+    ArrayInstance, Instance, LiteralInstance, MatInstance, PRELUDE, StructInstance, SyntaxUtil, Ty,
+    Type, VecInstance,
 };
 
 pub trait Convert: Sized + Clone + Ty {

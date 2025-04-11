@@ -41,7 +41,7 @@ pub use resolve::{
 };
 pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
 pub use syntax_util::SyntaxUtil;
-pub use validate::{validate_wesl, validate_wgsl, ValidateError};
+pub use validate::{ValidateError, validate_wesl, validate_wgsl};
 pub use wgsl_parse::syntax;
 pub use wgsl_parse::syntax::ModulePath;
 
@@ -139,9 +139,9 @@ pub enum ManglerKind {
     None,
 }
 
-/// Include a WGSL file compiled with [`Wesl::build_artefact`] as a string.
+/// Include a WGSL file compiled with [`Wesl::build_artifact`] as a string.
 ///
-/// The argument corresponds to the `out_name` passed to [`Wesl::build_artefact`].
+/// The argument corresponds to the `out_name` passed to [`Wesl::build_artifact`].
 ///
 /// This is a very simple convenience macro. See the crate documentation for a usage
 /// example.
@@ -162,6 +162,7 @@ macro_rules! wesl_pkg {
     };
     ($pkg_name:ident, $source:expr) => {
         pub mod $pkg_name {
+            #![allow(clippy::all)]
             use wesl::PkgModule;
 
             include!(concat!(env!("OUT_DIR"), $source));
@@ -701,12 +702,12 @@ impl<R: Resolver> Wesl<R> {
     ///
     /// * The first argument is the path to the entrypoint file relative to the base
     ///   directory.
-    /// * The second argument is the name of the artefact, used in [`include_wesl`].
+    /// * The second argument is the name of the artifact, used in [`include_wesl`].
     ///
     /// # Panics
     /// Panics when compilation fails or if the output file cannot be written.
     /// Pretty-prints the WESL error message to stderr.
-    pub fn build_artefact(&self, entrypoint: impl Into<ModulePath>, out_name: &str) {
+    pub fn build_artifact(&self, entrypoint: impl Into<ModulePath>, out_name: &str) {
         let entrypoint = entrypoint.into();
         let dirname = std::env::var("OUT_DIR").unwrap();
         let out_name = Path::new(out_name);
@@ -822,7 +823,7 @@ fn compile_post_assembly(
 }
 
 /// Low-level version of [`Wesl::compile`].
-/// To get a source map, use [`compile_sourcemap`] instaed
+/// To get a source map, use [`compile_sourcemap`] instead
 pub fn compile(
     root: &ModulePath,
     resolver: &impl Resolver,
