@@ -317,8 +317,8 @@ StructDecl: Struct = {
     },
 };
 
-StructBodyDecl: Vec<StructMember> = {
-    "{" <Comma1<StructMember>> "}",
+StructBodyDecl: Vec<StructMemberNode> = {
+    "{" <Comma1<StructMemberNode>> "}",
 };
 
 StructMember: StructMember = {
@@ -326,6 +326,8 @@ StructMember: StructMember = {
         attributes, ident, ty
     },
 };
+
+StructMemberNode: StructMemberNode = Spanned<StructMember>;
 
 #[cfg(not(feature = "attributes"))]
 TypeAliasDecl: TypeAlias = {

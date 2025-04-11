@@ -474,10 +474,13 @@ impl_visit! { TypeAlias => TypeExpression,
 impl_visit! { Struct => TypeExpression,
     {
         attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
-        members.[].{
-            attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
-            ty,
-        },
+        members.[].(x => visit::<StructMember, TypeExpression>(x)),
+    }
+}
+impl_visit! { StructMember => TypeExpression,
+    {
+        attributes.[].(x => visit::<Attribute, TypeExpression>(x)),
+        ty,
     }
 }
 impl_visit! { Function => TypeExpression,
