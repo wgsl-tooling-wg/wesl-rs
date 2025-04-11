@@ -25,11 +25,13 @@ allow = [
   "Zlib",
 ]
 
-exceptions = []
+exceptions = [{ name = "unicode-ident", allow = ["Unicode-3.0"] }]
 
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+
+allow-wildcard-paths = true
 
 # Certain crates that we don't want multiple versions of in the dependency tree
 deny = []

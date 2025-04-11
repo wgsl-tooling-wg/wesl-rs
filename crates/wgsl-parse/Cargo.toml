@@ -26,7 +26,7 @@ lalrpop-util = "0.22.1"
 lexical = { version = "7.0.4", features = ["format", "power-of-two"] }
 logos = "0.15.0"
 serde = { version = "1.0.215", optional = true, features = ["derive", "rc"] }
-thiserror = "2.0.11"
+thiserror = "2.0.12"
 
 [build-dependencies]
 lalrpop = { version = "0.22.1", default-features = false }
