@@ -85,11 +85,10 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -Dwarnings
 
-  # miri does not work due to rowan
   miri:
     # Explicitly use macOS 14 to take advantage of M1 chip.
     runs-on: macos-14
-    timeout-minutes: 60
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
