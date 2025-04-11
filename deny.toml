@@ -4,7 +4,7 @@ all-features = true
 [advisories]
 version = 2
 ignore = [
-  # See issue #
+  # See issue #69
   "RUSTSEC-2024-0320",
 ]
 
