@@ -1,4 +1,4 @@
-//! Prefer using [`Parser::parse_str`]. You shouldn't need to manipulate the lexer.
+//! Prefer using [`crate::parse_str`]. You shouldn't need to manipulate the lexer.
 
 use crate::error::CustomLalrError;
 use logos::{Logos, SpannedIter};

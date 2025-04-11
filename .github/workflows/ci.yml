@@ -228,7 +228,7 @@ jobs:
       - name: Install cargo-deadlinks
         run: cargo install --force cargo-deadlinks
       - name: Checks dead links
-        run: cargo deadlinks --dir target/doc
+        run: cargo deadlinks
         continue-on-error: true
 
   check-unused-dependencies:

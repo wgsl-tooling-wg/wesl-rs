@@ -41,7 +41,7 @@ pub enum Feature {
 /// Toggle conditional compilation feature flags.
 ///
 /// Feature flags set to `true` are enabled, and `false` are disabled. Feature flags not
-/// present in `flags` are treated according to `default`, see [`DefaultFeatureBehavior`].
+/// present in `flags` are treated according to `default`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Features {
     pub default: Feature,
