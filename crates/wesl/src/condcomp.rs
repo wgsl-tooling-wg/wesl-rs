@@ -9,8 +9,8 @@ use wgsl_parse::{span::Spanned, syntax::*, Decorated};
 pub enum CondCompError {
     #[error("invalid feature flag: `{0}`")]
     InvalidFeatureFlag(String),
-    #[error("unspecified feature flag: `{0}`")]
-    UnspecifiedFeatureFlag(String),
+    #[error("unexpected feature flag: `{0}`")]
+    UnexpectedFeatureFlag(String),
     #[error("invalid if attribute expression: `{0}`")]
     InvalidExpression(Expression),
     #[error("an @elif or @else attribute must be preceded by a @if or @elif on the previous node")]
@@ -26,7 +26,7 @@ type E = crate::Error;
 /// * `Keep` means that the feature flag will be left as-is. This is useful for
 ///   incremental compilation, e.g. for generating shader variants
 /// * `Error` means that unspecified feature flags will trigger a
-///   [`CondCompError::UnspecifiedFeatureFlag`].
+///   [`CondCompError::UnexpectedFeatureFlag`].
 ///
 /// Default is `Disable`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -153,7 +153,7 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E
                 Feature::Keep => expr.clone(),
                 Feature::Error => {
                     return Err(
-                        CondCompError::UnspecifiedFeatureFlag(ty.ident.name().to_string()).into(),
+                        CondCompError::UnexpectedFeatureFlag(ty.ident.name().to_string()).into(),
                     )
                 }
             };
