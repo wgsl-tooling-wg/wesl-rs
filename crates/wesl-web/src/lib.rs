@@ -280,13 +280,13 @@ fn parse_override(src: &str, wgsl: &TranslationUnit) -> Result<Instance, CliErro
     not(feature = "debug"),
     allow(unused_variables, reason = "must exist, but not needed")
 )]
-pub fn init_log(_level: &str) {
+pub fn init_log(level: &str) {
     #[cfg(feature = "debug")]
     {
         static ONCE: std::sync::Once = std::sync::Once::new();
         ONCE.call_once(|| {
             std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-            let level = match _level {
+            let level = match level {
                 "Error" => log::Level::Error,
                 "Warn" => log::Level::Warn,
                 "Info" => log::Level::Info,
