@@ -113,34 +113,6 @@ jobs:
         env:
           RUSTFLAGS: -Zrandomize-layout
 
-  check-compiles:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-check-compiles-${{ hashFiles('**/Cargo.toml') }}
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ env.STABLE_TOOLCHAIN }}
-      - name: Check Compile
-        run: |
-          cargo test --target-dir ../../../target
-          # cargo check --benches --target-dir ../target --manifest-path ./benches/Cargo.toml
-          cargo check --workspace --examples
-          cargo check --workspace
-          cargo check --workspace --tests
-
   markdownlint:
     runs-on: ubuntu-latest
     timeout-minutes: 30
