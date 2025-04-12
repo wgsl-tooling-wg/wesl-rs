@@ -9,7 +9,7 @@ use wgsl_parse::syntax::{
     TypeExpression,
 };
 
-use crate::{visit::Visit, Mangler, ResolveError, Resolver, SyntaxUtil};
+use crate::{Mangler, ResolveError, Resolver, SyntaxUtil, visit::Visit};
 
 type Imports = HashMap<Ident, (ModulePath, Ident)>;
 type Modules = HashMap<ModulePath, Rc<RefCell<Module>>>;

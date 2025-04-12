@@ -1,12 +1,12 @@
 //! A syntax tree for WGSL and WESL files. The root of the tree is [`TranslationUnit`].
 //!
-//! Follwing the spec at this date:
+//! Following the spec at this date:
 //! [2024-07-31](https://www.w3.org/TR/2024/WD-WGSL-20240731/).
 //! The syntax tree closely mirrors WGSL structure while allowing language extensions.
 //!
 //! ## Strictness
 //!
-//! This syntax tree is rather strict, meaning it cannot represent most syntaxically
+//! This syntax tree is rather strict, meaning it cannot represent most syntactically
 //! incorrect programs. But it is only syntactic, meaning it doesn't perform many
 //! contextual checks: for example, certain attributes can only appear in certain places,
 //! or declarations have different constraints depending on where they appear.

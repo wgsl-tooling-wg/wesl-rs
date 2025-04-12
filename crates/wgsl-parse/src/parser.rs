@@ -1,19 +1,19 @@
 use std::str::FromStr;
 
-use lalrpop_util::lalrpop_mod;
-
 use crate::{
     error::Error,
     lexer::Lexer,
     syntax::{Expression, GlobalDeclaration, GlobalDirective, Statement, TranslationUnit},
 };
 
+use lalrpop_util::lalrpop_mod;
+
 lalrpop_mod!(
-    #[allow(clippy::type_complexity)]
+    #[allow(clippy::all, reason = "generated code")]
     wgsl
 );
 lalrpop_mod!(
-    #[allow(clippy::type_complexity)]
+    #[allow(clippy::all, reason = "generated code")]
     wgsl_recognize
 );
 

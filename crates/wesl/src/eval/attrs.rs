@@ -1,9 +1,9 @@
 use wgsl_parse::{
-    syntax::{Attribute, AttributeNode, Expression},
     Decorated,
+    syntax::{Attribute, AttributeNode, Expression},
 };
 
-use super::{with_stage, Context, Eval, EvalError, EvalStage, Instance, LiteralInstance, Ty, Type};
+use super::{Context, Eval, EvalError, EvalStage, Instance, LiteralInstance, Ty, Type, with_stage};
 
 type E = EvalError;
 

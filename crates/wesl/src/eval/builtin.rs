@@ -1,30 +1,31 @@
 use std::sync::LazyLock;
 
 use half::prelude::*;
-use num_traits::{real::Real, FromPrimitive, One, ToBytes, ToPrimitive, Zero};
+use num_traits::{FromPrimitive, One, ToBytes, ToPrimitive, Zero, real::Real};
 
-use itertools::{chain, izip, Itertools};
+use itertools::{Itertools, chain, izip};
 use wgsl_parse::{
+    Decorated,
     syntax::{
         AccessMode, AddressSpace, Attribute, CustomAttribute, Expression, GlobalDeclaration, Ident,
         LiteralExpression, TemplateArg, TranslationUnit, TypeExpression,
     },
-    Decorated,
 };
 
 use crate::{
     builtin::builtin_ident,
-    eval::{convert_ty, Context, Eval},
+    eval::{Context, Eval, convert_ty},
     visit::Visit,
 };
 
 use super::{
-    conv::{convert_all, Convert},
+    ArrayInstance, EvalError, EvalStage, Instance, LiteralInstance, MatInstance, RefInstance,
+    SampledType, SamplerType, StructInstance, SyntaxUtil, TexelFormat, TextureType, Ty, Type,
+    VecInstance,
+    conv::{Convert, convert_all},
     convert, convert_all_inner_to, convert_all_to, convert_all_ty,
     ops::Compwise,
-    ty_eval_ty, ArrayInstance, EvalError, EvalStage, Instance, LiteralInstance, MatInstance,
-    RefInstance, SampledType, SamplerType, StructInstance, SyntaxUtil, TexelFormat, TextureType,
-    Ty, Type, VecInstance,
+    ty_eval_ty,
 };
 
 type E = EvalError;
@@ -1254,7 +1255,7 @@ impl PtrTemplate {
                     (AddressSpace::Uniform, _) => {
                         return Err(EvalError::Builtin(
                             "pointer in uniform address space must have a `read` access mode",
-                        ))
+                        ));
                     }
                     (AddressSpace::Storage(a1), Some(a2)) => {
                         *a1 = Some(a2);
@@ -2754,7 +2755,11 @@ fn call_sign(e: &Instance) -> Result<Instance, E> {
                 n.signum()
             })),
             LiteralInstance::I32(n) => Ok(LiteralInstance::from(n.signum())),
-            LiteralInstance::U32(n) => Ok(LiteralInstance::from(if n.is_zero() { *n } else { 1 })),
+            LiteralInstance::U32(n) => Ok(LiteralInstance::from(if n.is_zero() {
+                *n
+            } else {
+                1
+            })),
             LiteralInstance::F32(n) => Ok(LiteralInstance::from(if n.is_zero() {
                 *n
             } else {
@@ -2804,7 +2809,11 @@ fn call_step(edge: &Instance, x: &Instance) -> Result<Instance, E> {
                     .convert_to(&Type::AbstractFloat)
                     .ok_or(E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
                     .unwrap_abstract_float();
-                Ok(LiteralInstance::from(if edge <= x { 1.0 } else { 0.0 }))
+                Ok(LiteralInstance::from(if edge <= x {
+                    1.0
+                } else {
+                    0.0
+                }))
             }
             LiteralInstance::AbstractFloat(edge) => Ok(LiteralInstance::from(
                 if *edge <= x.unwrap_abstract_float() {

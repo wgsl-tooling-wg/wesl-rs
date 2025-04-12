@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::Diagnostic;
 use thiserror::Error;
-use wgsl_parse::{span::Spanned, syntax::*, Decorated};
+use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
 /// Conditional translation error.
 #[derive(Clone, Debug, Error)]
@@ -41,7 +41,7 @@ pub enum Feature {
 /// Toggle conditional compilation feature flags.
 ///
 /// Feature flags set to `true` are enabled, and `false` are disabled. Feature flags not
-/// present in `flags` are treated according to `default`, see [`DefaultFeatureBehavior`].
+/// present in `flags` are treated according to `default`.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Features {
     pub default: Feature,
@@ -154,7 +154,7 @@ pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E
                 Feature::Error => {
                     return Err(
                         CondCompError::UnexpectedFeatureFlag(ty.ident.name().to_string()).into(),
-                    )
+                    );
                 }
             };
             Ok(expr)

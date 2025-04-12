@@ -16,7 +16,7 @@ use super::ModulePath;
 /// WGSL identifiers.
 ///
 /// `Mangler` implementations must respect the following constraints:
-/// * A pair {path, item} (aka. fully-qualifed name) must be associated with a unique mangled name.
+/// * A pair {path, item} (aka. fully-qualified name) must be associated with a unique mangled name.
 /// * A mangled name must be associated with a unique pair {path, item} (or at least, the risk of
 ///   a collision must be negligible).
 /// * The mangled name must be a valid WGSL identifier.
@@ -168,7 +168,7 @@ impl Mangler for EscapeMangler {
     }
 }
 
-/// A mangler that just returns the identifer as-is (no mangling).
+/// A mangler that just returns the identifier as-is (no mangling).
 /// e.g. `foo::bar::baz item => item`
 ///
 /// Warning: this mangler is not spec-compliant. It can cause name collisions.
@@ -197,10 +197,10 @@ impl<'a, T: Mangler> CacheMangler<'a, T> {
 }
 
 impl<T: Mangler> Mangler for CacheMangler<'_, T> {
-    fn mangle(&self, paht: &ModulePath, item: &str) -> String {
-        let res = self.mangler.mangle(paht, item);
+    fn mangle(&self, path: &ModulePath, item: &str) -> String {
+        let res = self.mangler.mangle(path, item);
         let mut cache = self.cache.borrow_mut();
-        cache.insert(res.clone(), (paht.clone(), item.to_string()));
+        cache.insert(res.clone(), (path.clone(), item.to_string()));
         res
     }
     fn unmangle(&self, mangled: &str) -> Option<(ModulePath, String)> {

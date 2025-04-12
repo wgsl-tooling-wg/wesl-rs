@@ -7,9 +7,15 @@ edition.workspace = true
 authors.workspace = true
 repository.workspace = true
 license.workspace = true
+rust-version.workspace = true
+
+publish = false
 
 [dependencies]
 wesl = { workspace = true }
 
 [build-dependencies]
 wesl = { workspace = true, features = ["package"] }
+
+[lints]
+workspace = true

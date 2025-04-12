@@ -11,8 +11,8 @@ use std::{
 use regex::Regex;
 use serde::Deserialize;
 use wesl::{
-    syntax::{Expression, GlobalDeclaration, ModulePath, Statement, TranslationUnit},
     CompileOptions, EscapeMangler, NoMangler, VirtualResolver,
+    syntax::{Expression, GlobalDeclaration, ModulePath, Statement, TranslationUnit},
 };
 
 fn parse_test(input: &str) {
@@ -263,7 +263,11 @@ impl fmt::Display for ParsingTest {
 
 #[datatest::data("wesl-testsuite/src/test-cases-json/importSyntaxCases.json")]
 fn wesl_testsuite_import_syntax_cases(case: ParsingTest) {
-    let expects = if case.fails { "Fail" } else { "Pass" };
+    let expects = if case.fails {
+        "Fail"
+    } else {
+        "Pass"
+    };
     println!("case `{}`: expect {expects}", normalize_wgsl(&case.src));
 
     let parse = wgsl_parse::parse_str(&case.src);

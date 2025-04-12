@@ -626,7 +626,7 @@ pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
         };
     }
     // using these idents allow better use-count tracking and referencing.
-    // some of the buitin idents are in the PRELUDE (not here).
+    // some of the builtin idents are in the PRELUDE (not here).
     // these enumerants are not context-dependent names, and can therefore be shadowed.
     static IDENTS: LazyLock<HashMap<&str, Ident>> = LazyLock::new(|| {
         HashMap::from_iter([
