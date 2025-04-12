@@ -4,7 +4,7 @@ pub mod error;
 pub mod span;
 pub mod syntax;
 
-pub mod lexer;
+mod lexer;
 mod parser;
 mod parser_support;
 mod syntax_display;

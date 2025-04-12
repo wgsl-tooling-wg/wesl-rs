@@ -690,7 +690,7 @@ impl<'s> Lexer<'s> {
 ///
 /// ## Examples
 ///
-/// ```rust
+/// ```rust,ignore
 /// # use wgsl_parse::lexer::recognize_template_list;
 /// // examples from the spec:
 /// assert_eq!(recognize_template_list("<i32,select(2,3,a>b)>"), true);
