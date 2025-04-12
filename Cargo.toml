@@ -1,13 +1,13 @@
 [workspace]
 members = [
-  "crates/wgsl-parse",
-  "crates/wesl-macros",
-  "crates/wesl",
-  "crates/wesl-test",
-  "crates/wesl-web",
-  "crates/wesl-cli",
-  "examples/random_wgsl",
-  "examples/wesl-consumer",
+    "crates/wgsl-parse",
+    "crates/wesl-macros",
+    "crates/wesl",
+    "crates/wesl-test",
+    "crates/wesl-web",
+    "crates/wesl-cli",
+    "examples/random_wgsl",
+    "examples/wesl-consumer",
 ]
 
 resolver = "3"

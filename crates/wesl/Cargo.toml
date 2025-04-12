@@ -12,12 +12,12 @@ rust-version.workspace = true
 [dependencies]
 annotate-snippets = "0.11.5"
 derive_more = { version = "2.0.1", features = [
-  "as_ref",
-  "deref",
-  "deref_mut",
-  "display",
-  "from",
-  "unwrap",
+    "as_ref",
+    "deref",
+    "deref_mut",
+    "display",
+    "from",
+    "unwrap",
 ] }
 half = { version = "2.4.1", features = ["num-traits"] }
 itertools = "0.14.0"

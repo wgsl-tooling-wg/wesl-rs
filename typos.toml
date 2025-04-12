@@ -1,8 +1,8 @@
 [files]
 extend-exclude = [
-  ".git/",
-  "crates/wesl-test/webgpu-samples/LICENSE.txt",
-  "crates/wesl-test/",
+    ".git/",
+    "crates/wesl-test/webgpu-samples/LICENSE.txt",
+    "crates/wesl-test/",
 ]
 ignore-hidden = false
 
@@ -22,11 +22,11 @@ typ = "typ"
 [default]
 locale = "en-us"
 extend-ignore-re = [
-  "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",
-  "(?Rm)^.*<!--\\s*spellchecker:disable-line\\s*-->$",
-  # consider raw strings to have correct contents
-  "r\"[^\"]*\"",
-  # consider naga_oil function names to be correct  
-  "_mod_[\\dA-Z]+\\b",
+    "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",
+    "(?Rm)^.*<!--\\s*spellchecker:disable-line\\s*-->$",
+    # consider raw strings to have correct contents
+    "r\"[^\"]*\"",
+    # consider naga_oil function names to be correct  
+    "_mod_[\\dA-Z]+\\b",
 ]
 extend-ignore-identifiers-re = []
