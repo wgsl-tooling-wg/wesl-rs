@@ -16,7 +16,6 @@ ignore-hidden = false
 
 # Match Inside a Word - Case Insensitive
 [default.extend-words]
-buitin = "buitin"
 
 [default]
 locale = "en-us"
