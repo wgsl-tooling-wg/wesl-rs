@@ -179,7 +179,7 @@ impl Display for Declaration {
         write!(f, "{}", fmt_attrs(&self.attributes, false))?;
         let kind = &self.kind;
         let name = &self.ident;
-        let typ = self
+        let ty = self
             .ty
             .iter()
             .format_with("", |ty, f| f(&format_args!(": {}", ty)));
@@ -187,7 +187,7 @@ impl Display for Declaration {
             .initializer
             .iter()
             .format_with("", |ty, f| f(&format_args!(" = {}", ty)));
-        write!(f, "{kind} {name}{typ}{init};")
+        write!(f, "{kind} {name}{ty}{init};")
     }
 }
 
@@ -236,8 +236,8 @@ impl Display for TypeAlias {
         #[cfg(feature = "attributes")]
         write!(f, "{}", fmt_attrs(&self.attributes, false))?;
         let name = &self.ident;
-        let typ = &self.ty;
-        write!(f, "alias {name} = {typ};")
+        let ty = &self.ty;
+        write!(f, "alias {name} = {ty};")
     }
 }
 
@@ -255,8 +255,8 @@ impl Display for StructMember {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", fmt_attrs(&self.attributes, false))?;
         let name = &self.ident;
-        let typ = &self.ty;
-        write!(f, "{name}: {typ}")
+        let ty = &self.ty;
+        write!(f, "{name}: {ty}")
     }
 }
 
@@ -282,8 +282,8 @@ impl Display for FormalParameter {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", fmt_attrs(&self.attributes, true))?;
         let name = &self.ident;
-        let typ = &self.ty;
-        write!(f, "{name}: {typ}")
+        let ty = &self.ty;
+        write!(f, "{name}: {ty}")
     }
 }
 
