@@ -1,6 +1,6 @@
 # Contributing to wesl-rs
 
-Thank you for your interest in contributing to Rust!
+Thank you for your interest in contributing to WESL!
 There are many ways to contribute and we appreciate all of them.
 
 The best way to get started is by asking for help in the [**# help-questions** channel on our discord](https://discord.gg/avHreKxJbe).
