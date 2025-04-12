@@ -288,7 +288,11 @@ fn eval_if_attrs(nodes: &mut Vec<impl Decorated>, features: &Features) -> Result
         !prev.removed // keep the node if attr is unresolved or true.
     });
 
-    if let Some(e) = err { Err(e) } else { Ok(prev) }
+    if let Some(e) = err {
+        Err(e)
+    } else {
+        Ok(prev)
+    }
 }
 
 fn stmt_eval_if_attrs(statements: &mut Vec<StatementNode>, features: &Features) -> Result<(), E> {

@@ -91,7 +91,11 @@ enum Expectation {
 
 impl From<bool> for Expectation {
     fn from(value: bool) -> Self {
-        if value { Self::Pass } else { Self::Fail }
+        if value {
+            Self::Pass
+        } else {
+            Self::Fail
+        }
     }
 }
 
@@ -259,7 +263,11 @@ impl fmt::Display for ParsingTest {
 
 #[datatest::data("wesl-testsuite/src/test-cases-json/importSyntaxCases.json")]
 fn wesl_testsuite_import_syntax_cases(case: ParsingTest) {
-    let expects = if case.fails { "Fail" } else { "Pass" };
+    let expects = if case.fails {
+        "Fail"
+    } else {
+        "Pass"
+    };
     println!("case `{}`: expect {expects}", normalize_wgsl(&case.src));
 
     let parse = wgsl_parse::parse_str(&case.src);

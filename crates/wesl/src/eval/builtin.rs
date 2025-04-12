@@ -2755,7 +2755,11 @@ fn call_sign(e: &Instance) -> Result<Instance, E> {
                 n.signum()
             })),
             LiteralInstance::I32(n) => Ok(LiteralInstance::from(n.signum())),
-            LiteralInstance::U32(n) => Ok(LiteralInstance::from(if n.is_zero() { *n } else { 1 })),
+            LiteralInstance::U32(n) => Ok(LiteralInstance::from(if n.is_zero() {
+                *n
+            } else {
+                1
+            })),
             LiteralInstance::F32(n) => Ok(LiteralInstance::from(if n.is_zero() {
                 *n
             } else {
@@ -2805,7 +2809,11 @@ fn call_step(edge: &Instance, x: &Instance) -> Result<Instance, E> {
                     .convert_to(&Type::AbstractFloat)
                     .ok_or(E::Conversion(Type::AbstractInt, Type::AbstractFloat))?
                     .unwrap_abstract_float();
-                Ok(LiteralInstance::from(if edge <= x { 1.0 } else { 0.0 }))
+                Ok(LiteralInstance::from(if edge <= x {
+                    1.0
+                } else {
+                    0.0
+                }))
             }
             LiteralInstance::AbstractFloat(edge) => Ok(LiteralInstance::from(
                 if *edge <= x.unwrap_abstract_float() {
