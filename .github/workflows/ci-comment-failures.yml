@@ -1,8 +1,9 @@
-name:
-  Continuous integration - PR Comments
+name: Continuous integration - PR Comments
 
-  # This workflow has write permissions on the repo
-  # It must not checkout a PR and run untrusted code
+# Based on https://github.com/bevyengine/bevy/blob/main/.github/workflows/ci-comment-failures.yml
+
+# This workflow has write permissions on the repo
+# It must not checkout a PR and run untrusted code
 
 # Also requesting write permissions on PR to be able to comment
 permissions:

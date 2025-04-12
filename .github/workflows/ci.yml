@@ -1,5 +1,7 @@
 name: Continuous integration
 
+# Based on and adapted from https://github.com/bevyengine/bevy/blob/main/.github/workflows/ci.yml
+
 on:
   pull_request:
   merge_group:

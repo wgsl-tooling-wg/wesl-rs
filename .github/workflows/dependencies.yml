@@ -1,14 +1,16 @@
 name: Dependencies
 
+# Based on https://github.com/bevyengine/bevy/blob/main/.github/workflows/dependencies.yml
+
 on:
   pull_request:
     paths:
-      - '**/Cargo.toml'
-      - 'deny.toml'
+      - "**/Cargo.toml"
+      - "deny.toml"
   push:
     paths:
-      - '**/Cargo.toml'
-      - 'deny.toml'
+      - "**/Cargo.toml"
+      - "deny.toml"
     branches:
       - main
 
