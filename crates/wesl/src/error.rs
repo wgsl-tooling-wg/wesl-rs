@@ -46,6 +46,11 @@ pub enum Error {
 #[derive(Clone, Debug)]
 pub struct Diagnostic<E: std::error::Error> {
     pub error: Box<E>,
+    pub detail: Box<Detail>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Detail {
     pub source: Option<String>,
     pub output: Option<String>,
     pub module_path: Option<ModulePath>,
@@ -58,7 +63,7 @@ impl From<wgsl_parse::Error> for Diagnostic<Error> {
     fn from(error: wgsl_parse::Error) -> Self {
         let span = error.span;
         let mut res = Self::new(Error::ParseError(error));
-        res.span = Some(span);
+        res.detail.span = Some(span);
         res
     }
 }
@@ -131,77 +136,79 @@ impl<E: std::error::Error> Diagnostic<E> {
     fn new(error: E) -> Diagnostic<E> {
         Self {
             error: Box::new(error),
-            source: None,
-            output: None,
-            module_path: None,
-            display_name: None,
-            declaration: None,
-            span: None,
+            detail: Box::new(Detail {
+                source: None,
+                output: None,
+                module_path: None,
+                display_name: None,
+                declaration: None,
+                span: None,
+            }),
         }
     }
     /// Provide the source code from which the error was emitted.
     /// You should also provide the span with [`Self::with_span`].
     pub fn with_source(mut self, source: String) -> Self {
-        self.source = Some(source);
+        self.detail.source = Some(source);
         self
     }
     /// Provide the span (chunk of source code) where the error originated.
     /// You should also provide the source with [`Self::with_source`].
     /// Subsequent calls to this function do not override the span.
     pub fn with_span(mut self, span: Span) -> Self {
-        if self.span.is_none() {
-            self.span = Some(span);
+        if self.detail.span.is_none() {
+            self.detail.span = Some(span);
         }
         self
     }
     /// Provide the declaration in which the error originated.
     pub fn with_declaration(mut self, decl: String) -> Self {
-        self.declaration = Some(decl);
+        self.detail.declaration = Some(decl);
         self
     }
     /// Provide the output code that was generated, even if an error was emitted.
     pub fn with_output(mut self, out: String) -> Self {
-        self.output = Some(out);
+        self.detail.output = Some(out);
         self
     }
     /// Provide the module path in which the error was emitted. The `disp_name` is
     /// usually the file name of the module.
     pub fn with_module_path(mut self, path: ModulePath, disp_name: Option<String>) -> Self {
-        self.module_path = Some(path);
-        self.display_name = disp_name;
+        self.detail.module_path = Some(path);
+        self.detail.display_name = disp_name;
         self
     }
     /// Add metadata collected by the evaluation/execution context.
     #[cfg(feature = "eval")]
     pub fn with_ctx(mut self, ctx: &Context) -> Self {
         let (decl, span) = ctx.err_ctx();
-        self.declaration = decl.map(|id| id.to_string());
-        self.span = span;
+        self.detail.declaration = decl.map(|id| id.to_string());
+        self.detail.span = span;
         self
     }
 
     /// Add metadata collected by the sourcemap. If the mangled declaration name was set,
     /// this will automatically add the source, the module path and the declaration name.
     pub fn with_sourcemap(mut self, sourcemap: &impl SourceMap) -> Self {
-        if let Some(decl) = &self.declaration {
+        if let Some(decl) = &self.detail.declaration {
             if let Some((path, decl)) = sourcemap.get_decl(decl) {
-                self.module_path = Some(path.clone());
-                self.declaration = Some(decl.to_string());
-                self.display_name = sourcemap
+                self.detail.module_path = Some(path.clone());
+                self.detail.declaration = Some(decl.to_string());
+                self.detail.display_name = sourcemap
                     .get_display_name(path)
                     .map(|name| name.to_string());
-                self.source = sourcemap
+                self.detail.source = sourcemap
                     .get_source(path)
                     .map(|s| s.to_string())
-                    .or(self.source);
+                    .or(self.detail.source);
             }
         }
 
-        if self.source.is_none() {
-            if let Some(path) = &self.module_path {
-                self.source = sourcemap.get_source(path).map(|s| s.to_string());
+        if self.detail.source.is_none() {
+            if let Some(path) = &self.detail.module_path {
+                self.detail.source = sourcemap.get_source(path).map(|s| s.to_string());
             } else {
-                self.source = sourcemap.get_default_source().map(|s| s.to_string());
+                self.detail.source = sourcemap.get_default_source().map(|s| s.to_string());
             }
         }
 
@@ -209,7 +216,7 @@ impl<E: std::error::Error> Diagnostic<E> {
     }
 
     pub(crate) fn display_origin(&self) -> String {
-        match (&self.module_path, &self.display_name) {
+        match (&self.detail.module_path, &self.detail.display_name) {
             (Some(res), Some(name)) => {
                 format!("{res} ({name})")
             }
@@ -220,9 +227,10 @@ impl<E: std::error::Error> Diagnostic<E> {
     }
 
     pub(crate) fn display_short_origin(&self) -> Option<String> {
-        self.display_name
+        self.detail
+            .display_name
             .clone()
-            .or_else(|| self.module_path.as_ref().map(|res| res.to_string()))
+            .or_else(|| self.detail.module_path.as_ref().map(|res| res.to_string()))
     }
 }
 
@@ -473,8 +481,8 @@ impl<E: std::error::Error> Display for Diagnostic<E> {
         let orig = self.display_origin();
         let short_orig = self.display_short_origin();
 
-        if let Some(span) = &self.span {
-            let source = self.source.as_deref();
+        if let Some(span) = &self.detail.span {
+            let source = self.detail.source.as_deref();
 
             if let Some(source) = source {
                 if span.range().end <= source.len() {
@@ -497,7 +505,7 @@ impl<E: std::error::Error> Display for Diagnostic<E> {
         }
 
         let note;
-        if let Some(decl) = &self.declaration {
+        if let Some(decl) = &self.detail.declaration {
             note = format!("in declaration of `{decl}` in {orig}");
         } else {
             note = format!("in {orig}");

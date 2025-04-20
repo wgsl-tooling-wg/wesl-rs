@@ -65,7 +65,7 @@ fn check_defined_symbols(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>
         let decl_name = decl.ident().map(|ident| ident.name().to_string());
         for expr in Visit::<ExpressionNode>::visit(decl) {
             check_expr(expr).map_err(|mut d| {
-                d.declaration = decl_name.clone();
+                d.detail.declaration = decl_name.clone();
                 d
             })?;
         }
@@ -79,7 +79,7 @@ fn check_defined_symbols(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>
             GlobalDeclaration::Function.{ parameters.[].ty, return_type.[] }
         }) {
             check_ty(ty).map_err(|mut d| {
-                d.declaration = decl_name.clone();
+                d.detail.declaration = decl_name.clone();
                 d
             })?;
         }
@@ -148,8 +148,8 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
         for expr in Visit::<ExpressionNode>::visit(decl.node()) {
             check_expr(expr, wesl).map_err(|e| {
                 let mut err = Diagnostic::from(e);
-                err.span = Some(expr.span());
-                err.declaration = decl.ident().map(|id| id.name().to_string());
+                err.detail.span = Some(expr.span());
+                err.detail.declaration = decl.ident().map(|id| id.name().to_string());
                 err
             })?;
         }
@@ -247,7 +247,7 @@ fn check_reserved_words(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
 
     for decl in &wesl.global_declarations {
         check_decl(decl).map_err(|mut d| {
-            d.declaration = decl.ident().map(Ident::to_string);
+            d.detail.declaration = decl.ident().map(Ident::to_string);
             d
         })?;
     }

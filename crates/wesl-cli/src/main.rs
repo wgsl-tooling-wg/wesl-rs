@@ -388,7 +388,7 @@ enum CliError {
     NagaParse(naga::front::wgsl::ParseError, String),
     #[cfg(feature = "naga")]
     #[error("naga validation error: {}", .0.emit_to_string(.1))]
-    NagaValid(naga::WithSpan<naga::valid::ValidationError>, String),
+    NagaValid(Box<naga::WithSpan<naga::valid::ValidationError>>, String),
 }
 
 enum FileOrSource {
@@ -543,7 +543,7 @@ fn naga_validate(source: &str) -> Result<(), CliError> {
     );
     validator
         .validate(&module)
-        .map_err(|e| CliError::NagaValid(e, source.to_string()))?;
+        .map_err(|e| CliError::NagaValid(Box::new(e), source.to_string()))?;
     Ok(())
 }
 

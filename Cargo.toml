@@ -28,7 +28,5 @@ wgsl-parse = { path = "crates/wgsl-parse", version = "0.1.2" }
 [workspace.lints.rust]
 
 [workspace.lints.clippy]
-result_large_err = "allow" # TODO
-
 # TODO: change eventually
 mutable_key_type = "allow"

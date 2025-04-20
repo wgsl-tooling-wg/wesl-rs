@@ -303,13 +303,13 @@ fn wesl_err_to_diagnostic(e: wesl::Error, source: Option<String>) -> Error {
     log::debug!("[WESL] error: {e:?}");
     let d = wesl::Diagnostic::from(e);
     Error {
-        source: source.or_else(|| d.output.clone()),
+        source: source.or_else(|| d.detail.output.clone()),
         #[cfg(feature = "ansi-to-html")]
         message: ansi_to_html::convert(&d.to_string()).unwrap(),
         #[cfg(not(feature = "ansi-to-html"))]
         message: d.to_string(),
         diagnostics: {
-            if let (Some(span), Some(res)) = (&d.span, &d.module_path) {
+            if let (Some(span), Some(res)) = (&d.detail.span, &d.detail.module_path) {
                 vec![Diagnostic {
                     file: res.components.join("/"),
                     span: span.start as u32..span.end as u32,
