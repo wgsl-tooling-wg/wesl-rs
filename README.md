@@ -5,57 +5,54 @@
 
 [crates-io]: https://crates.io/crates/wesl
 [docs-rs]: https://docs.rs/wesl/
+[wesl]: https://wesl-lang.dev/
+[spec]: https://github.com/wgsl-tooling-wg/wesl-spec
+[discord]: https://discord.gg/Ng5FWmHuSv
 
-***A work in progress!***
-
-This project implements the necessary tools to build complex shaders, like what [naga_oil](https://github.com/bevyengine/naga_oil) does for [bevy](https://bevyengine.org/), but in a framework-agnostic way. At [wgsl-tooling-wg](https://github.com/wgsl-tooling-wg) we aim at standardizing a few language extensions to facilitate the work of engine developers and shader wizards.
-
-Current and planned extensions: *imports*, *conditional compilation*, *generics*, *modules*.
-
-## Usage
-
-This project can be used as a rust library or as a standalone CLI.
-
-### Using the CLI
-
-- Install `cargo install wesl-cli --git https://github.com/wgsl-tooling-wg/wesl-rs`
-- Compile a WESL shader `wesl compile <entrypoint.wgsl>`
-- Run eval() `wesl eval <entrypoint.wgsl> <expression to eval>`
-
-### Using the Crate
-
-Refer to the crate documentation on [docs.rs](https://docs.rs/wesl).
+`wesl-rs` implements the necessary tools to build complex WGSL shaders, like what [naga_oil](https://github.com/bevyengine/naga_oil) does for [Bevy](https://bevyengine.org/), but in a framework-agnostic way. Visit [wesl-lang.dev](https://wesl-lang.dev/) to learn more about WGSL shader tools and language extensions.
 
 ## Status
 
-update: 2025-01
+*update: 2025-04*
 
-We are working towards an [MVP](https://github.com/wgsl-tooling-wg/wesl-spec/issues/54) release planned for 2025 Q1. It includes imports, conditional compilation and packaging.
+* WESL recently released its first [M1 release](https://github.com/wgsl-tooling-wg/wesl-spec/issues/54). It includes imports, Conditional Compilation and Packaging.
+* Experimental support for WESL in Bevy was merged.
 
-**The crate [wgsl-parse](https://github.com/wgsl-tooling-wg/wesl-rs/tree/main/crates/wgsl-parse)** contains a WGSL-compliant syntax tree and parser, with optional syntax extensions from the [WESL specification](https://github.com/wgsl-tooling-wg/wesl-spec).
+Currently implemented:
+- [x] Imports & Modules
+- [x] Conditional Compilation
 
-**The crate [wesl](https://github.com/wgsl-tooling-wg/wesl-rs/tree/main/crates/wesl)** contains an implementation of the [WESL specification](https://github.com/wgsl-tooling-wg/wesl-spec), i.e. a compiler that takes WESL files and generates valid WGSL.
+Experimental:
+- [x] Cargo Packages
+- [x] Validation
+- [x] Compile-time Evaluation and Execution
+- [x] Polyfills
 
-- [x] ["conditional translation"](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md) 100%
-- [x] ["imports"](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md) 90%
-- [ ] ["packaging"](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Packaging.md) 80%
-- [ ] ["generics"](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Generics.md) 50%
-- [ ] ["modules"](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Generics.md) 50%
-- [ ] eval/exec: 70%
-- [ ] WESL validator: 10%
-- [ ] WGSL optimization / compatibility: 10%
+Probable future work:
+- [ ] Namespaces
+- [ ] Generics
 
-**This crate** contains a CLI to run the compiler and the parser.
+## Usage
 
-**See also:**
+Read the [WESL for rust tutorial](https://wesl-lang.dev/docs/Getting-Started-Rust).
 
-- The online playground, [wesl.thissma.fr](https://wesl.thissma.fr/) / [github.com/wesl-playground](https://github.com/k2d222/wesl-playground)
-- Nathalie Cuthbert's implementation, [mew](https://github.com/ncthbrt/mew)
-- Lee Mighdoll's implementation, [wgsl-linker](https://github.com/wgsl-tooling-wg/wesl-js)
+This project can be used as a rust library or as a standalone CLI, refer to the following crates documentation.
+
+[![crates.io](https://img.shields.io/crates/v/wesl)](https://crates.io/crates/wesl)
+[![docs.rs](https://img.shields.io/docsrs/wesl)](https://docs.rs/wesl)
+**The crate `wesl`** is a WGSL compiler that implements the [WESL specification][spec].
+
+[![crates.io](https://img.shields.io/crates/v/wesl)](https://crates.io/crates/wesl)
+[![docs.rs](https://img.shields.io/docsrs/wesl)](https://docs.rs/wesl)
+**The crate `wesl-cli`** is the command-line tool to run the compiler.
+
+[![crates.io](https://img.shields.io/crates/v/wgsl-parse)](https://crates.io/crates/wgsl-parse)
+[![docs.rs](https://img.shields.io/docsrs/wgsl-parse)](https://docs.rs/wgsl-parse)
+**The crate `wgsl-parse`** is a WGSL-compliant syntax tree and parser, with optional syntax extensions from the [WESL specification][spec].
 
 ## Contributing
 
-Contributions are welcome. Please join the [discord](https://discord.gg/Ng5FWmHuSv) server and introduce yourself first, or contact via [email](mailto:mathis.brossier@gmail.com).
+Contributions are welcome. Please join the [discord][discord] to get in touch with the community. Read [CONTRIBUTING.md][CONTRIBUTING.md] before submitting Pull Requests.
 
 ## License
 
