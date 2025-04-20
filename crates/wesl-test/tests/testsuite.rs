@@ -217,7 +217,7 @@ pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
     let mut case_wgsl = wesl::compile(&root_module, &resolver, &EscapeMangler, &compile_options)?;
 
     if let Some(expect_wgsl) = &case.underscore_wgsl {
-        let mut expect_wgsl = wgsl_parse::parse_str(&expect_wgsl)?;
+        let mut expect_wgsl = wgsl_parse::parse_str(expect_wgsl)?;
         sort_decls(&mut case_wgsl.syntax);
         sort_decls(&mut expect_wgsl);
         assert_eq!(case_wgsl.to_string(), expect_wgsl.to_string());
