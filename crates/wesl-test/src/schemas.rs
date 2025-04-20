@@ -23,6 +23,20 @@ pub struct WgslTestSrc {
     pub underscore_wgsl: Option<String>,
 }
 
+impl WgslTestSrc {
+    pub fn normalize(&mut self) {
+        self.wesl_src.values_mut().for_each(|src| {
+            *src = normalize_wgsl(src);
+        });
+        if let Some(expected_wgsl) = &self.expected_wgsl {
+            self.expected_wgsl = Some(normalize_wgsl(expected_wgsl))
+        }
+        if let Some(underscore_wgsl) = &self.underscore_wgsl {
+            self.underscore_wgsl = Some(normalize_wgsl(underscore_wgsl))
+        }
+    }
+}
+
 impl fmt::Display for WgslTestSrc {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
@@ -34,6 +48,12 @@ pub struct ParsingTest {
     pub src: String,
     #[serde(default)]
     pub fails: bool,
+}
+
+impl ParsingTest {
+    pub fn normalize(&mut self) {
+        self.src = normalize_wgsl(&self.src)
+    }
 }
 
 impl fmt::Display for ParsingTest {
