@@ -626,6 +626,8 @@ pub fn builtin_fn_type(
         }
         // texture
         // TODO check arguments for texture functions
+        // some of these are a bit more lenient. The goal here is just to get the
+        // valid return type which is needed for type inference.
         ("textureDimensions", None, [Type::Texture(t)] | [Type::Texture(t), _])
             if t.dimensions().is_d_1() =>
         {
@@ -649,6 +651,9 @@ pub fn builtin_fn_type(
         }
         ("textureGatherCompare", None, [Type::Texture(t), ..]) if t.is_depth() => {
             Ok(Some(Type::Vec(4, Type::F32.into())))
+        }
+        ("textureLoad", None, [Type::Texture(TextureType::DepthMultisampled2D), ..]) => {
+            Ok(Some(Type::F32))
         }
         ("textureLoad", None, [Type::Texture(t), ..]) if t.is_depth() => Ok(Some(Type::F32)),
         ("textureLoad", None, [Type::Texture(t), ..]) => {
