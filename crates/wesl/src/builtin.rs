@@ -685,6 +685,8 @@ pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
             ident!("workgroup"),
             ident!("uniform"),
             ident!("storage"),
+            #[cfg(feature = "naga_ext")]
+            ident!("push_constant"),
             // texel format (enumerant)
             ident!("rgba8unorm"),
             ident!("rgba8snorm"),

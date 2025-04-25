@@ -58,6 +58,8 @@ impl FromStr for AddressSpace {
             "workgroup" => Ok(Self::Workgroup),
             "uniform" => Ok(Self::Uniform),
             "storage" => Ok(Self::Storage(None)),
+            #[cfg(feature = "push_constant")]
+            "push_constant" => Ok(Self::PushConstant),
             // "WGSL predeclares an enumerant for each address space, except for the handle address space."
             // "handle" => Ok(Self::Handle),
             _ => Err(()),

@@ -55,5 +55,11 @@ condcomp = ["attributes"]
 # reference: https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md
 imports = []
 
+
+# allow naga/wgpu extensions.
+# listed here: https://github.com/gfx-rs/wgpu/issues/4410
+naga_ext = ["push_constant"]
+push_constant = []
+
 [lints]
 workspace = true

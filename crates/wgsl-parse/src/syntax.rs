@@ -219,6 +219,8 @@ pub enum AddressSpace {
     Uniform,
     Storage(Option<AccessMode>),
     Handle, // the handle address space cannot be spelled in WGSL.
+    #[cfg(feature = "push_constant")]
+    PushConstant,
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

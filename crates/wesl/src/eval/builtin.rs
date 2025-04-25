@@ -80,23 +80,23 @@ impl BuiltinIdent for Type {
 impl BuiltinIdent for TextureType {
     fn builtin_ident(&self) -> Option<&'static Ident> {
         builtin_ident(match self {
-            TextureType::Sampled1D(_) => "texture_1d",
-            TextureType::Sampled2D(_) => "texture_2d",
-            TextureType::Sampled2DArray(_) => "texture_2d_array",
-            TextureType::Sampled3D(_) => "texture_3d",
-            TextureType::SampledCube(_) => "texture_cube",
-            TextureType::SampledCubeArray(_) => "texture_cube_array",
-            TextureType::Multisampled2D(_) => "texture_multisampled_2d",
-            TextureType::DepthMultisampled2D => "texture_depth_multisampled_2d",
-            TextureType::External => "texture_external",
-            TextureType::Storage1D(_, _) => "texture_storage_1d",
-            TextureType::Storage2D(_, _) => "texture_storage_2d",
-            TextureType::Storage2DArray(_, _) => "texture_storage_2d_array",
-            TextureType::Storage3D(_, _) => "texture_storage_3d",
-            TextureType::Depth2D => "texture_depth_2d",
-            TextureType::Depth2DArray => "texture_depth_2d_array",
-            TextureType::DepthCube => "texture_depth_cube",
-            TextureType::DepthCubeArray => "texture_depth_cube_array",
+            Self::Sampled1D(_) => "texture_1d",
+            Self::Sampled2D(_) => "texture_2d",
+            Self::Sampled2DArray(_) => "texture_2d_array",
+            Self::Sampled3D(_) => "texture_3d",
+            Self::SampledCube(_) => "texture_cube",
+            Self::SampledCubeArray(_) => "texture_cube_array",
+            Self::Multisampled2D(_) => "texture_multisampled_2d",
+            Self::DepthMultisampled2D => "texture_depth_multisampled_2d",
+            Self::External => "texture_external",
+            Self::Storage1D(_, _) => "texture_storage_1d",
+            Self::Storage2D(_, _) => "texture_storage_2d",
+            Self::Storage2DArray(_, _) => "texture_storage_2d_array",
+            Self::Storage3D(_, _) => "texture_storage_3d",
+            Self::Depth2D => "texture_depth_2d",
+            Self::Depth2DArray => "texture_depth_2d_array",
+            Self::DepthCube => "texture_depth_cube",
+            Self::DepthCubeArray => "texture_depth_cube_array",
         })
     }
 }
@@ -113,9 +113,9 @@ impl BuiltinIdent for SamplerType {
 impl BuiltinIdent for SampledType {
     fn builtin_ident(&self) -> Option<&'static Ident> {
         match self {
-            SampledType::I32 => builtin_ident("i32"),
-            SampledType::U32 => builtin_ident("u32"),
-            SampledType::F32 => builtin_ident("f32"),
+            Self::I32 => builtin_ident("i32"),
+            Self::U32 => builtin_ident("u32"),
+            Self::F32 => builtin_ident("f32"),
         }
     }
 }
@@ -123,12 +123,14 @@ impl BuiltinIdent for SampledType {
 impl BuiltinIdent for AddressSpace {
     fn builtin_ident(&self) -> Option<&'static Ident> {
         match self {
-            AddressSpace::Function => builtin_ident("function"),
-            AddressSpace::Private => builtin_ident("private"),
-            AddressSpace::Workgroup => builtin_ident("workgroup"),
-            AddressSpace::Uniform => builtin_ident("uniform"),
-            AddressSpace::Storage(_) => builtin_ident("storage"),
-            AddressSpace::Handle => None,
+            Self::Function => builtin_ident("function"),
+            Self::Private => builtin_ident("private"),
+            Self::Workgroup => builtin_ident("workgroup"),
+            Self::Uniform => builtin_ident("uniform"),
+            Self::Storage(_) => builtin_ident("storage"),
+            Self::Handle => None,
+            #[cfg(feature = "naga_ext")]
+            Self::PushConstant => builtin_ident("push_constant"),
         }
     }
 }
@@ -136,9 +138,9 @@ impl BuiltinIdent for AddressSpace {
 impl BuiltinIdent for AccessMode {
     fn builtin_ident(&self) -> Option<&'static Ident> {
         match self {
-            AccessMode::Read => builtin_ident("read"),
-            AccessMode::Write => builtin_ident("write"),
-            AccessMode::ReadWrite => builtin_ident("read_write"),
+            Self::Read => builtin_ident("read"),
+            Self::Write => builtin_ident("write"),
+            Self::ReadWrite => builtin_ident("read_write"),
         }
     }
 }
@@ -1265,6 +1267,10 @@ impl PtrTemplate {
                     (AddressSpace::Storage(_), _) => unreachable!(),
                     (AddressSpace::Handle, _) => {
                         unreachable!("handle address space cannot be spelled")
+                    }
+                    #[cfg(feature = "naga_ext")]
+                    (AddressSpace::PushConstant, _) => {
+                        todo!("push_constant")
                     }
                 };
                 Ok(PtrTemplate { space, ty, access })

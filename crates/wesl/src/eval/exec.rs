@@ -802,6 +802,8 @@ impl Exec for Declaration {
                         }
                         AddressSpace::Workgroup => todo!("workgroup address space"),
                         AddressSpace::Handle => todo!("handle address space"),
+                        #[cfg(feature = "naga_ext")]
+                        AddressSpace::PushConstant => todo!("push_constant address space"),
                     }
                 }
             }

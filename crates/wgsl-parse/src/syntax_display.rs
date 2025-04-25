@@ -217,6 +217,8 @@ impl Display for AddressSpace {
                 None => write!(f, "storage"),
             },
             Self::Handle => write!(f, "handle"),
+            #[cfg(feature = "push_constant")]
+            Self::PushConstant => write!(f, "push_constant"),
         }
     }
 }
