@@ -440,6 +440,12 @@ impl Display for LiteralExpression {
             LiteralExpression::U32(num) => write!(f, "{num}u"),
             LiteralExpression::F32(num) => write!(f, "{num}f"),
             LiteralExpression::F16(num) => write!(f, "{num}h"),
+            #[cfg(feature = "naga_ext")]
+            LiteralExpression::I64(num) => write!(f, "{num}li"),
+            #[cfg(feature = "naga_ext")]
+            LiteralExpression::U64(num) => write!(f, "{num}lu"),
+            #[cfg(feature = "naga_ext")]
+            LiteralExpression::F64(num) => write!(f, "{num}lf"),
         }
     }
 }

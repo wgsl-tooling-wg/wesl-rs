@@ -153,6 +153,55 @@ fn parse_hex_f16(lex: &mut logos::Lexer<Token>) -> Option<f32> {
     lexical::parse_with_options::<f32, _, HEX_FORMAT>(str, &FLOAT_HEX_OPTIONS).ok()
 }
 
+#[cfg(feature = "naga_ext")]
+fn parse_dec_i64(lex: &mut logos::Lexer<Token>) -> Option<i64> {
+    let options = &lexical::parse_integer_options::STANDARD;
+    let str = lex.slice();
+    let str = &str[..str.len() - 2];
+    lexical::parse_with_options::<i64, _, DEC_FORMAT>(str, options).ok()
+}
+
+#[cfg(feature = "naga_ext")]
+fn parse_hex_i64(lex: &mut logos::Lexer<Token>) -> Option<i64> {
+    let options = &lexical::parse_integer_options::STANDARD;
+    let str = lex.slice();
+    let str = &str[..str.len() - 2];
+    lexical::parse_with_options::<i64, _, HEX_FORMAT>(str, options).ok()
+}
+
+#[cfg(feature = "naga_ext")]
+fn parse_dec_u64(lex: &mut logos::Lexer<Token>) -> Option<u64> {
+    let options = &lexical::parse_integer_options::STANDARD;
+    let str = lex.slice();
+    let str = &str[..str.len() - 2];
+    lexical::parse_with_options::<u64, _, DEC_FORMAT>(str, options).ok()
+}
+
+#[cfg(feature = "naga_ext")]
+fn parse_hex_u64(lex: &mut logos::Lexer<Token>) -> Option<u64> {
+    let options = &lexical::parse_integer_options::STANDARD;
+    let str = lex.slice();
+    let str = &str[..str.len() - 2];
+    lexical::parse_with_options::<u64, _, HEX_FORMAT>(str, options).ok()
+}
+
+#[cfg(feature = "naga_ext")]
+fn parse_dec_f64(lex: &mut logos::Lexer<Token>) -> Option<f64> {
+    let options = &lexical::parse_float_options::STANDARD;
+    let str = lex.slice();
+    let str = &str[..str.len() - 2];
+    lexical::parse_with_options::<f64, _, DEC_FORMAT>(str, options).ok()
+}
+
+#[cfg(feature = "naga_ext")]
+fn parse_hex_f64(lex: &mut logos::Lexer<Token>) -> Option<f64> {
+    let str = lex.slice();
+    // TODO
+    let options = &lexical::parse_float_options::STANDARD;
+    let str = &str[..str.len() - 2];
+    lexical::parse_with_options::<f64, _, HEX_FORMAT>(str, options).ok()
+}
+
 fn parse_block_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
     let mut depth = 1;
     while depth > 0 {
@@ -374,6 +423,23 @@ pub(crate) enum Token {
     #[regex(r#"0[xX]\.[\da-fA-F]+[pP][+-]?\d+h"#, parse_hex_f16)]
     #[regex(r#"0[xX][\da-fA-F]+[pP][+-]?\d+h"#, parse_hex_f16)]
     F16(f32),
+    #[cfg(feature = "naga_ext")]
+    #[regex(r#"(0|[1-9]\d*)li"#, parse_dec_i64)]
+    #[regex(r#"0[xX][\da-fA-F]+li"#, parse_hex_i64)]
+    // hex
+    I64(i64),
+    #[cfg(feature = "naga_ext")]
+    #[regex(r#"(0|[1-9]\d*)lu"#, parse_dec_u64)]
+    #[regex(r#"0[xX][\da-fA-F]+lu"#, parse_hex_u64)]
+    // hex
+    U64(u64),
+    #[cfg(feature = "naga_ext")]
+    #[regex(r#"(\d+\.\d*|\.\d+)([eE][+-]?\d+)?lf"#, parse_dec_f64)]
+    #[regex(r#"\d+([eE][+-]?\d+)?lf"#, parse_dec_f64)]
+    #[regex(r#"0[xX][\da-fA-F]+\.[\da-fA-F]*[pP][+-]?\d+lf"#, parse_hex_f64)]
+    #[regex(r#"0[xX]\.[\da-fA-F]+[pP][+-]?\d+lf"#, parse_hex_f64)]
+    #[regex(r#"0[xX][\da-fA-F]+[pP][+-]?\d+lf"#, parse_hex_f64)]
+    F64(f64),
     TemplateArgsStart,
     TemplateArgsEnd,
 
@@ -584,6 +650,12 @@ impl Display for Token {
             Token::U32(n) => write!(f, "{n}u"),
             Token::F32(n) => write!(f, "{n}f"),
             Token::F16(n) => write!(f, "{n}h"),
+            #[cfg(feature = "naga_ext")]
+            Token::I64(n) => write!(f, "{n}li"),
+            #[cfg(feature = "naga_ext")]
+            Token::U64(n) => write!(f, "{n}lu"),
+            #[cfg(feature = "naga_ext")]
+            Token::F64(n) => write!(f, "{n}lf"),
             Token::TemplateArgsStart => f.write_str("start of template"),
             Token::TemplateArgsEnd => f.write_str("end of template"),
             #[cfg(feature = "imports")]

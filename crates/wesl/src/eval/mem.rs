@@ -54,6 +54,24 @@ impl Instance {
                 .try_into()
                 .ok()
                 .map(|buf| LiteralInstance::F16(f16::from_le_bytes(buf)).into()),
+            #[cfg(feature = "naga_ext")]
+            Type::I64 => buf
+                .get(..8)?
+                .try_into()
+                .ok()
+                .map(|buf| LiteralInstance::I64(i64::from_le_bytes(buf)).into()),
+            #[cfg(feature = "naga_ext")]
+            Type::U64 => buf
+                .get(..8)?
+                .try_into()
+                .ok()
+                .map(|buf| LiteralInstance::U64(u64::from_le_bytes(buf)).into()),
+            #[cfg(feature = "naga_ext")]
+            Type::F64 => buf
+                .get(..8)?
+                .try_into()
+                .ok()
+                .map(|buf| LiteralInstance::F64(f64::from_le_bytes(buf)).into()),
             Type::Struct(s) => {
                 let decl = ctx.source.decl_struct(s)?;
                 let mut offset = 0;
@@ -166,6 +184,12 @@ impl HostShareable for LiteralInstance {
             LiteralInstance::U32(n) => Some(n.to_le_bytes().to_vec()),
             LiteralInstance::F32(n) => Some(n.to_le_bytes().to_vec()),
             LiteralInstance::F16(n) => Some(n.to_le_bytes().to_vec()),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(n) => Some(n.to_le_bytes().to_vec()),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(n) => Some(n.to_le_bytes().to_vec()),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(n) => Some(n.to_le_bytes().to_vec()),
         }
     }
 }
@@ -272,6 +296,12 @@ impl Type {
             Type::U32 => Some(4),
             Type::F32 => Some(4),
             Type::F16 => Some(2),
+            #[cfg(feature = "naga_ext")]
+            Type::I64 => Some(8),
+            #[cfg(feature = "naga_ext")]
+            Type::U64 => Some(8),
+            #[cfg(feature = "naga_ext")]
+            Type::F64 => Some(8),
             Type::Struct(s) => {
                 let decl = ctx.source.decl_struct(s)?;
                 let past_last_mem = decl
@@ -332,6 +362,12 @@ impl Type {
             Type::U32 => Some(4),
             Type::F32 => Some(4),
             Type::F16 => Some(2),
+            #[cfg(feature = "naga_ext")]
+            Type::I64 => Some(8),
+            #[cfg(feature = "naga_ext")]
+            Type::U64 => Some(8),
+            #[cfg(feature = "naga_ext")]
+            Type::F64 => Some(8),
             Type::Struct(s) => {
                 let decl = ctx.source.decl_struct(s)?;
                 decl.members

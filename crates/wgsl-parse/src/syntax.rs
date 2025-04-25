@@ -419,6 +419,15 @@ pub enum LiteralExpression {
     F32(f32),
     #[from(skip)]
     F16(f32),
+    #[cfg(feature = "naga_ext")]
+    #[from(skip)]
+    I64(i64),
+    #[cfg(feature = "naga_ext")]
+    #[from(skip)]
+    U64(u64),
+    #[cfg(feature = "naga_ext")]
+    #[from(skip)]
+    F64(f64),
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

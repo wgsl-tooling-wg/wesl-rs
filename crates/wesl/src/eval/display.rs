@@ -36,6 +36,12 @@ impl Display for LiteralInstance {
             LiteralInstance::U32(lit) => write!(f, "{lit}u"),
             LiteralInstance::F32(lit) => write!(f, "{lit}f"),
             LiteralInstance::F16(lit) => write!(f, "{lit}h"),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(lit) => write!(f, "{lit}li"),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(lit) => write!(f, "{lit}lu"),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(lit) => write!(f, "{lit}lf"),
         }
     }
 }
@@ -133,6 +139,12 @@ impl Display for Type {
             Type::U32 => write!(f, "u32"),
             Type::F32 => write!(f, "f32"),
             Type::F16 => write!(f, "f16"),
+            #[cfg(feature = "naga_ext")]
+            Type::I64 => write!(f, "i64"),
+            #[cfg(feature = "naga_ext")]
+            Type::U64 => write!(f, "u64"),
+            #[cfg(feature = "naga_ext")]
+            Type::F64 => write!(f, "f64"),
             Type::Struct(name) => write!(f, "{name}"),
             Type::Array(ty, Some(n)) => write!(f, "array<{ty}, {n}>"),
             Type::Array(ty, None) => write!(f, "array<{ty}>"),

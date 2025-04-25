@@ -116,6 +116,15 @@ pub enum LiteralInstance {
     U32(u32),
     F32(f32),
     F16(f16),
+    #[cfg(feature = "naga_ext")]
+    #[from(skip)]
+    I64(i64), // identity if representable
+    #[cfg(feature = "naga_ext")]
+    #[from(skip)]
+    U64(u64), // reinterpretation of bits
+    #[cfg(feature = "naga_ext")]
+    #[from(skip)]
+    F64(f64),
 }
 
 #[derive(Clone, Debug, PartialEq)]

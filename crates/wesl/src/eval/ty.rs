@@ -487,6 +487,12 @@ pub enum Type {
     U32,
     F32,
     F16,
+    #[cfg(feature = "naga_ext")]
+    I64,
+    #[cfg(feature = "naga_ext")]
+    U64,
+    #[cfg(feature = "naga_ext")]
+    F64,
     Struct(String),
     Array(Box<Type>, Option<usize>),
     Vec(u8, Box<Type>),
@@ -589,6 +595,12 @@ impl Ty for Type {
             Type::U32 => self.clone(),
             Type::F32 => self.clone(),
             Type::F16 => self.clone(),
+            #[cfg(feature = "naga_ext")]
+            Type::I64 => self.clone(),
+            #[cfg(feature = "naga_ext")]
+            Type::U64 => self.clone(),
+            #[cfg(feature = "naga_ext")]
+            Type::F64 => self.clone(),
             Type::Struct(_) => self.clone(),
             Type::Array(ty, _) => ty.ty(),
             Type::Vec(_, ty) => ty.ty(),
@@ -640,6 +652,12 @@ impl Ty for LiteralInstance {
             LiteralInstance::U32(_) => Type::U32,
             LiteralInstance::F32(_) => Type::F32,
             LiteralInstance::F16(_) => Type::F16,
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(_) => Type::I64,
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(_) => Type::U64,
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(_) => Type::F64,
         }
     }
 }
@@ -654,6 +672,12 @@ impl Ty for LiteralExpression {
             LiteralExpression::U32(_) => Type::U32,
             LiteralExpression::F32(_) => Type::F32,
             LiteralExpression::F16(_) => Type::F16,
+            #[cfg(feature = "naga_ext")]
+            LiteralExpression::I64(_) => Type::I64,
+            #[cfg(feature = "naga_ext")]
+            LiteralExpression::U64(_) => Type::U64,
+            #[cfg(feature = "naga_ext")]
+            LiteralExpression::F64(_) => Type::F64,
         }
     }
 }
