@@ -232,14 +232,19 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "quadSwapX",
     "quadSwapY",
     // : predeclared enumerants
+    // access mode (enumerant)
     "read",
     "write",
     "read_write",
+    // address space (enumerant)
     "function",
     "private",
     "workgroup",
     "uniform",
     "storage",
+    #[cfg(feature = "naga_ext")]
+    "push_constant",
+    // texel format (enumerant)
     "rgba8unorm",
     "rgba8snorm",
     "rgba8uint",
@@ -257,6 +262,54 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "rgba32sint",
     "rgba32float",
     "bgra8unorm",
+    #[cfg(feature = "naga_ext")]
+    "r8unorm",
+    #[cfg(feature = "naga_ext")]
+    "r8snorm",
+    #[cfg(feature = "naga_ext")]
+    "r8uint",
+    #[cfg(feature = "naga_ext")]
+    "r8sint",
+    #[cfg(feature = "naga_ext")]
+    "r16unorm",
+    #[cfg(feature = "naga_ext")]
+    "r16snorm",
+    #[cfg(feature = "naga_ext")]
+    "r16uint",
+    #[cfg(feature = "naga_ext")]
+    "r16sint",
+    #[cfg(feature = "naga_ext")]
+    "r16float",
+    #[cfg(feature = "naga_ext")]
+    "rg8unorm",
+    #[cfg(feature = "naga_ext")]
+    "rg8snorm",
+    #[cfg(feature = "naga_ext")]
+    "rg8uint",
+    #[cfg(feature = "naga_ext")]
+    "rg8sint",
+    #[cfg(feature = "naga_ext")]
+    "rg16unorm",
+    #[cfg(feature = "naga_ext")]
+    "rg16snorm",
+    #[cfg(feature = "naga_ext")]
+    "rg16uint",
+    #[cfg(feature = "naga_ext")]
+    "rg16sint",
+    #[cfg(feature = "naga_ext")]
+    "rg16float",
+    #[cfg(feature = "naga_ext")]
+    "rgb10a2uint",
+    #[cfg(feature = "naga_ext")]
+    "rgb10a2unorm",
+    #[cfg(feature = "naga_ext")]
+    "rg11b10float",
+    #[cfg(feature = "naga_ext")]
+    "r64uint",
+    #[cfg(feature = "naga_ext")]
+    "rgba16unorm",
+    #[cfg(feature = "naga_ext")]
+    "rgba16snorm",
 ];
 
 pub const BUILTIN_FUNCTIONS: &[&str] = &[
@@ -705,6 +758,54 @@ pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
             ident!("rgba32sint"),
             ident!("rgba32float"),
             ident!("bgra8unorm"),
+            #[cfg(feature = "naga_ext")]
+            ident!("r8unorm"),
+            #[cfg(feature = "naga_ext")]
+            ident!("r8snorm"),
+            #[cfg(feature = "naga_ext")]
+            ident!("r8uint"),
+            #[cfg(feature = "naga_ext")]
+            ident!("r8sint"),
+            #[cfg(feature = "naga_ext")]
+            ident!("r16unorm"),
+            #[cfg(feature = "naga_ext")]
+            ident!("r16snorm"),
+            #[cfg(feature = "naga_ext")]
+            ident!("r16uint"),
+            #[cfg(feature = "naga_ext")]
+            ident!("r16sint"),
+            #[cfg(feature = "naga_ext")]
+            ident!("r16float"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rg8unorm"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rg8snorm"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rg8uint"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rg8sint"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rg16unorm"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rg16snorm"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rg16uint"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rg16sint"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rg16float"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rgb10a2uint"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rgb10a2unorm"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rg11b10float"),
+            #[cfg(feature = "naga_ext")]
+            ident!("r64uint"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rgba16unorm"),
+            #[cfg(feature = "naga_ext")]
+            ident!("rgba16snorm"),
         ])
     });
     IDENTS.get(name)
