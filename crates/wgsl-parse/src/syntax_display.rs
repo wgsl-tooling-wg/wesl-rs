@@ -313,6 +313,10 @@ impl Display for BuiltinValue {
             Self::GlobalInvocationId => write!(f, "global_invocation_id"),
             Self::WorkgroupId => write!(f, "workgroup_id"),
             Self::NumWorkgroups => write!(f, "num_workgroups"),
+            #[cfg(feature = "naga_ext")]
+            Self::PrimitiveIndex => write!(f, "primitive_index"),
+            #[cfg(feature = "naga_ext")]
+            Self::ViewIndex => write!(f, "view_index"),
         }
     }
 }
@@ -335,6 +339,17 @@ impl Display for InterpolationSampling {
             Self::Sample => write!(f, "sample"),
             Self::First => write!(f, "first"),
             Self::Either => write!(f, "either"),
+        }
+    }
+}
+
+#[cfg(feature = "naga_ext")]
+impl Display for ConservativeDepth {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::GreaterEqual => write!(f, "Greater_equal"),
+            Self::LessEqual => write!(f, "less_equal"),
+            Self::Unchanged => write!(f, "unchanged"),
         }
     }
 }
@@ -378,6 +393,10 @@ impl Display for Attribute {
             Attribute::Else => write!(f, "@else"),
             #[cfg(feature = "generics")]
             Attribute::Type(e1) => write!(f, "@type({e1})"),
+            #[cfg(feature = "naga_ext")]
+            Attribute::EarlyDepthTest(None) => write!(f, "@early_depth_test"),
+            #[cfg(feature = "naga_ext")]
+            Attribute::EarlyDepthTest(Some(e1)) => write!(f, "@early_depth_test({e1})"),
             Attribute::Custom(custom) => {
                 let name = &custom.name;
                 let args = custom.arguments.iter().format_with("", |args, f| {

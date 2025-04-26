@@ -301,6 +301,10 @@ pub enum BuiltinValue {
     GlobalInvocationId,
     WorkgroupId,
     NumWorkgroups,
+    #[cfg(feature = "naga_ext")]
+    PrimitiveIndex,
+    #[cfg(feature = "naga_ext")]
+    ViewIndex,
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -378,7 +382,18 @@ pub enum Attribute {
     Else,
     #[cfg(feature = "generics")]
     Type(TypeConstraint),
+    #[cfg(feature = "naga_ext")]
+    EarlyDepthTest(Option<ConservativeDepth>),
     Custom(CustomAttribute),
+}
+
+#[cfg(feature = "naga_ext")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+pub enum ConservativeDepth {
+    GreaterEqual,
+    LessEqual,
+    Unchanged,
 }
 
 pub type AttributeNode = Spanned<Attribute>;

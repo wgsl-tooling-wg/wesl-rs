@@ -111,6 +111,10 @@ impl FromStr for BuiltinValue {
             "global_invocation_id" => Ok(Self::GlobalInvocationId),
             "workgroup_id" => Ok(Self::WorkgroupId),
             "num_workgroups" => Ok(Self::NumWorkgroups),
+            #[cfg(feature = "naga_ext")]
+            "primitive_index" => Ok(Self::PrimitiveIndex),
+            #[cfg(feature = "naga_ext")]
+            "view_index" => Ok(Self::ViewIndex),
             _ => Err(()),
         }
     }
@@ -139,6 +143,20 @@ impl FromStr for InterpolationSampling {
             "sample" => Ok(Self::Sample),
             "first" => Ok(Self::First),
             "either" => Ok(Self::Either),
+            _ => Err(()),
+        }
+    }
+}
+
+#[cfg(feature = "naga_ext")]
+impl FromStr for ConservativeDepth {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "greater_equal" => Ok(Self::GreaterEqual),
+            "less_equal" => Ok(Self::LessEqual),
+            "unchanged" => Ok(Self::Unchanged),
             _ => Err(()),
         }
     }
@@ -323,6 +341,30 @@ pub(crate) fn parse_attribute(
         },
         #[cfg(feature = "generics")]
         "type" => parse_attr_type(args).map(Attribute::Type),
+        #[cfg(feature = "naga_ext")]
+        "early_depth_test" => match args {
+            Some(args) => {
+                let mut it = args.into_iter();
+                match (it.next(), it.next()) {
+                    (Some(expr), None) => match ident(expr).and_then(|id| id.name().parse().ok()) {
+                        Some(c) => Ok(Attribute::EarlyDepthTest(Some(c))),
+                        _ => Err(E::Attribute(
+                            "early_depth_test",
+                            "the argument must be one of `greater_equal`, `less_equal`, `unchanged`",
+                        )),
+                    },
+                    (None, None) => Ok(Attribute::EarlyDepthTest(None)),
+                    _ => Err(E::Attribute(
+                        "early_depth_test",
+                        "expected 0 or 1 arguments",
+                    )),
+                }
+            }
+            _ => Err(E::Attribute(
+                "early_depth_test",
+                "expected 0 or 1 arguments",
+            )),
+        },
         _ => Ok(Attribute::Custom(CustomAttribute {
             name,
             arguments: args,
