@@ -78,8 +78,9 @@ impl Mangler for HashMangler {
     }
 }
 
-/// A mangler that replaces `::` with `_` and `_` with `__`.
-/// e.g. `foo::bar_baz item => foo_bar__baz_item`
+/// A mangler that replaces `::` with `_` and prefixes components with the number
+/// of `_` they contain.
+/// e.g. `foo::bar_baz item => foo__1bar_baz_item`
 ///
 /// This is WESL's default mangler.
 #[derive(Default, Clone, Debug)]
@@ -109,6 +110,7 @@ impl Mangler for EscapeMangler {
             .iter()
             .map(|comp| Self::escape_component(comp))
             .format("_");
+
         format!("{origin}{path}_{}", Self::escape_component(item))
     }
     fn unmangle(&self, mangled: &str) -> Option<(ModulePath, String)> {
@@ -116,22 +118,15 @@ impl Mangler for EscapeMangler {
         let mut origin = PathOrigin::Package;
         let mut components = Vec::new();
 
-        fn extract_count(part: &str) -> Option<usize> {
-            if !part.starts_with('_') {
-                return None;
-            }
-
-            let digits = part
-                .chars()
-                .skip(1)
-                .take_while(|c| c.is_ascii_digit())
-                .count();
+        fn extract_count(part: &str) -> Option<(usize, &str)> {
+            let digits = part.chars().take_while(|c| c.is_ascii_digit()).count();
 
             if digits == 0 {
                 return None;
             }
 
-            part[1..digits].parse().ok()
+            let count = part[..digits].parse().ok()?;
+            Some((count, &part[digits..]))
         }
 
         while let Some(part) = parts.next() {
@@ -147,9 +142,10 @@ impl Mangler for EscapeMangler {
                     }
                 }
                 "self" => origin = PathOrigin::Relative(0),
+                "" => {}
                 _ => {
-                    if let Some(n) = extract_count(part) {
-                        let part = std::iter::once(part)
+                    if let Some((n, rem)) = extract_count(part) {
+                        let part = std::iter::once(rem)
                             .chain((0..n).map(|_| parts.next().expect("invalid mangled string")))
                             .format("_")
                             .to_string();
