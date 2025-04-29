@@ -323,7 +323,8 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
     ) -> Result<(), E> {
         for (path, _) in module.imports.values() {
             if !resolutions.modules.contains_key(path) {
-                let source = resolver.resolve_module(path)?;
+                let mut source = resolver.resolve_module(path)?;
+                source.retarget_idents();
                 let module = resolutions.push_module(Module::new(source, path.clone())?);
                 resolve_module(&module.borrow(), resolutions, resolver)?;
             }
