@@ -36,7 +36,10 @@ type E = ValidateError;
 /// Note that this function could be simplified if we didn't care about the diagnostics metadata (declaration and expression)
 fn check_defined_symbols(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     fn check_ty(ty: &TypeExpression) -> Result<(), Diagnostic<Error>> {
-        if ty.ident.use_count() == 1 && !BUILTIN_NAMES.contains(&ty.ident.name().as_str()) {
+        if ty.path.is_none()
+            && ty.ident.use_count() == 1
+            && !BUILTIN_NAMES.contains(&ty.ident.name().as_str())
+        {
             Err(E::UndefinedSymbol(ty.ident.to_string()).into())
         } else {
             for arg in ty.template_args.iter().flatten() {
