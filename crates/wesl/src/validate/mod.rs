@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use wesl_macros::query;
+use wgsl_parse::Decorated;
 use wgsl_parse::syntax::{
     Expression, ExpressionNode, FunctionCall, GlobalDeclaration, Ident, Statement, StatementNode,
     TranslationUnit, TypeExpression,
@@ -163,6 +164,14 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
 fn check_duplicate_decl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     let mut unique = HashSet::new();
     for decl in &wesl.global_declarations {
+        if decl
+            .attributes()
+            .iter()
+            .any(|attr| attr.is_if() || attr.is_elif() || attr.is_else())
+        {
+            // we skip checking declarations that have conditional compilation flags.
+            continue;
+        }
         if let Some(id) = decl.ident() {
             if !unique.insert(id.to_string()) {
                 return Err(
@@ -267,6 +276,7 @@ fn check_reserved_words(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
 /// * Defined declarations: all identifiers refer to a user declaration, import or
 ///   built-in name.
 /// * Duplicate declarations: declarations in the same scope cannot have the same name.
+///   (except for unresolved conditional compilation)
 /// * Cyclic declarations: no cycles are allowed in declarations.
 pub fn validate_wesl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     check_reserved_words(wesl)?;

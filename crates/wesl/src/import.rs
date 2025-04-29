@@ -46,14 +46,15 @@ impl Module {
             .collect::<HashMap<_, _>>();
         let imports = flatten_imports(&source.imports, &path)?;
 
-        for id in idents.keys() {
-            if imports
-                .keys()
-                .any(|k| k.name().as_str() == id.name().as_str())
-            {
-                return Err(E::DuplicateSymbol(id.to_string()));
-            }
-        }
+        // TODO: this is not correct because of conditional compilation.
+        // for id in idents.keys() {
+        //     if imports
+        //         .keys()
+        //         .any(|k| k.name().as_str() == id.name().as_str())
+        //     {
+        //         return Err(E::DuplicateSymbol(id.to_string()));
+        //     }
+        // }
 
         Ok(Self {
             source,
@@ -349,12 +350,13 @@ pub(crate) fn flatten_imports(
         match content {
             ImportContent::Item(item) => {
                 let ident = item.rename.as_ref().unwrap_or(&item.ident).clone();
-                if res
-                    .keys()
-                    .any(|k| k.name().as_str() == ident.name().as_str())
-                {
-                    return Err(E::DuplicateSymbol(ident.to_string()));
-                }
+                // TODO: this is not correct because of conditional compilation.
+                // if res
+                //     .keys()
+                //     .any(|k| k.name().as_str() == ident.name().as_str())
+                // {
+                //     return Err(E::DuplicateSymbol(ident.to_string()));
+                // }
                 res.insert(ident, (path, item.ident.clone()));
             }
             ImportContent::Collection(coll) => {
