@@ -131,8 +131,9 @@ impl Module {
 
             let submodules = module.submodules.iter().map(|submod| {
                 let name = &submod.name;
+                let ident = format_ident!("{}", name);
                 quote! {
-                    #name,
+                    &#ident::Mod,
                 }
             });
 
