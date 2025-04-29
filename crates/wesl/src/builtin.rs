@@ -18,6 +18,14 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "texture_depth_multisampled_2d",
     "texture_external",
     "u32",
+    #[cfg(feature = "naga_ext")]
+    "i64",
+    #[cfg(feature = "naga_ext")]
+    "u64",
+    #[cfg(feature = "naga_ext")]
+    "f64",
+    #[cfg(feature = "naga_ext")]
+    "binding_array",
     // type-generators
     "array",
     "atomic",
@@ -319,6 +327,12 @@ pub const BUILTIN_FUNCTIONS: &[&str] = &[
     "f32",
     "i32",
     "u32",
+    #[cfg(feature = "naga_ext")]
+    "i64",
+    #[cfg(feature = "naga_ext")]
+    "u64",
+    #[cfg(feature = "naga_ext")]
+    "f64",
     // type-generators
     "array",
     "mat2x2",
