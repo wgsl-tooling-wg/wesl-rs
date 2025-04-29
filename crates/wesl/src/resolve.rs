@@ -382,7 +382,7 @@ impl Resolver for PkgResolver {
             {
                 let mut cur_mod = *pkg;
                 for comp in path.components.iter().skip(1) {
-                    if let Some(submod) = pkg.submodule(comp) {
+                    if let Some(submod) = cur_mod.submodule(comp) {
                         cur_mod = submod;
                     } else {
                         return Err(E::ModuleNotFound(

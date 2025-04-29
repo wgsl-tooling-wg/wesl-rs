@@ -146,7 +146,7 @@ impl Module {
             });
 
             let subquotes = module.submodules.iter().map(|submod| {
-                let ident = format_ident!("{}", module.name);
+                let ident = format_ident!("{}", submod.name);
                 let module = codegen_module(submod);
                 quote! {
                     pub mod #ident {
