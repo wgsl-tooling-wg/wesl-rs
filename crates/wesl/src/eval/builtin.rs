@@ -57,6 +57,8 @@ impl BuiltinIdent for Type {
             Type::F64 => builtin_ident("f64"),
             Type::Struct(_) => None,
             Type::Array(_, _) => builtin_ident("array"),
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(_, _) => builtin_ident("binding_array"),
             Type::Vec(n, _) => match n {
                 2 => builtin_ident("vec2"),
                 3 => builtin_ident("vec3"),
@@ -1039,6 +1041,8 @@ impl Instance {
             Type::Struct(name) => StructInstance::zero_value(name, ctx).map(Into::into),
             Type::Array(a_ty, Some(n)) => ArrayInstance::zero_value(*n, a_ty, ctx).map(Into::into),
             Type::Array(_, None) => Err(E::NotConstructible(ty.clone())),
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(_, _) => Err(E::NotConstructible(ty.clone())),
             Type::Vec(n, v_ty) => VecInstance::zero_value(*n, v_ty).map(Into::into),
             Type::Mat(c, r, m_ty) => MatInstance::zero_value(*c, *r, m_ty).map(Into::into),
             Type::Atomic(_) | Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => {

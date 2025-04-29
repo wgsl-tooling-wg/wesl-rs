@@ -495,6 +495,8 @@ pub enum Type {
     F64,
     Struct(String),
     Array(Box<Type>, Option<usize>),
+    #[cfg(feature = "naga_ext")]
+    BindingArray(Box<Type>, Option<usize>),
     Vec(u8, Box<Type>),
     Mat(u8, u8, Box<Type>),
     Atomic(Box<Type>),
@@ -603,6 +605,8 @@ impl Ty for Type {
             Type::F64 => self.clone(),
             Type::Struct(_) => self.clone(),
             Type::Array(ty, _) => ty.ty(),
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(ty, _) => ty.ty(),
             Type::Vec(_, ty) => ty.ty(),
             Type::Mat(_, _, ty) => ty.ty(),
             Type::Atomic(ty) => ty.ty(),

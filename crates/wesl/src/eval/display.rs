@@ -148,6 +148,10 @@ impl Display for Type {
             Type::Struct(name) => write!(f, "{name}"),
             Type::Array(ty, Some(n)) => write!(f, "array<{ty}, {n}>"),
             Type::Array(ty, None) => write!(f, "array<{ty}>"),
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(ty, Some(n)) => write!(f, "binding_array<{ty}, {n}>"),
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(ty, None) => write!(f, "binding_array<{ty}>"),
             Type::Vec(n, ty) => write!(f, "vec{n}<{ty}>"),
             Type::Mat(m, n, ty) => write!(f, "mat{m}x{n}<{ty}>"),
             Type::Atomic(ty) => write!(f, "atomic<{ty}>"),

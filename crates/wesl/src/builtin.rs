@@ -699,6 +699,8 @@ pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
             #[cfg(feature = "naga_ext")]
             ident!("f64"),
             ident!("array"),
+            #[cfg(feature = "naga_ext")]
+            ident!("binding_array"),
             ident!("atomic"),
             ident!("ptr"),
             ident!("vec2"),

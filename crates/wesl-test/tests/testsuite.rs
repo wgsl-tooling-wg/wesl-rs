@@ -262,7 +262,7 @@ pub fn bevy_parse_case(input: &str) -> Result<(), libtest_mimic::Failed> {
     struct UniversalResolver<'a> {
         root: ModulePath,
         input: &'a str,
-    };
+    }
     impl Resolver for UniversalResolver<'_> {
         fn resolve_source<'a>(
             &'a self,

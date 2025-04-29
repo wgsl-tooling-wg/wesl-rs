@@ -153,6 +153,28 @@ impl ToExpr for Type {
                 }]);
                 Ok(ty)
             }
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(inner_ty, Some(n)) => {
+                let mut ty = TypeExpression::new(ident.unwrap());
+                ty.template_args = Some(vec![
+                    TemplateArg {
+                        expression: inner_ty.to_expr(ctx)?.into(),
+                    },
+                    TemplateArg {
+                        expression: Expression::Literal(LiteralExpression::AbstractInt(*n as i64))
+                            .into(),
+                    },
+                ]);
+                Ok(ty)
+            }
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(inner_ty, None) => {
+                let mut ty = TypeExpression::new(ident.unwrap());
+                ty.template_args = Some(vec![TemplateArg {
+                    expression: inner_ty.to_expr(ctx)?.into(),
+                }]);
+                Ok(ty)
+            }
             Type::Vec(_, inner_ty) => {
                 let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![TemplateArg {

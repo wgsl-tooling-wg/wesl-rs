@@ -134,6 +134,8 @@ impl Instance {
                     .collect::<Option<_>>()?;
                 Some(ArrayInstance::new(comps, true).into())
             }
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(_, _) => None,
             Type::Vec(n, ty) => {
                 let mut offset = 0;
                 let size = ty.size_of(ctx)?;
@@ -333,6 +335,8 @@ impl Type {
                 Some(*n as u32 * round_up(align, size))
             }
             Type::Array(_, None) => None,
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(_, _) => None,
             Type::Vec(n, ty) => {
                 let size = ty.size_of(ctx)?;
                 Some(*n as u32 * size)
@@ -382,6 +386,8 @@ impl Type {
                     .try_fold(0, |a, b| Some(a.max(b?)))
             }
             Type::Array(ty, _) => ty.align_of(ctx),
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(_, _) => None,
             Type::Vec(n, ty) => {
                 if *n == 3 {
                     match **ty {
