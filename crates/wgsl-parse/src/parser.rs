@@ -17,12 +17,14 @@ lalrpop_mod!(
     wgsl_recognize
 );
 
+pub use wgsl::*;
+
 /// Parse a string into a syntax tree ([`TranslationUnit`]).
 ///
 /// Identical to [`TranslationUnit::from_str`].
 pub fn parse_str(source: &str) -> Result<TranslationUnit, Error> {
     let lexer = Lexer::new(source);
-    let parser = wgsl::TranslationUnitParser::new();
+    let parser = TranslationUnitParser::new();
     parser.parse(lexer).map_err(Into::into)
 }
 
@@ -36,7 +38,7 @@ pub fn recognize_str(source: &str) -> Result<(), Error> {
 }
 
 pub(crate) fn recognize_template_list(lexer: &mut Lexer) -> Result<(), Error> {
-    let parser = wgsl::TryTemplateListParser::new();
+    let parser = TryTemplateListParser::new();
     parser.parse(lexer).map(|_| ()).map_err(Into::into)
 }
 
@@ -45,7 +47,7 @@ impl FromStr for TranslationUnit {
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
         let lexer = Lexer::new(source);
-        let parser = wgsl::TranslationUnitParser::new();
+        let parser = TranslationUnitParser::new();
         parser.parse(lexer).map_err(Into::into)
     }
 }
@@ -54,7 +56,7 @@ impl FromStr for GlobalDirective {
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
         let lexer = Lexer::new(source);
-        let parser = wgsl::GlobalDirectiveParser::new();
+        let parser = GlobalDirectiveParser::new();
         parser.parse(lexer).map_err(Into::into)
     }
 }
@@ -63,7 +65,7 @@ impl FromStr for GlobalDeclaration {
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
         let lexer = Lexer::new(source);
-        let parser = wgsl::GlobalDeclParser::new();
+        let parser = GlobalDeclParser::new();
         parser.parse(lexer).map_err(Into::into)
     }
 }
@@ -72,7 +74,7 @@ impl FromStr for Statement {
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
         let lexer = Lexer::new(source);
-        let parser = wgsl::StatementParser::new();
+        let parser = StatementParser::new();
         parser.parse(lexer).map_err(Into::into)
     }
 }
@@ -81,7 +83,7 @@ impl FromStr for Expression {
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
         let lexer = Lexer::new(source);
-        let parser = wgsl::ExpressionParser::new();
+        let parser = ExpressionParser::new();
         parser.parse(lexer).map_err(Into::into)
     }
 }
@@ -91,7 +93,7 @@ impl FromStr for crate::syntax::ImportStatement {
 
     fn from_str(source: &str) -> Result<Self, Self::Err> {
         let lexer = Lexer::new(source);
-        let parser = wgsl::ImportStatementParser::new();
+        let parser = ImportStatementParser::new();
         parser.parse(lexer).map_err(Into::into)
     }
 }

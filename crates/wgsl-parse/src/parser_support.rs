@@ -5,12 +5,12 @@ use std::str::FromStr;
 use itertools::Itertools;
 
 use crate::{
-    error::CustomLalrError,
+    error::ParseError,
     span::{Span, Spanned},
     syntax::*,
 };
 
-type E = CustomLalrError;
+type E = ParseError;
 
 pub(crate) enum Component {
     Named(Ident),
