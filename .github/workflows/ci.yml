@@ -87,31 +87,32 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -Dwarnings
 
-  miri:
-    # Explicitly use macOS 14 to take advantage of M1 chip.
-    runs-on: macos-14
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: "true"
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-miri-${{ hashFiles('**/Cargo.toml') }}
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ env.NIGHTLY_TOOLCHAIN }}
-          components: miri
-      - name: CI job
-        run: cargo miri test
-        env:
-          RUSTFLAGS: -Zrandomize-layout
+  # COMBAK: we disable miri for now because it hangs indefinitely. issue #73
+  # miri:
+  #   # Explicitly use macOS 14 to take advantage of M1 chip.
+  #   runs-on: macos-14
+  #   timeout-minutes: 10
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         submodules: "true"
+  #     - uses: actions/cache@v4
+  #       with:
+  #         path: |
+  #           ~/.cargo/bin/
+  #           ~/.cargo/registry/index/
+  #           ~/.cargo/registry/cache/
+  #           ~/.cargo/git/db/
+  #           target/
+  #         key: ${{ runner.os }}-cargo-miri-${{ hashFiles('**/Cargo.toml') }}
+  #     - uses: dtolnay/rust-toolchain@master
+  #       with:
+  #         toolchain: ${{ env.NIGHTLY_TOOLCHAIN }}
+  #         components: miri
+  #     - name: CI job
+  #       run: cargo miri test
+  #       env:
+  #         RUSTFLAGS: -Zrandomize-layout
 
   markdownlint:
     runs-on: ubuntu-latest
