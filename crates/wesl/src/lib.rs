@@ -266,6 +266,27 @@ impl Wesl<StandardResolver> {
         }
         self
     }
+
+    /// Add a const-declaration to the special `constants` module.
+    ///
+    /// See [`StandardResolver::add_constant`].
+    pub fn add_constant(&mut self, name: impl ToString, value: f64) -> &mut Self {
+        self.resolver.add_constant(name, value);
+        self
+    }
+
+    /// Add several const-declarations to the special `constants` module.
+    ///
+    /// See [`StandardResolver::add_constant`].
+    pub fn add_constants(
+        &mut self,
+        constants: impl IntoIterator<Item = (impl ToString, f64)>,
+    ) -> &mut Self {
+        for (name, value) in constants {
+            self.resolver.add_constant(name, value);
+        }
+        self
+    }
 }
 
 impl Wesl<NoResolver> {

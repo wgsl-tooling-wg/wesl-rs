@@ -411,6 +411,8 @@ impl Resolver for PkgResolver {
 pub struct StandardResolver {
     pkg: PkgResolver,
     files: FileResolver,
+    constant_path: ModulePath,
+    constants: HashMap<String, f64>,
 }
 
 impl StandardResolver {
@@ -421,6 +423,8 @@ impl StandardResolver {
         Self {
             pkg: PkgResolver::new(),
             files: FileResolver::new(base),
+            constant_path: ModulePath::new(PathOrigin::Package, vec!["constants".to_string()]),
+            constants: HashMap::new(),
         }
     }
 
@@ -428,21 +432,36 @@ impl StandardResolver {
     pub fn add_package(&mut self, pkg: &'static dyn PkgModule) {
         self.pkg.add_package(pkg)
     }
+
+    /// Add a numeric constant.
+    ///
+    /// Numeric constants live WESL's special package named `constants`. This package is
+    /// *virtual*, meaning it doesn't exist on the filesystem. Constants can be accessed
+    /// by importing them: `import constants::MY_CONSTANT;`. All constants are of type
+    /// AbstractFloat, which can be implicitly converted to all scalar types.
+    pub fn add_constant(&mut self, name: impl ToString, value: f64) {
+        self.constants.insert(name.to_string(), value);
+    }
+
+    fn generate_constant_module(&self) -> String {
+        self.constants
+            .iter()
+            .map(|(name, value)| format!("const {name} = {value};"))
+            .format("\n")
+            .to_string()
+    }
 }
 
 impl Resolver for StandardResolver {
     fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
         if path.origin.is_package() {
-            self.pkg.resolve_source(path)
+            if path.starts_with(&self.constant_path) {
+                Ok(self.generate_constant_module().into())
+            } else {
+                self.pkg.resolve_source(path)
+            }
         } else {
             self.files.resolve_source(path)
-        }
-    }
-    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
-        if path.origin.is_package() {
-            self.pkg.resolve_module(path)
-        } else {
-            self.files.resolve_module(path)
         }
     }
     fn display_name(&self, path: &ModulePath) -> Option<String> {
