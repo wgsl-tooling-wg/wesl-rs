@@ -247,6 +247,9 @@ fn eval_if_attr(
             } else if prev.removed {
                 remove_attr = true; // previous node was deleted, delete this attribute
             }
+        } else {
+            // we keep non-condcomp attributes
+            return true;
         }
 
         !remove_attr

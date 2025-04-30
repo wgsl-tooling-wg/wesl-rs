@@ -219,6 +219,8 @@ pub enum AddressSpace {
     Uniform,
     Storage(Option<AccessMode>),
     Handle, // the handle address space cannot be spelled in WGSL.
+    #[cfg(feature = "push_constant")]
+    PushConstant,
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -299,6 +301,10 @@ pub enum BuiltinValue {
     GlobalInvocationId,
     WorkgroupId,
     NumWorkgroups,
+    #[cfg(feature = "naga_ext")]
+    PrimitiveIndex,
+    #[cfg(feature = "naga_ext")]
+    ViewIndex,
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -376,7 +382,18 @@ pub enum Attribute {
     Else,
     #[cfg(feature = "generics")]
     Type(TypeConstraint),
+    #[cfg(feature = "naga_ext")]
+    EarlyDepthTest(Option<ConservativeDepth>),
     Custom(CustomAttribute),
+}
+
+#[cfg(feature = "naga_ext")]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+pub enum ConservativeDepth {
+    GreaterEqual,
+    LessEqual,
+    Unchanged,
 }
 
 pub type AttributeNode = Spanned<Attribute>;
@@ -417,6 +434,15 @@ pub enum LiteralExpression {
     F32(f32),
     #[from(skip)]
     F16(f32),
+    #[cfg(feature = "naga_ext")]
+    #[from(skip)]
+    I64(i64),
+    #[cfg(feature = "naga_ext")]
+    #[from(skip)]
+    U64(u64),
+    #[cfg(feature = "naga_ext")]
+    #[from(skip)]
+    F64(f64),
 }
 
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

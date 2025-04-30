@@ -84,6 +84,12 @@ impl LiteralInstance {
             LiteralInstance::U32(_) => false,
             LiteralInstance::F32(n) => n.is_infinite(),
             LiteralInstance::F16(n) => n.is_infinite(),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(_) => false,
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(_) => false,
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(n) => n.is_infinite(),
         }
     }
     fn is_finite(&self) -> bool {

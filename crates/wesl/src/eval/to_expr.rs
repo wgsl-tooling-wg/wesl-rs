@@ -40,6 +40,12 @@ impl ToExpr for LiteralInstance {
             LiteralInstance::U32(lit) => LiteralExpression::U32(*lit),
             LiteralInstance::F32(lit) => LiteralExpression::F32(*lit),
             LiteralInstance::F16(lit) => LiteralExpression::F16(lit.to_f32()),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(lit) => LiteralExpression::I64(*lit),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(lit) => LiteralExpression::U64(*lit),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(lit) => LiteralExpression::F64(*lit),
         }
         .into())
     }
@@ -114,6 +120,12 @@ impl ToExpr for Type {
             Type::U32 => Ok(TypeExpression::new(ident.unwrap())),
             Type::F32 => Ok(TypeExpression::new(ident.unwrap())),
             Type::F16 => Ok(TypeExpression::new(ident.unwrap())),
+            #[cfg(feature = "naga_ext")]
+            Type::I64 => Ok(TypeExpression::new(ident.unwrap())),
+            #[cfg(feature = "naga_ext")]
+            Type::U64 => Ok(TypeExpression::new(ident.unwrap())),
+            #[cfg(feature = "naga_ext")]
+            Type::F64 => Ok(TypeExpression::new(ident.unwrap())),
             Type::Struct(s) => {
                 let decl = ctx
                     .source
@@ -135,6 +147,28 @@ impl ToExpr for Type {
                 Ok(ty)
             }
             Type::Array(inner_ty, None) => {
+                let mut ty = TypeExpression::new(ident.unwrap());
+                ty.template_args = Some(vec![TemplateArg {
+                    expression: inner_ty.to_expr(ctx)?.into(),
+                }]);
+                Ok(ty)
+            }
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(inner_ty, Some(n)) => {
+                let mut ty = TypeExpression::new(ident.unwrap());
+                ty.template_args = Some(vec![
+                    TemplateArg {
+                        expression: inner_ty.to_expr(ctx)?.into(),
+                    },
+                    TemplateArg {
+                        expression: Expression::Literal(LiteralExpression::AbstractInt(*n as i64))
+                            .into(),
+                    },
+                ]);
+                Ok(ty)
+            }
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(inner_ty, None) => {
                 let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![TemplateArg {
                     expression: inner_ty.to_expr(ctx)?.into(),

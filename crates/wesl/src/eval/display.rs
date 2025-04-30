@@ -36,6 +36,12 @@ impl Display for LiteralInstance {
             LiteralInstance::U32(lit) => write!(f, "{lit}u"),
             LiteralInstance::F32(lit) => write!(f, "{lit}f"),
             LiteralInstance::F16(lit) => write!(f, "{lit}h"),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(lit) => write!(f, "{lit}li"),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(lit) => write!(f, "{lit}lu"),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(lit) => write!(f, "{lit}lf"),
         }
     }
 }
@@ -133,9 +139,19 @@ impl Display for Type {
             Type::U32 => write!(f, "u32"),
             Type::F32 => write!(f, "f32"),
             Type::F16 => write!(f, "f16"),
+            #[cfg(feature = "naga_ext")]
+            Type::I64 => write!(f, "i64"),
+            #[cfg(feature = "naga_ext")]
+            Type::U64 => write!(f, "u64"),
+            #[cfg(feature = "naga_ext")]
+            Type::F64 => write!(f, "f64"),
             Type::Struct(name) => write!(f, "{name}"),
             Type::Array(ty, Some(n)) => write!(f, "array<{ty}, {n}>"),
             Type::Array(ty, None) => write!(f, "array<{ty}>"),
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(ty, Some(n)) => write!(f, "binding_array<{ty}, {n}>"),
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(ty, None) => write!(f, "binding_array<{ty}>"),
             Type::Vec(n, ty) => write!(f, "vec{n}<{ty}>"),
             Type::Mat(m, n, ty) => write!(f, "mat{m}x{n}<{ty}>"),
             Type::Atomic(ty) => write!(f, "atomic<{ty}>"),
@@ -217,6 +233,54 @@ impl Display for TexelFormat {
             TexelFormat::Rgba32Sint => write!(f, "rgba32sint"),
             TexelFormat::Rgba32Float => write!(f, "rgba32float"),
             TexelFormat::Bgra8Unorm => write!(f, "bgra8unorm"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::R8Unorm => write!(f, "r8unorm"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::R8Snorm => write!(f, "r8snorm"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::R8Uint => write!(f, "r8uint"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::R8Sint => write!(f, "r8sint"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::R16Unorm => write!(f, "r16unorm"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::R16Snorm => write!(f, "r16snorm"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::R16Uint => write!(f, "r16uint"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::R16Sint => write!(f, "r16sint"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::R16Float => write!(f, "r16float"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rg8Unorm => write!(f, "rg8unorm"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rg8Snorm => write!(f, "rg8snorm"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rg8Uint => write!(f, "rg8uint"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rg8Sint => write!(f, "rg8sint"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rg16Unorm => write!(f, "rg16unorm"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rg16Snorm => write!(f, "rg16snorm"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rg16Uint => write!(f, "rg16uint"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rg16Sint => write!(f, "rg16sint"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rg16Float => write!(f, "rg16float"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rgb10a2Uint => write!(f, "rgb10a2uint"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rgb10a2Unorm => write!(f, "rgb10a2unorm"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rg11b10Float => write!(f, "rg11b10float"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::R64Uint => write!(f, "r64uint"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rgba16Unorm => write!(f, "rgba16unorm"),
+            #[cfg(feature = "naga_ext")]
+            TexelFormat::Rgba16Snorm => write!(f, "rgba16snorm"),
         }
     }
 }

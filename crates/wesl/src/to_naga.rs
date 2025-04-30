@@ -1,3 +1,5 @@
+// this file is unfinished.
+
 use std::ops::Deref;
 
 use derive_more::derive::{Deref, DerefMut};
@@ -5,11 +7,11 @@ use itertools::Itertools;
 use naga::{Arena, SpecialTypes, UniqueArena};
 use thiserror::Error;
 
-use wgsl_parse::{span::Span, syntax::*, Decorated};
+use wgsl_parse::{Decorated, span::Span, syntax::*};
 
 use crate::{
-    eval::{self, Context, EvalAttrs, EvalStage, EvalTy, SyntaxUtil, Type},
     EvalError, Exec,
+    eval::{self, Context, EvalAttrs, EvalStage, EvalTy, SyntaxUtil, Type},
 };
 
 #[derive(Clone, Debug, Error)]

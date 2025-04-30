@@ -15,6 +15,7 @@ It supports WESL language extensions guarded by feature flags.
 | attributes | extra attributes locations on statements       | [complete][condcomp]     |
 | condcomp   | `@if` attributes                               | [complete][condcomp]     |
 | generics   | `@type` attributes                             | [experimental][generics] |
+| naga_ext   | enable all Naga/WGPU extensions (experimental) | N/A                      |
 
 ## Parsing and Stringification
 

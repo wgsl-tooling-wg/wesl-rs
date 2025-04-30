@@ -6,7 +6,7 @@
 
 use std::ffi::OsStr;
 
-use wesl::{CompileOptions, EscapeMangler, NoMangler, VirtualResolver, syntax::*};
+use wesl::{CompileOptions, EscapeMangler, NoMangler, Resolver, VirtualResolver, syntax::*};
 use wesl_test::schemas::*;
 
 fn eprint_test(case: &Test) {
@@ -114,7 +114,21 @@ fn main() {
                 let name = format!("webgpu-samples::{:?}", e.file_name());
                 libtest_mimic::Trial::test(name, move || {
                     let case = std::fs::read_to_string(e.path()).expect("failed to read test file");
-                    parse_case(&case)
+                    validation_case(&case)
+                })
+            })
+    });
+
+    tests.extend({
+        let entries = std::fs::read_dir("bevy").expect("missing dir `bevy`");
+        entries
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension() == Some(OsStr::new("wgsl")))
+            .map(|e| {
+                let name = format!("bevy::{:?}", e.file_name());
+                libtest_mimic::Trial::test(name, move || {
+                    let case = std::fs::read_to_string(e.path()).expect("failed to read test file");
+                    bevy_parse_case(&case)
                 })
             })
     });
@@ -132,7 +146,7 @@ fn main() {
             libtest_mimic::Trial::test(name, move || {
                 let path = format!("unity_web_research/webgpu/wgsl/boat_attack/{}", file);
                 let case = std::fs::read_to_string(&path).expect("failed to read test file");
-                parse_case(&case)
+                validation_case(&case)
             })
         })
     });
@@ -226,7 +240,7 @@ pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
     Ok(())
 }
 
-pub fn parse_case(input: &str) -> Result<(), libtest_mimic::Failed> {
+pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
     let mut resolver = VirtualResolver::new();
     let root = ModulePath::from_path("/main");
     resolver.add_module(root.clone(), input.into());
@@ -234,12 +248,47 @@ pub fn parse_case(input: &str) -> Result<(), libtest_mimic::Failed> {
         imports: true,
         condcomp: true,
         generics: false,
-        strip: true,
+        strip: false,
         lower: true,
         validate: true,
         ..Default::default()
     };
     wesl::compile(&root, &resolver, &NoMangler, &options)?;
+    Ok(())
+}
+
+pub fn bevy_parse_case(input: &str) -> Result<(), libtest_mimic::Failed> {
+    // TODO this is temporary, eventually we want to resolve bevy internal shaders.
+    struct UniversalResolver<'a> {
+        root: ModulePath,
+        input: &'a str,
+    }
+    impl Resolver for UniversalResolver<'_> {
+        fn resolve_source<'a>(
+            &'a self,
+            path: &ModulePath,
+        ) -> Result<std::borrow::Cow<'a, str>, wesl::ResolveError> {
+            if path == &self.root {
+                Ok(self.input.into())
+            } else {
+                Ok("".into())
+            }
+        }
+    }
+    let resolver = UniversalResolver {
+        root: ModulePath::from_path("/main"),
+        input,
+    };
+    let options = CompileOptions {
+        imports: false,
+        condcomp: true,
+        generics: false,
+        strip: false,
+        lower: false,
+        validate: false,
+        ..Default::default()
+    };
+    wesl::compile(&resolver.root, &resolver, &NoMangler, &options)?;
     Ok(())
 }
 

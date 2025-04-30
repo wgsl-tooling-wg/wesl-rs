@@ -49,8 +49,16 @@ impl BuiltinIdent for Type {
             Type::U32 => builtin_ident("u32"),
             Type::F32 => builtin_ident("f32"),
             Type::F16 => builtin_ident("f16"),
+            #[cfg(feature = "naga_ext")]
+            Type::I64 => builtin_ident("i64"),
+            #[cfg(feature = "naga_ext")]
+            Type::U64 => builtin_ident("u64"),
+            #[cfg(feature = "naga_ext")]
+            Type::F64 => builtin_ident("f64"),
             Type::Struct(_) => None,
             Type::Array(_, _) => builtin_ident("array"),
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(_, _) => builtin_ident("binding_array"),
             Type::Vec(n, _) => match n {
                 2 => builtin_ident("vec2"),
                 3 => builtin_ident("vec3"),
@@ -80,23 +88,23 @@ impl BuiltinIdent for Type {
 impl BuiltinIdent for TextureType {
     fn builtin_ident(&self) -> Option<&'static Ident> {
         builtin_ident(match self {
-            TextureType::Sampled1D(_) => "texture_1d",
-            TextureType::Sampled2D(_) => "texture_2d",
-            TextureType::Sampled2DArray(_) => "texture_2d_array",
-            TextureType::Sampled3D(_) => "texture_3d",
-            TextureType::SampledCube(_) => "texture_cube",
-            TextureType::SampledCubeArray(_) => "texture_cube_array",
-            TextureType::Multisampled2D(_) => "texture_multisampled_2d",
-            TextureType::DepthMultisampled2D => "texture_depth_multisampled_2d",
-            TextureType::External => "texture_external",
-            TextureType::Storage1D(_, _) => "texture_storage_1d",
-            TextureType::Storage2D(_, _) => "texture_storage_2d",
-            TextureType::Storage2DArray(_, _) => "texture_storage_2d_array",
-            TextureType::Storage3D(_, _) => "texture_storage_3d",
-            TextureType::Depth2D => "texture_depth_2d",
-            TextureType::Depth2DArray => "texture_depth_2d_array",
-            TextureType::DepthCube => "texture_depth_cube",
-            TextureType::DepthCubeArray => "texture_depth_cube_array",
+            Self::Sampled1D(_) => "texture_1d",
+            Self::Sampled2D(_) => "texture_2d",
+            Self::Sampled2DArray(_) => "texture_2d_array",
+            Self::Sampled3D(_) => "texture_3d",
+            Self::SampledCube(_) => "texture_cube",
+            Self::SampledCubeArray(_) => "texture_cube_array",
+            Self::Multisampled2D(_) => "texture_multisampled_2d",
+            Self::DepthMultisampled2D => "texture_depth_multisampled_2d",
+            Self::External => "texture_external",
+            Self::Storage1D(_, _) => "texture_storage_1d",
+            Self::Storage2D(_, _) => "texture_storage_2d",
+            Self::Storage2DArray(_, _) => "texture_storage_2d_array",
+            Self::Storage3D(_, _) => "texture_storage_3d",
+            Self::Depth2D => "texture_depth_2d",
+            Self::Depth2DArray => "texture_depth_2d_array",
+            Self::DepthCube => "texture_depth_cube",
+            Self::DepthCubeArray => "texture_depth_cube_array",
         })
     }
 }
@@ -113,9 +121,9 @@ impl BuiltinIdent for SamplerType {
 impl BuiltinIdent for SampledType {
     fn builtin_ident(&self) -> Option<&'static Ident> {
         match self {
-            SampledType::I32 => builtin_ident("i32"),
-            SampledType::U32 => builtin_ident("u32"),
-            SampledType::F32 => builtin_ident("f32"),
+            Self::I32 => builtin_ident("i32"),
+            Self::U32 => builtin_ident("u32"),
+            Self::F32 => builtin_ident("f32"),
         }
     }
 }
@@ -123,12 +131,14 @@ impl BuiltinIdent for SampledType {
 impl BuiltinIdent for AddressSpace {
     fn builtin_ident(&self) -> Option<&'static Ident> {
         match self {
-            AddressSpace::Function => builtin_ident("function"),
-            AddressSpace::Private => builtin_ident("private"),
-            AddressSpace::Workgroup => builtin_ident("workgroup"),
-            AddressSpace::Uniform => builtin_ident("uniform"),
-            AddressSpace::Storage(_) => builtin_ident("storage"),
-            AddressSpace::Handle => None,
+            Self::Function => builtin_ident("function"),
+            Self::Private => builtin_ident("private"),
+            Self::Workgroup => builtin_ident("workgroup"),
+            Self::Uniform => builtin_ident("uniform"),
+            Self::Storage(_) => builtin_ident("storage"),
+            Self::Handle => None,
+            #[cfg(feature = "naga_ext")]
+            Self::PushConstant => builtin_ident("push_constant"),
         }
     }
 }
@@ -136,9 +146,9 @@ impl BuiltinIdent for AddressSpace {
 impl BuiltinIdent for AccessMode {
     fn builtin_ident(&self) -> Option<&'static Ident> {
         match self {
-            AccessMode::Read => builtin_ident("read"),
-            AccessMode::Write => builtin_ident("write"),
-            AccessMode::ReadWrite => builtin_ident("read_write"),
+            Self::Read => builtin_ident("read"),
+            Self::Write => builtin_ident("write"),
+            Self::ReadWrite => builtin_ident("read_write"),
         }
     }
 }
@@ -624,6 +634,8 @@ pub fn builtin_fn_type(
         }
         // texture
         // TODO check arguments for texture functions
+        // some of these are a bit more lenient. The goal here is just to get the
+        // valid return type which is needed for type inference.
         ("textureDimensions", None, [Type::Texture(t)] | [Type::Texture(t), _])
             if t.dimensions().is_d_1() =>
         {
@@ -647,6 +659,9 @@ pub fn builtin_fn_type(
         }
         ("textureGatherCompare", None, [Type::Texture(t), ..]) if t.is_depth() => {
             Ok(Some(Type::Vec(4, Type::F32.into())))
+        }
+        ("textureLoad", None, [Type::Texture(TextureType::DepthMultisampled2D), ..]) => {
+            Ok(Some(Type::F32))
         }
         ("textureLoad", None, [Type::Texture(t), ..]) if t.is_depth() => Ok(Some(Type::F32)),
         ("textureLoad", None, [Type::Texture(t), ..]) => {
@@ -1017,9 +1032,17 @@ impl Instance {
             Type::U32 => Ok(LiteralInstance::U32(0).into()),
             Type::F32 => Ok(LiteralInstance::F32(0.0).into()),
             Type::F16 => Ok(LiteralInstance::F16(f16::zero()).into()),
+            #[cfg(feature = "naga_ext")]
+            Type::I64 => Ok(LiteralInstance::I64(0).into()),
+            #[cfg(feature = "naga_ext")]
+            Type::U64 => Ok(LiteralInstance::U64(0).into()),
+            #[cfg(feature = "naga_ext")]
+            Type::F64 => Ok(LiteralInstance::F64(0.0).into()),
             Type::Struct(name) => StructInstance::zero_value(name, ctx).map(Into::into),
             Type::Array(a_ty, Some(n)) => ArrayInstance::zero_value(*n, a_ty, ctx).map(Into::into),
             Type::Array(_, None) => Err(E::NotConstructible(ty.clone())),
+            #[cfg(feature = "naga_ext")]
+            Type::BindingArray(_, _) => Err(E::NotConstructible(ty.clone())),
             Type::Vec(n, v_ty) => VecInstance::zero_value(*n, v_ty).map(Into::into),
             Type::Mat(c, r, m_ty) => MatInstance::zero_value(*c, *r, m_ty).map(Into::into),
             Type::Atomic(_) | Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => {
@@ -1039,6 +1062,12 @@ impl LiteralInstance {
             Type::U32 => Ok(LiteralInstance::U32(0)),
             Type::F32 => Ok(LiteralInstance::F32(0.0)),
             Type::F16 => Ok(LiteralInstance::F16(f16::zero())),
+            #[cfg(feature = "naga_ext")]
+            Type::I64 => Ok(LiteralInstance::I64(0)),
+            #[cfg(feature = "naga_ext")]
+            Type::U64 => Ok(LiteralInstance::U64(0)),
+            #[cfg(feature = "naga_ext")]
+            Type::F64 => Ok(LiteralInstance::F64(0.0)),
             _ => Err(E::NotScalar(ty.clone())),
         }
     }
@@ -1120,6 +1149,10 @@ impl ArrayTemplate {
                 Instance::Literal(LiteralInstance::AbstractInt(n)) => (n > 0).then_some(n as usize),
                 Instance::Literal(LiteralInstance::I32(n)) => (n > 0).then_some(n as usize),
                 Instance::Literal(LiteralInstance::U32(n)) => (n > 0).then_some(n as usize),
+                #[cfg(feature = "naga_ext")]
+                Instance::Literal(LiteralInstance::I64(n)) => (n > 0).then_some(n as usize),
+                #[cfg(feature = "naga_ext")]
+                Instance::Literal(LiteralInstance::U64(n)) => (n > 0).then_some(n as usize),
                 _ => None,
             }
             .ok_or(E::Builtin(
@@ -1265,6 +1298,10 @@ impl PtrTemplate {
                     (AddressSpace::Storage(_), _) => unreachable!(),
                     (AddressSpace::Handle, _) => {
                         unreachable!("handle address space cannot be spelled")
+                    }
+                    #[cfg(feature = "naga_ext")]
+                    (AddressSpace::PushConstant, _) => {
+                        todo!("push_constant")
                     }
                 };
                 Ok(PtrTemplate { space, ty, access })
@@ -1466,6 +1503,12 @@ fn call_i32_1(a1: &Instance) -> Result<Instance, E> {
                 LiteralInstance::U32(n) => Some(*n as i32),    // reinterpretation of bits
                 LiteralInstance::F32(n) => Some(*n as i32),    // rounding towards 0
                 LiteralInstance::F16(n) => Some(f16::to_f32(*n) as i32), // rounding towards 0
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::I64(n) => n.to_i32(), // identity if representable
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::U64(n) => n.to_i32(), // identity if representable
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::F64(n) => Some(*n as i32), // rounding towards 0
             }
             .ok_or(E::ConvOverflow(*l, Type::I32))?;
             Ok(LiteralInstance::I32(val).into())
@@ -1485,6 +1528,12 @@ fn call_u32_1(a1: &Instance) -> Result<Instance, E> {
                 LiteralInstance::U32(n) => Some(*n),           // identity operation
                 LiteralInstance::F32(n) => Some(*n as u32),    // rounding towards 0
                 LiteralInstance::F16(n) => Some(f16::to_f32(*n) as u32), // rounding towards 0
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::I64(n) => n.to_u32(), // identity if representable
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::U64(n) => n.to_u32(), // identity if representable
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::F64(n) => Some(*n as u32), // rounding towards 0
             }
             .ok_or(E::ConvOverflow(*l, Type::U32))?;
             Ok(LiteralInstance::U32(val).into())
@@ -1507,6 +1556,12 @@ fn call_f32_1(a1: &Instance, _stage: EvalStage) -> Result<Instance, E> {
                 LiteralInstance::U32(n) => Some(*n as f32),    // scalar to float (never overflows)
                 LiteralInstance::F32(n) => Some(*n),           // identity operation
                 LiteralInstance::F16(n) => Some(f16::to_f32(*n)), // exactly representable
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::I64(n) => n.to_f32(), // implicit conversion
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::U64(n) => n.to_f32(), // implicit conversion
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::F64(n) => n.to_f32(), // implicit conversion
             }
             .ok_or(E::ConvOverflow(*l, Type::F32))?;
             Ok(LiteralInstance::F32(val).into())
@@ -1566,6 +1621,35 @@ fn call_f16_1(a1: &Instance, stage: EvalStage) -> Result<Instance, E> {
                     }
                 }
                 LiteralInstance::F16(n) => Some(*n), // identity operation
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::I64(n) => {
+                    // scalar to float (can overflow)
+                    if stage == EvalStage::Const {
+                        let range = -65504..=65504;
+                        range.contains(n).then_some(f16::from_f32(*n as f32))
+                    } else {
+                        Some(f16::from_f32(*n as f32))
+                    }
+                }
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::U64(n) => {
+                    // scalar to float (can overflow)
+                    if stage == EvalStage::Const {
+                        f16::from_u64(*n)
+                    } else {
+                        Some(f16::from_f32(*n as f32))
+                    }
+                }
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::F64(n) => {
+                    // scalar to float (can overflow)
+                    if stage == EvalStage::Const {
+                        let range = -65504.0..=65504.0;
+                        range.contains(n).then_some(f16::from_f32(*n as f32))
+                    } else {
+                        Some(f16::from_f32(*n as f32))
+                    }
+                }
             }
             .ok_or(E::ConvOverflow(*l, Type::F16))?;
             Ok(LiteralInstance::F16(val).into())
@@ -1838,6 +1922,12 @@ fn call_bitcast_t(tplt: BitcastTemplate, e: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(n) => Ok(n.to_le_bytes().to_vec()),
             LiteralInstance::F32(n) => Ok(n.to_le_bytes().to_vec()),
             LiteralInstance::F16(n) => Ok(n.to_le_bytes().to_vec()),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(n) => Ok(n.to_le_bytes().to_vec()),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(n) => Ok(n.to_le_bytes().to_vec()),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(n) => Ok(n.to_le_bytes().to_vec()),
         }
     }
 
@@ -2027,6 +2117,12 @@ macro_rules! impl_call_float_unary {
                 LiteralInstance::U32(_) => Err(ERR),
                 LiteralInstance::F32($n) => Ok(LiteralInstance::from($expr)),
                 LiteralInstance::F16($n) => Ok(LiteralInstance::from($expr)),
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::I64(_) => Err(ERR),
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::U64(_) => Err(ERR),
+                #[cfg(feature = "naga_ext")]
+                LiteralInstance::F64($n) => Ok(LiteralInstance::F64($expr)),
             }
         }
         match $e {
@@ -2049,6 +2145,12 @@ fn call_abs(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(_) => Ok(*l),
             LiteralInstance::F32(n) => Ok(LiteralInstance::from(n.abs())),
             LiteralInstance::F16(n) => Ok(LiteralInstance::from(n.abs())),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(n) => Ok(LiteralInstance::I64(n.wrapping_abs())),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(_) => Ok(*l),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(n) => Ok(LiteralInstance::F64(n.abs())),
         }
     }
     match e {
@@ -2109,6 +2211,12 @@ fn call_atan2(y: &Instance, x: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(_) => Err(ERR),
             LiteralInstance::F32(y) => Ok(LiteralInstance::from(y.atan2(x.unwrap_f_32()))),
             LiteralInstance::F16(y) => Ok(LiteralInstance::from(y.atan2(x.unwrap_f_16()))),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(y) => Ok(LiteralInstance::F64(y.atan2(x.unwrap_f_64()))),
         }
     }
     let (y, x) = convert(y, x).ok_or(E::Builtin("`atan2` arguments are incompatible"))?;
@@ -2155,6 +2263,12 @@ fn call_countleadingzeros(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(n) => Ok(LiteralInstance::U32(n.leading_zeros())),
             LiteralInstance::F32(_) => Err(ERR),
             LiteralInstance::F16(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(n) => Ok(LiteralInstance::I64(n.leading_zeros() as i64)),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(n) => Ok(LiteralInstance::U64(n.leading_zeros() as u64)),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(_) => Err(ERR),
         }
     }
     match e {
@@ -2177,6 +2291,12 @@ fn call_countonebits(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(n) => Ok(LiteralInstance::U32(n.count_ones())),
             LiteralInstance::F32(_) => Err(ERR),
             LiteralInstance::F16(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(n) => Ok(LiteralInstance::I64(n.count_ones() as i64)),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(n) => Ok(LiteralInstance::U64(n.count_ones() as u64)),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(_) => Err(ERR),
         }
     }
     match e {
@@ -2199,6 +2319,12 @@ fn call_counttrailingzeros(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(n) => Ok(LiteralInstance::U32(n.trailing_zeros())),
             LiteralInstance::F32(_) => Err(ERR),
             LiteralInstance::F16(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(n) => Ok(LiteralInstance::I64(n.trailing_zeros() as i64)),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(n) => Ok(LiteralInstance::U64(n.trailing_zeros() as u64)),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(_) => Err(ERR),
         }
     }
     match e {
@@ -2375,6 +2501,19 @@ fn call_frexp(e: &Instance) -> Result<Instance, E> {
                     LiteralInstance::I32(exp).into(),
                 ))
             }
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(_) => todo!(),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(_) => todo!(),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(n) => {
+                let (fract, exp) = frexp(*n);
+                Ok(make_frexp_inst(
+                    "__frexp_result_f64",
+                    LiteralInstance::F64(fract).into(),
+                    LiteralInstance::I64(exp as i64).into(),
+                ))
+            }
         },
         Instance::Vec(v) => {
             let ty = v.inner_ty();
@@ -2443,6 +2582,12 @@ fn call_inversesqrt(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(_) => Err(ERR),
             LiteralInstance::F32(n) => Ok(LiteralInstance::from(1.0 / n.sqrt())),
             LiteralInstance::F16(n) => Ok(LiteralInstance::from(f16::one() / n.sqrt())),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(n) => Ok(LiteralInstance::F64(1.0 / n.sqrt())),
         }
     }
     match e {
@@ -2569,6 +2714,12 @@ fn call_max(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(e1) => Ok(LiteralInstance::from(*e1.max(&e2.unwrap_u_32()))),
             LiteralInstance::F32(e1) => Ok(LiteralInstance::from(e1.max(e2.unwrap_f_32()))),
             LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.max(e2.unwrap_f_16()))),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(e1) => Ok(LiteralInstance::I64(*e1.max(&e2.unwrap_i_64()))),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(e1) => Ok(LiteralInstance::U64(*e1.max(&e2.unwrap_u_64()))),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(e1) => Ok(LiteralInstance::F64(e1.max(e2.unwrap_f_64()))),
         }
     }
     let (e1, e2) = convert(e1, e2).ok_or(E::Builtin("`max` arguments are incompatible"))?;
@@ -2594,6 +2745,12 @@ fn call_min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(e1) => Ok(LiteralInstance::from(*e1.min(&e2.unwrap_u_32()))),
             LiteralInstance::F32(e1) => Ok(LiteralInstance::from(e1.min(e2.unwrap_f_32()))),
             LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.min(e2.unwrap_f_16()))),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(e1) => Ok(LiteralInstance::I64(*e1.max(&e2.unwrap_i_64()))),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(e1) => Ok(LiteralInstance::U64(*e1.max(&e2.unwrap_u_64()))),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(e1) => Ok(LiteralInstance::F64(e1.max(e2.unwrap_f_64()))),
         }
     }
     let (e1, e2) = convert(e1, e2).ok_or(E::Builtin("`min` arguments are incompatible"))?;
@@ -2660,6 +2817,12 @@ fn call_pow(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(_) => Err(ERR),
             LiteralInstance::F32(e1) => Ok(LiteralInstance::from(e1.powf(e2.unwrap_f_32()))),
             LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.powf(e2.unwrap_f_16()))),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(e1) => Ok(LiteralInstance::F64(e1.powf(e2.unwrap_f_64()))),
         }
     }
     let (e1, e2) = convert(e1, e2).ok_or(E::Builtin("`pow` arguments are incompatible"))?;
@@ -2709,6 +2872,12 @@ fn call_round(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::F16(n) => Ok(LiteralInstance::from(f16::from_f32(
                 f16::to_f32(*n).round_ties_even(),
             ))),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(n) => Ok(LiteralInstance::F64(n.round_ties_even())),
         }
     }
     match e {
@@ -2766,6 +2935,20 @@ fn call_sign(e: &Instance) -> Result<Instance, E> {
                 n.signum()
             })),
             LiteralInstance::F16(n) => Ok(LiteralInstance::from(if n.is_zero() {
+                *n
+            } else {
+                n.signum()
+            })),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(n) => Ok(LiteralInstance::I64(n.signum())),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(n) => Ok(LiteralInstance::U64(if n.is_zero() {
+                *n
+            } else {
+                1
+            })),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(n) => Ok(LiteralInstance::F64(if n.is_zero() {
                 *n
             } else {
                 n.signum()
@@ -2830,6 +3013,16 @@ fn call_step(edge: &Instance, x: &Instance) -> Result<Instance, E> {
                 0.0
             })),
             LiteralInstance::F16(edge) => Ok(LiteralInstance::from(if *edge <= x.unwrap_f_16() {
+                1.0
+            } else {
+                0.0
+            })),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::I64(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::U64(_) => Err(ERR),
+            #[cfg(feature = "naga_ext")]
+            LiteralInstance::F64(edge) => Ok(LiteralInstance::F64(if *edge <= x.unwrap_f_64() {
                 1.0
             } else {
                 0.0
