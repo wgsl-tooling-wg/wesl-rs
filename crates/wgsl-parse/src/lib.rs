@@ -1,11 +1,11 @@
 #![doc = include_str!("../README.md")]
 
 pub mod error;
+pub mod lexer;
+pub mod parser;
 pub mod span;
 pub mod syntax;
 
-mod lexer;
-mod parser;
 mod parser_support;
 mod syntax_display;
 mod syntax_impl;

@@ -1,6 +1,6 @@
 //! Prefer using [`crate::parse_str`]. You shouldn't need to manipulate the lexer.
 
-use crate::error::CustomLalrError;
+use crate::error::ParseError;
 use itertools::Itertools;
 use logos::{Logos, SpannedIter};
 use std::{fmt::Display, num::NonZeroU8, sync::LazyLock};
@@ -377,17 +377,17 @@ const RESERVED_WORDS: &[&str] = &[
     "yield",
 ];
 
-fn parse_ident(lex: &mut logos::Lexer<Token>) -> Result<String, CustomLalrError> {
+fn parse_ident(lex: &mut logos::Lexer<Token>) -> Result<String, ParseError> {
     let ident = lex.slice().to_string();
     if RESERVED_WORDS.iter().contains(&ident.as_str()) {
-        Err(CustomLalrError::ReservedWord(ident))
+        Err(ParseError::ReservedWord(ident))
     } else {
         Ok(ident)
     }
 }
 
 #[derive(Default, Clone, Debug, PartialEq)]
-pub(crate) struct LexerState {
+pub struct LexerState {
     depth: i32,
     template_depths: Vec<i32>,
     lookahead: Option<Token>,
@@ -400,8 +400,8 @@ pub(crate) struct LexerState {
     // see line breaks: https://www.w3.org/TR/WGSL/#line-break
     skip r"//[^\n\v\f\r\u0085\u2028\u2029]*", // line comment
     extras = LexerState,
-    error = CustomLalrError)]
-pub(crate) enum Token {
+    error = ParseError)]
+pub enum Token {
     // comments. This variant is never produced.
     #[token("/*", parse_block_comment, priority = 2)]
     Ignored,
@@ -843,11 +843,11 @@ impl Display for Token {
     }
 }
 
-pub type Spanned<Tok, Loc, ParseError> = Result<(Loc, Tok, Loc), (Loc, ParseError, Loc)>;
-type NextToken = Option<(Result<Token, CustomLalrError>, Span)>;
+type Spanned<Tok, Loc, ParseError> = Result<(Loc, Tok, Loc), (Loc, ParseError, Loc)>;
+type NextToken = Option<(Result<Token, ParseError>, Span)>;
 
 #[derive(Clone)]
-pub(crate) struct Lexer<'s> {
+pub struct Lexer<'s> {
     source: &'s str,
     token_stream: SpannedIter<'s, Token>,
     next_token: NextToken,
@@ -979,7 +979,7 @@ fn tmp_test() {
 }
 
 impl Iterator for Lexer<'_> {
-    type Item = Spanned<Token, usize, CustomLalrError>;
+    type Item = Spanned<Token, usize, ParseError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let tok = self.next_token();
