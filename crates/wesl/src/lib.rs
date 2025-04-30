@@ -42,6 +42,9 @@ pub use resolve::{
 pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
 pub use syntax_util::SyntaxUtil;
 pub use validate::{ValidateError, validate_wesl, validate_wgsl};
+
+// re-exports
+pub use wesl_macros::quote_wesl;
 pub use wgsl_parse::syntax;
 pub use wgsl_parse::syntax::ModulePath;
 
