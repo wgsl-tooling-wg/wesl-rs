@@ -167,6 +167,8 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
         .inspect_err(|e| eprintln!("{e}"))
         .unwrap();
 
+    crate::SyntaxUtil::retarget_idents(&mut prelude);
+
     let attr_internal = Attribute::Custom(CustomAttribute {
         name: "internal".to_string(),
         arguments: None,

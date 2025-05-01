@@ -7,7 +7,9 @@ use wgsl_parse::syntax::{
     TranslationUnit, TypeExpression,
 };
 
-use crate::builtin::{BUILTIN_FUNCTIONS, BUILTIN_NAMES, RESERVED_WORDS};
+use crate::builtin::{
+    BUILTIN_CONSTRUCTOR_NAMES, BUILTIN_FUNCTION_NAMES, RESERVED_WORDS, builtin_ident,
+};
 use crate::visit::Visit;
 use crate::{Diagnostic, Error};
 
@@ -39,7 +41,7 @@ fn check_defined_symbols(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>
     fn check_ty(ty: &TypeExpression) -> Result<(), Diagnostic<Error>> {
         if ty.path.is_none()
             && ty.ident.use_count() == 1
-            && !BUILTIN_NAMES.contains(&ty.ident.name().as_str())
+            && builtin_ident(&ty.ident.name()).is_none()
             // `_` is only valid for phony assignments
             && *ty.ident.name() != "_"
         {
@@ -134,8 +136,16 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
             }
             Some(_) => return Err(E::NotCallable(ident.to_string())),
             None => {
-                if BUILTIN_FUNCTIONS.iter().any(|name| name == &*ident.name()) {
+                if BUILTIN_FUNCTION_NAMES
+                    .iter()
+                    .any(|name| name == &*ident.name())
+                {
                     // TODO: check args for builtin functions
+                } else if BUILTIN_CONSTRUCTOR_NAMES
+                    .iter()
+                    .any(|name| name == &*ident.name())
+                {
+                    // TODO: check args for builtin constructors
                 } else {
                     // the ident is not a global declaration, it must be a local variable.
                     return Err(E::NotCallable(ident.to_string()));
