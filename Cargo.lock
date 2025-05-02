@@ -1319,8 +1319,11 @@ dependencies = [
  "lalrpop-util",
  "lexical",
  "logos",
+ "proc-macro2",
+ "quote",
  "serde",
  "thiserror 2.0.12",
+ "wesl-macros",
 ]
 
 [[package]]
