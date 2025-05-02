@@ -1,8 +1,7 @@
 use proc_macro_error::abort;
 use proc_macro2::{Ident, Literal, Punct, Spacing, Span, TokenStream};
-use quote::quote;
 use token_stream_flatten::{Delimiter, DelimiterKind, DelimiterPosition, FlattenRec, Token};
-use wgsl_parse::{lexer::Token as WeslTok, parser::TranslationUnitParser};
+use wgsl_parse::{Reify, lexer::Token as WeslTok, parser::TranslationUnitParser};
 
 struct Lexer {
     it: FlattenRec,
@@ -75,6 +74,15 @@ fn lit2tok(lit: Literal) -> WeslTok {
             ),
             "u" => WeslTok::U32(
                 lit.base10_parse::<u32>()
+                    .unwrap_or_else(|e| abort!(lit, "invalid literal: {}", e)),
+            ),
+            "f" => WeslTok::F32(
+                lit.base10_parse::<f32>()
+                    .unwrap_or_else(|e| abort!(lit, "invalid literal: {}", e)),
+            ),
+            "h" => WeslTok::F16(
+                // TODO validate that if fits in f16
+                lit.base10_parse::<f32>()
                     .unwrap_or_else(|e| abort!(lit, "invalid literal: {}", e)),
             ),
             _ => abort!(lit, "invalid literal suffix"),
@@ -204,7 +212,9 @@ pub(crate) fn quote_wesl_impl(input: TokenStream) -> TokenStream {
         .parse(lexer)
         .unwrap_or_else(|e| abort!(Span::call_site(), "{}", wgsl_parse::Error::from(e)));
 
-    let source = syntax.to_string();
+    syntax.reify()
 
-    quote! { #source }
+    // let source = syntax.to_string();
+
+    // quote! { #source }
 }

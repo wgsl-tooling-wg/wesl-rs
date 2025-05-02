@@ -10,7 +10,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-wgsl-parse = { workspace = true, features = ["wesl"] }
+wgsl-parse = { workspace = true, features = ["wesl", "reify"] }
 itertools = "0.14.0"
 proc-macro2 = "1.0.86"
 quote = "1.0.37"

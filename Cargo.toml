@@ -6,6 +6,8 @@ members = [
     "crates/wesl-test",
     "crates/wesl-web",
     "crates/wesl-cli",
+    "crates/reify",
+    "crates/reify-derive",
     "examples/random_wgsl",
     "examples/wesl-consumer",
 ]
@@ -24,6 +26,8 @@ rust-version = "1.86.0"
 wesl = { path = "crates/wesl", version = "0.1.2" }
 wesl-macros = { path = "crates/wesl-macros", version = "0.1.2" }
 wgsl-parse = { path = "crates/wgsl-parse", version = "0.1.2" }
+reify = { path = "crates/reify", version = "0.1.2" }
+reify-derive = { path = "crates/reify-derive", version = "0.1.2" }
 
 [workspace.lints.rust]
 

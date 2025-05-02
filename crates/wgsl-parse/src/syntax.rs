@@ -25,14 +25,15 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 use derive_more::{From, IsVariant, Unwrap};
 
-use crate::span::Spanned;
+pub use crate::span::{Span, Spanned};
 
 #[cfg(feature = "reify")]
-use wesl_macros::Reify;
+use reify::Reify;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+#[cfg_attr(feature = "reify", derive(Reify))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct TranslationUnit {

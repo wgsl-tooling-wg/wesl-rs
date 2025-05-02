@@ -11,11 +11,11 @@ publish = false
 
 [dependencies]
 random_wgsl = { path = "../random_wgsl" }
-wesl = { path = "../../crates/wesl" }
+wesl = { workspace = true, feature = ["reify"] }
 
 [build-dependencies]
 random_wgsl = { path = "../random_wgsl" }
-wesl = { path = "../../crates/wesl" }
+wesl = { workspace = true }
 
 [features]
 # use WESL at build-time (in build.rs) instead of run-time (in main.rs)
