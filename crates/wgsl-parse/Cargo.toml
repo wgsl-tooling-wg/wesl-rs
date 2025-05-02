@@ -29,9 +29,7 @@ serde = { version = "1.0.215", optional = true, features = ["derive", "rc"] }
 thiserror = "2.0.12"
 
 # for feature "reify"
-proc-macro2 = { version = "1.0.86", optional = true }
-quote = { version = "1.0.37", optional = true }
-wesl-macros = { workspace = true, optional = true }
+reify = { workspace = true, optional = true }
 
 [build-dependencies]
 lalrpop = { version = "0.22.1", default-features = false }
@@ -66,7 +64,7 @@ imports = []
 naga_ext = ["push_constant"]
 push_constant = []
 
-reify = ["dep:wesl-macros", "dep:proc-macro2", "dep:quote"]
+reify = ["dep:reify"]
 
 [lints]
 workspace = true

@@ -1,0 +1,20 @@
+[package]
+name = "reify-derive"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+itertools = "0.14.0"
+proc-macro2 = "1.0.86"
+quote = "1.0.37"
+syn = "2.0.77"
+
+[lib]
+proc-macro = true
+
+[lints]
+workspace = true

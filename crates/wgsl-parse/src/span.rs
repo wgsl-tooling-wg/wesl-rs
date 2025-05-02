@@ -4,8 +4,8 @@ use derive_more::derive::{AsMut, AsRef, Deref, DerefMut, From};
 
 pub type Id = u32;
 
+#[cfg_attr(feature = "reify", derive(reify::Reify))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "reify", derive(wesl_macros::Reify))]
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Span {
     /// The lower bound of the span (inclusive).

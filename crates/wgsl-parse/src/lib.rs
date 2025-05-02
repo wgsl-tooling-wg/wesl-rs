@@ -12,6 +12,8 @@ mod syntax_impl;
 
 #[cfg(feature = "reify")]
 mod reify;
+#[cfg(feature = "reify")]
+pub use ::reify::Reify;
 
 pub use error::Error;
 pub use parser::{parse_str, recognize_str};
