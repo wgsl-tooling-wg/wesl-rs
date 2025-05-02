@@ -8,7 +8,7 @@ mod generics;
 #[cfg(feature = "package")]
 mod package;
 
-mod builtin;
+pub mod builtin;
 mod condcomp;
 mod error;
 mod import;
@@ -940,7 +940,7 @@ pub fn eval<'s>(
     expr: &syntax::Expression,
     wgsl: &'s TranslationUnit,
 ) -> (Result<eval::Instance, EvalError>, eval::Context<'s>) {
-    let mut ctx = eval::Context::new(wgsl);
+    let mut ctx = eval::Context::new_with_builtins(wgsl);
     let res = wgsl.exec(&mut ctx).and_then(|_| expr.eval(&mut ctx));
     (res, ctx)
 }
@@ -953,7 +953,7 @@ pub fn exec<'s>(
     bindings: HashMap<(u32, u32), eval::RefInstance>,
     overrides: HashMap<String, eval::Instance>,
 ) -> (Result<Option<eval::Instance>, EvalError>, eval::Context<'s>) {
-    let mut ctx = eval::Context::new(wgsl);
+    let mut ctx = eval::Context::new_with_builtins(wgsl);
     ctx.add_bindings(bindings);
     ctx.add_overrides(overrides);
     ctx.set_stage(eval::EvalStage::Exec);
