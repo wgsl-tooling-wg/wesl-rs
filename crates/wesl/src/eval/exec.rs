@@ -192,6 +192,12 @@ pub(crate) fn compound_exec_no_scope(
 
 impl Exec for AssignmentStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
+        let is_phony = matches!(self.lhs.node(), Expression::TypeOrIdentifier(TypeExpression { path: None, ident, template_args: None }) if *ident.name() == "_");
+        if self.operator.is_equal() && is_phony {
+            let _ = self.rhs.eval(ctx)?;
+            return Ok(Flow::Next);
+        }
+
         let lhs = self.lhs.eval(ctx)?;
         let ty = lhs.ty().concretize();
 

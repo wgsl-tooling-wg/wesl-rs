@@ -40,6 +40,8 @@ fn check_defined_symbols(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>
         if ty.path.is_none()
             && ty.ident.use_count() == 1
             && !BUILTIN_NAMES.contains(&ty.ident.name().as_str())
+            // `_` is only valid for phony assignments
+            && *ty.ident.name() != "_"
         {
             Err(E::UndefinedSymbol(ty.ident.to_string()).into())
         } else {
