@@ -318,7 +318,7 @@ impl Lexer {
                             Token::Punct(punct) => {
                                 // TODO: this is not ideal, we should check if it forms a valid lit.
                                 let chr = punct.as_char();
-                                if ".;,".chars().contains(&chr) {
+                                if ".;,#".chars().contains(&chr) {
                                     join_punct = false;
                                 } else {
                                     repr.push(chr);

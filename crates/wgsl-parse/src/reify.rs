@@ -60,7 +60,7 @@ impl<T: NamedNode + Reify> Reify for Spanned<T> {
                 let ident = format_ident!("{}", name[1..]);
 
                 return quote! {
-                    Spanned::new(#ident, #span)
+                    Spanned::new(#ident.to_owned().into(), #span)
                 };
             }
         }
@@ -77,7 +77,7 @@ impl Reify for Ident {
         if name.starts_with("#") {
             let name = format_ident!("{}", name[1..]);
             quote! {
-                Ident::from(#name)
+                Ident::from(#name.to_owned())
             }
         } else {
             let name = name.as_str();

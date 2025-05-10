@@ -245,13 +245,8 @@ impl AccessMode {
 }
 
 impl From<Ident> for TypeExpression {
-    fn from(name: Ident) -> Self {
-        Self {
-            #[cfg(feature = "imports")]
-            path: None,
-            ident: name,
-            template_args: None,
-        }
+    fn from(ident: Ident) -> Self {
+        Self::new(ident)
     }
 }
 
@@ -279,6 +274,27 @@ impl From<FunctionCall> for FunctionCallStatement {
         }
     }
 }
+
+// Transitive `From` implementations.
+// They have to be implemented manually unfortunately.
+
+macro_rules! impl_transitive_from {
+    ($from:ident => $middle:ident => $into:ident) => {
+        impl From<$from> for $into {
+            fn from(value: $from) -> Self {
+                $into::from($middle::from(value))
+            }
+        }
+    };
+}
+
+impl_transitive_from!(bool => LiteralExpression => Expression);
+impl_transitive_from!(i64 => LiteralExpression => Expression);
+impl_transitive_from!(f64 => LiteralExpression => Expression);
+impl_transitive_from!(i32 => LiteralExpression => Expression);
+impl_transitive_from!(u32 => LiteralExpression => Expression);
+impl_transitive_from!(f32 => LiteralExpression => Expression);
+impl_transitive_from!(Ident => TypeExpression => Expression);
 
 impl GlobalDeclaration {
     /// Get the name of the declaration, if it has one.
