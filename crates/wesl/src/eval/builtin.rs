@@ -19,9 +19,9 @@ use crate::{
 };
 
 use super::{
-    ArrayInstance, EvalError, EvalStage, Instance, LiteralInstance, MatInstance, RefInstance,
-    SampledType, SamplerType, StructInstance, SyntaxUtil, TexelFormat, TextureType, Ty, Type,
-    VecInstance,
+    ArrayInstance, AtomicInstance, EvalError, EvalStage, Flow, Instance, LiteralInstance,
+    MatInstance, RefInstance, SampledType, SamplerType, StructInstance, SyntaxUtil, TexelFormat,
+    TextureType, Ty, Type, VecInstance,
     conv::{Convert, convert_all},
     convert, convert_all_inner_to, convert_all_to, convert_all_ty,
     ops::Compwise,
@@ -868,8 +868,8 @@ pub fn call_builtin(
     ty: &TypeExpression,
     args: Vec<Instance>,
     ctx: &mut Context,
-) -> Result<Instance, E> {
-    match (
+) -> Result<Flow, E> {
+    let value = match (
         ty.ident.name().as_str(),
         ty.template_args.as_deref(),
         args.as_slice(),
@@ -994,6 +994,20 @@ pub fn call_builtin(
         ("tanh", None, [a]) => call_tanh(a),
         ("transpose", None, [a]) => call_transpose(a),
         ("trunc", None, [a]) => call_trunc(a),
+        // atomic
+        ("atomicLoad", None, [a]) => call_atomic_load(a),
+        ("atomicStore", None, [a1, a2]) => {
+            call_atomic_store(a1, a2)?;
+            return Ok(Flow::Return(None));
+        }
+        ("atomicSub", None, [a1, a2]) => call_atomic_sub(a1, a2),
+        ("atomicMax", None, [a1, a2]) => call_atomic_max(a1, a2),
+        ("atomicMin", None, [a1, a2]) => call_atomic_min(a1, a2),
+        ("atomicAnd", None, [a1, a2]) => call_atomic_and(a1, a2),
+        ("atomicOr", None, [a1, a2]) => call_atomic_or(a1, a2),
+        ("atomicXor", None, [a1, a2]) => call_atomic_xor(a1, a2),
+        ("atomicExchange", None, [a1, a2]) => call_atomic_exchange(a1, a2),
+        ("atomicCompareExchangeWeak", None, [a1, a2]) => call_atomic_compare_exchange_weak(a1, a2),
         // packing
         ("pack4x8snorm", None, [a]) => call_pack4x8snorm(a),
         ("pack4x8unorm", None, [a]) => call_pack4x8unorm(a),
@@ -1011,9 +1025,15 @@ pub fn call_builtin(
         ("unpack2x16snorm", None, [a]) => call_unpack2x16snorm(a),
         ("unpack2x16unorm", None, [a]) => call_unpack2x16unorm(a),
         ("unpack2x16float", None, [a]) => call_unpack2x16float(a),
-
+        // synchronization
+        // barrier primitives are no-op on the cpu
+        ("storageBarrier", None, []) => return Ok(Flow::Return(None)),
+        ("textureBarrier", None, []) => return Ok(Flow::Return(None)),
+        ("workgroupBarrier", None, []) => return Ok(Flow::Return(None)),
         _ => Err(E::Signature(ty.clone(), args.iter().map(Ty::ty).collect())),
-    }
+    };
+
+    value.map(Flow::from)
 }
 
 // -----------
@@ -3067,6 +3087,98 @@ fn call_transpose(e: &Instance) -> Result<Instance, E> {
 
 fn call_trunc(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("trunc", e, n => n.trunc())
+}
+
+// ------
+// ATOMIC
+// ------
+// reference: <https://www.w3.org/TR/WGSL/#atomic-builtin-functions>
+
+fn call_atomic_load(e: &Instance) -> Result<Instance, E> {
+    let err = E::Builtin("`atomicLoad` expects a pointer to atomic argument");
+    if let Instance::Ptr(ptr) = e {
+        // TODO: there is a ptr.ptr.ptr chain here. Rename it.
+        let inst = ptr.ptr.read()?;
+        if let Instance::Atomic(inst) = &*inst {
+            Ok(inst.inner().clone())
+        } else {
+            Err(err)
+        }
+    } else {
+        Err(err)
+    }
+}
+fn call_atomic_store(e1: &Instance, e2: &Instance) -> Result<(), E> {
+    let err = E::Builtin("`atomicStore` expects a pointer to atomic argument");
+    if let Instance::Ptr(ptr) = e1 {
+        let inst = ptr.ptr.read_write()?;
+        if let Instance::Atomic(inst) = &*inst {
+            let ty = inst.inner().ty();
+            let e2 = e2
+                .convert_to(&ty)
+                .ok_or_else(|| E::ParamType(ty, e2.ty()))?;
+            let e2 = Instance::Atomic(AtomicInstance::new(e2));
+            ptr.ptr.write(e2)
+        } else {
+            Err(err)
+        }
+    } else {
+        Err(err)
+    }
+}
+fn call_atomic_sub(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = call_atomic_load(e1)?;
+    call_atomic_store(e1, &initial.op_sub(e2, EvalStage::Exec)?)?;
+    Ok(initial)
+}
+fn call_atomic_max(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = call_atomic_load(e1)?;
+    call_atomic_store(e1, &call_max(&initial, e2)?)?;
+    Ok(initial)
+}
+fn call_atomic_min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = call_atomic_load(e1)?;
+    call_atomic_store(e1, &call_max(&initial, e2)?)?;
+    Ok(initial)
+}
+fn call_atomic_and(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = call_atomic_load(e1)?;
+    call_atomic_store(e1, &initial.op_bitand(e2)?)?;
+    Ok(initial)
+}
+fn call_atomic_or(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = call_atomic_load(e1)?;
+    call_atomic_store(e1, &initial.op_bitor(e2)?)?;
+    Ok(initial)
+}
+fn call_atomic_xor(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = call_atomic_load(e1)?;
+    call_atomic_store(e1, &initial.op_bitxor(e2)?)?;
+    Ok(initial)
+}
+fn call_atomic_exchange(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = call_atomic_load(e1)?;
+    call_atomic_store(e1, e2)?;
+    Ok(initial)
+}
+fn call_atomic_compare_exchange_weak(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = call_atomic_load(e1)?;
+    let exchanged = if initial == *e2 {
+        false
+    } else {
+        call_atomic_store(e1, e2)?;
+        true
+    };
+    Ok(Instance::Struct(StructInstance::new(
+        "__atomic_compare_exchange_result".to_string(),
+        vec![
+            ("old_value".to_string(), initial),
+            (
+                "exchanged".to_string(),
+                LiteralInstance::Bool(exchanged).into(),
+            ),
+        ],
+    )))
 }
 
 // ------------

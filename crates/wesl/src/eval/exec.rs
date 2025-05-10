@@ -201,7 +201,7 @@ impl Exec for AssignmentStatement {
         let lhs = self.lhs.eval(ctx)?;
         let ty = lhs.ty().concretize();
 
-        if let Instance::Ref(mut r) = lhs {
+        if let Instance::Ref(r) = lhs {
             let rhs = self.rhs.eval_value(ctx)?;
             match self.operator {
                 AssignmentOperator::Equal => {
@@ -261,7 +261,7 @@ impl Exec for AssignmentStatement {
 impl Exec for IncrementStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         let expr = self.expression.eval(ctx)?;
-        if let Instance::Ref(mut r) = expr {
+        if let Instance::Ref(r) = expr {
             let mut r = r.read_write()?;
             match &*r {
                 Instance::Literal(LiteralInstance::I32(n)) => {
@@ -285,7 +285,7 @@ impl Exec for IncrementStatement {
 impl Exec for DecrementStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         let expr = self.expression.eval(ctx)?;
-        if let Instance::Ref(mut r) = expr {
+        if let Instance::Ref(r) = expr {
             let mut r = r.read_write()?;
             match &*r {
                 Instance::Literal(LiteralInstance::I32(n)) => {
@@ -586,7 +586,7 @@ impl Exec for FunctionCall {
                 }
 
                 if decl.body.contains_attribute(&ATTR_INTRINSIC) {
-                    return call_builtin(ty, args, ctx).map(Into::into);
+                    return call_builtin(ty, args, ctx);
                 }
 
                 if self.arguments.len() != decl.parameters.len() {
@@ -668,7 +668,7 @@ impl Exec for FunctionCall {
                 Err(E::NotCallable(fn_name))
             }
         } else if is_constructor_fn(&fn_name) {
-            call_builtin(ty, args, ctx).map(Into::into)
+            call_builtin(ty, args, ctx)
         } else {
             Err(E::UnknownFunction(fn_name))
         }

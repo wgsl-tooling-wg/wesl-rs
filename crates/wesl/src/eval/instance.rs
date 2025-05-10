@@ -409,7 +409,7 @@ impl RefInstance {
         }))
     }
 
-    pub fn write(&mut self, value: Instance) -> Result<(), E> {
+    pub fn write(&self, value: Instance) -> Result<(), E> {
         if !self.access.is_write() {
             return Err(E::NotWrite);
         }
@@ -423,7 +423,7 @@ impl RefInstance {
         Ok(())
     }
 
-    pub fn read_write<'a>(&'a mut self) -> Result<RefMut<'a, Instance>, E> {
+    pub fn read_write<'a>(&'a self) -> Result<RefMut<'a, Instance>, E> {
         if !self.access.is_write() {
             return Err(E::NotReadWrite);
         }
