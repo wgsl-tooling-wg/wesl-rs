@@ -818,7 +818,18 @@ impl Exec for Declaration {
                             }
                             inst.clone().into()
                         }
-                        AddressSpace::Workgroup => todo!("workgroup address space"),
+                        AddressSpace::Workgroup => {
+                            if self.initializer.is_some() {
+                                return Err(E::ForbiddenInitializer(addr_space));
+                            }
+
+                            // the initial value for a workgroup variable is the zero-value
+                            // TODO: there is a special case with atomics to handle.
+                            let inst = Instance::zero_value(&ty, ctx)?;
+
+                            RefInstance::new(inst, AddressSpace::Workgroup, AccessMode::ReadWrite)
+                                .into()
+                        }
                         AddressSpace::Handle => todo!("handle address space"),
                         #[cfg(feature = "naga_ext")]
                         AddressSpace::PushConstant => todo!("push_constant address space"),
