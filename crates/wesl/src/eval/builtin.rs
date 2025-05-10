@@ -155,7 +155,7 @@ impl BuiltinIdent for AccessMode {
 
 pub static ATTR_INTRINSIC: LazyLock<Attribute> = LazyLock::new(|| {
     Attribute::Custom(CustomAttribute {
-        name: "__intrinsic".to_string(),
+        ident: Ident::new("__intrinsic".to_string()),
         arguments: None,
     })
 });
@@ -168,11 +168,11 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
         .unwrap();
 
     let attr_internal = Attribute::Custom(CustomAttribute {
-        name: "internal".to_string(),
+        ident: Ident::new("internal".to_string()),
         arguments: None,
     });
     let attr_intrinsic = Attribute::Custom(CustomAttribute {
-        name: "intrinsic".to_string(),
+        ident: Ident::new("intrinsic".to_string()),
         arguments: None,
     });
 

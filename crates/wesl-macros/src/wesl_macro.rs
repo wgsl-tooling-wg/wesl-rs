@@ -180,14 +180,22 @@ impl Lexer {
             Token::Punct(mut punct) => {
                 let mut repr = punct.to_string();
                 let span = punct.span();
-                while Spacing::Joint == punct.spacing() {
-                    punct = match self.it.next().unwrap() {
-                        Token::Punct(punct) => punct,
-                        tok => abort!(tok.span(), "unreachable"),
-                    };
-                    repr.push(punct.as_char());
+
+                if repr == "#" {
+                    match self.it.next()? {
+                        Token::Ident(id) => Some((id.span(), WeslTok::Ident(format!("#{id}")))),
+                        _ => None,
+                    }
+                } else {
+                    while Spacing::Joint == punct.spacing() {
+                        punct = match self.it.next().unwrap() {
+                            Token::Punct(punct) => punct,
+                            tok => abort!(tok.span(), "unreachable"),
+                        };
+                        repr.push(punct.as_char());
+                    }
+                    Some((span, punct2tok(punct, &repr)))
                 }
-                Some((span, punct2tok(punct, &repr)))
             }
         }
     }
@@ -213,8 +221,4 @@ pub(crate) fn quote_wesl_impl(input: TokenStream) -> TokenStream {
         .unwrap_or_else(|e| abort!(Span::call_site(), "{}", wgsl_parse::Error::from(e)));
 
     syntax.reify()
-
-    // let source = syntax.to_string();
-
-    // quote! { #source }
 }

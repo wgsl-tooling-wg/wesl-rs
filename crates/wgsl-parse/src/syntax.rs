@@ -383,7 +383,7 @@ pub struct WorkgroupSizeAttribute {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct CustomAttribute {
-    pub name: String,
+    pub ident: Ident,
     pub arguments: Option<Vec<ExpressionNode>>,
 }
 

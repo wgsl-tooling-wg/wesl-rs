@@ -2,14 +2,82 @@
 
 use reify::Reify;
 use reify::proc_macro2::TokenStream;
-use reify::quote::quote;
+use reify::quote::{format_ident, quote};
 
+use crate::syntax::*;
 use crate::{span::Spanned, syntax::Ident};
 
-impl<T: Reify> Reify for Spanned<T> {
+// pub trait Inject {
+//     type Target;
+//     fn inject(&self, orig: &Self::Target) -> Self::Target;
+// }
+
+// impl Inject for &str {
+//     type Target = Ident;
+
+//     fn inject(&self, _: &Self::Target) -> Self::Target {
+//         Ident::new(self.to_string())
+//     }
+// }
+//
+
+trait NamedNode {
+    fn ident(&self) -> Option<&Ident>;
+}
+
+impl NamedNode for GlobalDeclaration {
+    fn ident(&self) -> Option<&Ident> {
+        self.ident()
+    }
+}
+
+impl NamedNode for StructMember {
+    fn ident(&self) -> Option<&Ident> {
+        Some(&self.ident)
+    }
+}
+
+impl NamedNode for Attribute {
+    fn ident(&self) -> Option<&Ident> {
+        if let Attribute::Custom(attr) = self {
+            Some(&attr.ident)
+        } else {
+            None
+        }
+    }
+}
+
+impl NamedNode for Expression {
+    fn ident(&self) -> Option<&Ident> {
+        if let Expression::TypeOrIdentifier(ty) = self {
+            Some(&ty.ident)
+        } else {
+            None
+        }
+    }
+}
+
+impl NamedNode for Statement {
+    fn ident(&self) -> Option<&Ident> {
+        None
+    }
+}
+
+impl<T: NamedNode + Reify> Reify for Spanned<T> {
     fn reify(&self) -> TokenStream {
         let node = self.node().reify();
         let span = self.span().reify();
+
+        if let Some(ident) = self.ident() {
+            let name = ident.name();
+            if name.starts_with("#") {
+                let ident = format_ident!("{}", name[1..]);
+
+                return quote! {
+                    Spanned::new(#ident, #span)
+                };
+            }
+        }
 
         quote! {
             Spanned::new(#node, #span)
@@ -19,11 +87,17 @@ impl<T: Reify> Reify for Spanned<T> {
 
 impl Reify for Ident {
     fn reify(&self) -> TokenStream {
-        let value = self.name();
-        let value = value.as_str();
-
-        quote! {
-            Ident::new(#value.to_string())
+        let name = self.name();
+        if name.starts_with("#") {
+            let name = format_ident!("{}", name[1..]);
+            quote! {
+                Ident::new(#name)
+            }
+        } else {
+            let name = name.as_str();
+            quote! {
+                Ident::new(#name.to_string())
+            }
         }
     }
 }
