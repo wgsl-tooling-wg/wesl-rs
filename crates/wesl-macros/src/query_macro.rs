@@ -97,7 +97,7 @@ impl Parse for QueryInput {
     }
 }
 
-pub(crate) fn query_impl(input: QueryInput, mutable: bool) -> proc_macro::TokenStream {
+pub(crate) fn query_impl(input: QueryInput, mutable: bool) -> TokenStream {
     fn quote_component(component: QueryComponent, ref_: TokenStream) -> TokenStream {
         match component {
             QueryComponent::Variant(enum_name, variant) => quote! {
