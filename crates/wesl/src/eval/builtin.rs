@@ -973,7 +973,7 @@ pub fn call_builtin(
         ("log2", None, [a]) => call_log2(a),
         ("max", None, [a1, a2]) => call_max(a1, a2),
         ("min", None, [a1, a2]) => call_min(a1, a2),
-        ("mix", None, [a1, a2, a3]) => call_mix(a1, a2, a3),
+        ("mix", None, [a1, a2, a3]) => call_mix(a1, a2, a3, ctx.stage),
         ("modf", None, [a]) => call_modf(a),
         ("normalize", None, [a]) => call_normalize(a),
         ("pow", None, [a1, a2]) => call_pow(a1, a2),
@@ -2761,8 +2761,19 @@ fn call_min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     }
 }
 
-fn call_mix(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("mix".to_string()))
+fn call_mix(e1: &Instance, e2: &Instance, e3: &Instance, stage: EvalStage) -> Result<Instance, E> {
+    let tys = [e1.inner_ty(), e2.inner_ty(), e3.inner_ty()];
+    let inner_ty = convert_all_ty(&tys).ok_or(E::Builtin("`mix` arguments are incompatible"))?;
+    let e1 = e1.convert_inner_to(inner_ty).unwrap();
+    let e2 = e2.convert_inner_to(inner_ty).unwrap();
+    let e3 = e3.convert_inner_to(inner_ty).unwrap();
+    let (e1, e2) = convert(&e1, &e2).ok_or(E::Builtin("`mix` arguments are incompatible"))?;
+
+    // TODO is it ok with abstract int? it's supposed to be of type inner_ty
+    let one = Instance::Literal(LiteralInstance::AbstractInt(1));
+
+    e1.op_mul(&one.op_sub(&e3, stage)?, stage)?
+        .op_add(&e2.op_mul(&e3, stage)?, stage)
 }
 
 fn modf_struct_name(ty: &Type) -> Option<&'static str> {
