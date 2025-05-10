@@ -876,7 +876,6 @@ impl<'s> Lexer<'s> {
             Some(tok) => {
                 let (_, span1) = tok1.as_mut().unwrap(); // safety: lookahead implies lexer looked at a `<` token
                 let span2 = span1.start + 1..span1.end;
-                span1.end = span1.start + 1;
                 Some((Ok(tok), span2))
             }
             None => self.token_stream.next(),
@@ -969,7 +968,7 @@ pub fn recognize_template_list(source: &str) -> bool {
     lexer.recognizing_template = true;
     lexer.opened_templates = 1;
     lexer.token_stream.extras.template_depths.push(0);
-    crate::parser::recognize_template_list(&mut lexer).is_ok()
+    crate::parser::recognize_template_list(lexer).is_ok()
 }
 
 #[test]
@@ -977,6 +976,8 @@ fn tmp_test() {
     println!("-- {}", recognize_template_list("<X<Y>> foo"));
     println!("-- {}", recognize_template_list("<X<Y> > foo"));
 }
+
+pub trait TokenIterator: IntoIterator<Item = Spanned<Token, usize, ParseError>> {}
 
 impl Iterator for Lexer<'_> {
     type Item = Spanned<Token, usize, ParseError>;
@@ -989,3 +990,5 @@ impl Iterator for Lexer<'_> {
         })
     }
 }
+
+impl TokenIterator for Lexer<'_> {}

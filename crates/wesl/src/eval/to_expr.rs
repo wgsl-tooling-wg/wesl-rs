@@ -258,7 +258,7 @@ impl ToExpr for Type {
             }
             Type::Sampler(_) => Ok(TypeExpression::new(ident.unwrap())),
         }
-        .map(Into::into)
+        .map(Expression::from)
     }
 }
 

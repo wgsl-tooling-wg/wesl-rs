@@ -73,6 +73,12 @@ impl Ident {
     }
 }
 
+impl From<String> for Ident {
+    fn from(name: String) -> Self {
+        Ident::new(name)
+    }
+}
+
 /// equality for idents is based on address, NOT internal value
 impl PartialEq for Ident {
     fn eq(&self, other: &Self) -> bool {

@@ -31,8 +31,8 @@ fn main() {
     );
 
     // using the procedural macro
-    let source = wesl::quote_wesl! {
-        const current_time = #timestamp;
+    let source = wesl::quote_module! {
+        const timestamp = #timestamp;
     };
     println!("quoted: {source}")
 }
