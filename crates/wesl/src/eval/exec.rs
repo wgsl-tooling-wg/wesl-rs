@@ -1,6 +1,6 @@
-use std::{fmt::Display, iter::zip};
+use std::{collections::HashMap, fmt::Display, iter::zip};
 
-use crate::eval::conv::Convert;
+use crate::eval::{VecInstance, conv::Convert};
 
 use super::{
     ATTR_INTRINSIC, AccessMode, Context, Eval, EvalError, EvalStage, EvalTy, Instance,
@@ -630,7 +630,6 @@ impl Exec for FunctionCall {
 
                 match (flow, ret_ty) {
                     (flow @ (Flow::Break | Flow::Continue), _) => Err(E::FlowInFunction(flow)),
-                    (Flow::Next, Some(ret_ty)) => Err(E::NoReturn(fn_name, ret_ty)),
                     (Flow::Return(Some(inst)), Some(ret_ty)) => inst
                         .convert_to(&ret_ty)
                         .ok_or(E::ReturnType(inst.ty(), fn_name.clone(), ret_ty))
@@ -639,7 +638,9 @@ impl Exec for FunctionCall {
                     (Flow::Return(Some(inst)), None) => {
                         Err(E::UnexpectedReturn(fn_name, inst.ty()))
                     }
-                    (Flow::Return(None), Some(ret_ty)) => Err(E::NoReturn(fn_name, ret_ty)),
+                    (Flow::Next | Flow::Return(None), Some(ret_ty)) => {
+                        Err(E::NoReturn(fn_name, ret_ty))
+                    }
                     (Flow::Next | Flow::Return(None), None) => Ok(Flow::Return(None)),
                 }
             }
@@ -672,6 +673,164 @@ impl Exec for FunctionCall {
         } else {
             Err(E::UnknownFunction(fn_name))
         }
+    }
+}
+
+/// shader inputs passed to the entry point function.
+/// user-defined inputs must be scalars, max. 16 bytes in size.
+/// see <https://www.w3.org/TR/WGSL/#input-output-locations>
+#[derive(Debug, Clone, Default)]
+pub struct Inputs {
+    pub vertex_index: Option<u32>,
+    pub instance_index: Option<u32>,
+    pub position: Option<[f32; 4]>,
+    pub front_facing: Option<bool>,
+    pub frag_depth: Option<f32>,
+    pub sample_index: Option<u32>,
+    pub sample_mask: Option<u32>,
+    pub local_invocation_id: Option<[u32; 3]>,
+    pub local_invocation_index: Option<u32>,
+    pub global_invocation_id: Option<[u32; 3]>,
+    pub workgroup_id: Option<[u32; 3]>,
+    pub num_workgroups: Option<[u32; 3]>,
+    #[cfg(feature = "naga_ext")]
+    pub primitive_index: Option<u32>,
+    #[cfg(feature = "naga_ext")]
+    pub view_index: Option<u32>,
+
+    pub user_defined: HashMap<u32, Instance>,
+}
+
+impl Inputs {
+    pub fn new_zero_initialized() -> Self {
+        Self {
+            vertex_index: Some(0),
+            instance_index: Some(0),
+            position: Some([0.0, 0.0, 0.0, 0.0]),
+            front_facing: Some(true),
+            frag_depth: Some(0.0),
+            sample_index: Some(0),
+            sample_mask: Some(0),
+            local_invocation_id: Some([0, 0, 0]),
+            local_invocation_index: Some(0),
+            global_invocation_id: Some([0, 0, 0]),
+            workgroup_id: Some([0, 0, 0]),
+            num_workgroups: Some([1, 1, 1]),
+            #[cfg(feature = "naga_ext")]
+            primitive_index: Some(0),
+            #[cfg(feature = "naga_ext")]
+            view_index: Some(0),
+            user_defined: Default::default(),
+        }
+    }
+}
+
+pub fn exec_entrypoint(
+    entrypoint: &Function,
+    inputs: Inputs,
+    ctx: &mut Context,
+) -> Result<Option<Instance>, E> {
+    let fn_name = entrypoint.ident.to_string();
+
+    let is_entrypoint = entrypoint.attributes.iter().any(|attr| {
+        matches!(
+            attr.node(),
+            Attribute::Vertex | Attribute::Fragment | Attribute::Compute
+        )
+    });
+    if !is_entrypoint {
+        return Err(E::NotEntrypoint(fn_name));
+    }
+
+    let args = entrypoint
+        .parameters
+        .iter()
+        .map(|p| {
+            let param_ty = ty_eval_ty(&p.ty, ctx)?;
+            let inst = if let Some(builtin) = p.attr_builtin() {
+                // TODO: check that the builtin value is available in the entrypoint type
+                match builtin {
+                    BuiltinValue::VertexIndex => inputs.vertex_index.map(Instance::from),
+                    BuiltinValue::InstanceIndex => inputs.instance_index.map(Instance::from),
+                    BuiltinValue::Position => {
+                        inputs.position.map(|pos| VecInstance::from(pos).into())
+                    }
+                    BuiltinValue::FrontFacing => inputs.front_facing.map(Instance::from),
+                    BuiltinValue::FragDepth => inputs.frag_depth.map(Instance::from),
+                    BuiltinValue::SampleIndex => inputs.sample_index.map(Instance::from),
+                    BuiltinValue::SampleMask => inputs.sample_mask.map(Instance::from),
+                    BuiltinValue::LocalInvocationId => inputs
+                        .local_invocation_id
+                        .map(|pos| VecInstance::from(pos).into()),
+                    BuiltinValue::LocalInvocationIndex => {
+                        inputs.local_invocation_index.map(Instance::from)
+                    }
+                    BuiltinValue::GlobalInvocationId => inputs
+                        .global_invocation_id
+                        .map(|pos| VecInstance::from(pos).into()),
+                    BuiltinValue::WorkgroupId => {
+                        inputs.workgroup_id.map(|pos| VecInstance::from(pos).into())
+                    }
+                    BuiltinValue::NumWorkgroups => inputs
+                        .num_workgroups
+                        .map(|pos| VecInstance::from(pos).into()),
+                    #[cfg(feature = "naga_ext")]
+                    BuiltinValue::PrimitiveIndex => inputs.primitive_index.map(Instance::from),
+                    #[cfg(feature = "naga_ext")]
+                    BuiltinValue::ViewIndex => inputs.view_index.map(Instance::from),
+                }
+                .ok_or_else(|| E::MissingBuiltinInput(builtin, p.ident.to_string()))
+            } else if let Some(location) = p.attr_location(ctx)? {
+                let inst = inputs
+                    .user_defined
+                    .get(&location)
+                    .ok_or_else(|| E::MissingUserInput(p.ident.to_string(), location))?
+                    .clone();
+                Ok(inst)
+            } else {
+                // TODO: struct of inputs is allowed
+                Err(E::InvalidEntrypointParam(p.ident.to_string()))
+            }?;
+
+            if inst.ty() != param_ty {
+                Err(E::ParamType(param_ty, inst.ty()))
+            } else {
+                Ok(inst)
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()
+        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
+
+    let ret_ty = entrypoint
+        .return_type
+        .as_ref()
+        .map(|expr| ty_eval_ty(expr, ctx))
+        .transpose()?;
+
+    let flow = with_scope!(ctx, {
+        for (a, p) in zip(args, &entrypoint.parameters) {
+            if !ctx.scope.add(p.ident.to_string(), a) {
+                return Err(E::DuplicateDecl(p.ident.to_string()));
+            }
+        }
+
+        // the arguments must be in the same scope as the function body.
+        let flow = compound_exec_no_scope(&entrypoint.body, ctx)
+            .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
+
+        Ok(flow)
+    })?;
+
+    match (flow, ret_ty) {
+        (flow @ (Flow::Break | Flow::Continue), _) => Err(E::FlowInFunction(flow)),
+        (Flow::Return(Some(inst)), Some(ret_ty)) => inst
+            .convert_to(&ret_ty)
+            .ok_or(E::ReturnType(inst.ty(), fn_name.clone(), ret_ty))
+            .map(Some)
+            .inspect_err(|_| ctx.set_err_decl_ctx(fn_name)),
+        (Flow::Return(Some(inst)), None) => Err(E::UnexpectedReturn(fn_name, inst.ty())),
+        (Flow::Next | Flow::Return(None), Some(ret_ty)) => Err(E::NoReturn(fn_name, ret_ty)),
+        (Flow::Next | Flow::Return(None), None) => Ok(None),
     }
 }
 

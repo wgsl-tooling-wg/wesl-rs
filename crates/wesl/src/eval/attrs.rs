@@ -1,6 +1,6 @@
 use wgsl_parse::{
     Decorated,
-    syntax::{Attribute, AttributeNode, Expression},
+    syntax::{Attribute, AttributeNode, BuiltinValue, Expression},
 };
 
 use super::{Context, Eval, EvalError, EvalStage, Instance, LiteralInstance, Ty, Type, with_stage};
@@ -28,6 +28,12 @@ pub trait EvalAttrs: Decorated {
     }
     fn attr_blend_src(&self, ctx: &mut Context) -> Result<Option<bool>, E> {
         attr_blend_src(self.attributes(), ctx).transpose()
+    }
+    fn attr_builtin(&self) -> Option<BuiltinValue> {
+        self.attributes().iter().find_map(|attr| match attr.node() {
+            Attribute::Builtin(attr) => Some(*attr),
+            _ => None,
+        })
     }
 }
 

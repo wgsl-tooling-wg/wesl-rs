@@ -22,7 +22,7 @@ mod validate;
 mod visit;
 
 #[cfg(feature = "eval")]
-pub use eval::{Eval, EvalError, Exec};
+pub use eval::{Eval, EvalError, Exec, Inputs, exec_entrypoint};
 
 #[cfg(feature = "generics")]
 pub use generics::GenericsError;
@@ -667,26 +667,25 @@ impl CompileResult {
     pub fn exec(
         &self,
         entrypoint: &str,
+        inputs: Inputs,
         bindings: HashMap<(u32, u32), eval::RefInstance>,
         overrides: HashMap<String, eval::Instance>,
     ) -> Result<ExecResult, Error> {
-        // TODO: this is not the right way.
-        let call = syntax::FunctionCall {
-            ty: syntax::TypeExpression::new(Ident::new(entrypoint.to_string())),
-            arguments: Vec::new(),
-        };
+        let mut ctx = eval::Context::new(&self.syntax);
+        ctx.add_bindings(bindings);
+        ctx.add_overrides(overrides);
+        ctx.set_stage(eval::EvalStage::Exec);
 
-        let (inst, ctx) = exec(&call, &self.syntax, bindings, overrides);
-        let inst = inst.map_err(|e| {
+        let entry_fn = eval::SyntaxUtil::decl_function(ctx.source, entrypoint)
+            .ok_or_else(|| EvalError::UnknownFunction(entrypoint.to_string()))?;
+
+        let _ = self.syntax.exec(&mut ctx)?;
+
+        let inst = exec_entrypoint(entry_fn, inputs, &mut ctx).map_err(|e| {
             if let Some(sourcemap) = &self.sourcemap {
-                Diagnostic::from(e)
-                    .with_source(call.to_string())
-                    .with_ctx(&ctx)
-                    .with_sourcemap(sourcemap)
+                Diagnostic::from(e).with_ctx(&ctx).with_sourcemap(sourcemap)
             } else {
-                Diagnostic::from(e)
-                    .with_source(call.to_string())
-                    .with_ctx(&ctx)
+                Diagnostic::from(e).with_ctx(&ctx)
             }
         })?;
 

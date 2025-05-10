@@ -10,8 +10,8 @@ use std::{
     str::FromStr,
 };
 use wesl::{
-    CompileOptions, CompileResult, Diagnostic, Feature, Features, FileResolver, ManglerKind,
-    PkgBuilder, Router, SyntaxUtil, VirtualResolver, Wesl,
+    CompileOptions, CompileResult, Diagnostic, Feature, Features, FileResolver, Inputs,
+    ManglerKind, PkgBuilder, Router, SyntaxUtil, VirtualResolver, Wesl,
     eval::{Eval, EvalAttrs, HostShareable, Instance, RefInstance, Ty, ty_eval_ty},
     syntax::{self, AccessMode, AddressSpace},
 };
@@ -374,7 +374,7 @@ enum CliError {
     #[error("resource `@group({0}) @binding({1})` not found")]
     ResourceNotFound(u32, u32),
     #[error(
-        "resource `@group({0}) @binding({1})` ({2} bytes) incompatible with type `{3}` ({4} bytes)"
+        "resource `@group({0}) @binding({1})` ({2} bytes) is incompatible with type `{3}` ({4} bytes)"
     )]
     ResourceIncompatible(u32, u32, u32, wesl::eval::Type, u32),
     #[error("Could not convert instance to buffer (type `{0}` is not storable)")]
@@ -615,6 +615,8 @@ fn run(cli: Cli) -> Result<(), CliError> {
                 .map(|input| run_compile(&args.options, input))
                 .unwrap_or_else(|| Ok(CompileResult::default()))?;
 
+            let inputs = Inputs::new_zero_initialized();
+
             let resources = args
                 .resources
                 .iter()
@@ -629,7 +631,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
                 })
                 .collect::<Result<_, _>>()?;
 
-            let mut exec = comp.exec(&args.entrypoint, resources, overrides)?;
+            let mut exec = comp.exec(&args.entrypoint, inputs, resources, overrides)?;
 
             if let Some(inst) = &exec.inst {
                 if args.binary {
