@@ -11,7 +11,7 @@ mod syntax_display;
 mod syntax_impl;
 
 #[cfg(feature = "reify")]
-mod reify;
+pub mod reify;
 #[cfg(feature = "reify")]
 pub use ::reify::Reify;
 

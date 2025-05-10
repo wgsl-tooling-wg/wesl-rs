@@ -398,7 +398,7 @@ impl Display for Attribute {
             #[cfg(feature = "naga_ext")]
             Attribute::EarlyDepthTest(Some(e1)) => write!(f, "@early_depth_test({e1})"),
             Attribute::Custom(custom) => {
-                let name = &custom.name;
+                let name = &custom.ident;
                 let args = custom.arguments.iter().format_with("", |args, f| {
                     f(&format_args!("({})", args.iter().format(", ")))
                 });
