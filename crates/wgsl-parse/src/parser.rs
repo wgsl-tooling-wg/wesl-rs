@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::{
     error::Error,
-    lexer::Lexer,
+    lexer::{Lexer, TokenIterator},
     syntax::{Expression, GlobalDeclaration, GlobalDirective, Statement, TranslationUnit},
 };
 
@@ -37,7 +37,7 @@ pub fn recognize_str(source: &str) -> Result<(), Error> {
     parser.parse(lexer).map_err(Into::into)
 }
 
-pub(crate) fn recognize_template_list(lexer: &mut Lexer) -> Result<(), Error> {
+pub fn recognize_template_list(lexer: impl TokenIterator) -> Result<(), Error> {
     let parser = TryTemplateListParser::new();
     parser.parse(lexer).map(|_| ()).map_err(Into::into)
 }

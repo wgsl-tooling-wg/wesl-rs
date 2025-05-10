@@ -7,20 +7,6 @@ use reify::quote::{format_ident, quote};
 use crate::syntax::*;
 use crate::{span::Spanned, syntax::Ident};
 
-// pub trait Inject {
-//     type Target;
-//     fn inject(&self, orig: &Self::Target) -> Self::Target;
-// }
-
-// impl Inject for &str {
-//     type Target = Ident;
-
-//     fn inject(&self, _: &Self::Target) -> Self::Target {
-//         Ident::new(self.to_string())
-//     }
-// }
-//
-
 trait NamedNode {
     fn ident(&self) -> Option<&Ident>;
 }
@@ -91,7 +77,7 @@ impl Reify for Ident {
         if name.starts_with("#") {
             let name = format_ident!("{}", name[1..]);
             quote! {
-                Ident::new(#name)
+                Ident::from(#name)
             }
         } else {
             let name = name.as_str();
