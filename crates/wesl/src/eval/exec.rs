@@ -350,14 +350,26 @@ impl Exec for SwitchStatement {
         for clause in &self.clauses {
             for selector in &clause.case_selectors {
                 match selector {
-                    CaseSelector::Default => return clause.body.exec(ctx),
+                    CaseSelector::Default => {
+                        let flow = clause.body.exec(ctx)?;
+                        if flow == Flow::Break {
+                            return Ok(Flow::Next);
+                        } else {
+                            return Ok(flow);
+                        }
+                    }
                     CaseSelector::Expression(e) => {
                         let e = with_stage!(ctx, EvalStage::Const, { e.eval_value(ctx) })?;
                         let e = e
                             .convert_to(&ty)
                             .ok_or_else(|| E::Conversion(e.ty(), ty.clone()))?;
                         if e == expr {
-                            return clause.body.exec(ctx);
+                            let flow = clause.body.exec(ctx)?;
+                            if flow == Flow::Break {
+                                return Ok(Flow::Next);
+                            } else {
+                                return Ok(flow);
+                            }
                         }
                     }
                 }
