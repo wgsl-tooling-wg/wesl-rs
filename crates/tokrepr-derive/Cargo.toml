@@ -1,10 +1,11 @@
 [package]
-name = "reify-derive"
+name = "tokrepr-derive"
+description = "Derive macro for tokrepr"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-version.workspace = true
+version = "0.0.1"
 rust-version.workspace = true
 
 [dependencies]

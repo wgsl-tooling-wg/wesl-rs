@@ -1,8 +1,8 @@
 //! Turn an instance into a `TokenStream` that represents the instance.
 
-use reify::Reify;
-use reify::proc_macro2::TokenStream;
-use reify::quote::{format_ident, quote};
+use tokrepr::proc_macro2::TokenStream;
+use tokrepr::quote::{format_ident, quote};
+use tokrepr::TokRepr;
 
 use crate::syntax::*;
 use crate::{span::Spanned, syntax::Ident};
@@ -49,10 +49,10 @@ impl NamedNode for Statement {
     }
 }
 
-impl<T: NamedNode + Reify> Reify for Spanned<T> {
-    fn reify(&self) -> TokenStream {
-        let node = self.node().reify();
-        let span = self.span().reify();
+impl<T: NamedNode + TokRepr> TokRepr for Spanned<T> {
+    fn tok_repr(&self) -> TokenStream {
+        let node = self.node().tok_repr();
+        let span = self.span().tok_repr();
 
         if let Some(ident) = self.ident() {
             let name = ident.name();
@@ -71,8 +71,8 @@ impl<T: NamedNode + Reify> Reify for Spanned<T> {
     }
 }
 
-impl Reify for Ident {
-    fn reify(&self) -> TokenStream {
+impl TokRepr for Ident {
+    fn tok_repr(&self) -> TokenStream {
         let name = self.name();
         if name.starts_with("#") {
             let name = format_ident!("{}", name[1..]);
