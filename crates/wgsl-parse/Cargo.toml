@@ -28,8 +28,8 @@ logos = "0.15.0"
 serde = { version = "1.0.215", optional = true, features = ["derive", "rc"] }
 thiserror = "2.0.12"
 
-# for feature "reify"
-reify = { workspace = true, optional = true }
+# for feature "tokrepr"
+tokrepr = { workspace = true, optional = true }
 
 [build-dependencies]
 lalrpop = { version = "0.22.1", default-features = false }
@@ -64,7 +64,7 @@ imports = []
 naga_ext = ["push_constant"]
 push_constant = []
 
-reify = ["dep:reify"]
+tokrepr = ["dep:tokrepr"]
 
 [lints]
 workspace = true

@@ -27,13 +27,13 @@ use derive_more::{From, IsVariant, Unwrap};
 
 pub use crate::span::{Span, Spanned};
 
-#[cfg(feature = "reify")]
-use reify::Reify;
+#[cfg(feature = "tokrepr")]
+use tokrepr::TokRepr;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct TranslationUnit {
@@ -96,7 +96,7 @@ impl std::hash::Hash for Ident {
 }
 
 #[cfg(feature = "imports")]
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImportStatement {
@@ -107,7 +107,7 @@ pub struct ImportStatement {
 }
 
 #[cfg(feature = "imports")]
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, IsVariant)]
 pub enum PathOrigin {
@@ -117,7 +117,7 @@ pub enum PathOrigin {
 }
 
 #[cfg(feature = "imports")]
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ModulePath {
@@ -126,7 +126,7 @@ pub struct ModulePath {
 }
 
 #[cfg(feature = "imports")]
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Import {
@@ -135,7 +135,7 @@ pub struct Import {
 }
 
 #[cfg(feature = "imports")]
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, IsVariant)]
 pub enum ImportContent {
@@ -144,7 +144,7 @@ pub enum ImportContent {
 }
 
 #[cfg(feature = "imports")]
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ImportItem {
@@ -152,7 +152,7 @@ pub struct ImportItem {
     pub rename: Option<Ident>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, From, IsVariant, Unwrap)]
 pub enum GlobalDirective {
@@ -161,7 +161,7 @@ pub enum GlobalDirective {
     Requires(RequiresDirective),
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct DiagnosticDirective {
@@ -171,7 +171,7 @@ pub struct DiagnosticDirective {
     pub rule_name: String,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, Eq, IsVariant)]
 pub enum DiagnosticSeverity {
@@ -181,7 +181,7 @@ pub enum DiagnosticSeverity {
     Off,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnableDirective {
@@ -190,7 +190,7 @@ pub struct EnableDirective {
     pub extensions: Vec<String>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct RequiresDirective {
@@ -199,7 +199,7 @@ pub struct RequiresDirective {
     pub extensions: Vec<String>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, From, IsVariant, Unwrap)]
 pub enum GlobalDeclaration {
@@ -213,7 +213,7 @@ pub enum GlobalDeclaration {
 
 pub type GlobalDeclarationNode = Spanned<GlobalDeclaration>;
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Declaration {
@@ -224,7 +224,7 @@ pub struct Declaration {
     pub initializer: Option<ExpressionNode>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
 pub enum DeclarationKind {
@@ -234,7 +234,7 @@ pub enum DeclarationKind {
     Var(Option<AddressSpace>), // "None" corresponds to handle space if it is a module-scope declaration, otherwise function space.
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
 pub enum AddressSpace {
@@ -248,7 +248,7 @@ pub enum AddressSpace {
     PushConstant,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AccessMode {
@@ -257,7 +257,7 @@ pub enum AccessMode {
     ReadWrite,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeAlias {
@@ -267,7 +267,7 @@ pub struct TypeAlias {
     pub ty: TypeExpression,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Struct {
@@ -277,7 +277,7 @@ pub struct Struct {
     pub members: Vec<StructMemberNode>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct StructMember {
@@ -288,7 +288,7 @@ pub struct StructMember {
 
 pub type StructMemberNode = Spanned<StructMember>;
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Function {
@@ -300,7 +300,7 @@ pub struct Function {
     pub body: CompoundStatement,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct FormalParameter {
@@ -309,7 +309,7 @@ pub struct FormalParameter {
     pub ty: TypeExpression,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ConstAssert {
@@ -318,7 +318,7 @@ pub struct ConstAssert {
     pub expression: ExpressionNode,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
 pub enum BuiltinValue {
@@ -340,7 +340,7 @@ pub enum BuiltinValue {
     ViewIndex,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
 pub enum InterpolationType {
@@ -349,7 +349,7 @@ pub enum InterpolationType {
     Flat,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
 pub enum InterpolationSampling {
@@ -360,7 +360,7 @@ pub enum InterpolationSampling {
     Either,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct DiagnosticAttribute {
@@ -368,7 +368,7 @@ pub struct DiagnosticAttribute {
     pub rule: String,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct InterpolateAttribute {
@@ -376,7 +376,7 @@ pub struct InterpolateAttribute {
     pub sampling: Option<InterpolationSampling>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct WorkgroupSizeAttribute {
@@ -385,7 +385,7 @@ pub struct WorkgroupSizeAttribute {
     pub z: Option<ExpressionNode>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct CustomAttribute {
@@ -393,7 +393,7 @@ pub struct CustomAttribute {
     pub arguments: Option<Vec<ExpressionNode>>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, IsVariant, Unwrap)]
 pub enum Attribute {
@@ -427,7 +427,7 @@ pub enum Attribute {
     Custom(CustomAttribute),
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg(feature = "naga_ext")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
@@ -440,7 +440,7 @@ pub enum ConservativeDepth {
 pub type AttributeNode = Spanned<Attribute>;
 
 #[cfg(feature = "generics")]
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, From)]
 pub struct TypeConstraint {
@@ -450,7 +450,7 @@ pub struct TypeConstraint {
 
 pub type Attributes = Vec<AttributeNode>;
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, From, IsVariant, Unwrap)]
 pub enum Expression {
@@ -466,7 +466,7 @@ pub enum Expression {
 
 pub type ExpressionNode = Spanned<Expression>;
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, From, IsVariant, Unwrap)]
 pub enum LiteralExpression {
@@ -489,14 +489,14 @@ pub enum LiteralExpression {
     F64(f64),
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ParenthesizedExpression {
     pub expression: ExpressionNode,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedComponentExpression {
@@ -504,7 +504,7 @@ pub struct NamedComponentExpression {
     pub component: Ident,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct IndexingExpression {
@@ -512,7 +512,7 @@ pub struct IndexingExpression {
     pub index: ExpressionNode,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct UnaryExpression {
@@ -520,7 +520,7 @@ pub struct UnaryExpression {
     pub operand: ExpressionNode,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
 pub enum UnaryOperator {
@@ -531,7 +531,7 @@ pub enum UnaryOperator {
     Indirection,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryExpression {
@@ -540,7 +540,7 @@ pub struct BinaryExpression {
     pub right: ExpressionNode,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
 pub enum BinaryOperator {
@@ -564,7 +564,7 @@ pub enum BinaryOperator {
     ShiftRight,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCall {
@@ -574,7 +574,7 @@ pub struct FunctionCall {
 
 pub type FunctionCallExpression = FunctionCall;
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeExpression {
@@ -584,7 +584,7 @@ pub struct TypeExpression {
     pub template_args: TemplateArgs,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct TemplateArg {
@@ -592,7 +592,7 @@ pub struct TemplateArg {
 }
 pub type TemplateArgs = Option<Vec<TemplateArg>>;
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, From, IsVariant, Unwrap)]
 pub enum Statement {
@@ -617,7 +617,7 @@ pub enum Statement {
 
 pub type StatementNode = Spanned<Statement>;
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct CompoundStatement {
@@ -625,7 +625,7 @@ pub struct CompoundStatement {
     pub statements: Vec<StatementNode>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct AssignmentStatement {
@@ -636,7 +636,7 @@ pub struct AssignmentStatement {
     pub rhs: ExpressionNode,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, Eq, IsVariant)]
 pub enum AssignmentOperator {
@@ -653,7 +653,7 @@ pub enum AssignmentOperator {
     ShiftLeftAssign,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct IncrementStatement {
@@ -662,7 +662,7 @@ pub struct IncrementStatement {
     pub expression: ExpressionNode,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct DecrementStatement {
@@ -671,7 +671,7 @@ pub struct DecrementStatement {
     pub expression: ExpressionNode,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct IfStatement {
@@ -681,7 +681,7 @@ pub struct IfStatement {
     pub else_clause: Option<ElseClause>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct IfClause {
@@ -689,7 +689,7 @@ pub struct IfClause {
     pub body: CompoundStatement,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ElseIfClause {
@@ -699,7 +699,7 @@ pub struct ElseIfClause {
     pub body: CompoundStatement,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ElseClause {
@@ -708,7 +708,7 @@ pub struct ElseClause {
     pub body: CompoundStatement,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct SwitchStatement {
@@ -718,7 +718,7 @@ pub struct SwitchStatement {
     pub clauses: Vec<SwitchClause>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct SwitchClause {
@@ -728,7 +728,7 @@ pub struct SwitchClause {
     pub body: CompoundStatement,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq, From, IsVariant, Unwrap)]
 pub enum CaseSelector {
@@ -736,7 +736,7 @@ pub enum CaseSelector {
     Expression(ExpressionNode),
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct LoopStatement {
@@ -748,7 +748,7 @@ pub struct LoopStatement {
     pub continuing: Option<ContinuingStatement>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinuingStatement {
@@ -761,7 +761,7 @@ pub struct ContinuingStatement {
     pub break_if: Option<BreakIfStatement>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct BreakIfStatement {
@@ -770,7 +770,7 @@ pub struct BreakIfStatement {
     pub expression: ExpressionNode,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ForStatement {
@@ -781,7 +781,7 @@ pub struct ForStatement {
     pub body: CompoundStatement,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct WhileStatement {
@@ -790,7 +790,7 @@ pub struct WhileStatement {
     pub body: CompoundStatement,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct BreakStatement {
@@ -798,7 +798,7 @@ pub struct BreakStatement {
     pub attributes: Attributes,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ContinueStatement {
@@ -806,7 +806,7 @@ pub struct ContinueStatement {
     pub attributes: Attributes,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReturnStatement {
@@ -815,7 +815,7 @@ pub struct ReturnStatement {
     pub expression: Option<ExpressionNode>,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct DiscardStatement {
@@ -823,7 +823,7 @@ pub struct DiscardStatement {
     pub attributes: Attributes,
 }
 
-#[cfg_attr(feature = "reify", derive(Reify))]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct FunctionCallStatement {

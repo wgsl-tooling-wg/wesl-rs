@@ -1,17 +1,21 @@
+//! Derive macro for tokrepr.
+//!
+//!
+
 use itertools::Itertools;
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields, parse_macro_input};
 
-#[proc_macro_derive(Reify)]
-pub fn derive_reify(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+#[proc_macro_derive(TokRepr)]
+pub fn derive_tokrepr(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    reify_impl(input).into()
+    tokrepr_impl(input).into()
 }
 
-pub(crate) fn reify_impl(input: DeriveInput) -> TokenStream {
+pub(crate) fn tokrepr_impl(input: DeriveInput) -> TokenStream {
     let name = &input.ident;
-    let reify_path = quote! { reify };
+    let tokrepr_path = quote! { tokrepr };
     let self_path = quote! {};
 
     let body = match &input.data {
@@ -20,9 +24,9 @@ pub(crate) fn reify_impl(input: DeriveInput) -> TokenStream {
                 Fields::Named(fields) => {
                     let fields = fields.named.iter().map(|f| &f.ident).collect_vec();
                     quote! {
-                        #(let #fields = #reify_path::Reify::reify(&self.#fields);)*
+                        #(let #fields = #tokrepr_path::TokRepr::tok_repr(&self.#fields);)*
 
-                        #reify_path::quote::quote! {
+                        #tokrepr_path::quote::quote! {
                             #self_path #name {
                                 #(#fields: # #fields,)*
                             }
@@ -38,7 +42,7 @@ pub(crate) fn reify_impl(input: DeriveInput) -> TokenStream {
                 let variant = &v.ident;
                 if v.fields.is_empty() {
                     quote! {
-                        Self::#variant => #reify_path::quote::quote! { #self_path #name::#variant }
+                        Self::#variant => #tokrepr_path::quote::quote! { #self_path #name::#variant }
                     }
                 } else {
                     let fields = (0..v.fields.len())
@@ -48,8 +52,8 @@ pub(crate) fn reify_impl(input: DeriveInput) -> TokenStream {
 
                     quote! {
                         Self::#variant(#(#fields),*) => {
-                            #(let #fields = #reify_path::Reify::reify(#fields);)*
-                            #reify_path::quote::quote!{
+                            #(let #fields = #tokrepr_path::TokRepr::tok_repr(#fields);)*
+                            #tokrepr_path::quote::quote!{
                                 #self_path #name::#variant(#(# #fields,)*)
                             }
                         }
@@ -67,8 +71,8 @@ pub(crate) fn reify_impl(input: DeriveInput) -> TokenStream {
     };
 
     quote! {
-        impl #reify_path::Reify for #name {
-            fn reify(&self) -> #reify_path::proc_macro2::TokenStream {
+        impl #tokrepr_path::TokRepr for #name {
+            fn tok_repr(&self) -> #tokrepr_path::proc_macro2::TokenStream {
                 #body
             }
         }

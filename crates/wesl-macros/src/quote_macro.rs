@@ -6,7 +6,7 @@ use proc_macro2::{Ident, Literal, Punct, Spacing, TokenStream};
 use token_stream_flatten::{
     Delimiter, DelimiterKind, DelimiterPosition, FlattenRec, Token as RustToken,
 };
-use wgsl_parse::{Reify, lexer::Token};
+use wgsl_parse::{TokRepr, lexer::Token};
 
 type Span = std::ops::Range<usize>;
 type NextToken = Option<(Token, Span)>;
@@ -430,7 +430,7 @@ pub(crate) fn quote_impl(kind: QuoteNodeKind, input: TokenStream) -> TokenStream
                 abort!(start, "{}", err)
             });
 
-            syntax.reify()
+            syntax.tok_repr()
         }};
     }
 

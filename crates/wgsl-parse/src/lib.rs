@@ -10,10 +10,10 @@ mod parser_support;
 mod syntax_display;
 mod syntax_impl;
 
-#[cfg(feature = "reify")]
-pub mod reify;
-#[cfg(feature = "reify")]
-pub use ::reify::Reify;
+#[cfg(feature = "tokrepr")]
+pub mod tokrepr;
+#[cfg(feature = "tokrepr")]
+pub use ::tokrepr::TokRepr;
 
 pub use error::Error;
 pub use parser::{parse_str, recognize_str};
