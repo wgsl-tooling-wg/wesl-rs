@@ -48,7 +48,7 @@ pub trait Resolver {
         None
     }
     /// Get the filesystem path of the module path. Implementing this is optional.
-    /// Used by build scripts for dependency tracking
+    /// Used by build scripts for dependency tracking.
     fn fs_path(&self, _path: &ModulePath) -> Option<PathBuf> {
         None
     }
@@ -507,11 +507,9 @@ pub fn emit_rerun_if_changed(modules: &[ModulePath], resolver: &impl Resolver) {
         if module.origin.is_package() {
             continue;
         }
-        if module.origin.is_relative() {
-            panic!("The modules passed emit_rerun_if_changed must be absolute");
-        }
+        assert!(!module.origin.is_relative(), "the modules passed to emit_rerun_if_changed must be absolute");
         if let Some(mut path) = resolver.fs_path(module) {
-            // Path::display is safe here, because of the ModulePath naming restrictions
+            // Path::display is safe here because of the ModulePath naming restrictions
             println!("cargo::rerun-if-changed={}", path.display());
 
             // If it's a fallback path, we need to react to the higher priority path as well

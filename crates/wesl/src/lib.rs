@@ -548,7 +548,7 @@ impl<R: Resolver> Wesl<R> {
 pub struct CompileResult {
     pub syntax: TranslationUnit,
     pub sourcemap: Option<BasicSourceMap>,
-    /// A list of absolute paths or packages
+    /// A list of absolute paths or packages.
     pub modules: Vec<ModulePath>,
 }
 
