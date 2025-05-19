@@ -29,7 +29,6 @@ pub use generics::GenericsError;
 
 #[cfg(feature = "package")]
 pub use package::PkgBuilder;
-use package::emit_rerun_if_changed;
 
 pub use condcomp::{CondCompError, Feature, Features};
 pub use error::{Diagnostic, Error};
@@ -38,7 +37,7 @@ pub use lower::lower;
 pub use mangle::{CacheMangler, EscapeMangler, HashMangler, Mangler, NoMangler, UnicodeMangler};
 pub use resolve::{
     FileResolver, NoResolver, PkgModule, PkgResolver, Preprocessor, ResolveError, Resolver, Router,
-    StandardResolver, VirtualResolver,
+    StandardResolver, VirtualResolver, emit_rerun_if_changed,
 };
 pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
 pub use syntax_util::SyntaxUtil;

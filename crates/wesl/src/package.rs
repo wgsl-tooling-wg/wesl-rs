@@ -229,24 +229,3 @@ impl Module {
         Ok(())
     }
 }
-
-pub(crate) fn emit_rerun_if_changed(modules: &[ModulePath], resolver: &impl Resolver) {
-    for module in modules {
-        if module.origin.is_package() {
-            continue;
-        }
-        if module.origin.is_relative() {
-            panic!("The modules passed emit_rerun_if_changed must be absolute");
-        }
-        if let Some(mut path) = resolver.fs_path(module) {
-            // Path::display is safe here, because of the ModulePath naming restrictions
-            println!("cargo::rerun-if-changed={}", path.display());
-
-            // If it's a fallback path, we need to react to the higher priority path as well
-            if path.extension().unwrap() == "wgsl" {
-                path.set_extension("wesl");
-                println!("cargo::rerun-if-changed={}", path.display());
-            }
-        }
-    }
-}
