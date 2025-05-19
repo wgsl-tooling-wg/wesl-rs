@@ -507,7 +507,10 @@ pub fn emit_rerun_if_changed(modules: &[ModulePath], resolver: &impl Resolver) {
         if module.origin.is_package() {
             continue;
         }
-        assert!(!module.origin.is_relative(), "the modules passed to emit_rerun_if_changed must be absolute");
+        assert!(
+            !module.origin.is_relative(),
+            "the modules passed to emit_rerun_if_changed must be absolute"
+        );
         if let Some(mut path) = resolver.fs_path(module) {
             // Path::display is safe here because of the ModulePath naming restrictions
             println!("cargo::rerun-if-changed={}", path.display());
