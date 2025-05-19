@@ -37,7 +37,7 @@ pub use lower::lower;
 pub use mangle::{CacheMangler, EscapeMangler, HashMangler, Mangler, NoMangler, UnicodeMangler};
 pub use resolve::{
     FileResolver, NoResolver, PkgModule, PkgResolver, Preprocessor, ResolveError, Resolver, Router,
-    StandardResolver, VirtualResolver,
+    StandardResolver, VirtualResolver, emit_rerun_if_changed,
 };
 pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
 pub use syntax_util::SyntaxUtil;
@@ -548,6 +548,7 @@ impl<R: Resolver> Wesl<R> {
 pub struct CompileResult {
     pub syntax: TranslationUnit,
     pub sourcemap: Option<BasicSourceMap>,
+    /// A list of absolute paths or packages.
     pub modules: Vec<ModulePath>,
 }
 
@@ -724,6 +725,9 @@ impl<R: Resolver> Wesl<R> {
     ///   directory.
     /// * The second argument is the name of the artifact, used in [`include_wesl`].
     ///
+    /// Will emit `rerun-if-changed`. Remember to include a `println!("cargo::rerun-if-changed=build.rs")`
+    /// in your build script.
+    ///
     /// # Panics
     /// Panics when compilation fails or if the output file cannot be written.
     /// Pretty-prints the WESL error message to stderr.
@@ -737,12 +741,15 @@ impl<R: Resolver> Wesl<R> {
         }
         let mut output = Path::new(&dirname).join(out_name);
         output.set_extension("wgsl");
-        self.compile(entrypoint.clone())
+        let compiled = self
+            .compile(entrypoint.clone())
             .inspect_err(|e| {
                 eprintln!("failed to build WESL shader `{entrypoint}`.\n{e}");
                 panic!();
             })
-            .unwrap()
+            .unwrap();
+        emit_rerun_if_changed(&compiled.modules, &self.resolver);
+        compiled
             .write_to_file(output)
             .expect("failed to write output shader");
     }
