@@ -4,7 +4,7 @@ use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use wgsl_parse::syntax::{PathOrigin, TranslationUnit};
 
-use crate::{Diagnostic, Error, ModulePath, Resolver, SyntaxUtil, validate::validate_wesl};
+use crate::{Diagnostic, Error, ModulePath, SyntaxUtil, validate::validate_wesl};
 
 /// A builder that generates code for WESL packages.
 ///
