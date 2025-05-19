@@ -27,9 +27,9 @@ pub use eval::{Eval, EvalError, Exec, Inputs, exec_entrypoint};
 #[cfg(feature = "generics")]
 pub use generics::GenericsError;
 
-use package::emit_rerun_if_changed;
 #[cfg(feature = "package")]
 pub use package::PkgBuilder;
+use package::emit_rerun_if_changed;
 
 pub use condcomp::{CondCompError, Feature, Features};
 pub use error::{Diagnostic, Error};
@@ -726,7 +726,7 @@ impl<R: Resolver> Wesl<R> {
     ///   directory.
     /// * The second argument is the name of the artifact, used in [`include_wesl`].
     ///
-    /// Will emit `rerun-if-changed`. Remember to include a `rerun-if-changed=build.rs`
+    /// Will emit `rerun-if-changed`. Remember to include a `println!("cargo::rerun-if-changed=build.rs")`
     /// in your build script.
     ///
     /// # Panics
