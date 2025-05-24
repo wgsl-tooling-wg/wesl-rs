@@ -1,4 +1,4 @@
-use proc_macro_error::proc_macro_error;
+use proc_macro_error2::proc_macro_error;
 use query_macro::{QueryInput, query_impl};
 use quote_macro::{QuoteNodeKind, quote_impl};
 use syn::parse_macro_input;
