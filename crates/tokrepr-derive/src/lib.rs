@@ -33,31 +33,56 @@ pub(crate) fn tokrepr_impl(input: DeriveInput) -> TokenStream {
                         }
                     }
                 }
-                _ => unimplemented!(),
+                Fields::Unnamed(f) => {
+                    let fields = (0..f.unnamed.len())
+                        .into_iter()
+                        .map(|n| format_ident!("f{n}"))
+                        .collect_vec();
+
+                    quote! {
+                        #(let #fields = #tokrepr_path::TokRepr::tok_repr(#fields);)*
+
+                        #tokrepr_path::quote::quote!{
+                            #self_path #name(#(# #fields,)*)
+                        }
+                    }
+                }
+                Fields::Unit => {
+                    quote! {
+                        #tokrepr_path::quote::quote! {
+                            #self_path #name
+                        }
+                    }
+                }
             };
             fields
         }
         Data::Enum(data) => {
             let fields = data.variants.iter().map(|v| {
                 let variant = &v.ident;
-                if v.fields.is_empty() {
-                    quote! {
-                        Self::#variant => #tokrepr_path::quote::quote! { #self_path #name::#variant }
-                    }
-                } else {
-                    let fields = (0..v.fields.len())
-                        .into_iter()
-                        .map(|n| format_ident!("f{n}"))
-                        .collect_vec();
+                match &v.fields {
+                    Fields::Named(_) => unimplemented!(),
+                    Fields::Unnamed(f) => {
+                        let fields = (0..f.unnamed.len())
+                            .into_iter()
+                            .map(|n| format_ident!("f{n}"))
+                            .collect_vec();
 
-                    quote! {
-                        Self::#variant(#(#fields),*) => {
-                            #(let #fields = #tokrepr_path::TokRepr::tok_repr(#fields);)*
-                            #tokrepr_path::quote::quote!{
-                                #self_path #name::#variant(#(# #fields,)*)
+                        quote! {
+                            Self::#variant(#(#fields),*) => {
+                                #(let #fields = #tokrepr_path::TokRepr::tok_repr(#fields);)*
+
+                                #tokrepr_path::quote::quote!{
+                                    #self_path #name::#variant(#(# #fields,)*)
+                                }
                             }
                         }
-                    }
+                    },
+                    Fields::Unit => {
+                        quote! {
+                            Self::#variant => #tokrepr_path::quote::quote! { #self_path #name::#variant }
+                        }
+                    },
                 }
             });
 
@@ -67,7 +92,7 @@ pub(crate) fn tokrepr_impl(input: DeriveInput) -> TokenStream {
                 }
             }
         }
-        _ => unimplemented!(),
+        Data::Union(_) => unimplemented!("tokrepr derive is not implemented for unions"),
     };
 
     quote! {
