@@ -20,6 +20,13 @@
 //! automatically with the [derive macro](https://docs.rs/tokrepr-derive). See the macro
 //! documentation for configuration options.
 //!
+//! ## Limitations
+//!
+//! This trait generates code. Like all procedural macros, the generated code is
+//! unhygienic. Implementers of `TokRepr` need to pay attention to the scope of
+//! identifiers. The derive macro assumes that the struct or enum is in scope at the macro
+//! call site.
+//!
 //! ## See also
 //!
 //! The [`uneval`](https://docs.rs/uneval) crate provides a similar feature

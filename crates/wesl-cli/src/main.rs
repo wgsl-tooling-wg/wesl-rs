@@ -13,9 +13,8 @@ use wesl::{
     CompileOptions, CompileResult, Diagnostic, Feature, Features, FileResolver, Inputs,
     ManglerKind, PkgBuilder, Router, SyntaxUtil, VirtualResolver, Wesl,
     eval::{Eval, EvalAttrs, HostShareable, Instance, RefInstance, Ty, ty_eval_ty},
-    syntax::{self, AccessMode, AddressSpace},
+    syntax::{self, AccessMode, AddressSpace, TranslationUnit},
 };
-use wgsl_parse::syntax::TranslationUnit;
 
 // adapted from clap cookbook: https://docs.rs/clap/latest/clap/_derive/_cookbook/typed_derive/index.html
 fn parse_key_val<T, U>(s: &str) -> Result<(T, U), Box<dyn Error + Send + Sync + 'static>>
