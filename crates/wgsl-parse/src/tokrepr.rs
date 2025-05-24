@@ -1,8 +1,8 @@
 //! Turn an instance into a `TokenStream` that represents the instance.
 
+use tokrepr::TokRepr;
 use tokrepr::proc_macro2::TokenStream;
 use tokrepr::quote::{format_ident, quote};
-use tokrepr::TokRepr;
 
 use crate::syntax::*;
 use crate::{span::Spanned, syntax::Ident};

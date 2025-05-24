@@ -16,6 +16,7 @@ tokrepr-derive = { workspace = true, optional = true }
 [features]
 default = ["derive"]
 derive = ["dep:tokrepr-derive"]
+rc = []
 
 [lints]
 workspace = true
