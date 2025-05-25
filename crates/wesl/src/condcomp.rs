@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::Diagnostic;
 use thiserror::Error;
+use wesl_macros::quote_expression;
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
 /// Conditional translation error.
@@ -58,8 +59,8 @@ impl From<bool> for Feature {
     }
 }
 
-const EXPR_TRUE: Expression = Expression::Literal(LiteralExpression::Bool(true));
-const EXPR_FALSE: Expression = Expression::Literal(LiteralExpression::Bool(false));
+const EXPR_TRUE: Expression = quote_expression!(true);
+const EXPR_FALSE: Expression = quote_expression!(false);
 
 pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E> {
     fn eval_rec(expr: &ExpressionNode, features: &Features) -> Result<Expression, E> {

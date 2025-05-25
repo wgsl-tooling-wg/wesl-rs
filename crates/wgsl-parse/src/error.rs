@@ -31,7 +31,7 @@ pub enum ErrorKind {
 }
 
 #[derive(Default, Clone, Debug, PartialEq)]
-pub(crate) enum CustomLalrError {
+pub enum ParseError {
     #[default]
     LexerError,
     DiagnosticSeverity,
@@ -39,7 +39,7 @@ pub(crate) enum CustomLalrError {
     VarTemplate(&'static str),
 }
 
-type LalrError = lalrpop_util::ParseError<usize, Token, (usize, CustomLalrError, usize)>;
+type LalrpopError = lalrpop_util::ParseError<usize, Token, (usize, ParseError, usize)>;
 
 /// WGSL parse error.
 ///
@@ -64,20 +64,20 @@ impl Display for Error {
     }
 }
 
-impl From<LalrError> for Error {
-    fn from(err: LalrError) -> Self {
+impl From<LalrpopError> for Error {
+    fn from(err: LalrpopError) -> Self {
         match err {
-            LalrError::InvalidToken { location } => {
+            LalrpopError::InvalidToken { location } => {
                 let span = Span::new(location..location + 1);
                 let error = ErrorKind::InvalidToken;
                 Self { span, error }
             }
-            LalrError::UnrecognizedEof { location, expected } => {
+            LalrpopError::UnrecognizedEof { location, expected } => {
                 let span = Span::new(location..location + 1);
                 let error = ErrorKind::UnexpectedEof { expected };
                 Self { span, error }
             }
-            LalrError::UnrecognizedToken {
+            LalrpopError::UnrecognizedToken {
                 token: (l, token, r),
                 expected,
             } => {
@@ -88,24 +88,22 @@ impl From<LalrError> for Error {
                 };
                 Self { span, error }
             }
-            LalrError::ExtraToken {
+            LalrpopError::ExtraToken {
                 token: (l, token, r),
             } => {
                 let span = Span::new(l..r);
                 let error = ErrorKind::ExtraToken(token.to_string());
                 Self { span, error }
             }
-            LalrError::User {
+            LalrpopError::User {
                 error: (l, error, r),
             } => {
                 let span = Span::new(l..r);
                 let error = match error {
-                    CustomLalrError::DiagnosticSeverity => ErrorKind::DiagnosticSeverity,
-                    CustomLalrError::LexerError => ErrorKind::InvalidToken,
-                    CustomLalrError::Attribute(attr, expected) => {
-                        ErrorKind::Attribute(attr, expected)
-                    }
-                    CustomLalrError::VarTemplate(reason) => ErrorKind::VarTemplate(reason),
+                    ParseError::DiagnosticSeverity => ErrorKind::DiagnosticSeverity,
+                    ParseError::LexerError => ErrorKind::InvalidToken,
+                    ParseError::Attribute(attr, expected) => ErrorKind::Attribute(attr, expected),
+                    ParseError::VarTemplate(reason) => ErrorKind::VarTemplate(reason),
                 };
                 Self { span, error }
             }
