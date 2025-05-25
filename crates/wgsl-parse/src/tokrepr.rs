@@ -7,6 +7,9 @@ use tokrepr::quote::{format_ident, quote};
 use crate::syntax::*;
 use crate::{span::Spanned, syntax::Ident};
 
+/// named nodes are those that have an identifier. We use this trait to conditionally
+/// implement TokRepr for Spanned<NamedNode>, which allows code injection in `quote_*!`
+/// macros from the `wesl` crate.
 trait NamedNode {
     fn ident(&self) -> Option<&Ident>;
 }
@@ -45,6 +48,16 @@ impl NamedNode for Expression {
 
 impl NamedNode for Statement {
     fn ident(&self) -> Option<&Ident> {
+        // COMBAK: this nesting is hell. Hopefully if-let chains will stabilize soon.
+        if let Statement::Compound(stmt) = self {
+            if stmt.statements.is_empty() {
+                if let [attr] = stmt.attributes.as_slice() {
+                    if let Attribute::Custom(attr) = attr.node() {
+                        return Some(&attr.ident);
+                    }
+                }
+            }
+        }
         None
     }
 }

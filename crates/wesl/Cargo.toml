@@ -36,7 +36,6 @@ generics = ["wgsl-parse/generics"]
 serde = ["wgsl-parse/serde", "dep:serde"]
 package = ["dep:proc-macro2", "dep:quote"]
 naga_ext = ["wgsl-parse/naga_ext"]
-tokrepr = ["wgsl-parse/tokrepr"]
 
 [package.metadata.docs.rs]
 all-features = true

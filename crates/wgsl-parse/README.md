@@ -17,6 +17,7 @@ It supports WESL language extensions guarded by feature flags.
 | generics   | `@type` attributes                             | [experimental][generics] |
 
 # Other Features
+
 | name     | description                                                |
 |----------|------------------------------------------------------------|
 | naga_ext | enable all Naga/WGPU extensions (experimental)             |
@@ -43,5 +44,5 @@ println!("{module}");
 [lalrpop]: https://lalrpop.github.io/lalrpop/
 [specification]: https://www.w3.org/TR/WGSL/
 [imports]: https://wesl-lang.dev/spec/Imports
-[condcomp]: https://wesl-lang.dev/spec/Imports
+[condcomp]: https://wesl-lang.dev/spec/ConditionalTranslation
 [generics]: https://github.com/k2d222/wesl-spec/blob/generics/Generics.md
