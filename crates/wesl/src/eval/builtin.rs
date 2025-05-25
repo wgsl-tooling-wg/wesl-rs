@@ -24,10 +24,14 @@ use super::{
 
 type E = EvalError;
 
-// TODO: when we have the wgsl! macro, we can refactor the consts.
-
 pub static EXPR_TRUE: Expression = quote_expression!(true);
 pub static EXPR_FALSE: Expression = quote_expression!(false);
+pub static ATTR_INTRINSIC: LazyLock<Attribute> = LazyLock::new(|| {
+    Attribute::Custom(CustomAttribute {
+        name: "__intrinsic".to_string(),
+        arguments: None,
+    })
+});
 
 pub trait BuiltinIdent {
     fn builtin_ident(&self) -> Option<&'static Ident>;
@@ -164,10 +168,9 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
         alias vec2f = vec2<f32>;
         alias vec3f = vec3<f32>;
         alias vec4f = vec4<f32>;
-        // TODO: these are only enabled with the f16 extension
-        alias vec2h = vec2<f16>;
-        alias vec3h = vec3<f16>;
-        alias vec4h = vec4<f16>;
+        @extension(f16) alias vec2h = vec2<f16>;
+        @extension(f16) alias vec3h = vec3<f16>;
+        @extension(f16) alias vec4h = vec4<f16>;
         alias mat2x2f = mat2x2<f32>;
         alias mat2x3f = mat2x3<f32>;
         alias mat2x4f = mat2x4<f32>;
@@ -177,16 +180,15 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
         alias mat4x2f = mat4x2<f32>;
         alias mat4x3f = mat4x3<f32>;
         alias mat4x4f = mat4x4<f32>;
-        // TODO: these are only enabled with the f16 extension
-        alias mat2x2h = mat2x2<f16>;
-        alias mat2x3h = mat2x3<f16>;
-        alias mat2x4h = mat2x4<f16>;
-        alias mat3x2h = mat3x2<f16>;
-        alias mat3x3h = mat3x3<f16>;
-        alias mat3x4h = mat3x4<f16>;
-        alias mat4x2h = mat4x2<f16>;
-        alias mat4x3h = mat4x3<f16>;
-        alias mat4x4h = mat4x4<f16>;
+        @extension(f16) alias mat2x2h = mat2x2<f16>;
+        @extension(f16) alias mat2x3h = mat2x3<f16>;
+        @extension(f16) alias mat2x4h = mat2x4<f16>;
+        @extension(f16) alias mat3x2h = mat3x2<f16>;
+        @extension(f16) alias mat3x3h = mat3x3<f16>;
+        @extension(f16) alias mat3x4h = mat3x4<f16>;
+        @extension(f16) alias mat4x2h = mat4x2<f16>;
+        @extension(f16) alias mat4x3h = mat4x3<f16>;
+        @extension(f16) alias mat4x4h = mat4x4<f16>;
 
         // internal declarations are prefixed with __, which is not representable in WGSL source
         // therefore it avoids name collisions. AbstractInt and AbstractFloat too.
@@ -196,9 +198,9 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
         struct __frexp_result_vec2_f32 { fract: vec2<f32>, exp: vec2<i32> }
         struct __frexp_result_vec3_f32 { fract: vec3<f32>, exp: vec3<i32> }
         struct __frexp_result_vec4_f32 { fract: vec4<f32>, exp: vec4<i32> }
-        struct __frexp_result_vec2_f16 { fract: vec2<f16>, exp: vec2<i32> }
-        struct __frexp_result_vec3_f16 { fract: vec3<f16>, exp: vec3<i32> }
-        struct __frexp_result_vec4_f16 { fract: vec4<f16>, exp: vec4<i32> }
+        @extension(f16) struct __frexp_result_vec2_f16 { fract: vec2<f16>, exp: vec2<i32> }
+        @extension(f16) struct __frexp_result_vec3_f16 { fract: vec3<f16>, exp: vec3<i32> }
+        @extension(f16) struct __frexp_result_vec4_f16 { fract: vec4<f16>, exp: vec4<i32> }
         struct __frexp_result_vec2_abstract { fract: vec2<#abstract_float>, exp: vec2<#abstract_int> }
         struct __frexp_result_vec3_abstract { fract: vec3<#abstract_float>, exp: vec3<#abstract_int> }
         struct __frexp_result_vec4_abstract { fract: vec4<#abstract_float>, exp: vec4<#abstract_int> }
@@ -208,9 +210,9 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
         struct __modf_result_vec2_f32 { fract: vec2<f32>, whole: vec2<f32> }
         struct __modf_result_vec3_f32 { fract: vec3<f32>, whole: vec3<f32> }
         struct __modf_result_vec4_f32 { fract: vec4<f32>, whole: vec4<f32> }
-        struct __modf_result_vec2_f16 { fract: vec2<f16>, whole: vec2<f16> }
-        struct __modf_result_vec3_f16 { fract: vec3<f16>, whole: vec3<f16> }
-        struct __modf_result_vec4_f16 { fract: vec4<f16>, whole: vec4<f16> }
+        @extension(f16) struct __modf_result_vec2_f16 { fract: vec2<f16>, whole: vec2<f16> }
+        @extension(f16) struct __modf_result_vec3_f16 { fract: vec3<f16>, whole: vec3<f16> }
+        @extension(f16) struct __modf_result_vec4_f16 { fract: vec4<f16>, whole: vec4<f16> }
         struct __modf_result_vec2_abstract { fract: vec2<#abstract_float>, whole: vec2<#abstract_float> }
         struct __modf_result_vec3_abstract { fract: vec3<#abstract_float>, whole: vec3<#abstract_float> }
         struct __modf_result_vec4_abstract { fract: vec4<#abstract_float>, whole: vec4<#abstract_float> }
@@ -356,33 +358,88 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
         @must_use fn workgroupUniformLoad() @__intrinsic {}
 
         // subgroup
-        @must_use fn subgroupAdd() @__intrinsic {}
-        @must_use fn subgroupExclusiveAdd() @__intrinsic {}
-        @must_use fn subgroupInclusiveAdd() @__intrinsic {}
-        @must_use fn subgroupAll() @__intrinsic {}
-        @must_use fn subgroupAnd() @__intrinsic {}
-        @must_use fn subgroupAny() @__intrinsic {}
-        @must_use fn subgroupBallot() @__intrinsic {}
-        @must_use fn subgroupBroadcast() @__intrinsic {}
-        @must_use fn subgroupBroadcastFirst() @__intrinsic {}
-        @must_use fn subgroupElect() @__intrinsic {}
-        @must_use fn subgroupMax() @__intrinsic {}
-        @must_use fn subgroupMin() @__intrinsic {}
-        @must_use fn subgroupMul() @__intrinsic {}
-        @must_use fn subgroupExclusiveMul() @__intrinsic {}
-        @must_use fn subgroupInclusiveMul() @__intrinsic {}
-        @must_use fn subgroupOr() @__intrinsic {}
-        @must_use fn subgroupShuffle() @__intrinsic {}
-        @must_use fn subgroupShuffleDown() @__intrinsic {}
-        @must_use fn subgroupShuffleUp() @__intrinsic {}
-        @must_use fn subgroupShuffleXor() @__intrinsic {}
-        @must_use fn subgroupXor() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupAdd() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupExclusiveAdd() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupInclusiveAdd() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupAll() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupAnd() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupAny() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupBallot() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupBroadcast() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupBroadcastFirst() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupElect() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupMax() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupMin() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupMul() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupExclusiveMul() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupInclusiveMul() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupOr() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupShuffle() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupShuffleDown() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupShuffleUp() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupShuffleXor() @__intrinsic {}
+        @extension(subgroups) @must_use fn subgroupXor() @__intrinsic {}
 
         // quad
-        @must_use fn quadBroadcast() @__intrinsic {}
-        @must_use fn quadSwapDiagonal() @__intrinsic {}
-        @must_use fn quadSwapX() @__intrinsic {}
-        @must_use fn quadSwapY() @__intrinsic {}
+        @extension(subgroups) @must_use fn quadBroadcast() @__intrinsic {}
+        @extension(subgroups) @must_use fn quadSwapDiagonal() @__intrinsic {}
+        @extension(subgroups) @must_use fn quadSwapX() @__intrinsic {}
+        @extension(subgroups) @must_use fn quadSwapY() @__intrinsic {}
+
+        // Naga ray tracing extension
+        // https://github.com/gfx-rs/wgpu/blob/trunk/docs/api-specs/ray_tracing.md
+
+        @extension(naga) struct RayDesc {
+            flags: u32,
+            cull_mask: u32,
+            t_min: f32,
+            t_max: f32,
+            origin: vec3<f32>,
+            dir: vec3<f32>,
+        }
+
+        @extension(naga) struct RayIntersection {
+            kind: u32,
+            t: f32,
+            instance_custom_data: u32,
+            instance_index: u32,
+            sbt_record_offset: u32,
+            geometry_index: u32,
+            primitive_index: u32,
+            barycentrics: vec2<f32>,
+            front_face: bool,
+            object_to_world: mat4x3<f32>,
+            world_to_object: mat4x3<f32>,
+        }
+
+        // these are defined in naga/src/ir/mod.rs, structs RayFlag and RayQueryIntersection.
+        @extension(naga) const RAY_FLAG_NONE = 0x0;
+        @extension(naga) const RAY_FLAG_FORCE_OPAQUE = 0x1;
+        @extension(naga) const RAY_FLAG_FORCE_NO_OPAQUE = 0x2;
+        @extension(naga) const RAY_FLAG_TERMINATE_ON_FIRST_HIT = 0x4;
+        @extension(naga) const RAY_FLAG_SKIP_CLOSEST_HIT_SHADER = 0x8;
+        @extension(naga) const RAY_FLAG_CULL_BACK_FACING = 0x10;
+        @extension(naga) const RAY_FLAG_CULL_FRONT_FACING = 0x20;
+        @extension(naga) const RAY_FLAG_CULL_OPAQUE = 0x40;
+        @extension(naga) const RAY_FLAG_CULL_NO_OPAQUE = 0x80;
+        @extension(naga) const RAY_FLAG_SKIP_TRIANGLES = 0x100;
+        @extension(naga) const RAY_FLAG_SKIP_AABBS = 0x200;
+        @extension(naga) const RAY_QUERY_INTERSECTION_NONE = 0;
+        @extension(naga) const RAY_QUERY_INTERSECTION_TRIANGLE = 1;
+        @extension(naga) const RAY_QUERY_INTERSECTION_GENERATED = 2;
+        @extension(naga) const RAY_QUERY_INTERSECTION_AABB = 3;
+
+
+        // these are defined in naga/src/front/wgsl/lower/mod.rs, function call.
+        @extension(naga) fn rayQueryInitialize() @__intrinsic {}
+        @extension(naga) fn rayQueryProceed() -> bool @__intrinsic {}
+        @extension(naga) fn rayQueryGenerateIntersection() @__intrinsic {}
+        @extension(naga) fn rayQueryConfirmIntersection() @__intrinsic {}
+        @extension(naga) fn rayQueryTerminate() @__intrinsic {}
+        @extension(naga) fn rayQueryGetCommittedIntersection() -> RayIntersection @__intrinsic {}
+        @extension(naga) fn rayQueryGetCandidateIntersection() -> RayIntersection @__intrinsic {}
+        @extension(naga) fn getCommittedHitVertexPositions() -> array<vec3<f32>, 3> @__intrinsic {}
+        @extension(naga) fn getCandidateHitVertexPositions() -> array<vec3<f32>, 3> @__intrinsic {}
     }
 });
 
