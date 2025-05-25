@@ -395,21 +395,25 @@ pub struct CustomAttribute {
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, PartialEq, IsVariant, Unwrap)]
+#[derive(Clone, Debug, PartialEq, From, IsVariant, Unwrap)]
 pub enum Attribute {
     Align(ExpressionNode),
     Binding(ExpressionNode),
     BlendSrc(ExpressionNode),
+    #[from]
     Builtin(BuiltinValue),
     Const,
+    #[from]
     Diagnostic(DiagnosticAttribute),
     Group(ExpressionNode),
     Id(ExpressionNode),
+    #[from]
     Interpolate(InterpolateAttribute),
     Invariant,
     Location(ExpressionNode),
     MustUse,
     Size(ExpressionNode),
+    #[from]
     WorkgroupSize(WorkgroupSizeAttribute),
     Vertex,
     Fragment,
@@ -421,9 +425,11 @@ pub enum Attribute {
     #[cfg(feature = "condcomp")]
     Else,
     #[cfg(feature = "generics")]
+    #[from]
     Type(TypeConstraint),
     #[cfg(feature = "naga_ext")]
     EarlyDepthTest(Option<ConservativeDepth>),
+    #[from]
     Custom(CustomAttribute),
 }
 

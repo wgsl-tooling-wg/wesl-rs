@@ -22,13 +22,10 @@ fn main() {
 
     use wesl::syntax::*;
 
-    let timestamp = wesl::syntax::Expression::Literal(
-        (std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64)
-            .into(),
-    );
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
 
     // using the procedural macro
     let source = wesl::quote_module! {
