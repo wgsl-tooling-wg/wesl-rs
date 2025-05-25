@@ -27,7 +27,7 @@ pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
     for attrs in Visit::<Attributes>::visit_mut(wesl) {
         attrs.retain(|attr| {
             !matches!(attr.node(), 
-            Attribute::Custom(CustomAttribute { ident, .. }) if *ident.name() == "generic")
+            Attribute::Custom(CustomAttribute { name, .. }) if name == "generic")
         })
     }
 
