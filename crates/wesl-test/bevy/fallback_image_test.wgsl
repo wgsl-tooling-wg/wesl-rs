@@ -1,4 +1,4 @@
-import bevy_pbr::forward_io::VertexOutput;
+import bevy::pbr::forward_io::VertexOutput;
 
 @group(2) @binding(0) var test_texture_1d: texture_1d<f32>;
 @group(2) @binding(1) var test_texture_1d_sampler: sampler;

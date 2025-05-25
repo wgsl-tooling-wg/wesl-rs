@@ -242,6 +242,7 @@ const RESERVED_WORDS: &[&str] = &[
     "auto",
     "await",
     "become",
+    #[cfg(not(feature = "naga_ext"))]
     "binding_array",
     "cast",
     "catch",
