@@ -1,7 +1,9 @@
 [submodule "crates/wesl-test/wesl-testsuite"]
 	path = crates/wesl-test/wesl-testsuite
 	url = https://github.com/wgsl-tooling-wg/wesl-testsuite
+	update = none
 [submodule "crates/wesl-test/unity_web_research"]
 	path = crates/wesl-test/unity_web_research
 	url = https://github.com/wgsl-tooling-wg/unity_web_research
 	shallow = true
+	update = none
