@@ -56,8 +56,8 @@ impl<T: NamedNode + TokRepr> TokRepr for Spanned<T> {
 
         if let Some(ident) = self.ident() {
             let name = ident.name();
-            if name.starts_with("#") {
-                let ident = format_ident!("{}", name[1..]);
+            if let Some(name) = name.strip_prefix("#") {
+                let ident = format_ident!("{}", name);
 
                 return quote! {
                     Spanned::new(#ident.to_owned().into(), #span)
@@ -74,10 +74,10 @@ impl<T: NamedNode + TokRepr> TokRepr for Spanned<T> {
 impl TokRepr for Ident {
     fn tok_repr(&self) -> TokenStream {
         let name = self.name();
-        if name.starts_with("#") {
-            let name = format_ident!("{}", name[1..]);
+        if let Some(name) = name.strip_prefix("#") {
+            let ident = format_ident!("{}", name);
             quote! {
-                Ident::from(#name.to_owned())
+                Ident::from(#ident.to_owned())
             }
         } else {
             let name = name.as_str();
