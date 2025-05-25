@@ -8,21 +8,21 @@ It supports WESL language extensions guarded by feature flags.
 
 ## WESL Features
 
-| name       | description                                    | WESL Specification       |
-|------------|------------------------------------------------|--------------------------|
-| wesl       | enable all WESL extensions below               |                          |
-| imports    | `import` statements and inline qualified paths | [complete][imports]      |
-| attributes | extra attributes locations on statements       | [complete][condcomp]     |
-| condcomp   | `@if` attributes                               | [complete][condcomp]     |
-| generics   | `@type` attributes                             | [experimental][generics] |
+| name         | description                                    | WESL Specification       |
+|--------------|------------------------------------------------|--------------------------|
+| `wesl`       | enable all WESL extensions below               |                          |
+| `imports`    | `import` statements and inline qualified paths | [complete][imports]      |
+| `attributes` | extra attributes locations on statements       | [complete][condcomp]     |
+| `condcomp`   | `@if` attributes                               | [complete][condcomp]     |
+| `generics`   | `@type` attributes                             | [experimental][generics] |
 
-# Other Features
+## Other Features
 
-| name     | description                                                |
-|----------|------------------------------------------------------------|
-| naga_ext | enable all Naga/WGPU extensions (experimental)             |
-| serde    | derive `Serialize` and `Deserialize` for syntax tree nodes |
-| tokrepr  | derive `TokRepr` for syntax tree nodes                     |
+| name       | description                                                |
+|------------|------------------------------------------------------------|
+| `naga_ext` | enable all Naga/WGPU extensions (experimental)             |
+| `serde`    | derive `Serialize` and `Deserialize` for syntax tree nodes |
+| `tokrepr`  | derive `TokRepr` for syntax tree nodes                     |
 
 ## Parsing and Stringification
 
