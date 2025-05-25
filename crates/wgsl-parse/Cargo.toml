@@ -25,10 +25,9 @@ itertools = "0.14.0"
 lalrpop-util = "0.22.1"
 lexical = { version = "7.0.4", features = ["format", "power-of-two"] }
 logos = "0.15.0"
-serde = { version = "1.0.215", optional = true, features = ["derive", "rc"] }
 thiserror = "2.0.12"
 
-# for feature "tokrepr"
+serde = { version = "1.0.215", optional = true, features = ["derive", "rc"] }
 tokrepr = { workspace = true, optional = true }
 
 [build-dependencies]
@@ -64,6 +63,7 @@ imports = []
 naga_ext = ["push_constant"]
 push_constant = []
 
+serde = ["dep:serde"]
 tokrepr = ["dep:tokrepr"]
 
 [lints]
