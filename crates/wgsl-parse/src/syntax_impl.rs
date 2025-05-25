@@ -180,6 +180,71 @@ impl GlobalDeclaration {
     }
 }
 
+impl TypeAlias {
+    pub fn new(ident: Ident, ty: TypeExpression) -> Self {
+        Self {
+            #[cfg(feature = "attributes")]
+            attributes: Default::default(),
+            ident,
+            ty,
+        }
+    }
+}
+
+impl Struct {
+    pub fn new(ident: Ident) -> Self {
+        Self {
+            #[cfg(feature = "attributes")]
+            attributes: Default::default(),
+            ident,
+            members: Default::default(),
+        }
+    }
+}
+
+impl StructMember {
+    pub fn new(ident: Ident, ty: TypeExpression) -> Self {
+        Self {
+            attributes: Default::default(),
+            ident,
+            ty,
+        }
+    }
+}
+
+impl Function {
+    pub fn new(ident: Ident) -> Self {
+        Self {
+            attributes: Default::default(),
+            ident,
+            parameters: Default::default(),
+            return_attributes: Default::default(),
+            return_type: Default::default(),
+            body: Default::default(),
+        }
+    }
+}
+
+impl FormalParameter {
+    pub fn new(ident: Ident, ty: TypeExpression) -> Self {
+        Self {
+            attributes: Default::default(),
+            ident,
+            ty,
+        }
+    }
+}
+
+impl ConstAssert {
+    pub fn new(expression: Expression) -> Self {
+        Self {
+            #[cfg(feature = "attributes")]
+            attributes: Default::default(),
+            expression: expression.into(),
+        }
+    }
+}
+
 impl TypeExpression {
     /// New [`TypeExpression`] with no template.
     pub fn new(ident: Ident) -> Self {

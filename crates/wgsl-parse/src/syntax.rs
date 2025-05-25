@@ -620,7 +620,7 @@ pub type StatementNode = Spanned<Statement>;
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct CompoundStatement {
     pub attributes: Attributes,
     pub statements: Vec<StatementNode>,
