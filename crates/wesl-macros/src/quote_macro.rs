@@ -1,7 +1,7 @@
 use std::iter::Peekable;
 
 use itertools::Itertools;
-use proc_macro_error2::abort;
+use proc_macro_error2::{abort, abort_call_site};
 use proc_macro2::{Ident, Literal, Punct, Spacing, TokenStream};
 use token_stream_flatten::{
     Delimiter, DelimiterKind, DelimiterPosition, FlattenRec, Token as RustToken,
@@ -406,7 +406,7 @@ pub(crate) enum QuoteNodeKind {
     Statement,
 }
 
-pub(crate) fn quote_impl(kind: QuoteNodeKind, input: TokenStream) -> TokenStream {
+fn quote_impl_inline(kind: QuoteNodeKind, input: TokenStream) -> TokenStream {
     use wgsl_parse::parser::*;
     let token_stream = FlattenRec::from(input.clone().into_iter()).peekable();
     let lexer = Lexer::new(token_stream, None);
@@ -442,5 +442,44 @@ pub(crate) fn quote_impl(kind: QuoteNodeKind, input: TokenStream) -> TokenStream
         QuoteNodeKind::GlobalDirective => parser_impl!(GlobalDirectiveParser),
         QuoteNodeKind::Expression => parser_impl!(ExpressionParser),
         QuoteNodeKind::Statement => parser_impl!(StatementParser),
+    }
+}
+
+fn quote_impl_str(kind: QuoteNodeKind, str: &str) -> TokenStream {
+    use wgsl_parse::parser::*;
+    let lexer = wgsl_parse::lexer::Lexer::new(str);
+
+    macro_rules! parser_impl {
+        ($parser:ident) => {{
+            let parser = $parser::new();
+
+            let syntax = parser.parse(lexer).unwrap_or_else(|e| {
+                let err = wgsl_parse::Error::from(e);
+                abort_call_site!("{}", err)
+            });
+
+            syntax.tok_repr()
+        }};
+    }
+
+    match kind {
+        QuoteNodeKind::TranslationUnit => parser_impl!(TranslationUnitParser),
+        QuoteNodeKind::ImportStatement => parser_impl!(ImportStatementParser),
+        QuoteNodeKind::GlobalDeclaration => parser_impl!(GlobalDeclParser),
+        QuoteNodeKind::Literal => parser_impl!(LiteralParser),
+        QuoteNodeKind::GlobalDirective => parser_impl!(GlobalDirectiveParser),
+        QuoteNodeKind::Expression => parser_impl!(ExpressionParser),
+        QuoteNodeKind::Statement => parser_impl!(StatementParser),
+    }
+}
+
+pub(crate) fn quote_impl(kind: QuoteNodeKind, input: TokenStream) -> TokenStream {
+    let mut token_stream = FlattenRec::from(input.clone().into_iter()).peekable();
+    match token_stream.peek() {
+        Some(RustToken::Literal(lit)) => match syn::Lit::new(lit.clone()) {
+            syn::Lit::Str(str) => quote_impl_str(kind, &str.value()),
+            _ => quote_impl_inline(kind, input),
+        },
+        _ => quote_impl_inline(kind, input),
     }
 }

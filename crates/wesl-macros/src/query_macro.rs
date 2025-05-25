@@ -219,9 +219,7 @@ pub(crate) fn query_impl(input: QueryInput, mutable: bool) -> TokenStream {
 
     let rest = iter.map(|comp| quote_component(comp, ref_.clone()));
 
-    let expanded = quote! {
+    quote! {
         #first #(.#rest)*
-    };
-
-    expanded.into()
+    }
 }

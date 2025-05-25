@@ -35,7 +35,6 @@ pub(crate) fn tokrepr_impl(input: DeriveInput) -> TokenStream {
                 }
                 Fields::Unnamed(f) => {
                     let fields = (0..f.unnamed.len())
-                        .into_iter()
                         .map(|n| format_ident!("f{n}"))
                         .collect_vec();
 
@@ -64,7 +63,6 @@ pub(crate) fn tokrepr_impl(input: DeriveInput) -> TokenStream {
                     Fields::Named(_) => unimplemented!(),
                     Fields::Unnamed(f) => {
                         let fields = (0..f.unnamed.len())
-                            .into_iter()
                             .map(|n| format_ident!("f{n}"))
                             .collect_vec();
 

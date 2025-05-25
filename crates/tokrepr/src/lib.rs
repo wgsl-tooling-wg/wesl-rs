@@ -109,7 +109,7 @@ impl TokRepr for () {
     }
 }
 
-impl<'a, T: ToOwned<Owned: TokRepr> + TokRepr> TokRepr for Cow<'a, T> {
+impl<T: ToOwned<Owned: TokRepr> + TokRepr> TokRepr for Cow<'_, T> {
     fn tok_repr(&self) -> TokenStream {
         match self {
             Cow::Borrowed(val) => {
