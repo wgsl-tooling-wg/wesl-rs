@@ -125,6 +125,10 @@ impl Instance {
                 let size = ty.size_of(ctx)?;
                 let stride = round_up(ty.align_of(ctx)?, size);
                 let n = buf.len() as u32 / stride;
+                if n == 0 {
+                    // arrays must not be empty
+                    return None;
+                }
                 let comps = (0..n)
                     .map(|_| {
                         let buf = buf.get(offset as usize..(offset + size) as usize)?;

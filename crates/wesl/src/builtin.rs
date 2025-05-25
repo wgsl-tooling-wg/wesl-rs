@@ -1,10 +1,16 @@
 use std::{collections::HashMap, sync::LazyLock};
 
+use itertools::chain;
 use wgsl_parse::syntax::Ident;
 
-pub const BUILTIN_NAMES: &[&str] = &[
-    // https://www.w3.org/TR/WGSL/#predeclared-types
-    // types
+/// Builtin WGSL types.
+/// reference: https://www.w3.org/TR/WGSL/#predeclared-types
+pub const BUILTIN_TYPE_NAMES: &[&str] = &[
+    // abstract types cannot be spelled in user code.
+    // they are prefixed with `__`, which is not a valid WGSL identifier prefix.
+    "__AbstractInt",
+    "__AbstractFloat",
+    // plain types
     "bool",
     "f16",
     "f32",
@@ -18,6 +24,7 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "texture_depth_multisampled_2d",
     "texture_external",
     "u32",
+    // naga extensions
     #[cfg(feature = "naga_ext")]
     "i64",
     #[cfg(feature = "naga_ext")]
@@ -26,7 +33,10 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "f64",
     #[cfg(feature = "naga_ext")]
     "binding_array",
-    // type-generators
+];
+
+/// reference: https://www.w3.org/TR/WGSL/#predeclared-types
+pub const BUILTIN_TYPE_GENERATOR_NAMES: &[&str] = &[
     "array",
     "atomic",
     "mat2x2",
@@ -53,198 +63,56 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "vec2",
     "vec3",
     "vec4",
-    // predeclared aliases
-    "vec2i",
-    "vec3i",
-    "vec4i",
-    "vec2u",
-    "vec3u",
-    "vec4u",
-    "vec2f",
-    "vec3f",
-    "vec4f",
-    "vec2h",
-    "vec3h",
-    "vec4h",
-    "mat2x2f",
-    "mat2x3f",
-    "mat2x4f",
-    "mat3x2f",
-    "mat3x3f",
-    "mat3x4f",
-    "mat4x2f",
-    "mat4x3f",
-    "mat4x4f",
-    "mat2x2h",
-    "mat2x3h",
-    "mat2x4h",
-    "mat3x2h",
-    "mat3x3h",
-    "mat3x4h",
-    "mat4x2h",
-    "mat4x3h",
-    "mat4x4h",
-    // built-in functions
-    // : bitcast
-    "bitcast",
-    // : logical
-    "all",
-    "any",
-    "select",
-    "arrayLength",
-    "abs",
-    "acos",
-    "acosh",
-    "asin",
-    "asinh",
-    "atan",
-    "atanh",
-    "atan2",
-    "ceil",
-    "clamp",
-    "cos",
-    "cosh",
-    "countLeadingZeros",
-    "countOneBits",
-    "countTrailingZeros",
-    "cross",
-    "degrees",
-    "determinant",
-    "distance",
-    "dot",
-    "dot4U8Packed",
-    "exp",
-    "exp2",
-    "extractBits",
-    "faceForward",
-    "firstLeadingBit",
-    "firstTrailingBit",
-    "floor",
-    "fma",
-    "fract",
-    "frexp",
-    "insertBits",
-    "inverseSqrt",
-    "ldexp",
-    "length",
-    "log",
-    "log2",
-    "max",
-    "min",
-    "mix",
-    "modf",
-    "normalize",
-    "pow",
-    "quantizeToF16",
-    "radians",
-    "reflect",
-    "refract",
-    "reverseBits",
-    "round",
-    "saturate",
-    "sign",
-    "sin",
-    "sinh",
-    "smoothstep",
-    "sqrt",
-    "step",
-    "tan",
-    "tanh",
-    "transpose",
-    "trunc",
-    // : derivative
-    "dpdx",
-    "dpdxCoarse",
-    "dpdxFine",
-    "dpdy",
-    "dpdyCoarse",
-    "dpdyFine",
-    "fwidth",
-    "fwidthCoarse",
-    "fwidthFine",
-    // : texture
-    "textureDimensions",
-    "textureGather",
-    "textureGatherCompare",
-    "textureLoad",
-    "textureNumLayers",
-    "textureNumLevels",
-    "textureNumSamples",
-    "textureSample",
-    "textureSampleBias",
-    "textureSampleCompare",
-    "textureSampleCompareLevel",
-    "textureSampleGrad",
-    "textureSampleLevel",
-    "textureSampleBaseClampToEdge",
-    "textureStore",
-    // : atomic
-    "atomicLoad",
-    "atomicStore",
-    "atomicAdd",
-    "atomicSub",
-    "atomicMax",
-    "atomicMin",
-    "atomicAnd",
-    "atomicOr",
-    "atomicXor",
-    "atomicExchange",
-    "atomicCompareExchangeWeak",
-    // : packing
-    "pack4x8snorm",
-    "pack4x8unorm",
-    "pack4xI8",
-    "pack4xU8",
-    "pack4xI8Clamp",
-    "pack4xU8Clamp",
-    "pack2x16snorm",
-    "pack2x16unorm",
-    "pack2x16float",
-    "unpack4x8snorm",
-    "unpack4x8unorm",
-    "unpack4xI8",
-    "unpack4xU8",
-    "unpack2x16snorm",
-    "unpack2x16unorm",
-    "unpack2x16float",
-    // : synchronization
-    "storageBarrier",
-    "textureBarrier",
-    "workgroupBarrier",
-    "workgroupUniformLoad",
-    // : subgroup
-    "subgroupAdd",
-    "subgroupExclusiveAdd",
-    "subgroupInclusiveAdd",
-    "subgroupAll",
-    "subgroupAnd",
-    "subgroupAny",
-    "subgroupBallot",
-    "subgroupBroadcast",
-    "subgroupBroadcastFirst",
-    "subgroupElect",
-    "subgroupMax",
-    "subgroupMin",
-    "subgroupMul",
-    "subgroupExclusiveMul",
-    "subgroupInclusiveMul",
-    "subgroupOr",
-    "subgroupShuffle",
-    "subgroupShuffleDown",
-    "subgroupShuffleUp",
-    "subgroupShuffleXor",
-    "subgroupXor",
-    // : quad
-    "quadBroadcast",
-    "quadSwapDiagonal",
-    "quadSwapX",
-    "quadSwapY",
-    // : predeclared enumerants
-    // access mode (enumerant)
+];
+
+/// Builtin struct types in WGSL.
+pub const BUILTIN_STRUCT_NAMES: &[&str] = &[
+    // function return types cannot be spelled in user code.
+    // they are prefixed with `__`, which is not a valid WGSL identifier prefix.
+    "__frexp_result_f32",
+    "__frexp_result_f16",
+    "__frexp_result_abstract",
+    "__frexp_result_vec2_f32",
+    "__frexp_result_vec3_f32",
+    "__frexp_result_vec4_f32",
+    "__frexp_result_vec2_f16",
+    "__frexp_result_vec3_f16",
+    "__frexp_result_vec4_f16",
+    "__frexp_result_vec2_abstract",
+    "__frexp_result_vec3_abstract",
+    "__frexp_result_vec4_abstract",
+    "__modf_result_f32",
+    "__modf_result_f16",
+    "__modf_result_abstract",
+    "__modf_result_vec2_f32",
+    "__modf_result_vec3_f32",
+    "__modf_result_vec4_f32",
+    "__modf_result_vec2_f16",
+    "__modf_result_vec3_f16",
+    "__modf_result_vec4_f16",
+    "__modf_result_vec2_abstract",
+    "__modf_result_vec3_abstract",
+    "__modf_result_vec4_abstract",
+    "__atomic_compare_exchange_result",
+];
+
+pub const BUILTIN_DECLARATION_NAMES: &[&str] = &[];
+
+pub const BUILTIN_ALIAS_NAMES: &[&str] = &[
+    "vec2i", "vec3i", "vec4i", "vec2u", "vec3u", "vec4u", "vec2f", "vec3f", "vec4f", "vec2h",
+    "vec3h", "vec4h", "mat2x2f", "mat2x3f", "mat2x4f", "mat3x2f", "mat3x3f", "mat3x4f", "mat4x2f",
+    "mat4x3f", "mat4x4f", "mat2x2h", "mat2x3h", "mat2x4h", "mat3x2h", "mat3x3h", "mat3x4h",
+    "mat4x2h", "mat4x3h", "mat4x4h",
+];
+
+/// reference: https://www.w3.org/TR/WGSL/#predeclared-enumerants
+/// These enumerants are not context-dependent names, and can therefore be shadowed.
+pub const BUILTIN_ENUMERANT_NAMES: &[&str] = &[
+    // : access mode
     "read",
     "write",
     "read_write",
-    // address space (enumerant)
+    // : address space (enumerant)
     "function",
     "private",
     "workgroup",
@@ -252,7 +120,7 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "storage",
     #[cfg(feature = "naga_ext")]
     "push_constant",
-    // texel format (enumerant)
+    // : texel format
     "rgba8unorm",
     "rgba8snorm",
     "rgba8uint",
@@ -320,65 +188,9 @@ pub const BUILTIN_NAMES: &[&str] = &[
     "rgba16snorm",
 ];
 
-pub const BUILTIN_FUNCTIONS: &[&str] = &[
-    // constructor built-in functions
-    "bool",
-    "f16",
-    "f32",
-    "i32",
-    "u32",
-    #[cfg(feature = "naga_ext")]
-    "i64",
-    #[cfg(feature = "naga_ext")]
-    "u64",
-    #[cfg(feature = "naga_ext")]
-    "f64",
-    // type-generators
-    "array",
-    "mat2x2",
-    "mat2x3",
-    "mat2x4",
-    "mat3x2",
-    "mat3x3",
-    "mat3x4",
-    "mat4x2",
-    "mat4x3",
-    "mat4x4",
-    "vec2",
-    "vec3",
-    "vec4",
-    // predeclared aliases
-    "vec2i",
-    "vec3i",
-    "vec4i",
-    "vec2u",
-    "vec3u",
-    "vec4u",
-    "vec2f",
-    "vec3f",
-    "vec4f",
-    "vec2h",
-    "vec3h",
-    "vec4h",
-    "mat2x2f",
-    "mat2x3f",
-    "mat2x4f",
-    "mat3x2f",
-    "mat3x3f",
-    "mat3x4f",
-    "mat4x2f",
-    "mat4x3f",
-    "mat4x4f",
-    "mat2x2h",
-    "mat2x3h",
-    "mat2x4h",
-    "mat3x2h",
-    "mat3x3h",
-    "mat3x4h",
-    "mat4x2h",
-    "mat4x3h",
-    "mat4x4h",
-    // built-in functions
+/// Builtin functions in WGSL, excluding builtin constructors.
+/// Reference: https://www.w3.org/TR/WGSL/#builtin-functions
+pub const BUILTIN_FUNCTION_NAMES: &[&str] = &[
     // : bitcast
     "bitcast",
     // : logical
@@ -533,302 +345,95 @@ pub const BUILTIN_FUNCTIONS: &[&str] = &[
     "quadSwapDiagonal",
     "quadSwapX",
     "quadSwapY",
+    // : ray queries
 ];
 
-pub const RESERVED_WORDS: &[&str] = &[
-    // https://www.w3.org/TR/WGSL/#reserved-words
-    "NULL",
-    "Self",
-    "abstract",
-    "active",
-    "alignas",
-    "alignof",
-    "as",
-    "asm",
-    "asm_fragment",
-    "async",
-    "attribute",
-    "auto",
-    "await",
-    "become",
-    "binding_array",
-    "cast",
-    "catch",
-    "class",
-    "co_await",
-    "co_return",
-    "co_yield",
-    "coherent",
-    "column_major",
-    "common",
-    "compile",
-    "compile_fragment",
-    "concept",
-    "const_cast",
-    "consteval",
-    "constexpr",
-    "constinit",
-    "crate",
-    "debugger",
-    "decltype",
-    "delete",
-    "demote",
-    "demote_to_helper",
-    "do",
-    "dynamic_cast",
-    "enum",
-    "explicit",
-    "export",
-    "extends",
-    "extern",
-    "external",
-    "fallthrough",
-    "filter",
-    "final",
-    "finally",
-    "friend",
-    "from",
-    "fxgroup",
-    "get",
-    "goto",
-    "groupshared",
-    "highp",
-    "impl",
-    "implements",
-    "import",
-    "inline",
-    "instanceof",
-    "interface",
-    "layout",
-    "lowp",
-    "macro",
-    "macro_rules",
-    "match",
-    "mediump",
-    "meta",
-    "mod",
-    "module",
-    "move",
-    "mut",
-    "mutable",
-    "namespace",
-    "new",
-    "nil",
-    "noexcept",
-    "noinline",
-    "nointerpolation",
-    "non_coherent",
-    "noncoherent",
-    "noperspective",
-    "null",
-    "nullptr",
-    "of",
-    "operator",
-    "package",
-    "packoffset",
-    "partition",
-    "pass",
-    "patch",
-    "pixelfragment",
-    "precise",
-    "precision",
-    "premerge",
-    "priv",
-    "protected",
-    "pub",
-    "public",
-    "readonly",
-    "ref",
-    "regardless",
-    "register",
-    "reinterpret_cast",
-    "require",
-    "resource",
-    "restrict",
-    "self",
-    "set",
-    "shared",
-    "sizeof",
-    "smooth",
-    "snorm",
-    "static",
-    "static_assert",
-    "static_cast",
-    "std",
-    "subroutine",
-    "super",
-    "target",
-    "template",
-    "this",
-    "thread_local",
-    "throw",
-    "trait",
-    "try",
-    "type",
-    "typedef",
-    "typeid",
-    "typename",
-    "typeof",
-    "union",
-    "unless",
-    "unorm",
-    "unsafe",
-    "unsized",
-    "use",
-    "using",
-    "varying",
-    "virtual",
-    "volatile",
-    "wgsl",
-    "where",
-    "with",
-    "writeonly",
-    "yield",
+/// Builtin constructors (zero-value and value-constructors).
+/// Reference: https://www.w3.org/TR/WGSL/#constructor-builtin-function
+pub const BUILTIN_CONSTRUCTOR_NAMES: &[&str] = &[
+    // constructor built-in functions
+    "bool",
+    "f16",
+    "f32",
+    "i32",
+    "u32",
+    #[cfg(feature = "naga_ext")]
+    "i64",
+    #[cfg(feature = "naga_ext")]
+    "u64",
+    #[cfg(feature = "naga_ext")]
+    "f64",
+    // type-generators
+    "array",
+    "mat2x2",
+    "mat2x3",
+    "mat2x4",
+    "mat3x2",
+    "mat3x3",
+    "mat3x4",
+    "mat4x2",
+    "mat4x3",
+    "mat4x4",
+    "vec2",
+    "vec3",
+    "vec4",
+    // predeclared aliases
+    "vec2i",
+    "vec3i",
+    "vec4i",
+    "vec2u",
+    "vec3u",
+    "vec4u",
+    "vec2f",
+    "vec3f",
+    "vec4f",
+    "vec2h",
+    "vec3h",
+    "vec4h",
+    "mat2x2f",
+    "mat2x3f",
+    "mat2x4f",
+    "mat3x2f",
+    "mat3x3f",
+    "mat3x4f",
+    "mat4x2f",
+    "mat4x3f",
+    "mat4x4f",
+    "mat2x2h",
+    "mat2x3h",
+    "mat2x4h",
+    "mat3x2h",
+    "mat3x3h",
+    "mat3x4h",
+    "mat4x2h",
+    "mat4x3h",
+    "mat4x4h",
 ];
 
-pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
+/// All built-in names as [`Ident`]s.
+///
+/// Using these idents allow better use-count tracking and referencing.
+pub static BUILTIN_IDENTS: LazyLock<HashMap<&str, Ident>> = LazyLock::new(|| {
     macro_rules! ident {
-        ($name:literal) => {
+        ($name:expr) => {
             ($name, Ident::new($name.to_string()))
         };
     }
-    // using these idents allow better use-count tracking and referencing.
-    // some of the builtin idents are in the PRELUDE (not here).
-    // these enumerants are not context-dependent names, and can therefore be shadowed.
-    static IDENTS: LazyLock<HashMap<&str, Ident>> = LazyLock::new(|| {
-        HashMap::from_iter([
-            // plain types
-            ident!("bool"),
-            ident!("__AbstractInt"),
-            ident!("__AbstractFloat"),
-            ident!("i32"),
-            ident!("u32"),
-            ident!("f32"),
-            ident!("f32"),
-            ident!("f16"),
-            #[cfg(feature = "naga_ext")]
-            ident!("i64"),
-            #[cfg(feature = "naga_ext")]
-            ident!("u64"),
-            #[cfg(feature = "naga_ext")]
-            ident!("f64"),
-            ident!("array"),
-            #[cfg(feature = "naga_ext")]
-            ident!("binding_array"),
-            ident!("atomic"),
-            ident!("ptr"),
-            ident!("vec2"),
-            ident!("vec3"),
-            ident!("vec4"),
-            ident!("mat2x2"),
-            ident!("mat3x2"),
-            ident!("mat4x2"),
-            ident!("mat2x3"),
-            ident!("mat3x3"),
-            ident!("mat4x3"),
-            ident!("mat2x4"),
-            ident!("mat3x4"),
-            ident!("mat4x4"),
-            // texture types
-            ident!("texture_1d"),
-            ident!("texture_2d"),
-            ident!("texture_2d_array"),
-            ident!("texture_3d"),
-            ident!("texture_cube"),
-            ident!("texture_cube_array"),
-            ident!("texture_multisampled_2d"),
-            ident!("texture_depth_multisampled_2d"),
-            ident!("texture_external"),
-            ident!("texture_storage_1d"),
-            ident!("texture_storage_2d"),
-            ident!("texture_storage_2d_array"),
-            ident!("texture_storage_3d"),
-            ident!("texture_depth_2d"),
-            ident!("texture_depth_2d_array"),
-            ident!("texture_depth_cube"),
-            ident!("texture_depth_cube_array"),
-            // sampler types
-            ident!("sampler"),
-            ident!("sampler_comparison"),
-            // access mode (enumerant)
-            ident!("read"),
-            ident!("write"),
-            ident!("read_write"),
-            // address space (enumerant)
-            ident!("function"),
-            ident!("private"),
-            ident!("workgroup"),
-            ident!("uniform"),
-            ident!("storage"),
-            #[cfg(feature = "naga_ext")]
-            ident!("push_constant"),
-            // texel format (enumerant)
-            ident!("rgba8unorm"),
-            ident!("rgba8snorm"),
-            ident!("rgba8uint"),
-            ident!("rgba8sint"),
-            ident!("rgba16uint"),
-            ident!("rgba16sint"),
-            ident!("rgba16float"),
-            ident!("r32uint"),
-            ident!("r32sint"),
-            ident!("r32float"),
-            ident!("rg32uint"),
-            ident!("rg32sint"),
-            ident!("rg32float"),
-            ident!("rgba32uint"),
-            ident!("rgba32sint"),
-            ident!("rgba32float"),
-            ident!("bgra8unorm"),
-            #[cfg(feature = "naga_ext")]
-            ident!("r8unorm"),
-            #[cfg(feature = "naga_ext")]
-            ident!("r8snorm"),
-            #[cfg(feature = "naga_ext")]
-            ident!("r8uint"),
-            #[cfg(feature = "naga_ext")]
-            ident!("r8sint"),
-            #[cfg(feature = "naga_ext")]
-            ident!("r16unorm"),
-            #[cfg(feature = "naga_ext")]
-            ident!("r16snorm"),
-            #[cfg(feature = "naga_ext")]
-            ident!("r16uint"),
-            #[cfg(feature = "naga_ext")]
-            ident!("r16sint"),
-            #[cfg(feature = "naga_ext")]
-            ident!("r16float"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rg8unorm"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rg8snorm"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rg8uint"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rg8sint"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rg16unorm"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rg16snorm"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rg16uint"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rg16sint"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rg16float"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rgb10a2uint"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rgb10a2unorm"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rg11b10float"),
-            #[cfg(feature = "naga_ext")]
-            ident!("r64uint"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rgba16unorm"),
-            #[cfg(feature = "naga_ext")]
-            ident!("rgba16snorm"),
-        ])
-    });
-    IDENTS.get(name)
+    HashMap::from_iter(chain!(
+        BUILTIN_TYPE_NAMES.iter().map(|id| ident!(*id)),
+        BUILTIN_TYPE_GENERATOR_NAMES.iter().map(|id| ident!(*id)),
+        BUILTIN_STRUCT_NAMES.iter().map(|id| ident!(*id)),
+        BUILTIN_DECLARATION_NAMES.iter().map(|id| ident!(*id)),
+        BUILTIN_ALIAS_NAMES.iter().map(|id| ident!(*id)),
+        BUILTIN_ENUMERANT_NAMES.iter().map(|id| ident!(*id)),
+        BUILTIN_FUNCTION_NAMES.iter().map(|id| ident!(*id)),
+        BUILTIN_CONSTRUCTOR_NAMES.iter().map(|id| ident!(*id)),
+    ))
+});
+
+/// Get a built-in WGSL name as [`Ident`].
+///
+/// Using these idents allow better use-count tracking and referencing.
+pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
+    BUILTIN_IDENTS.get(name)
 }

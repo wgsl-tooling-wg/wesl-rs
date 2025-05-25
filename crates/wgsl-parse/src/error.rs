@@ -13,6 +13,8 @@ use crate::{lexer::Token, span::Span};
 pub enum ErrorKind {
     #[error("invalid token")]
     InvalidToken,
+    #[error("use of a reserved word `{0}`")]
+    ReservedWord(String),
     #[error("unexpected token `{token}`, expected `{}`", .expected.iter().format(", "))]
     UnexpectedToken {
         token: String,
@@ -34,6 +36,7 @@ pub enum ErrorKind {
 pub enum ParseError {
     #[default]
     LexerError,
+    ReservedWord(String),
     DiagnosticSeverity,
     Attribute(&'static str, &'static str),
     VarTemplate(&'static str),
@@ -100,8 +103,9 @@ impl From<LalrpopError> for Error {
             } => {
                 let span = Span::new(l..r);
                 let error = match error {
-                    ParseError::DiagnosticSeverity => ErrorKind::DiagnosticSeverity,
                     ParseError::LexerError => ErrorKind::InvalidToken,
+                    ParseError::ReservedWord(word) => ErrorKind::ReservedWord(word),
+                    ParseError::DiagnosticSeverity => ErrorKind::DiagnosticSeverity,
                     ParseError::Attribute(attr, expected) => ErrorKind::Attribute(attr, expected),
                     ParseError::VarTemplate(reason) => ErrorKind::VarTemplate(reason),
                 };

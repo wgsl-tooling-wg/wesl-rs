@@ -1,6 +1,7 @@
 //! Prefer using [`crate::parse_str`]. You shouldn't need to manipulate the lexer.
 
 use crate::error::ParseError;
+use itertools::Itertools;
 use logos::{Logos, SpannedIter};
 use std::{fmt::Display, num::NonZeroU8, sync::LazyLock};
 
@@ -221,6 +222,171 @@ fn parse_block_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
     logos::Skip
 }
 
+/// These are not valid WGSL identifiers and will trigger an error if used.
+/// Exception made of identifiers used by language extensions when the corresponding
+/// feature flag is enabled, e.g. `as`, `import`, `super`, `self` for WESL imports.
+///
+/// Reference: https://www.w3.org/TR/WGSL/#reserved-words
+const RESERVED_WORDS: &[&str] = &[
+    "NULL",
+    "Self",
+    "abstract",
+    "active",
+    "alignas",
+    "alignof",
+    "as",
+    "asm",
+    "asm_fragment",
+    "async",
+    "attribute",
+    "auto",
+    "await",
+    "become",
+    #[cfg(not(feature = "naga_ext"))]
+    "binding_array",
+    "cast",
+    "catch",
+    "class",
+    "co_await",
+    "co_return",
+    "co_yield",
+    "coherent",
+    "column_major",
+    "common",
+    "compile",
+    "compile_fragment",
+    "concept",
+    "const_cast",
+    "consteval",
+    "constexpr",
+    "constinit",
+    "crate",
+    "debugger",
+    "decltype",
+    "delete",
+    "demote",
+    "demote_to_helper",
+    "do",
+    "dynamic_cast",
+    "enum",
+    "explicit",
+    "export",
+    "extends",
+    "extern",
+    "external",
+    "fallthrough",
+    "filter",
+    "final",
+    "finally",
+    "friend",
+    "from",
+    "fxgroup",
+    "get",
+    "goto",
+    "groupshared",
+    "highp",
+    "impl",
+    "implements",
+    "import",
+    "inline",
+    "instanceof",
+    "interface",
+    "layout",
+    "lowp",
+    "macro",
+    "macro_rules",
+    "match",
+    "mediump",
+    "meta",
+    "mod",
+    "module",
+    "move",
+    "mut",
+    "mutable",
+    "namespace",
+    "new",
+    "nil",
+    "noexcept",
+    "noinline",
+    "nointerpolation",
+    "non_coherent",
+    "noncoherent",
+    "noperspective",
+    "null",
+    "nullptr",
+    "of",
+    "operator",
+    "package",
+    "packoffset",
+    "partition",
+    "pass",
+    "patch",
+    "pixelfragment",
+    "precise",
+    "precision",
+    "premerge",
+    "priv",
+    "protected",
+    "pub",
+    "public",
+    "readonly",
+    "ref",
+    "regardless",
+    "register",
+    "reinterpret_cast",
+    "require",
+    "resource",
+    "restrict",
+    "self",
+    "set",
+    "shared",
+    "sizeof",
+    "smooth",
+    "snorm",
+    "static",
+    "static_assert",
+    "static_cast",
+    "std",
+    "subroutine",
+    "super",
+    "target",
+    "template",
+    "this",
+    "thread_local",
+    "throw",
+    "trait",
+    "try",
+    "type",
+    "typedef",
+    "typeid",
+    "typename",
+    "typeof",
+    "union",
+    "unless",
+    "unorm",
+    "unsafe",
+    "unsized",
+    "use",
+    "using",
+    "varying",
+    "virtual",
+    "volatile",
+    "wgsl",
+    "where",
+    "with",
+    "writeonly",
+    "yield",
+];
+
+fn parse_ident(lex: &mut logos::Lexer<Token>) -> Result<String, ParseError> {
+    let ident = lex.slice().to_string();
+    if RESERVED_WORDS.iter().contains(&ident.as_str()) {
+        Err(ParseError::ReservedWord(ident))
+    } else {
+        Ok(ident)
+    }
+}
+
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct LexerState {
     depth: i32,
@@ -391,7 +557,11 @@ pub enum Token {
     KwWhile,
 
     // XXX: should we also register reserved words as tokens?
-    #[regex(r#"([_\p{XID_Start}][\p{XID_Continue}]+)|([\p{XID_Start}])"#, |lex| lex.slice().to_string(), priority = 1)]
+    #[regex(
+        r#"([_\p{XID_Start}][\p{XID_Continue}]+)|([\p{XID_Start}])"#,
+        parse_ident,
+        priority = 1
+    )]
     Ident(String),
     #[regex(r#"0|[1-9]\d*"#, parse_dec_abstract_int)]
     #[regex(r#"0[xX][\da-fA-F]+"#, parse_hex_abstract_int)]

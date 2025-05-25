@@ -244,7 +244,7 @@ pub trait SyntaxUtil {
     /// find a global declaration by name.
     fn user_decl(&self, name: &str) -> Option<&GlobalDeclaration>;
 
-    /// find a global declaration by name, including built-in ones (see `prelude.wgsl`).
+    /// find a global declaration by name, including built-in ones.
     fn decl(&self, name: &str) -> Option<&GlobalDeclaration>;
 
     /// find a variable/value declaration by name.

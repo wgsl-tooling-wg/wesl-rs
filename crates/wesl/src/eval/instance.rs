@@ -30,6 +30,26 @@ pub enum Instance {
     Deferred(Type),
 }
 
+// Transitive `From` implementations.
+// They have to be implemented manually unfortunately.
+
+macro_rules! impl_transitive_from {
+    ($from:ident => $middle:ident => $into:ident) => {
+        impl From<$from> for $into {
+            fn from(value: $from) -> Self {
+                $into::from($middle::from(value))
+            }
+        }
+    };
+}
+
+impl_transitive_from!(bool => LiteralInstance => Instance);
+impl_transitive_from!(i64 => LiteralInstance => Instance);
+impl_transitive_from!(f64 => LiteralInstance => Instance);
+impl_transitive_from!(i32 => LiteralInstance => Instance);
+impl_transitive_from!(u32 => LiteralInstance => Instance);
+impl_transitive_from!(f32 => LiteralInstance => Instance);
+
 impl Instance {
     pub fn view(&self, view: &MemView) -> Result<&Instance, E> {
         match view {
@@ -253,6 +273,22 @@ impl Index<usize> for VecInstance {
     }
 }
 
+impl<T: Into<Instance>> From<[T; 2]> for VecInstance {
+    fn from(components: [T; 2]) -> Self {
+        Self::new(components.map(Into::into).to_vec())
+    }
+}
+impl<T: Into<Instance>> From<[T; 3]> for VecInstance {
+    fn from(components: [T; 3]) -> Self {
+        Self::new(components.map(Into::into).to_vec())
+    }
+}
+impl<T: Into<Instance>> From<[T; 4]> for VecInstance {
+    fn from(components: [T; 4]) -> Self {
+        Self::new(components.map(Into::into).to_vec())
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatInstance {
     components: Vec<Instance>,
@@ -409,7 +445,7 @@ impl RefInstance {
         }))
     }
 
-    pub fn write(&mut self, value: Instance) -> Result<(), E> {
+    pub fn write(&self, value: Instance) -> Result<(), E> {
         if !self.access.is_write() {
             return Err(E::NotWrite);
         }
@@ -423,7 +459,7 @@ impl RefInstance {
         Ok(())
     }
 
-    pub fn read_write<'a>(&'a mut self) -> Result<RefMut<'a, Instance>, E> {
+    pub fn read_write<'a>(&'a self) -> Result<RefMut<'a, Instance>, E> {
         if !self.access.is_write() {
             return Err(E::NotReadWrite);
         }

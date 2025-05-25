@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 use wesl::{
-    CompileResult, Eval, VirtualResolver, Wesl,
+    CompileResult, Eval, Inputs, VirtualResolver, Wesl,
     eval::{EvalAttrs, HostShareable, Instance, RefInstance, Ty, ty_eval_ty},
     syntax::{self, AccessMode, AddressSpace, TranslationUnit},
 };
@@ -385,6 +385,8 @@ fn run_impl(args: Command) -> Result<RunResult, Error> {
                 run_compile(args.compile.clone()).map_err(|e| wesl_err_to_diagnostic(e, None))?;
 
             let resources = (|| -> Result<_, CliError> {
+                let inputs = Inputs::new_zero_initialized();
+
                 let resources = args
                     .resources
                     .iter()
@@ -399,7 +401,7 @@ fn run_impl(args: Command) -> Result<RunResult, Error> {
                     })
                     .collect::<Result<_, _>>()?;
 
-                let mut exec = comp.exec(&args.entrypoint, resources, overrides)?;
+                let mut exec = comp.exec(&args.entrypoint, inputs, resources, overrides)?;
 
                 let resources = args
                     .resources

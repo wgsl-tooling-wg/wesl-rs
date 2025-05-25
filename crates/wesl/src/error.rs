@@ -332,7 +332,6 @@ impl Diagnostic<Error> {
                     unmangle_name(name1, sourcemap, mangler);
                     unmangle_name(name2, sourcemap, mangler);
                 }
-                ValidateError::ReservedWord(_) => {}
             },
             Error::ResolveError(_) => {}
             Error::ImportError(_) => {}
@@ -414,6 +413,7 @@ impl Diagnostic<Error> {
                 EvalError::NotConst(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::Void(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::MustUse(name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::NotEntrypoint(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UnknownDecl(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UninitConst(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UninitLet(name) => unmangle_name(name, sourcemap, mangler),
@@ -442,6 +442,9 @@ impl Diagnostic<Error> {
                 | EvalError::ShrOverflow(_, _)
                 | EvalError::Builtin(_)
                 | EvalError::TemplateArgs(_)
+                | EvalError::InvalidEntrypointParam(_)
+                | EvalError::MissingBuiltinInput(_, _)
+                | EvalError::MissingUserInput(_, _)
                 | EvalError::OverrideInConst
                 | EvalError::OverrideInFn
                 | EvalError::LetInMod

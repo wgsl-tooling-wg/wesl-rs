@@ -56,6 +56,7 @@ pub struct Ident(Arc<RwLock<String>>);
 impl Ident {
     /// Create a new Ident
     pub fn new(name: String) -> Ident {
+        // TODO: check that the name is a valid ident
         Ident(Arc::new(RwLock::new(name)))
     }
     /// Get the name of the Ident

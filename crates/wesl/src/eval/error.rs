@@ -117,6 +117,14 @@ pub enum EvalError {
     Void(String),
     #[error("function `{0}` has the `@must_use` attribute, its return value must be used")]
     MustUse(String),
+    #[error("function `{0}` is not an entrypoint")]
+    NotEntrypoint(String),
+    #[error("entry point function parameter `{0}` must have a @builtin or @location attribute")]
+    InvalidEntrypointParam(String),
+    #[error("missing builtin input `{0}` bound to parameter `{0}`")]
+    MissingBuiltinInput(BuiltinValue, String),
+    #[error("missing user-defined input bound to parameter `{0}` at location `{1}`")]
+    MissingUserInput(String, u32),
 
     // declarations
     #[error("unknown declaration `{0}`")]

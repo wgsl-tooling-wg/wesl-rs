@@ -22,7 +22,7 @@ mod validate;
 mod visit;
 
 #[cfg(feature = "eval")]
-pub use eval::{Eval, EvalError, Exec};
+pub use eval::{Eval, EvalError, Exec, Inputs, exec_entrypoint};
 
 #[cfg(feature = "generics")]
 pub use generics::GenericsError;
@@ -37,7 +37,7 @@ pub use lower::lower;
 pub use mangle::{CacheMangler, EscapeMangler, HashMangler, Mangler, NoMangler, UnicodeMangler};
 pub use resolve::{
     FileResolver, NoResolver, PkgModule, PkgResolver, Preprocessor, ResolveError, Resolver, Router,
-    StandardResolver, VirtualResolver,
+    StandardResolver, VirtualResolver, emit_rerun_if_changed,
 };
 pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
 pub use syntax_util::SyntaxUtil;
@@ -551,6 +551,7 @@ impl<R: Resolver> Wesl<R> {
 pub struct CompileResult {
     pub syntax: TranslationUnit,
     pub sourcemap: Option<BasicSourceMap>,
+    /// A list of absolute paths or packages.
     pub modules: Vec<ModulePath>,
 }
 
@@ -670,26 +671,25 @@ impl CompileResult {
     pub fn exec(
         &self,
         entrypoint: &str,
+        inputs: Inputs,
         bindings: HashMap<(u32, u32), eval::RefInstance>,
         overrides: HashMap<String, eval::Instance>,
     ) -> Result<ExecResult, Error> {
-        // TODO: this is not the right way.
-        let call = syntax::FunctionCall {
-            ty: syntax::TypeExpression::new(Ident::new(entrypoint.to_string())),
-            arguments: Vec::new(),
-        };
+        let mut ctx = eval::Context::new(&self.syntax);
+        ctx.add_bindings(bindings);
+        ctx.add_overrides(overrides);
+        ctx.set_stage(eval::EvalStage::Exec);
 
-        let (inst, ctx) = exec(&call, &self.syntax, bindings, overrides);
-        let inst = inst.map_err(|e| {
+        let entry_fn = eval::SyntaxUtil::decl_function(ctx.source, entrypoint)
+            .ok_or_else(|| EvalError::UnknownFunction(entrypoint.to_string()))?;
+
+        let _ = self.syntax.exec(&mut ctx)?;
+
+        let inst = exec_entrypoint(entry_fn, inputs, &mut ctx).map_err(|e| {
             if let Some(sourcemap) = &self.sourcemap {
-                Diagnostic::from(e)
-                    .with_source(call.to_string())
-                    .with_ctx(&ctx)
-                    .with_sourcemap(sourcemap)
+                Diagnostic::from(e).with_ctx(&ctx).with_sourcemap(sourcemap)
             } else {
-                Diagnostic::from(e)
-                    .with_source(call.to_string())
-                    .with_ctx(&ctx)
+                Diagnostic::from(e).with_ctx(&ctx)
             }
         })?;
 
@@ -728,6 +728,9 @@ impl<R: Resolver> Wesl<R> {
     ///   directory.
     /// * The second argument is the name of the artifact, used in [`include_wesl`].
     ///
+    /// Will emit `rerun-if-changed`. Remember to include a `println!("cargo::rerun-if-changed=build.rs")`
+    /// in your build script.
+    ///
     /// # Panics
     /// Panics when compilation fails or if the output file cannot be written.
     /// Pretty-prints the WESL error message to stderr.
@@ -741,12 +744,15 @@ impl<R: Resolver> Wesl<R> {
         }
         let mut output = Path::new(&dirname).join(out_name);
         output.set_extension("wgsl");
-        self.compile(entrypoint.clone())
+        let compiled = self
+            .compile(entrypoint.clone())
             .inspect_err(|e| {
                 eprintln!("failed to build WESL shader `{entrypoint}`.\n{e}");
                 panic!();
             })
-            .unwrap()
+            .unwrap();
+        emit_rerun_if_changed(&compiled.modules, &self.resolver);
+        compiled
             .write_to_file(output)
             .expect("failed to write output shader");
     }

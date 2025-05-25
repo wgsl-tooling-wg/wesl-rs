@@ -3,11 +3,11 @@ use std::collections::HashSet;
 use wesl_macros::query;
 use wgsl_parse::Decorated;
 use wgsl_parse::syntax::{
-    Expression, ExpressionNode, FunctionCall, GlobalDeclaration, Ident, Statement, StatementNode,
-    TranslationUnit, TypeExpression,
+    Expression, ExpressionNode, FunctionCall, GlobalDeclaration, Ident, TranslationUnit,
+    TypeExpression,
 };
 
-use crate::builtin::{BUILTIN_FUNCTIONS, BUILTIN_NAMES, RESERVED_WORDS};
+use crate::builtin::{BUILTIN_CONSTRUCTOR_NAMES, BUILTIN_FUNCTION_NAMES, builtin_ident};
 use crate::visit::Visit;
 use crate::{Diagnostic, Error};
 
@@ -24,8 +24,6 @@ pub enum ValidateError {
     Duplicate(String),
     #[error("declaration of `{0}` is cyclic via `{1}`")]
     Cycle(String, String),
-    #[error("use of reserved word `{0}`")]
-    ReservedWord(String),
 }
 
 type E = ValidateError;
@@ -39,7 +37,9 @@ fn check_defined_symbols(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>
     fn check_ty(ty: &TypeExpression) -> Result<(), Diagnostic<Error>> {
         if ty.path.is_none()
             && ty.ident.use_count() == 1
-            && !BUILTIN_NAMES.contains(&ty.ident.name().as_str())
+            && builtin_ident(&ty.ident.name()).is_none()
+            // `_` is only valid for phony assignments
+            && *ty.ident.name() != "_"
         {
             Err(E::UndefinedSymbol(ty.ident.to_string()).into())
         } else {
@@ -132,8 +132,16 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
             }
             Some(_) => return Err(E::NotCallable(ident.to_string())),
             None => {
-                if BUILTIN_FUNCTIONS.iter().any(|name| name == &*ident.name()) {
+                if BUILTIN_FUNCTION_NAMES
+                    .iter()
+                    .any(|name| name == &*ident.name())
+                {
                     // TODO: check args for builtin functions
+                } else if BUILTIN_CONSTRUCTOR_NAMES
+                    .iter()
+                    .any(|name| name == &*ident.name())
+                {
+                    // TODO: check args for builtin constructors
                 } else {
                     // the ident is not a global declaration, it must be a local variable.
                     return Err(E::NotCallable(ident.to_string()));
@@ -215,71 +223,18 @@ fn check_cycles(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     Ok(())
 }
 
-fn check_reserved_words(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
-    fn check_ident(id: &Ident) -> Result<(), Diagnostic<Error>> {
-        if RESERVED_WORDS.contains(&id.name().as_str()) {
-            return Err(E::ReservedWord(id.to_string()).into());
-        }
-        Ok(())
-    }
-    fn check_stmt(stmt: &StatementNode) -> Result<(), Diagnostic<Error>> {
-        if let Statement::Declaration(decl) = stmt.node() {
-            check_ident(&decl.ident).map_err(|d| d.with_span(stmt.span()))?;
-        }
-        for stmt in Visit::<StatementNode>::visit(stmt.node()) {
-            check_stmt(stmt)?;
-        }
-        Ok(())
-    }
-    fn check_decl(decl: &GlobalDeclaration) -> Result<(), Diagnostic<Error>> {
-        for id in query!(decl.{
-            // GlobalDeclaration::Import.content
-            GlobalDeclaration::Declaration.ident,
-            GlobalDeclaration::TypeAlias.ident,
-            GlobalDeclaration::Struct.{
-                ident,
-                members.[].ident,
-            },
-            GlobalDeclaration::Function.{
-                ident,
-                parameters.[].ident,
-            }
-        }) {
-            check_ident(id)?;
-        }
-
-        if let GlobalDeclaration::Function(decl) = decl {
-            for stmt in &decl.body.statements {
-                check_stmt(stmt)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    for decl in &wesl.global_declarations {
-        check_decl(decl).map_err(|mut d| {
-            d.detail.declaration = decl.ident().map(Ident::to_string);
-            d
-        })?;
-    }
-    Ok(())
-}
-
 /// Validate an intermediate WESL module.
 ///
 /// This function only checks that a WESL module is valid on its own, without looking at
 /// external modules (imports).
 ///
 /// It currently does not validate a lot. It checks for:
-/// * Reserved words: no declaration identifier is a reserved name.
 /// * Defined declarations: all identifiers refer to a user declaration, import or
 ///   built-in name.
 /// * Duplicate declarations: declarations in the same scope cannot have the same name.
 ///   (except for unresolved conditional compilation)
 /// * Cyclic declarations: no cycles are allowed in declarations.
 pub fn validate_wesl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
-    check_reserved_words(wesl)?;
     check_defined_symbols(wesl)?;
     check_duplicate_decl(wesl)?;
     check_cycles(wesl)?;
@@ -289,14 +244,12 @@ pub fn validate_wesl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
 /// Validate the final output (valid WGSL).
 ///
 /// It currently does not validate a lot. It checks for:
-/// * Reserved words: no declaration identifier is a reserved name.
 /// * Defined declarations: all identifiers refer to a user declaration or built-in name.
 /// * Duplicate declarations: declarations in the same scope cannot have the same name.
 /// * Cyclic declarations: no cycles are allowed in declarations.
 /// * Function calls: call expressions must refer to a function or a type constructor.
 ///   Check the number of arguments but not their type.
 pub fn validate_wgsl(wgsl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
-    check_reserved_words(wgsl)?;
     check_defined_symbols(wgsl)?;
     check_duplicate_decl(wgsl)?;
     check_cycles(wgsl)?;
