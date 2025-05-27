@@ -441,10 +441,10 @@ impl Resolutions {
         }
     }
 
-    pub fn mangle(&mut self, mangler: &impl Mangler) {
+    pub fn mangle(&mut self, mangler: &impl Mangler, mangle_root: bool) {
         let root_path = self.root_path().clone();
         for (path, module) in self.modules.iter_mut() {
-            if path != &root_path {
+            if mangle_root || path != &root_path {
                 let mut module = module.borrow_mut();
                 mangle_decls(&mut module.source, path, mangler);
             }
