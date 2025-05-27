@@ -153,7 +153,7 @@ struct CompOptsArgs {
     /// used.
     #[arg(long)]
     eager: bool,
-    /// Enable mangling of statements in the root module.
+    /// Enable mangling of declarations in the root module.
     #[arg(long)]
     mangle_root: bool,
     /// Disable performing validation checks with naga
