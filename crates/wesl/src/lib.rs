@@ -91,9 +91,9 @@ pub struct CompileOptions {
     ///
     /// In contrast, the "eager" import algorithm will follow all import statements.
     pub lazy: bool,
-    /// Enable mangling of statements in the root module.
+    /// Enable mangling of declarations in the root module.
     ///
-    /// By default, WESL keeps the names of host-visible code in the root module unmangled.
+    /// By default, WESL does not mangle root module declarations.
     pub mangle_root: bool,
     /// If `Some`, specify a list of root module declarations to keep. If `None`, only the
     /// entrypoint functions (and their dependencies) are kept.
