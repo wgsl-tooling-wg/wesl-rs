@@ -154,7 +154,7 @@ impl BuiltinIdent for AccessMode {
 pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
     let abstract_int = builtin_ident("__AbstractInt").unwrap();
     let abstract_float = builtin_ident("__AbstractFloat").unwrap();
-    quote_module! {
+    let mut module = quote_module! {
         // The prelude contains all pre-declared aliases, built-in structs and functions in WGSL.
         // the @__intrinsic attribute indicates that a function definition is defined by the compiler.
         // it means that it is not representable with user code: has generics, or variadics.
@@ -440,7 +440,9 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
         @extension(naga) fn rayQueryGetCandidateIntersection() -> RayIntersection @__intrinsic {}
         @extension(naga) fn getCommittedHitVertexPositions() -> array<vec3<f32>, 3> @__intrinsic {}
         @extension(naga) fn getCandidateHitVertexPositions() -> array<vec3<f32>, 3> @__intrinsic {}
-    }
+    };
+    crate::SyntaxUtil::retarget_idents(&mut module);
+    module
 });
 
 fn array_ctor_ty_t(tplt: ArrayTemplate, args: &[Type]) -> Result<Type, E> {
