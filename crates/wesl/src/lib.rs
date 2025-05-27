@@ -91,6 +91,10 @@ pub struct CompileOptions {
     ///
     /// In contrast, the "eager" import algorithm will follow all import statements.
     pub lazy: bool,
+    /// Enable mangling of statements in the root module.
+    ///
+    /// By default, WESL keeps the names of host-visible code in the root module unmangled.
+    pub mangle_root: bool,
     /// If `Some`, specify a list of root module declarations to keep. If `None`, only the
     /// entrypoint functions (and their dependencies) are kept.
     ///
@@ -116,6 +120,7 @@ impl Default for CompileOptions {
             lower: false,
             validate: true,
             lazy: true,
+            mangle_root: false,
             keep: Default::default(),
             features: Default::default(),
         }
@@ -199,17 +204,7 @@ impl Wesl<StandardResolver> {
     /// Optional extrensions: stripping.
     pub fn new(base: impl AsRef<Path>) -> Self {
         Self {
-            options: CompileOptions {
-                imports: true,
-                condcomp: true,
-                generics: false,
-                strip: true,
-                lower: false,
-                validate: true,
-                lazy: true,
-                keep: None,
-                features: Default::default(),
-            },
+            options: CompileOptions::default(),
             use_sourcemap: true,
             resolver: StandardResolver::new(base),
             mangler: Box::new(EscapeMangler),
@@ -230,15 +225,9 @@ impl Wesl<StandardResolver> {
     pub fn new_experimental(base: impl AsRef<Path>) -> Self {
         Self {
             options: CompileOptions {
-                imports: true,
-                condcomp: true,
                 generics: true,
-                strip: true,
                 lower: true,
-                validate: true,
-                lazy: true,
-                keep: None,
-                features: Default::default(),
+                ..Default::default()
             },
             use_sourcemap: true,
             resolver: StandardResolver::new(base),
@@ -308,6 +297,7 @@ impl Wesl<NoResolver> {
                 lower: false,
                 validate: false,
                 lazy: false,
+                mangle_root: false,
                 keep: None,
                 features: Default::default(),
             },
@@ -858,7 +848,7 @@ pub fn compile(
     options: &CompileOptions,
 ) -> Result<CompileResult, Diagnostic<Error>> {
     let (mut resolutions, keep) = compile_pre_assembly(root, resolver, options)?;
-    resolutions.mangle(mangler);
+    resolutions.mangle(mangler, options.mangle_root);
     let mut assembly = resolutions.assemble(options.strip && options.lazy);
     // resolutions hold idents use-counts. We only need the list of modules now.
     let modules = resolutions.into_module_order();
@@ -881,7 +871,7 @@ pub fn compile_sourcemap(
 
     match compile_pre_assembly(root, &sourcemapper, options) {
         Ok((mut resolutions, keep)) => {
-            resolutions.mangle(&sourcemapper);
+            resolutions.mangle(&sourcemapper, options.mangle_root);
             let sourcemap = sourcemapper.finish();
             let mut assembly = resolutions.assemble(options.strip && options.lazy);
             let modules = resolutions.into_module_order();

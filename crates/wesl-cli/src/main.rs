@@ -153,6 +153,9 @@ struct CompOptsArgs {
     /// used.
     #[arg(long)]
     eager: bool,
+    /// Enable mangling of statements in the root module.
+    #[arg(long)]
+    mangle_root: bool,
     /// Disable performing validation checks with naga
     #[cfg(feature = "naga")]
     #[arg(long)]
@@ -188,6 +191,7 @@ impl From<&CompOptsArgs> for CompileOptions {
             lower: !opts.no_lower,
             validate: !opts.no_validate,
             lazy: !opts.eager,
+            mangle_root: opts.mangle_root,
             keep: if opts.no_strip {
                 None
             } else {
