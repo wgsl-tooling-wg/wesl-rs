@@ -4,6 +4,7 @@ use derive_more::derive::{AsMut, AsRef, Deref, DerefMut, From};
 
 pub type Id = u32;
 
+#[cfg_attr(feature = "tokrepr", derive(tokrepr::TokRepr))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Default, Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Span {

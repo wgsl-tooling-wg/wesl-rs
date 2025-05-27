@@ -25,8 +25,10 @@ itertools = "0.14.0"
 lalrpop-util = "0.22.1"
 lexical = { version = "7.0.4", features = ["format", "power-of-two"] }
 logos = "0.15.0"
-serde = { version = "1.0.215", optional = true, features = ["derive", "rc"] }
 thiserror = "2.0.12"
+
+serde = { version = "1.0.215", optional = true, features = ["derive", "rc"] }
+tokrepr = { workspace = true, optional = true }
 
 [build-dependencies]
 lalrpop = { version = "0.22.1", default-features = false }
@@ -55,12 +57,14 @@ condcomp = ["attributes"]
 # reference: https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md
 imports = []
 
-
 # allow naga/wgpu extensions.
 # listed here: https://github.com/gfx-rs/wgpu/issues/4410
 # more here: https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
 naga_ext = ["push_constant"]
 push_constant = []
+
+serde = ["dep:serde"]
+tokrepr = ["dep:tokrepr"]
 
 [lints]
 workspace = true

@@ -1,14 +1,19 @@
 #![doc = include_str!("../README.md")]
 
 pub mod error;
+pub mod lexer;
+pub mod parser;
 pub mod span;
 pub mod syntax;
 
-mod lexer;
-mod parser;
 mod parser_support;
 mod syntax_display;
 mod syntax_impl;
+
+#[cfg(feature = "tokrepr")]
+pub mod tokrepr;
+#[cfg(feature = "tokrepr")]
+pub use ::tokrepr::TokRepr;
 
 pub use error::Error;
 pub use parser::{parse_str, recognize_str};

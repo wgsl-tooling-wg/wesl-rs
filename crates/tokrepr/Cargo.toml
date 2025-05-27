@@ -1,0 +1,22 @@
+[package]
+name = "tokrepr"
+description = "Turn Rust instances into token representations"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+version = "0.0.1"
+rust-version.workspace = true
+
+[dependencies]
+proc-macro2 = "1.0.86"
+quote = "1.0.37"
+tokrepr-derive = { workspace = true, optional = true }
+
+[features]
+default = ["derive"]
+derive = ["dep:tokrepr-derive"]
+rc = []
+
+[lints]
+workspace = true

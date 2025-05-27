@@ -1,5 +1,5 @@
-#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![doc = include_str!("../README.md")]
 
 #[cfg(feature = "eval")]
 pub mod eval;
@@ -42,6 +42,9 @@ pub use resolve::{
 pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
 pub use syntax_util::SyntaxUtil;
 pub use validate::{ValidateError, validate_wesl, validate_wgsl};
+
+// re-exports
+pub use wesl_macros::*;
 pub use wgsl_parse::syntax;
 pub use wgsl_parse::syntax::ModulePath;
 

@@ -4,18 +4,12 @@ use half::prelude::*;
 use num_traits::{FromPrimitive, One, ToBytes, ToPrimitive, Zero, real::Real};
 
 use itertools::{Itertools, chain, izip};
-use wgsl_parse::{
-    Decorated,
-    syntax::{
-        AccessMode, AddressSpace, Attribute, CustomAttribute, Expression, GlobalDeclaration, Ident,
-        LiteralExpression, TemplateArg, TranslationUnit, TypeExpression,
-    },
-};
+use wesl_macros::{quote_expression, quote_module};
+use wgsl_parse::syntax::*;
 
 use crate::{
     builtin::builtin_ident,
     eval::{Context, Eval, convert_ty},
-    visit::Visit,
 };
 
 use super::{
@@ -32,8 +26,8 @@ type E = EvalError;
 
 // TODO: when we have the wgsl! macro, we can refactor the consts.
 
-pub static EXPR_TRUE: Expression = Expression::Literal(LiteralExpression::Bool(true));
-pub static EXPR_FALSE: Expression = Expression::Literal(LiteralExpression::Bool(false));
+pub static EXPR_TRUE: Expression = quote_expression!(true);
+pub static EXPR_FALSE: Expression = quote_expression!(false);
 
 pub trait BuiltinIdent {
     fn builtin_ident(&self) -> Option<&'static Ident>;
@@ -155,65 +149,251 @@ impl BuiltinIdent for AccessMode {
 
 pub static ATTR_INTRINSIC: LazyLock<Attribute> = LazyLock::new(|| {
     Attribute::Custom(CustomAttribute {
-        name: "__intrinsic".to_string(),
+        ident: Ident::new("__intrinsic".to_string()),
         arguments: None,
     })
 });
 
 pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
-    // TODO: could we parse that at build-time please
-    let mut prelude = include_str!("prelude.wgsl")
-        .parse::<TranslationUnit>()
-        .inspect_err(|e| eprintln!("{e}"))
-        .unwrap();
+    let intrinsic: &Attribute = &ATTR_INTRINSIC;
+    let abstract_int = builtin_ident("__AbstractInt").unwrap();
+    let abstract_float = builtin_ident("__AbstractFloat").unwrap();
+    let mut module = quote_module! {
+        // The prelude contains all pre-declared aliases, built-in structs and functions in WGSL.
+        // the @#intrinsic attribute indicates that a function definition is defined by the compiler.
+        // it means that it is not representable with user code: has generics, or variadics.
 
-    crate::SyntaxUtil::retarget_idents(&mut prelude);
+        alias vec2i = vec2<i32>;
+        alias vec3i = vec3<i32>;
+        alias vec4i = vec4<i32>;
+        alias vec2u = vec2<u32>;
+        alias vec3u = vec3<u32>;
+        alias vec4u = vec4<u32>;
+        alias vec2f = vec2<f32>;
+        alias vec3f = vec3<f32>;
+        alias vec4f = vec4<f32>;
+        // TODO: these are only enabled with the f16 extension
+        alias vec2h = vec2<f16>;
+        alias vec3h = vec3<f16>;
+        alias vec4h = vec4<f16>;
+        alias mat2x2f = mat2x2<f32>;
+        alias mat2x3f = mat2x3<f32>;
+        alias mat2x4f = mat2x4<f32>;
+        alias mat3x2f = mat3x2<f32>;
+        alias mat3x3f = mat3x3<f32>;
+        alias mat3x4f = mat3x4<f32>;
+        alias mat4x2f = mat4x2<f32>;
+        alias mat4x3f = mat4x3<f32>;
+        alias mat4x4f = mat4x4<f32>;
+        // TODO: these are only enabled with the f16 extension
+        alias mat2x2h = mat2x2<f16>;
+        alias mat2x3h = mat2x3<f16>;
+        alias mat2x4h = mat2x4<f16>;
+        alias mat3x2h = mat3x2<f16>;
+        alias mat3x3h = mat3x3<f16>;
+        alias mat3x4h = mat3x4<f16>;
+        alias mat4x2h = mat4x2<f16>;
+        alias mat4x3h = mat4x3<f16>;
+        alias mat4x4h = mat4x4<f16>;
 
-    let attr_internal = Attribute::Custom(CustomAttribute {
-        name: "internal".to_string(),
-        arguments: None,
-    });
-    let attr_intrinsic = Attribute::Custom(CustomAttribute {
-        name: "intrinsic".to_string(),
-        arguments: None,
-    });
+        // internal declarations are prefixed with __, which is not representable in WGSL source
+        // therefore it avoids name collisions. AbstractInt and AbstractFloat too.
+        struct __frexp_result_f32 { fract: f32, exp: i32 }
+        struct __frexp_result_f16 { fract: f16, exp: i32 }
+        struct __frexp_result_abstract { fract: #abstract_float, exp: #abstract_int }
+        struct __frexp_result_vec2_f32 { fract: vec2<f32>, exp: vec2<i32> }
+        struct __frexp_result_vec3_f32 { fract: vec3<f32>, exp: vec3<i32> }
+        struct __frexp_result_vec4_f32 { fract: vec4<f32>, exp: vec4<i32> }
+        struct __frexp_result_vec2_f16 { fract: vec2<f16>, exp: vec2<i32> }
+        struct __frexp_result_vec3_f16 { fract: vec3<f16>, exp: vec3<i32> }
+        struct __frexp_result_vec4_f16 { fract: vec4<f16>, exp: vec4<i32> }
+        struct __frexp_result_vec2_abstract { fract: vec2<#abstract_float>, exp: vec2<#abstract_int> }
+        struct __frexp_result_vec3_abstract { fract: vec3<#abstract_float>, exp: vec3<#abstract_int> }
+        struct __frexp_result_vec4_abstract { fract: vec4<#abstract_float>, exp: vec4<#abstract_int> }
+        struct __modf_result_f32 { fract: f32, whole: f32 }
+        struct __modf_result_f16 { fract: f16, whole: f16 }
+        struct __modf_result_abstract { fract: #abstract_float, whole: #abstract_float }
+        struct __modf_result_vec2_f32 { fract: vec2<f32>, whole: vec2<f32> }
+        struct __modf_result_vec3_f32 { fract: vec3<f32>, whole: vec3<f32> }
+        struct __modf_result_vec4_f32 { fract: vec4<f32>, whole: vec4<f32> }
+        struct __modf_result_vec2_f16 { fract: vec2<f16>, whole: vec2<f16> }
+        struct __modf_result_vec3_f16 { fract: vec3<f16>, whole: vec3<f16> }
+        struct __modf_result_vec4_f16 { fract: vec4<f16>, whole: vec4<f16> }
+        struct __modf_result_vec2_abstract { fract: vec2<#abstract_float>, whole: vec2<#abstract_float> }
+        struct __modf_result_vec3_abstract { fract: vec3<#abstract_float>, whole: vec3<#abstract_float> }
+        struct __modf_result_vec4_abstract { fract: vec4<#abstract_float>, whole: vec4<#abstract_float> }
+        @generic(T) struct atomic_compare_exchange_result { old_value: T, exchanged: bool }
 
-    fn repl_ty(ty: &mut TypeExpression) {
-        if *ty.ident.name() == "AbstractInt" {
-            ty.ident = builtin_ident("__AbstractInt").unwrap().clone();
-        } else if *ty.ident.name() == "AbstractFloat" {
-            ty.ident = builtin_ident("__AbstractFloat").unwrap().clone();
-        }
-        for ty in Visit::<TypeExpression>::visit_mut(ty) {
-            repl_ty(ty);
-        }
-    }
+        // bitcast
+        @const @must_use fn bitcast() @#intrinsic {}
 
-    for decl in &mut prelude.global_declarations {
-        match decl.node_mut() {
-            GlobalDeclaration::Struct(s) => {
-                if s.contains_attribute(&attr_internal) {
-                    s.ident = Ident::new(format!("__{}", s.ident));
-                    for m in &mut s.members {
-                        repl_ty(&mut m.ty);
-                    }
-                }
-            }
-            GlobalDeclaration::Function(f) => {
-                if let Some(attr) = f
-                    .body
-                    .attributes
-                    .iter_mut()
-                    .find(|attr| attr.node() == &attr_intrinsic)
-                {
-                    *attr.node_mut() = ATTR_INTRINSIC.clone();
-                }
-            }
-            _ => (),
-        }
-    }
+        // logical
+        @const @must_use fn all() @#intrinsic {}
+        @const @must_use fn any() @#intrinsic {}
+        @const @must_use fn select() @#intrinsic {}
 
-    prelude
+        // array
+        @const @must_use fn arrayLength() @#intrinsic {}
+
+        // numeric
+        @const @must_use fn abs() @#intrinsic {}
+        @const @must_use fn acos() @#intrinsic {}
+        @const @must_use fn acosh() @#intrinsic {}
+        @const @must_use fn asin() @#intrinsic {}
+        @const @must_use fn asinh() @#intrinsic {}
+        @const @must_use fn atan() @#intrinsic {}
+        @const @must_use fn atanh() @#intrinsic {}
+        @const @must_use fn atan2() @#intrinsic {}
+        @const @must_use fn ceil() @#intrinsic {}
+        @const @must_use fn clamp() @#intrinsic {}
+        @const @must_use fn cos() @#intrinsic {}
+        @const @must_use fn cosh() @#intrinsic {}
+        @const @must_use fn countLeadingZeros() @#intrinsic {}
+        @const @must_use fn countOneBits() @#intrinsic {}
+        @const @must_use fn countTrailingZeros() @#intrinsic {}
+        @const @must_use fn cross() @#intrinsic {}
+        @const @must_use fn degrees() @#intrinsic {}
+        @const @must_use fn determinant() @#intrinsic {}
+        @const @must_use fn distance() @#intrinsic {}
+        @const @must_use fn dot() @#intrinsic {}
+        @const @must_use fn dot4U8Packed() @#intrinsic {}
+        @const @must_use fn dot4I8Packed() @#intrinsic {}
+        @const @must_use fn exp() @#intrinsic {}
+        @const @must_use fn exp2() @#intrinsic {}
+        @const @must_use fn extractBits() @#intrinsic {}
+        @const @must_use fn faceForward() @#intrinsic {}
+        @const @must_use fn firstLeadingBit() @#intrinsic {}
+        @const @must_use fn firstTrailingBit() @#intrinsic {}
+        @const @must_use fn floor() @#intrinsic {}
+        @const @must_use fn fma() @#intrinsic {}
+        @const @must_use fn fract() @#intrinsic {}
+        @const @must_use fn frexp() @#intrinsic {}
+        @const @must_use fn insertBits() @#intrinsic {}
+        @const @must_use fn inverseSqrt() @#intrinsic {}
+        @const @must_use fn ldexp() @#intrinsic {}
+        @const @must_use fn length() @#intrinsic {}
+        @const @must_use fn log() @#intrinsic {}
+        @const @must_use fn log2() @#intrinsic {}
+        @const @must_use fn max() @#intrinsic {}
+        @const @must_use fn min() @#intrinsic {}
+        @const @must_use fn mix() @#intrinsic {}
+        @const @must_use fn modf() @#intrinsic {}
+        @const @must_use fn normalize() @#intrinsic {}
+        @const @must_use fn pow() @#intrinsic {}
+        @const @must_use fn quantizeToF16() @#intrinsic {}
+        @const @must_use fn radians() @#intrinsic {}
+        @const @must_use fn reflect() @#intrinsic {}
+        @const @must_use fn refract() @#intrinsic {}
+        @const @must_use fn reverseBits() @#intrinsic {}
+        @const @must_use fn round() @#intrinsic {}
+        @const @must_use fn saturate() @#intrinsic {}
+        @const @must_use fn sign() @#intrinsic {}
+        @const @must_use fn sin() @#intrinsic {}
+        @const @must_use fn sinh() @#intrinsic {}
+        @const @must_use fn smoothstep() @#intrinsic {}
+        @const @must_use fn sqrt() @#intrinsic {}
+        @const @must_use fn step() @#intrinsic {}
+        @const @must_use fn tan() @#intrinsic {}
+        @const @must_use fn tanh() @#intrinsic {}
+        @const @must_use fn transpose() @#intrinsic {}
+        @const @must_use fn trunc() @#intrinsic {}
+
+        // derivative
+        @must_use fn dpdx() @#intrinsic {}
+        @must_use fn dpdxCoarse() @#intrinsic {}
+        @must_use fn dpdxFine() @#intrinsic {}
+        @must_use fn dpdy() @#intrinsic {}
+        @must_use fn dpdyCoarse() @#intrinsic {}
+        @must_use fn dpdyFine() @#intrinsic {}
+        @must_use fn fwidth() @#intrinsic {}
+        @must_use fn fwidthCoarse() @#intrinsic {}
+        @must_use fn fwidthFine() @#intrinsic {}
+
+        // texture
+        @must_use fn textureDimensions() @#intrinsic {}
+        @must_use fn textureGather() @#intrinsic {}
+        @must_use fn textureGatherCompare() @#intrinsic {}
+        @must_use fn textureLoad() @#intrinsic {}
+        @must_use fn textureNumLayers() @#intrinsic {}
+        @must_use fn textureNumLevels() @#intrinsic {}
+        @must_use fn textureNumSamples() @#intrinsic {}
+        @must_use fn textureSample() @#intrinsic {}
+        @must_use fn textureSampleBias() @#intrinsic {}
+        @must_use fn textureSampleCompare() @#intrinsic {}
+        @must_use fn textureSampleCompareLevel() @#intrinsic {}
+        @must_use fn textureSampleGrad() @#intrinsic {}
+        @must_use fn textureSampleLevel() @#intrinsic {}
+        @must_use fn textureSampleBaseClampToEdge() @#intrinsic {}
+        fn textureStore() @#intrinsic {}
+
+        // atomic
+        fn atomicLoad() @#intrinsic {}
+        fn atomicStore() @#intrinsic {}
+        fn atomicAdd() @#intrinsic {}
+        fn atomicSub() @#intrinsic {}
+        fn atomicMax() @#intrinsic {}
+        fn atomicMin() @#intrinsic {}
+        fn atomicAnd() @#intrinsic {}
+        fn atomicOr() @#intrinsic {}
+        fn atomicXor() @#intrinsic {}
+        fn atomicExchange() @#intrinsic {}
+        fn atomicCompareExchangeWeak() @#intrinsic {}
+
+        // packing
+        @const @must_use fn pack4x8snorm() @#intrinsic { }
+        @const @must_use fn pack4x8unorm() @#intrinsic {}
+        @const @must_use fn pack4xI8() @#intrinsic {}
+        @const @must_use fn pack4xU8() @#intrinsic {}
+        @const @must_use fn pack4xI8Clamp() @#intrinsic {}
+        @const @must_use fn pack4xU8Clamp() @#intrinsic {}
+        @const @must_use fn pack2x16snorm() @#intrinsic {}
+        @const @must_use fn pack2x16unorm() @#intrinsic {}
+        @const @must_use fn pack2x16float() @#intrinsic {}
+        @const @must_use fn unpack4x8snorm() @#intrinsic {}
+        @const @must_use fn unpack4x8unorm() @#intrinsic {}
+        @const @must_use fn unpack4xI8() @#intrinsic {}
+        @const @must_use fn unpack4xU8() @#intrinsic {}
+        @const @must_use fn unpack2x16snorm() @#intrinsic {}
+        @const @must_use fn unpack2x16unorm() @#intrinsic {}
+        @const @must_use fn unpack2x16float() @#intrinsic {}
+
+        // synchronization
+        fn storageBarrier() @#intrinsic {}
+        fn textureBarrier() @#intrinsic {}
+        fn workgroupBarrier() @#intrinsic {}
+        @must_use fn workgroupUniformLoad() @#intrinsic {}
+
+        // subgroup
+        @must_use fn subgroupAdd() @#intrinsic {}
+        @must_use fn subgroupExclusiveAdd() @#intrinsic {}
+        @must_use fn subgroupInclusiveAdd() @#intrinsic {}
+        @must_use fn subgroupAll() @#intrinsic {}
+        @must_use fn subgroupAnd() @#intrinsic {}
+        @must_use fn subgroupAny() @#intrinsic {}
+        @must_use fn subgroupBallot() @#intrinsic {}
+        @must_use fn subgroupBroadcast() @#intrinsic {}
+        @must_use fn subgroupBroadcastFirst() @#intrinsic {}
+        @must_use fn subgroupElect() @#intrinsic {}
+        @must_use fn subgroupMax() @#intrinsic {}
+        @must_use fn subgroupMin() @#intrinsic {}
+        @must_use fn subgroupMul() @#intrinsic {}
+        @must_use fn subgroupExclusiveMul() @#intrinsic {}
+        @must_use fn subgroupInclusiveMul() @#intrinsic {}
+        @must_use fn subgroupOr() @#intrinsic {}
+        @must_use fn subgroupShuffle() @#intrinsic {}
+        @must_use fn subgroupShuffleDown() @#intrinsic {}
+        @must_use fn subgroupShuffleUp() @#intrinsic {}
+        @must_use fn subgroupShuffleXor() @#intrinsic {}
+        @must_use fn subgroupXor() @#intrinsic {}
+
+        // quad
+        @must_use fn quadBroadcast() @#intrinsic {}
+        @must_use fn quadSwapDiagonal() @#intrinsic {}
+        @must_use fn quadSwapX() @#intrinsic {}
+        @must_use fn quadSwapY() @#intrinsic {}
+    };
+    crate::SyntaxUtil::retarget_idents(&mut module);
+    module
 });
 
 fn array_ctor_ty_t(tplt: ArrayTemplate, args: &[Type]) -> Result<Type, E> {

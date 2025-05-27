@@ -15,7 +15,7 @@ regex = "1.11.1"
 libtest-mimic = "0.8.1"
 serde_json = "1.0.140"
 wgsl-parse = { workspace = true }
-wesl = { workspace = true, features = ["eval"] }
+wesl = { workspace = true, features = ["eval", "naga_ext"] }
 
 [lints]
 workspace = true
