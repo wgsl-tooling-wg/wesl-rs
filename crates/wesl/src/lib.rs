@@ -439,7 +439,7 @@ impl<R: Resolver> Wesl<R> {
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
     pub fn set_features<'a>(
         &mut self,
-        feats: impl IntoIterator<Item = (&'a str, impl Into<Feature>)>,
+        feats: impl IntoIterator<Item = (impl ToString, impl Into<Feature>)>,
     ) -> &mut Self {
         self.options
             .features
