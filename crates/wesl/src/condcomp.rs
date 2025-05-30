@@ -198,8 +198,8 @@ fn eval_if_attr(
     features: &Features,
 ) -> Result<(), E> {
     let attr = get_single_attr(node.attributes_mut())?;
-    let mut has_if = false;
     if let Some(attr) = attr {
+        let mut has_if = false;
         if let Attribute::If(expr) = attr.node_mut() {
             **expr = eval_attr(expr, features)?;
             has_if = true;
@@ -216,6 +216,8 @@ fn eval_if_attr(
             }
         }
         prev.has_if = has_if;
+    } else {
+        prev.has_if = false;
     }
 
     let mut remove_node = false;
@@ -356,6 +358,7 @@ fn stmt_eval_if_attrs(statements: &mut Vec<StatementNode>, features: &Features) 
 }
 
 pub fn run(wesl: &mut TranslationUnit, features: &Features) -> Result<(), E> {
+    wesl.remove_voids();
     eval_if_attrs(&mut wesl.imports, features)?;
     eval_if_attrs(&mut wesl.global_directives, features)?;
     eval_if_attrs(&mut wesl.global_declarations, features)?;
