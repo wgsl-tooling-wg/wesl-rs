@@ -203,6 +203,14 @@ fn parse_hex_f64(lex: &mut logos::Lexer<Token>) -> Option<f64> {
     lexical::parse_with_options::<f64, _, HEX_FORMAT>(str, options).ok()
 }
 
+fn parse_line_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
+    let rem = lex.remainder();
+    // see blankspace and line breaks: https://www.w3.org/TR/WGSL/#blankspace-and-line-breaks
+    let line_end = rem.char_indices().find(|(_, c)| "\n\u{000B}\u{000C}\r\u{0085}\u{2028}\u{2029}".contains(*c)).map(|(i, _)| i).unwrap_or(rem.len());
+    lex.bump(line_end);
+    logos::Skip
+}
+
 fn parse_block_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
     let mut depth = 1;
     while depth > 0 {
@@ -397,13 +405,14 @@ pub struct LexerState {
 // following the spec at this date: https://www.w3.org/TR/2024/WD-WGSL-20240731/
 #[derive(Logos, Clone, Debug, PartialEq)]
 #[logos(
-    skip r"[\s\u0085\u200e\u200f\u2028\u2029]+",
-    // see line breaks: https://www.w3.org/TR/WGSL/#line-break
-    skip r"//[^\n\v\f\r\u0085\u2028\u2029]*", // line comment
+    // see blankspace and line breaks: https://www.w3.org/TR/WGSL/#blankspace-and-line-breaks
+    skip r"[\s\u0085\u200e\u200f\u2028\u2029]+", // blankspace
     extras = LexerState,
     error = ParseError)]
 pub enum Token {
-    // comments. This variant is never produced.
+    // line comments. This variant is never produced.
+    #[token("//", parse_line_comment)]
+    // block comments. This variant is never produced.
     #[token("/*", parse_block_comment, priority = 2)]
     Ignored,
     // syntactic tokens
