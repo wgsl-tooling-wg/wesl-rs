@@ -34,6 +34,7 @@ pub(crate) struct Module {
     idents: HashMap<Ident, usize>, // lookup (ident, decl_index)
     treated_idents: RefCell<HashSet<Ident>>, // used idents that have already been usage-analyzed
     imports: Imports,
+    is_resolved: bool,
 }
 
 impl Module {
@@ -62,6 +63,7 @@ impl Module {
             idents,
             treated_idents: Default::default(),
             imports,
+            is_resolved: false,
         })
     }
 }
@@ -153,27 +155,34 @@ pub fn resolve_lazy<'a>(
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
     ) -> Result<Rc<RefCell<Module>>, E> {
-        if let Some(module) = resolutions.modules.get(path) {
-            Ok(module.clone())
+        let module = if let Some(module) = resolutions.modules.get(path) {
+            module.clone()
         } else {
             let mut source = resolver.resolve_module(path)?;
             source.retarget_idents();
             let module = Module::new(source, path.clone())?;
+            resolutions.push_module(module)
+        };
 
-            // const_asserts of used modules must be included.
-            // https://github.com/wgsl-tooling-wg/wesl-spec/issues/66
-            let const_asserts = module
-                .source
-                .global_declarations
-                .iter()
-                .filter(|decl| decl.is_const_assert());
+        {
+            let mut module = module.borrow_mut();
+            if !module.is_resolved {
+                module.is_resolved = true;
+                // const_asserts of used modules must be included.
+                // https://github.com/wgsl-tooling-wg/wesl-spec/issues/66
+                let const_asserts = module
+                    .source
+                    .global_declarations
+                    .iter()
+                    .filter(|decl| decl.is_const_assert());
 
-            for decl in const_asserts {
-                resolve_decl(&module, decl, resolutions, resolver)?;
+                for decl in const_asserts {
+                    resolve_decl(&module, decl, resolutions, resolver)?;
+                }
             }
-
-            Ok(resolutions.push_module(module))
         }
+
+        Ok(module)
     }
 
     fn resolve_ident(
@@ -257,7 +266,7 @@ pub fn resolve_lazy<'a>(
     let module = load_module(&path, resolutions, resolver)?;
 
     for id in keep {
-        resolve_ident(&module.borrow(), &id.name(), resolutions, resolver)?;
+        resolve_ident(&module.borrow(), &id.name(),resolutions, resolver)?;
     }
 
     resolutions.retarget();
