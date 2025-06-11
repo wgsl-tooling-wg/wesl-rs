@@ -1,3 +1,1 @@
-use wesl::wesl_pkg;
-
-wesl_pkg!(random);
+wesl::wesl_pkg!(random);

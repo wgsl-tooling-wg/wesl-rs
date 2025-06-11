@@ -30,8 +30,7 @@ use crate::{Diagnostic, Error, ModulePath, SyntaxUtil, validate::validate_wesl};
 /// Then, in your `lib.rs` file, expose the generated module with the [`crate::wesl_pkg`] macro.
 /// ```ignore
 /// // in src/lib.rs
-/// use wesl::wesl_pkg;
-/// wesl_pkg!(my_package);
+/// wesl::wesl_pkg!(my_package);
 /// ```
 ///
 /// The package name must be a valid rust identifier, E.g. it must not contain dashes `-`.

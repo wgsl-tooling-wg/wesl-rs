@@ -166,12 +166,12 @@ macro_rules! include_wesl {
 #[macro_export]
 macro_rules! wesl_pkg {
     ($pkg_name:ident) => {
-        wesl_pkg!($pkg_name, concat!("/", stringify!($pkg_name), ".rs"));
+        $crate::wesl_pkg!($pkg_name, concat!("/", stringify!($pkg_name), ".rs"));
     };
     ($pkg_name:ident, $source:expr) => {
         pub mod $pkg_name {
             #![allow(clippy::all)]
-            use wesl::PkgModule;
+            use $crate::PkgModule;
 
             include!(concat!(env!("OUT_DIR"), $source));
         }
