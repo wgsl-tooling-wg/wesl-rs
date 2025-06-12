@@ -348,27 +348,29 @@ impl Resolver for Router {
     }
 }
 
-/// The trait implemented by external packages.
+/// The type implemented by external packages.
 ///
-/// You typically don't implement this, instead it is implemented for you by the
+/// You typically don't implement this, instead it is implemented for you by
 /// [`crate::PkgBuilder`].
-pub trait PkgModule: Send + Sync {
-    fn name(&self) -> &'static str;
-    fn source(&self) -> &'static str;
-    fn submodules(&self) -> &[&dyn PkgModule];
-    fn submodule(&self, name: &str) -> Option<&dyn PkgModule> {
-        self.submodules()
-            .iter()
-            .find(|sm| sm.name() == name)
-            .copied()
-    }
+#[derive(Debug, PartialEq, Eq)]
+pub struct PkgModule {
+    pub name: &'static str,
+    pub source: &'static str,
+    pub submodules: &'static [&'static PkgModule],
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Pkg {
+    pub crate_name: &'static str,
+    pub root: &'static PkgModule,
+    pub dependencies: &'static [&'static Pkg],
 }
 
 /// A resolver that only resolves module paths that refer to modules in external packages.
 ///
 /// Register external packages with [`Self::add_package`].
 pub struct PkgResolver {
-    packages: Vec<&'static dyn PkgModule>,
+    packages: Vec<&'static Pkg>,
 }
 
 impl PkgResolver {
@@ -380,7 +382,7 @@ impl PkgResolver {
     }
 
     /// Add a package to the resolver.
-    pub fn add_package(&mut self, pkg: &'static dyn PkgModule) {
+    pub fn add_package(&mut self, pkg: &'static Pkg) {
         self.packages.push(pkg);
     }
 }
@@ -392,33 +394,60 @@ impl Default for PkgResolver {
 }
 
 impl Resolver for PkgResolver {
-    fn resolve_source<'a>(
-        &'a self,
-        path: &ModulePath,
-    ) -> Result<std::borrow::Cow<'a, str>, ResolveError> {
-        for pkg in &self.packages {
-            // TODO: the resolution algorithm is currently not spec-compliant.
-            // https://github.com/wgsl-tooling-wg/wesl-spec/blob/imports-update/Imports.md
-            if path.origin.is_package()
-                && path.components.first().map(String::as_str) == Some(pkg.name())
-            {
-                let mut cur_mod = *pkg;
-                for comp in path.components.iter().skip(1) {
-                    if let Some(submod) = cur_mod.submodule(comp) {
-                        cur_mod = submod;
-                    } else {
-                        return Err(E::ModuleNotFound(
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<std::borrow::Cow<'a, str>, E> {
+        if !path.origin.is_package() {
+            return Err(E::ModuleNotFound(
+                path.clone(),
+                "resolver can only resolve package imports".to_string(),
+            ));
+        }
+
+        let pkg_path = path
+            .components
+            .first()
+            .iter()
+            .flat_map(|comp| comp.split('/'))
+            .collect_vec();
+
+        let deps = pkg_path
+            .iter()
+            .try_fold(self.packages.as_slice(), |deps, name| {
+                deps.iter()
+                    .find(|p| p.root.name == *name)
+                    .map(|p| p.dependencies)
+                    .ok_or_else(|| {
+                        E::ModuleNotFound(
                             path.clone(),
                             format!(
-                                "in module `{}`, no submodule named `{comp}`",
-                                cur_mod.name()
+                                "dependency `{}` not found in package `{}` while looking for import `{}`",
+                                name,
+                                path.components.first().map(String::as_str).unwrap_or("root"),
+                                path,
                             ),
-                        ));
-                    }
+                        )
+                    })
+            })?;
+
+        // TODO: the resolution algorithm is currently not spec-compliant.
+        // https://github.com/wgsl-tooling-wg/wesl-spec/blob/imports-update/Imports.md
+        if let Some(pkg) = deps
+            .iter()
+            .find(|p| path.components.first().map(String::as_str) == Some(p.root.name))
+        {
+            let mut cur_mod = pkg.root;
+            for comp in path.components.iter().skip(1) {
+                if let Some(submod) = cur_mod.submodules.iter().find(|m| m.name == comp) {
+                    cur_mod = submod;
+                } else {
+                    return Err(E::ModuleNotFound(
+                        path.clone(),
+                        format!("in module `{}`, no submodule named `{comp}`", cur_mod.name),
+                    ));
                 }
-                return Ok(cur_mod.source().into());
             }
+            return Ok(cur_mod.source.into());
         }
+
         Err(E::ModuleNotFound(
             path.clone(),
             "no package found".to_string(),
@@ -451,7 +480,7 @@ impl StandardResolver {
     }
 
     /// Add an external package.
-    pub fn add_package(&mut self, pkg: &'static dyn PkgModule) {
+    pub fn add_package(&mut self, pkg: &'static Pkg) {
         self.pkg.add_package(pkg)
     }
 
@@ -476,12 +505,10 @@ impl StandardResolver {
 
 impl Resolver for StandardResolver {
     fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
-        if path.origin.is_package() {
-            if path.starts_with(&self.constant_path) {
-                Ok(self.generate_constant_module().into())
-            } else {
-                self.pkg.resolve_source(path)
-            }
+        if path.origin.is_package() && path.starts_with(&self.constant_path) {
+            Ok(self.generate_constant_module().into())
+        } else if path.origin.is_package() {
+            self.pkg.resolve_source(path)
         } else {
             self.files.resolve_source(path)
         }

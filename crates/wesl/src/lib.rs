@@ -36,8 +36,8 @@ pub use import::ImportError;
 pub use lower::lower;
 pub use mangle::{CacheMangler, EscapeMangler, HashMangler, Mangler, NoMangler, UnicodeMangler};
 pub use resolve::{
-    FileResolver, NoResolver, PkgModule, PkgResolver, Preprocessor, ResolveError, Resolver, Router,
-    StandardResolver, VirtualResolver, emit_rerun_if_changed,
+    FileResolver, NoResolver, Pkg, PkgModule, PkgResolver, Preprocessor, ResolveError, Resolver,
+    Router, StandardResolver, VirtualResolver, emit_rerun_if_changed,
 };
 pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
 pub use syntax_util::SyntaxUtil;
@@ -170,8 +170,7 @@ macro_rules! wesl_pkg {
     };
     ($pkg_name:ident, $source:expr) => {
         pub mod $pkg_name {
-            #![allow(clippy::all)]
-            use $crate::PkgModule;
+            use $crate::{Pkg, PkgModule};
 
             include!(concat!(env!("OUT_DIR"), $source));
         }
@@ -241,7 +240,7 @@ impl Wesl<StandardResolver> {
     /// Add a package dependency.
     ///
     /// Learn more about packages in [`PkgBuilder`].
-    pub fn add_package(&mut self, pkg: &'static dyn PkgModule) -> &mut Self {
+    pub fn add_package(&mut self, pkg: &'static Pkg) -> &mut Self {
         self.resolver.add_package(pkg);
         self
     }
@@ -249,10 +248,7 @@ impl Wesl<StandardResolver> {
     /// Add several package dependencies.
     ///
     /// Learn more about packages in [`PkgBuilder`].
-    pub fn add_packages(
-        &mut self,
-        pkgs: impl IntoIterator<Item = &'static dyn PkgModule>,
-    ) -> &mut Self {
+    pub fn add_packages(&mut self, pkgs: impl IntoIterator<Item = &'static Pkg>) -> &mut Self {
         for pkg in pkgs {
             self.resolver.add_package(pkg);
         }

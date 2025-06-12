@@ -11,7 +11,7 @@ mod syntax_display;
 mod syntax_impl;
 
 #[cfg(feature = "tokrepr")]
-pub mod tokrepr;
+mod tokrepr;
 #[cfg(feature = "tokrepr")]
 pub use ::tokrepr::TokRepr;
 

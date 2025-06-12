@@ -106,7 +106,7 @@ impl ModulePath {
         self
     }
     /// Append `suffix` to the module path.
-    /// the suffix must be a relative module path.
+    /// The suffix must be a relative module path.
     pub fn join_path(&self, path: &Self) -> Option<Self> {
         match path.origin {
             PathOrigin::Relative(n) => {
