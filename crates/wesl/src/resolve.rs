@@ -402,6 +402,9 @@ impl Resolver for PkgResolver {
             ));
         }
 
+        // This is a hack: when the package name contains `/`, it corresponds to a sub-dependency
+        // of a package dependency. The name is created by the import resolution algorithm.
+        // (see import.rs:join_paths)
         let pkg_path = path
             .components
             .first()
@@ -409,19 +412,32 @@ impl Resolver for PkgResolver {
             .flat_map(|comp| comp.split('/'))
             .collect_vec();
 
-        let deps = pkg_path
-            .iter()
-            .try_fold(self.packages.as_slice(), |deps, name| {
-                deps.iter()
+        let pkg = pkg_path
+            .first()
+            .and_then(|name| self.packages.iter().find(|p| p.root.name == *name))
+            .ok_or_else(|| {
+                E::ModuleNotFound(
+                    path.clone(),
+                    format!(
+                        "dependency `{}` not found, while looking for import`{}`",
+                        pkg_path.iter().format("/"),
+                        path,
+                    ),
+                )
+            })?;
+
+        let pkg = pkg_path
+            .iter().skip(1)
+            .try_fold(pkg, |dep, name| {
+                dep.dependencies.iter()
                     .find(|p| p.root.name == *name)
-                    .map(|p| p.dependencies)
                     .ok_or_else(|| {
                         E::ModuleNotFound(
                             path.clone(),
                             format!(
-                                "dependency `{}` not found in package `{}` while looking for import `{}`",
+                                "dependency `{}` not found, while looking for package `{}`, while looking for import `{}`",
                                 name,
-                                path.components.first().map(String::as_str).unwrap_or("root"),
+                                pkg_path.iter().format("/"),
                                 path,
                             ),
                         )
@@ -430,28 +446,18 @@ impl Resolver for PkgResolver {
 
         // TODO: the resolution algorithm is currently not spec-compliant.
         // https://github.com/wgsl-tooling-wg/wesl-spec/blob/imports-update/Imports.md
-        if let Some(pkg) = deps
-            .iter()
-            .find(|p| path.components.first().map(String::as_str) == Some(p.root.name))
-        {
-            let mut cur_mod = pkg.root;
-            for comp in path.components.iter().skip(1) {
-                if let Some(submod) = cur_mod.submodules.iter().find(|m| m.name == comp) {
-                    cur_mod = submod;
-                } else {
-                    return Err(E::ModuleNotFound(
-                        path.clone(),
-                        format!("in module `{}`, no submodule named `{comp}`", cur_mod.name),
-                    ));
-                }
+        let mut cur_mod = pkg.root;
+        for comp in path.components.iter().skip(1) {
+            if let Some(submod) = cur_mod.submodules.iter().find(|m| m.name == comp) {
+                cur_mod = submod;
+            } else {
+                return Err(E::ModuleNotFound(
+                    path.clone(),
+                    format!("in module `{}`, no submodule named `{comp}`", cur_mod.name),
+                ));
             }
-            return Ok(cur_mod.source.into());
         }
-
-        Err(E::ModuleNotFound(
-            path.clone(),
-            "no package found".to_string(),
-        ))
+        Ok(cur_mod.source.into())
     }
 }
 

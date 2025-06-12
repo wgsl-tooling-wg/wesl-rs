@@ -4,9 +4,10 @@ use std::{
     rc::Rc,
 };
 
+use itertools::Itertools;
 use wgsl_parse::syntax::{
-    self, GlobalDeclaration, Ident, ImportContent, ImportStatement, ModulePath, TranslationUnit,
-    TypeExpression,
+    GlobalDeclaration, Ident, ImportContent, ImportStatement, ModulePath, PathOrigin,
+    TranslationUnit, TypeExpression,
 };
 
 use crate::{Mangler, ResolveError, Resolver, SyntaxUtil, visit::Visit};
@@ -100,35 +101,6 @@ impl Resolutions {
     }
     pub(crate) fn into_module_order(self) -> Vec<ModulePath> {
         self.order
-    }
-}
-
-fn resolve_inline_path(
-    path: &ModulePath,
-    parent_path: &ModulePath,
-    imports: &Imports,
-) -> ModulePath {
-    // TODO nested packages
-    match path.origin {
-        syntax::PathOrigin::Absolute => path.clone(),
-        syntax::PathOrigin::Relative(_) => parent_path.join_path(path).unwrap(),
-        syntax::PathOrigin::Package => {
-            let prefix = path.first().unwrap();
-            // the path could be either a package, of referencing an imported module alias.
-            imports
-                .iter()
-                .find_map(|(ident, (ext_res, ext_ident))| {
-                    if *ident.name() == prefix {
-                        // import a::b::c as foo; foo::bar::baz() => a::b::c::bar::baz()
-                        let mut res = ext_res.clone(); // a::b
-                        res.push(&ext_ident.name()); // c
-                        Some(res.join(path.components.iter().skip(1).cloned()))
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or_else(|| path.clone())
-        }
     }
 }
 
@@ -352,6 +324,36 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
     Ok(())
 }
 
+fn join_paths(parent_path: &ModulePath, path: &ModulePath) -> ModulePath {
+    match (parent_path.origin, path.origin) {
+        (PathOrigin::Absolute | PathOrigin::Relative(_), _)
+        | (PathOrigin::Package, PathOrigin::Relative(_)) => {
+            parent_path.join_path(&path).unwrap_or_else(|| path.clone())
+        }
+        // Absolute imports from within a package correspond to package imports.
+        (PathOrigin::Package, PathOrigin::Absolute) => ModulePath::new(
+            PathOrigin::Package,
+            parent_path
+                .first()
+                .map(str::to_string)
+                .into_iter()
+                .chain(path.components.iter().skip(1).cloned())
+                .collect_vec(),
+        ),
+        // Importing a sub-package. This is a hack: we rename the package to
+        // parent_package/child_package, which cannot be spelled in code.
+        (PathOrigin::Package, PathOrigin::Package) => ModulePath::new(
+            PathOrigin::Package,
+            parent_path
+                .first()
+                .map(|name| format!("{name}/{}", path.first().unwrap()))
+                .into_iter()
+                .chain(path.components.iter().skip(1).cloned())
+                .collect_vec(),
+        ),
+    }
+}
+
 /// Flatten imports to a list of module paths.
 pub(crate) fn flatten_imports(
     imports: &[ImportStatement],
@@ -383,13 +385,36 @@ pub(crate) fn flatten_imports(
     let mut res = Imports::new();
 
     for import in imports {
-        let path = parent_path
-            .join_path(&import.path)
-            .unwrap_or_else(|| import.path.clone());
+        let path = join_paths(parent_path, &import.path);
         rec(&import.content, path, &mut res)?;
     }
 
     Ok(res)
+}
+
+fn resolve_inline_path(
+    path: &ModulePath,
+    parent_path: &ModulePath,
+    imports: &Imports,
+) -> ModulePath {
+    match path.origin {
+        PathOrigin::Package => {
+            // the path could be either a package, of referencing an imported module alias.
+            let prefix = path.first().unwrap();
+            let imported_item = imports.iter().find(|(ident, _)| *ident.name() == prefix);
+
+            if let Some((_, (ext_res, ext_ident))) = imported_item {
+                // this inline path references an imported item. Example:
+                // import a::b::c as foo; foo::bar::baz() => a::b::c::bar::baz()
+                let mut res = ext_res.clone(); // a::b
+                res.push(&ext_ident.name()); // c
+                res.join(path.components.iter().skip(1).cloned())
+            } else {
+                join_paths(parent_path, path)
+            }
+        }
+        _ => join_paths(parent_path, path),
+    }
 }
 
 pub(crate) fn mangle_decls<'a>(

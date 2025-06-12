@@ -107,15 +107,15 @@ impl ModulePath {
     }
     /// Append `suffix` to the module path.
     /// The suffix must be a relative module path.
-    pub fn join_path(&self, path: &Self) -> Option<Self> {
-        match path.origin {
+    pub fn join_path(&self, suffix: &Self) -> Option<Self> {
+        match suffix.origin {
             PathOrigin::Relative(n) => {
                 let to_keep = self.components.len().max(n) - n;
                 let components = self
                     .components
                     .iter()
                     .take(to_keep)
-                    .chain(&path.components)
+                    .chain(&suffix.components)
                     .cloned()
                     .collect_vec();
                 let origin = match self.origin {
