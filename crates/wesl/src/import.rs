@@ -6,13 +6,20 @@ use std::{
 
 use itertools::Itertools;
 use wgsl_parse::syntax::{
-    GlobalDeclaration, Ident, ImportContent, ImportStatement, ModulePath, PathOrigin,
+    Attribute, GlobalDeclaration, Ident, ImportContent, ImportStatement, ModulePath, PathOrigin,
     TranslationUnit, TypeExpression,
 };
 
 use crate::{Mangler, ResolveError, Resolver, SyntaxUtil, visit::Visit};
 
-type Imports = HashMap<Ident, (ModulePath, Ident)>;
+#[derive(Clone, Debug)]
+struct ImportItem {
+    path: ModulePath,
+    ident: Ident,
+    public: bool,
+}
+
+type Imports = HashMap<Ident, ImportItem>;
 type Modules = HashMap<ModulePath, Rc<RefCell<Module>>>;
 
 /// Error produced during import resolution.
@@ -194,8 +201,8 @@ pub fn resolve_lazy<'a>(
         let (ext_path, ext_id) = if let Some(path) = &ty.path {
             let res = resolve_inline_path(path, &module.path, &module.imports);
             (res, ty.ident.clone())
-        } else if let Some((path, ident)) = module.imports.get(&ty.ident) {
-            (path.clone(), ident.clone())
+        } else if let Some(item) = module.imports.get(&ty.ident) {
+            (item.path.clone(), item.ident.clone())
         } else {
             // points to a local decl, we stop here.
             if let Some(n) = module.idents.get(&ty.ident) {
@@ -260,8 +267,8 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
         let (ext_path, ext_id) = if let Some(path) = &ty.path {
             let res = resolve_inline_path(path, &module.path, &module.imports);
             (res, ty.ident.clone())
-        } else if let Some((path, ident)) = module.imports.get(&ty.ident) {
-            (path.clone(), ident.clone())
+        } else if let Some(item) = module.imports.get(&ty.ident) {
+            (item.path.clone(), item.ident.clone())
         } else {
             // points to a local decl, we stop here.
             return Ok(());
@@ -303,11 +310,11 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
     ) -> Result<(), E> {
-        for (path, _) in module.imports.values() {
-            if !resolutions.modules.contains_key(path) {
-                let mut source = resolver.resolve_module(path)?;
+        for item in module.imports.values() {
+            if !resolutions.modules.contains_key(&item.path) {
+                let mut source = resolver.resolve_module(&item.path)?;
                 source.retarget_idents();
-                let module = resolutions.push_module(Module::new(source, path.clone())?);
+                let module = resolutions.push_module(Module::new(source, item.path.clone())?);
                 resolve_module(&module.borrow(), resolutions, resolver)?;
             }
         }
@@ -359,7 +366,12 @@ pub(crate) fn flatten_imports(
     imports: &[ImportStatement],
     parent_path: &ModulePath,
 ) -> Result<Imports, E> {
-    fn rec(content: &ImportContent, path: ModulePath, res: &mut Imports) -> Result<(), E> {
+    fn rec(
+        content: &ImportContent,
+        path: ModulePath,
+        public: bool,
+        res: &mut Imports,
+    ) -> Result<(), E> {
         match content {
             ImportContent::Item(item) => {
                 let ident = item.rename.as_ref().unwrap_or(&item.ident).clone();
@@ -370,12 +382,20 @@ pub(crate) fn flatten_imports(
                 // {
                 //     return Err(E::DuplicateSymbol(ident.to_string()));
                 // }
-                res.insert(ident, (path, item.ident.clone()));
+                println!("resolved {ident} -> {path}, {}", item.ident);
+                res.insert(
+                    ident,
+                    ImportItem {
+                        path,
+                        ident: item.ident.clone(),
+                        public,
+                    },
+                );
             }
             ImportContent::Collection(coll) => {
                 for import in coll {
                     let path = path.clone().join(import.path.clone());
-                    rec(&import.content, path, res)?;
+                    rec(&import.content, path, public, res)?;
                 }
             }
         }
@@ -386,7 +406,8 @@ pub(crate) fn flatten_imports(
 
     for import in imports {
         let path = join_paths(parent_path, &import.path);
-        rec(&import.content, path, &mut res)?;
+        let public = import.attributes.iter().any(|attr| attr.is_publish());
+        rec(&import.content, path, public, &mut res)?;
     }
 
     Ok(res)
@@ -397,24 +418,26 @@ fn resolve_inline_path(
     parent_path: &ModulePath,
     imports: &Imports,
 ) -> ModulePath {
-    match path.origin {
+    let module_path = match path.origin {
         PathOrigin::Package => {
             // the path could be either a package, of referencing an imported module alias.
             let prefix = path.first().unwrap();
             let imported_item = imports.iter().find(|(ident, _)| *ident.name() == prefix);
 
-            if let Some((_, (ext_res, ext_ident))) = imported_item {
+            if let Some((_, ext_item)) = imported_item {
                 // this inline path references an imported item. Example:
                 // import a::b::c as foo; foo::bar::baz() => a::b::c::bar::baz()
-                let mut res = ext_res.clone(); // a::b
-                res.push(&ext_ident.name()); // c
+                let mut res = ext_item.path.clone(); // a::b
+                res.push(&ext_item.ident.name()); // c
                 res.join(path.components.iter().skip(1).cloned())
             } else {
                 join_paths(parent_path, path)
             }
         }
         _ => join_paths(parent_path, path),
-    }
+    };
+    println!("resolved {path} {parent_path} -> {module_path}");
+    module_path
 }
 
 pub(crate) fn mangle_decls<'a>(
@@ -440,8 +463,8 @@ impl Resolutions {
                 let (ext_path, ext_id) = if let Some(path) = &ty.path {
                     let res = resolve_inline_path(path, &module.path, &module.imports);
                     (res, ty.ident.clone())
-                } else if let Some((path, ident)) = module.imports.get(&ty.ident) {
-                    (path.clone(), ident.clone())
+                } else if let Some(item) = module.imports.get(&ty.ident) {
+                    (item.path.clone(), item.ident.clone())
                 } else {
                     // points to a local decl, we stop here.
                     return;

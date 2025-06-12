@@ -385,6 +385,8 @@ impl Display for Attribute {
             Attribute::Vertex => write!(f, "@vertex"),
             Attribute::Fragment => write!(f, "@fragment"),
             Attribute::Compute => write!(f, "@compute"),
+            #[cfg(feature = "imports")]
+            Attribute::Publish => write!(f, "@publish"),
             #[cfg(feature = "condcomp")]
             Attribute::If(e1) => write!(f, "@if({e1})"),
             #[cfg(feature = "condcomp")]

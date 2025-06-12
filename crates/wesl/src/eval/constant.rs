@@ -106,6 +106,7 @@ impl IsConst for Attribute {
             Attribute::Vertex => false,           // attr on entrypoint function (never const)
             Attribute::Fragment => false,         // attr on entrypoint function (never const)
             Attribute::Compute => false,          // attr on entrypoint function (never const)
+            Attribute::Publish => true,           // imports are const
             Attribute::If(_) => true,             // if attributes are translate-time (always const)
             Attribute::Elif(_) => true,           // if attributes are translate-time (always const)
             Attribute::Else => true,              // if attributes are translate-time (always const)

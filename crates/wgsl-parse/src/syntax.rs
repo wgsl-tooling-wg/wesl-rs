@@ -422,6 +422,8 @@ pub enum Attribute {
     Vertex,
     Fragment,
     Compute,
+    #[cfg(feature = "imports")]
+    Publish,
     #[cfg(feature = "condcomp")]
     If(ExpressionNode),
     #[cfg(feature = "condcomp")]

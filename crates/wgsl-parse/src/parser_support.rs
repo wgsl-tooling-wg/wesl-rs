@@ -324,6 +324,8 @@ pub(crate) fn parse_attribute(
             true => Ok(Attribute::Compute),
             false => Err(E::Attribute("compute", "expected 0 arguments")),
         },
+        #[cfg(feature = "imports")]
+        "publish" => Ok(Attribute::Publish),
         #[cfg(feature = "condcomp")]
         "if" => match one_arg(args) {
             Some(expr) => Ok(Attribute::If(expr)),
