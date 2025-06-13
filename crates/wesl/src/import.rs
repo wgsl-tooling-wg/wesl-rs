@@ -6,7 +6,7 @@ use std::{
 
 use itertools::Itertools;
 use wgsl_parse::syntax::{
-    Attribute, GlobalDeclaration, Ident, ImportContent, ImportStatement, ModulePath, PathOrigin,
+    GlobalDeclaration, Ident, ImportContent, ImportStatement, ModulePath, PathOrigin,
     TranslationUnit, TypeExpression,
 };
 
@@ -167,25 +167,61 @@ pub fn resolve_lazy<'a>(
 
     fn resolve_ident(
         module: &Module,
-        ident: &str,
+        name: &Ident,
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
     ) -> Result<(), E> {
-        let (ident, n) = module
+        let decl = if let Some((ident, n)) = module
             .idents
             .iter()
-            .find(|(id, _)| *id.name() == ident)
-            .ok_or_else(|| E::MissingDecl(module.path.clone(), ident.to_string()))?;
-
-        if module.treated_idents.borrow().contains(ident) {
-            return Ok(());
+            .find(|(id, _)| *id.name() == *name.name())
+        {
+            println!("resolve_ident {ident} {}", name == ident);
+            if module.treated_idents.borrow().contains(ident) {
+                return Ok(());
+            } else {
+                module.treated_idents.borrow_mut().insert(ident.clone());
+            }
+            let decl = module.source.global_declarations.get(*n).unwrap();
+            decl
+        } else if let Some((_, item)) = module
+            .imports
+            .iter()
+            .find(|(id, item)| *id.name() == *name.name())
+        {
+            panic!("TODO")
         } else {
-            module.treated_idents.borrow_mut().insert(ident.clone());
-        }
+            return Err(E::MissingDecl(module.path.clone(), name.to_string()));
+        };
 
-        let decl = module.source.global_declarations.get(*n).unwrap();
         resolve_decl(module, decl, resolutions, resolver)
     }
+
+    // fn resolve_name(
+    //     module: &Module,
+    //     name: &str,
+    //     resolutions: &mut Resolutions,
+    //     resolver: &impl Resolver,
+    // ) -> Result<(), E> {
+    //     let decl = if let Some((ident, n)) = module.idents.iter().find(|(id, _)| *id.name() == name)
+    //     {
+    //         println!("{name} {}")
+    //         if module.treated_idents.borrow().contains(ident) {
+    //             return Ok(());
+    //         } else {
+    //             module.treated_idents.borrow_mut().insert(ident.clone());
+    //         }
+    //         let decl = module.source.global_declarations.get(*n).unwrap();
+    //         decl
+    //     } else if let Some((_, item)) = module.imports.iter().find(|(id, item)| *id.name() == name)
+    //     {
+    //         panic!("TODO")
+    //     } else {
+    //         return Err(E::MissingDecl(module.path.clone(), name.to_string()));
+    //     };
+
+    //     resolve_decl(module, decl, resolutions, resolver)
+    // }
 
     fn resolve_ty(
         module: &Module,
@@ -199,8 +235,8 @@ pub fn resolve_lazy<'a>(
         }
 
         let (ext_path, ext_id) = if let Some(path) = &ty.path {
-            let res = resolve_inline_path(path, &module.path, &module.imports);
-            (res, ty.ident.clone())
+            let path = resolve_inline_path(path, &module.path, &module.imports);
+            (path, ty.ident.clone())
         } else if let Some(item) = module.imports.get(&ty.ident) {
             (item.path.clone(), item.ident.clone())
         } else {
@@ -220,12 +256,12 @@ pub fn resolve_lazy<'a>(
 
         // if the import path points to a local decl, we stop here
         if ext_path == module.path {
-            return resolve_ident(module, &ext_id.name(), resolutions, resolver);
+            return resolve_ident(module, &ext_id, resolutions, resolver);
         }
 
         // load the external module for this external ident
         let ext_mod = load_module(&ext_path, resolutions, resolver)?;
-        resolve_ident(&ext_mod.borrow(), &ext_id.name(), resolutions, resolver)?;
+        resolve_ident(&ext_mod.borrow(), &ext_id, resolutions, resolver)?;
         Ok(())
     }
 
@@ -246,7 +282,7 @@ pub fn resolve_lazy<'a>(
     let module = load_module(&path, resolutions, resolver)?;
 
     for id in keep {
-        resolve_ident(&module.borrow(), &id.name(), resolutions, resolver)?;
+        resolve_ident(&module.borrow(), id, resolutions, resolver)?;
     }
 
     resolutions.retarget();
@@ -294,12 +330,14 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
             module
         };
 
+        let ext_mod = ext_mod.borrow(); // safety: only 1 module is borrowed at a time, the current one.
         // get the ident of the external declaration pointed to by the type
-        if !ext_mod
-            .borrow() // safety: only 1 module is borrowed at a time, the current one.
-            .idents
-            .iter()
-            .any(|(id, _)| *id.name() == *ext_id.name())
+        if !ext_mod.idents.keys().any(|id| *id.name() == *ext_id.name())
+            // TODO private err msg
+            && !ext_mod
+                .imports
+                .iter()
+                .any(|(id, item)| item.public && *id.name() == *ext_id.name())
         {
             return Err(E::MissingDecl(ext_path.clone(), ext_id.to_string()));
         }
@@ -362,10 +400,7 @@ fn join_paths(parent_path: &ModulePath, path: &ModulePath) -> ModulePath {
 }
 
 /// Flatten imports to a list of module paths.
-pub(crate) fn flatten_imports(
-    imports: &[ImportStatement],
-    parent_path: &ModulePath,
-) -> Result<Imports, E> {
+fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Result<Imports, E> {
     fn rec(
         content: &ImportContent,
         path: ModulePath,
@@ -382,7 +417,7 @@ pub(crate) fn flatten_imports(
                 // {
                 //     return Err(E::DuplicateSymbol(ident.to_string()));
                 // }
-                println!("resolved {ident} -> {path}, {}", item.ident);
+                // println!("resolved {ident} -> {path}, {}", item.ident);
                 res.insert(
                     ident,
                     ImportItem {
@@ -436,7 +471,7 @@ fn resolve_inline_path(
         }
         _ => join_paths(parent_path, path),
     };
-    println!("resolved {path} {parent_path} -> {module_path}");
+    // println!("resolved {path} {parent_path} -> {module_path}");
     module_path
 }
 
