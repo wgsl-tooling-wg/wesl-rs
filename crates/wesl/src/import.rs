@@ -379,9 +379,11 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
     }
 
     let module = resolutions.root_module();
-    let module = module.borrow();
-    resolve_module(&module, resolutions, resolver)
-        .map_err(|e| err_with_module(e, &module, resolver))?;
+    {
+        let module = module.borrow();
+        resolve_module(&module, resolutions, resolver)
+            .map_err(|e| err_with_module(e, &module, resolver))?;
+    }
     resolutions.retarget();
     Ok(())
 }
