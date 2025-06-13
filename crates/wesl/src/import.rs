@@ -399,7 +399,7 @@ fn join_paths(parent_path: &ModulePath, path: &ModulePath) -> ModulePath {
                 .first()
                 .map(str::to_string)
                 .into_iter()
-                .chain(path.components.iter().skip(1).cloned())
+                .chain(path.components.iter().cloned())
                 .collect_vec(),
         ),
         // Importing a sub-package. This is a hack: we rename the package to
@@ -460,7 +460,6 @@ fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Res
         let public = import.attributes.iter().any(|attr| attr.is_publish());
         rec(&import.content, path, public, &mut res)?;
     }
-
     Ok(res)
 }
 
