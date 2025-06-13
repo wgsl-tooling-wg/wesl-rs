@@ -468,7 +468,6 @@ impl Resolver for PkgResolver {
 pub struct StandardResolver {
     pkg: PkgResolver,
     files: FileResolver,
-    constant_path: ModulePath,
     constants: HashMap<String, f64>,
 }
 
@@ -480,7 +479,6 @@ impl StandardResolver {
         Self {
             pkg: PkgResolver::new(),
             files: FileResolver::new(base),
-            constant_path: ModulePath::new(PathOrigin::Package, vec!["constants".to_string()]),
             constants: HashMap::new(),
         }
     }
@@ -511,7 +509,11 @@ impl StandardResolver {
 
 impl Resolver for StandardResolver {
     fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
-        if path.origin.is_package() && path.starts_with(&self.constant_path) {
+        if path.origin.is_package()
+            && path
+                .first()
+                .is_some_and(|comp| comp == "constants" || comp.ends_with("/constants"))
+        {
             Ok(self.generate_constant_module().into())
         } else if path.origin.is_package() {
             self.pkg.resolve_source(path)
