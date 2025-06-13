@@ -19,43 +19,40 @@ pub(crate) fn tokrepr_impl(input: DeriveInput) -> TokenStream {
     let self_path = quote! {};
 
     let body = match &input.data {
-        Data::Struct(data) => {
-            let fields = match &data.fields {
-                Fields::Named(fields) => {
-                    let fields = fields.named.iter().map(|f| &f.ident).collect_vec();
-                    quote! {
-                        #(let #fields = #tokrepr_path::TokRepr::tok_repr(&self.#fields);)*
+        Data::Struct(data) => match &data.fields {
+            Fields::Named(fields) => {
+                let fields = fields.named.iter().map(|f| &f.ident).collect_vec();
+                quote! {
+                    #(let #fields = #tokrepr_path::TokRepr::tok_repr(&self.#fields);)*
 
-                        #tokrepr_path::quote::quote! {
-                            #self_path #name {
-                                #(#fields: # #fields,)*
-                            }
+                    #tokrepr_path::quote::quote! {
+                        #self_path #name {
+                            #(#fields: # #fields,)*
                         }
                     }
                 }
-                Fields::Unnamed(f) => {
-                    let fields = (0..f.unnamed.len())
-                        .map(|n| format_ident!("f{n}"))
-                        .collect_vec();
+            }
+            Fields::Unnamed(f) => {
+                let fields = (0..f.unnamed.len())
+                    .map(|n| format_ident!("f{n}"))
+                    .collect_vec();
 
-                    quote! {
-                        #(let #fields = #tokrepr_path::TokRepr::tok_repr(#fields);)*
+                quote! {
+                    #(let #fields = #tokrepr_path::TokRepr::tok_repr(#fields);)*
 
-                        #tokrepr_path::quote::quote!{
-                            #self_path #name(#(# #fields,)*)
-                        }
+                    #tokrepr_path::quote::quote!{
+                        #self_path #name(#(# #fields,)*)
                     }
                 }
-                Fields::Unit => {
-                    quote! {
-                        #tokrepr_path::quote::quote! {
-                            #self_path #name
-                        }
+            }
+            Fields::Unit => {
+                quote! {
+                    #tokrepr_path::quote::quote! {
+                        #self_path #name
                     }
                 }
-            };
-            fields
-        }
+            }
+        },
         Data::Enum(data) => {
             let fields = data.variants.iter().map(|v| {
                 let variant = &v.ident;

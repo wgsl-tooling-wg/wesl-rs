@@ -3,7 +3,7 @@
 
 // First we import everything we need from bevy_pbr
 // A 2d shader would be vevry similar but import from bevy_sprite instead
-import bevy_pbr::{
+import bevy::pbr::{
     mesh_functions,
     view_transformations::position_world_to_clip
 };

@@ -35,6 +35,11 @@ eval = []
 generics = ["wgsl-parse/generics"]
 serde = ["wgsl-parse/serde", "dep:serde"]
 package = ["dep:proc-macro2", "dep:quote"]
+# allow naga/wgpu extensions.
+# They are not well-documented, the best I could find is this:
+# * https://github.com/gfx-rs/wgpu/issues/4410
+# * https://github.com/gfx-rs/wgpu/blob/trunk/docs/api-specs/ray_tracing.md
+# * https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
 naga_ext = ["wgsl-parse/naga_ext"]
 
 [package.metadata.docs.rs]

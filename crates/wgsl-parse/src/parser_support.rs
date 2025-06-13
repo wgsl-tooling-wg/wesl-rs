@@ -368,7 +368,7 @@ pub(crate) fn parse_attribute(
             )),
         },
         _ => Ok(Attribute::Custom(CustomAttribute {
-            ident: Ident::new(name),
+            name,
             arguments: args,
         })),
     }

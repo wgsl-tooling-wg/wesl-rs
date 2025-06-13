@@ -8,7 +8,7 @@ mod generics;
 #[cfg(feature = "package")]
 mod package;
 
-mod builtin;
+pub mod builtin;
 mod condcomp;
 mod error;
 mod import;
@@ -435,7 +435,7 @@ impl<R: Resolver> Wesl<R> {
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
     pub fn set_features<'a>(
         &mut self,
-        feats: impl IntoIterator<Item = (&'a str, impl Into<Feature>)>,
+        feats: impl IntoIterator<Item = (impl ToString, impl Into<Feature>)>,
     ) -> &mut Self {
         self.options
             .features
@@ -926,7 +926,7 @@ pub fn eval<'s>(
     expr: &syntax::Expression,
     wgsl: &'s TranslationUnit,
 ) -> (Result<eval::Instance, EvalError>, eval::Context<'s>) {
-    let mut ctx = eval::Context::new(wgsl);
+    let mut ctx = eval::Context::new_with_builtins(wgsl);
     let res = wgsl.exec(&mut ctx).and_then(|_| expr.eval(&mut ctx));
     (res, ctx)
 }
@@ -939,7 +939,7 @@ pub fn exec<'s>(
     bindings: HashMap<(u32, u32), eval::RefInstance>,
     overrides: HashMap<String, eval::Instance>,
 ) -> (Result<Option<eval::Instance>, EvalError>, eval::Context<'s>) {
-    let mut ctx = eval::Context::new(wgsl);
+    let mut ctx = eval::Context::new_with_builtins(wgsl);
     ctx.add_bindings(bindings);
     ctx.add_overrides(overrides);
     ctx.set_stage(eval::EvalStage::Exec);

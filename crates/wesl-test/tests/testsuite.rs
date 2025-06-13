@@ -4,9 +4,9 @@
 //! These tests are run with `harness = false` in `Cargo.toml`, because they rely on the
 //! `libtest_mimic` custom harness to generate tests at runtime based on the JSON files.
 
-use std::ffi::OsStr;
+use std::{ffi::OsStr, path::PathBuf};
 
-use wesl::{CompileOptions, EscapeMangler, NoMangler, Resolver, VirtualResolver, syntax::*};
+use wesl::{CompileOptions, EscapeMangler, NoMangler, PkgResolver, VirtualResolver, syntax::*};
 use wesl_test::schemas::*;
 
 fn eprint_test(case: &Test) {
@@ -126,10 +126,7 @@ fn main() {
             .filter(|e| e.path().extension() == Some(OsStr::new("wgsl")))
             .map(|e| {
                 let name = format!("bevy::{:?}", e.file_name());
-                libtest_mimic::Trial::test(name, move || {
-                    let case = std::fs::read_to_string(e.path()).expect("failed to read test file");
-                    bevy_parse_case(&case)
-                })
+                libtest_mimic::Trial::test(name, move || bevy_case(e.path()))
             })
     });
 
@@ -257,38 +254,43 @@ pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
     Ok(())
 }
 
-pub fn bevy_parse_case(input: &str) -> Result<(), libtest_mimic::Failed> {
-    // TODO this is temporary, eventually we want to resolve bevy internal shaders.
-    struct UniversalResolver<'a> {
-        root: ModulePath,
-        input: &'a str,
+pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
+    let mut resolver = PkgResolver::new();
+    resolver.add_package(&bevy_wgsl::bevy::Mod);
+    let base = path.parent().ok_or("file not found")?;
+    let name = path.file_name().ok_or("file not found")?;
+    let mut compiler = wesl::Wesl::new(base);
+    compiler
+        .add_package(&bevy_wgsl::bevy::Mod)
+        .add_constants([
+            ("MAX_CASCADES_PER_LIGHT", 10.0),
+            ("MAX_DIRECTIONAL_LIGHTS", 10.0),
+            ("PER_OBJECT_BUFFER_BATCH_SIZE", 10.0),
+            ("TONEMAPPING_LUT_TEXTURE_BINDING_INDEX", 10.0),
+            ("TONEMAPPING_LUT_SAMPLER_BINDING_INDEX", 10.0),
+        ])
+        .set_options(CompileOptions {
+            imports: true,
+            condcomp: true,
+            generics: false,
+            strip: false,
+            lower: false,
+            validate: false,
+            lazy: false,
+            ..Default::default()
+        })
+        .set_feature("MULTISAMPLED", true) // show_prepass needs it
+        .set_feature("DEPTH_PREPASS", true) // show_prepass needs it
+        .set_feature("NORMAL_PREPASS", true) // show_prepass needs it
+        .set_feature("IRRADIANCE_VOLUMES_ARE_USABLE", true) // irradiance_volume_voxel_visualization needs it
+        .set_feature("IRRADIANCE_VOLUMES_ARE_USABLE", true) // irradiance_volume_voxel_visualization needs it
+        .set_feature("MOTION_VECTOR_PREPASS", true) // show_prepass needs it
+        .set_feature("CLUSTERED_DECALS_ARE_USABLE", true); // custom_clustered_decal needs it
+    if name == "water_material.wgsl" {
+        compiler.set_feature("PREPASS_FRAGMENT", true); // water_material needs it
+        compiler.set_feature("PREPASS_PIPELINE", true); // water_material needs it
     }
-    impl Resolver for UniversalResolver<'_> {
-        fn resolve_source<'a>(
-            &'a self,
-            path: &ModulePath,
-        ) -> Result<std::borrow::Cow<'a, str>, wesl::ResolveError> {
-            if path == &self.root {
-                Ok(self.input.into())
-            } else {
-                Ok("".into())
-            }
-        }
-    }
-    let resolver = UniversalResolver {
-        root: ModulePath::from_path("/main"),
-        input,
-    };
-    let options = CompileOptions {
-        imports: false,
-        condcomp: true,
-        generics: false,
-        strip: false,
-        lower: false,
-        validate: false,
-        ..Default::default()
-    };
-    wesl::compile(&resolver.root, &resolver, &NoMangler, &options)?;
+    compiler.compile(name)?;
     Ok(())
 }
 
