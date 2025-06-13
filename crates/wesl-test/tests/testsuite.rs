@@ -6,7 +6,7 @@
 
 use std::{ffi::OsStr, path::PathBuf};
 
-use wesl::{CompileOptions, EscapeMangler, NoMangler, PkgResolver, VirtualResolver, syntax::*};
+use wesl::{CompileOptions, EscapeMangler, NoMangler, VirtualResolver, syntax::*};
 use wesl_test::schemas::*;
 
 fn eprint_test(case: &Test) {
@@ -255,13 +255,11 @@ pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
 }
 
 pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
-    let mut resolver = PkgResolver::new();
-    resolver.add_package(&bevy_wgsl::bevy::Mod);
     let base = path.parent().ok_or("file not found")?;
     let name = path.file_name().ok_or("file not found")?;
     let mut compiler = wesl::Wesl::new(base);
     compiler
-        .add_package(&bevy_wgsl::bevy::Mod)
+        .add_package(&bevy_wgsl::bevy::PACKAGE)
         .add_constants([
             ("MAX_CASCADES_PER_LIGHT", 10.0),
             ("MAX_DIRECTIONAL_LIGHTS", 10.0),

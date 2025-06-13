@@ -155,6 +155,7 @@ impl PkgBuilder {
 
 impl Module {
     fn codegen(&self) -> proc_macro2::TokenStream {
+        let mod_ident = format_ident!("{}", self.name);
         let name = &self.name;
         let source = &self.source;
 
@@ -164,26 +165,20 @@ impl Module {
             quote! { &#ident::MODULE }
         });
 
+        let submods = self.submodules.iter().map(|submod| submod.codegen());
+
         quote! {
-            PkgModule {
-                name: #name,
-                source: #source,
-                submodules: &[#(#submodules),*]
+            pub mod #mod_ident {
+                use super::PkgModule;
+                pub const MODULE: PkgModule = PkgModule {
+                    name: #name,
+                    source: #source,
+                    submodules: &[#(#submodules),*]
+                };
+
+                #(#submods)*
             }
         }
-    }
-
-    fn codegen_submods(&self) -> impl Iterator<Item = proc_macro2::TokenStream> {
-        self.submodules.iter().map(|submod| {
-            let ident = format_ident!("{}", submod.name);
-            let module = submod.codegen();
-            quote! {
-                pub mod #ident {
-                    use super::{Pkg, PkgModule};
-                    const MODULE = #module;
-                }
-            }
-        })
     }
 
     fn validate(&self, path: ModulePath) -> Result<(), Error> {
@@ -214,19 +209,17 @@ impl Pkg {
         });
 
         let crate_name = &self.crate_name;
-
-        let root = self.root.codegen();
-
-        let submods = self.root.codegen_submods();
+        let root = format_ident!("{}", self.root.name);
+        let root_mod = self.root.codegen();
 
         let tokens = quote! {
             pub const PACKAGE: Pkg = Pkg {
                 crate_name: #crate_name,
-                root: &#root,
+                root: &#root::MODULE,
                 dependencies: &[#(#deps),*],
             };
 
-            #(#submods)*
+            #root_mod
         };
 
         Ok(tokens.to_string())
