@@ -10,7 +10,7 @@ use wgsl_parse::syntax::{
     TranslationUnit, TypeExpression,
 };
 
-use crate::{Mangler, ResolveError, Resolver, SyntaxUtil, visit::Visit};
+use crate::{Diagnostic, Error, Mangler, ResolveError, Resolver, SyntaxUtil, visit::Visit};
 
 #[derive(Clone, Debug)]
 struct ImportItem {
@@ -111,6 +111,13 @@ impl Resolutions {
     }
 }
 
+fn err_with_module(e: Error, module: &Module, resolver: &impl Resolver) -> Error {
+    Error::from(
+        Diagnostic::from(e)
+            .with_module_path(module.path.clone(), resolver.display_name(&module.path)),
+    )
+}
+
 // XXX: it's quite messy.
 /// Load all modules "used" transitively by the root module. Make external idents point at
 /// the right declaration in the external module.
@@ -129,12 +136,12 @@ pub fn resolve_lazy<'a>(
     keep: impl IntoIterator<Item = &'a Ident>,
     resolutions: &mut Resolutions,
     resolver: &impl Resolver,
-) -> Result<(), E> {
+) -> Result<(), Error> {
     fn load_module(
         path: &ModulePath,
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
-    ) -> Result<Rc<RefCell<Module>>, E> {
+    ) -> Result<Rc<RefCell<Module>>, Error> {
         let module = if let Some(module) = resolutions.modules.get(path) {
             module.clone()
         } else {
@@ -157,7 +164,8 @@ pub fn resolve_lazy<'a>(
                     .filter(|decl| decl.is_const_assert());
 
                 for decl in const_asserts {
-                    resolve_decl(&module, decl, resolutions, resolver)?;
+                    resolve_decl(&module, decl, resolutions, resolver)
+                        .map_err(|e| err_with_module(e, &module, resolver))?;
                 }
             }
         }
@@ -170,13 +178,12 @@ pub fn resolve_lazy<'a>(
         name: &Ident,
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
-    ) -> Result<(), E> {
+    ) -> Result<(), Error> {
         let decl = if let Some((ident, n)) = module
             .idents
             .iter()
             .find(|(id, _)| *id.name() == *name.name())
         {
-            println!("resolve_ident {ident} {}", name == ident);
             if module.treated_idents.borrow().contains(ident) {
                 return Ok(());
             } else {
@@ -191,7 +198,7 @@ pub fn resolve_lazy<'a>(
         {
             panic!("TODO")
         } else {
-            return Err(E::MissingDecl(module.path.clone(), name.to_string()));
+            return Err(E::MissingDecl(module.path.clone(), name.to_string()).into());
         };
 
         resolve_decl(module, decl, resolutions, resolver)
@@ -228,7 +235,7 @@ pub fn resolve_lazy<'a>(
         ty: &TypeExpression,
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
-    ) -> Result<(), E> {
+    ) -> Result<(), Error> {
         // first, the recursive call
         for ty in Visit::<TypeExpression>::visit(ty) {
             resolve_ty(module, ty, resolutions, resolver)?;
@@ -270,7 +277,7 @@ pub fn resolve_lazy<'a>(
         decl: &GlobalDeclaration,
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
-    ) -> Result<(), E> {
+    ) -> Result<(), Error> {
         for ty in Visit::<TypeExpression>::visit(decl) {
             resolve_ty(module, ty, resolutions, resolver)?;
         }
@@ -282,20 +289,22 @@ pub fn resolve_lazy<'a>(
     let module = load_module(&path, resolutions, resolver)?;
 
     for id in keep {
-        resolve_ident(&module.borrow(), id, resolutions, resolver)?;
+        let module = module.borrow();
+        resolve_ident(&module, id, resolutions, resolver)
+            .map_err(|e| err_with_module(e, &module, resolver))?;
     }
 
     resolutions.retarget();
     Ok(())
 }
 
-pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) -> Result<(), E> {
+pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) -> Result<(), Error> {
     fn resolve_ty(
         module: &Module,
         ty: &TypeExpression,
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
-    ) -> Result<(), E> {
+    ) -> Result<(), Error> {
         for ty in Visit::<TypeExpression>::visit(ty) {
             resolve_ty(module, ty, resolutions, resolver)?;
         }
@@ -315,7 +324,7 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
             if module.idents.contains_key(&ty.ident) {
                 return Ok(());
             } else {
-                return Err(E::MissingDecl(ext_path, ty.ident.to_string()));
+                return Err(E::MissingDecl(ext_path, ty.ident.to_string()).into());
             }
         }
 
@@ -339,7 +348,11 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
                 .iter()
                 .any(|(id, item)| item.public && *id.name() == *ext_id.name())
         {
-            return Err(E::MissingDecl(ext_path.clone(), ext_id.to_string()));
+            return Err(err_with_module(
+                E::MissingDecl(ext_path.clone(), ext_id.to_string()).into(),
+                &module,
+                resolver,
+            ));
         }
         Ok(())
     }
@@ -347,13 +360,15 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
         module: &Module,
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
-    ) -> Result<(), E> {
+    ) -> Result<(), Error> {
         for item in module.imports.values() {
             if !resolutions.modules.contains_key(&item.path) {
                 let mut source = resolver.resolve_module(&item.path)?;
                 source.retarget_idents();
                 let module = resolutions.push_module(Module::new(source, item.path.clone())?);
-                resolve_module(&module.borrow(), resolutions, resolver)?;
+                let module = module.borrow();
+                resolve_module(&module, resolutions, resolver)
+                    .map_err(|e| err_with_module(e, &module, resolver))?;
             }
         }
 
@@ -364,7 +379,9 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
     }
 
     let module = resolutions.root_module();
-    resolve_module(&module.borrow(), resolutions, resolver)?;
+    let module = module.borrow();
+    resolve_module(&module, resolutions, resolver)
+        .map_err(|e| err_with_module(e, &module, resolver))?;
     resolutions.retarget();
     Ok(())
 }
@@ -417,7 +434,6 @@ fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Res
                 // {
                 //     return Err(E::DuplicateSymbol(ident.to_string()));
                 // }
-                // println!("resolved {ident} -> {path}, {}", item.ident);
                 res.insert(
                     ident,
                     ImportItem {
@@ -471,7 +487,6 @@ fn resolve_inline_path(
         }
         _ => join_paths(parent_path, path),
     };
-    // println!("resolved {path} {parent_path} -> {module_path}");
     module_path
 }
 

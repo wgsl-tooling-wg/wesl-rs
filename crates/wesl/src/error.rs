@@ -163,19 +163,25 @@ impl<E: std::error::Error> Diagnostic<E> {
     }
     /// Provide the declaration in which the error originated.
     pub fn with_declaration(mut self, decl: String) -> Self {
-        self.detail.declaration = Some(decl);
+        if self.detail.declaration.is_none() {
+            self.detail.declaration = Some(decl);
+        }
         self
     }
     /// Provide the output code that was generated, even if an error was emitted.
     pub fn with_output(mut self, out: String) -> Self {
-        self.detail.output = Some(out);
+        if self.detail.output.is_none() {
+            self.detail.output = Some(out);
+        }
         self
     }
     /// Provide the module path in which the error was emitted. The `disp_name` is
     /// usually the file name of the module.
     pub fn with_module_path(mut self, path: ModulePath, disp_name: Option<String>) -> Self {
-        self.detail.module_path = Some(path);
-        self.detail.display_name = disp_name;
+        if self.detail.module_path.is_none() {
+            self.detail.module_path = Some(path);
+            self.detail.display_name = disp_name;
+        }
         self
     }
     /// Add metadata collected by the evaluation/execution context.
