@@ -15,7 +15,7 @@ use crate::{Diagnostic, Error, Mangler, ResolveError, Resolver, SyntaxUtil, visi
 #[derive(Clone, Debug)]
 struct ImportItem {
     path: ModulePath,
-    ident: Ident,
+    ident: Ident, // this is the ident's original name before `as` renaming.
     public: bool,
 }
 
@@ -31,6 +31,10 @@ pub enum ImportError {
     ResolveError(#[from] ResolveError),
     #[error("module `{0}` has no declaration `{1}`")]
     MissingDecl(ModulePath, String),
+    #[error(
+        "import of `{0}` in module `{1}` is not `@publish`, but another module tried to import it"
+    )]
+    Private(String, ModulePath),
 }
 
 type E = ImportError;
@@ -179,29 +183,34 @@ pub fn resolve_lazy<'a>(
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
     ) -> Result<(), Error> {
-        let decl = if let Some((ident, n)) = module
+        if let Some((ident, n)) = module
             .idents
             .iter()
             .find(|(id, _)| *id.name() == *name.name())
         {
+            println!("resolve_ident equals {}: {}", name, name == ident);
             if module.treated_idents.borrow().contains(ident) {
                 return Ok(());
             } else {
                 module.treated_idents.borrow_mut().insert(ident.clone());
             }
             let decl = module.source.global_declarations.get(*n).unwrap();
-            decl
+            resolve_decl(module, decl, resolutions, resolver)
         } else if let Some((_, item)) = module
             .imports
             .iter()
-            .find(|(id, item)| *id.name() == *name.name())
+            .find(|(id, _)| *id.name() == *name.name())
         {
-            panic!("TODO")
+            if item.public {
+                // load the external module for this external ident
+                let ext_mod = load_module(&item.path, resolutions, resolver)?;
+                resolve_ident(&ext_mod.borrow(), &item.ident, resolutions, resolver)
+            } else {
+                Err(E::Private(name.to_string(), module.path.clone()).into())
+            }
         } else {
-            return Err(E::MissingDecl(module.path.clone(), name.to_string()).into());
-        };
-
-        resolve_decl(module, decl, resolutions, resolver)
+            Err(E::MissingDecl(module.path.clone(), name.to_string()).into())
+        }
     }
 
     // fn resolve_name(
@@ -507,6 +516,29 @@ pub(crate) fn mangle_decls<'a>(
 
 impl Resolutions {
     pub fn retarget(&mut self) {
+        fn find_target_ident(modules: &Modules, src_path: &ModulePath, src_id: &Ident) -> Ident {
+            // load the external module for this external ident
+            if let Some(module) = modules.get(&src_path) {
+                let module = module.borrow(); // safety: only 1 module is borrowed at a time, the current one.
+                module
+                    .idents
+                    .iter()
+                    .find(|(id, _)| *id.name() == *src_id.name())
+                    .map(|(id, _)| id.clone())
+                    .or_else(|| {
+                        // or it could be a re-exported import with `@publish`
+                        module
+                            .imports
+                            .iter()
+                            .find(|(id, _)| *id.name() == *src_id.name())
+                            .map(|(_, item)| find_target_ident(modules, &item.path, &item.ident))
+                    })
+                    .expect("external declaration not found")
+            } else {
+                panic!("no module for path")
+            }
+        }
+
         for module in self.modules.values() {
             let mut module = module.borrow_mut();
             let module = &mut *module;
@@ -532,20 +564,11 @@ impl Resolutions {
                     ty.path = None;
                     ty.ident = ext_id;
                 }
-                // load the external module for this external ident
-                else if let Some(module) = self.modules.get(&ext_path) {
-                    // get the ident of the external declaration pointed to by the type
-                    let ext_id = module
-                        .borrow() // safety: only 1 module is borrowed at a time, the current one.
-                        .idents
-                        .iter()
-                        .find(|(id, _)| *id.name() == *ext_id.name())
-                        .map(|(id, _)| id.clone())
-                        .expect("external declaration not found");
 
-                    ty.path = None;
-                    ty.ident = ext_id;
-                }
+                // get the ident of the external declaration pointed to by the type
+                let ext_id = find_target_ident(&self.modules, &ext_path, &ext_id);
+                ty.path = None;
+                ty.ident = ext_id;
             });
         }
     }
