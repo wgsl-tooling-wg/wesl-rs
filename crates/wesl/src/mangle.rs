@@ -102,7 +102,7 @@ impl Mangler for EscapeMangler {
         let origin = match path.origin {
             PathOrigin::Absolute => "package_".to_string(),
             PathOrigin::Relative(0) => "self_".to_string(),
-            PathOrigin::Relative(n) => format!("{}_", (1..n).map(|_| "super").format("_")),
+            PathOrigin::Relative(n) => format!("{}_", (0..n).map(|_| "super").format("_")),
             PathOrigin::Package => "".to_string(),
         };
         let path = path
@@ -161,6 +161,42 @@ impl Mangler for EscapeMangler {
 
         let path = ModulePath::new(origin, components);
         Some((path, item))
+    }
+}
+
+#[test]
+fn test_escape_mangler() {
+    let paths = [
+        vec!["bevy_pbr".to_string(), "lighting".to_string()],
+        vec![],
+        vec!["a".to_string(), "b_c_d".to_string()],
+    ];
+    let paths = paths.iter().flat_map(|p| {
+        [
+            ModulePath::new(PathOrigin::Absolute, p.clone()),
+            ModulePath::new(PathOrigin::Package, p.clone()),
+            ModulePath::new(PathOrigin::Relative(0), p.clone()),
+            ModulePath::new(PathOrigin::Relative(2), p.clone()),
+        ]
+    });
+    let mangled = [
+        "package__1bevy_pbr_lighting_item",
+        "_1bevy_pbr_lighting_item",
+        "self__1bevy_pbr_lighting_item",
+        "super_super__1bevy_pbr_lighting_item",
+        "package__item",
+        "_item",
+        "self__item",
+        "super_super__item",
+        "package_a__2b_c_d_item",
+        "a__2b_c_d_item",
+        "self_a__2b_c_d_item",
+        "super_super_a__2b_c_d_item",
+    ];
+
+    for (p, m) in paths.zip(mangled) {
+        assert_eq!(EscapeMangler.mangle(&p, "item"), m);
+        assert_eq!(EscapeMangler.unmangle(m), Some((p, "item".to_string())));
     }
 }
 
