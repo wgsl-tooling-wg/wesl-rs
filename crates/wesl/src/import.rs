@@ -266,7 +266,7 @@ pub fn resolve_lazy<'a>(
     let module = load_module(&path, resolutions, resolver)?;
 
     for id in keep {
-        resolve_ident(&module.borrow(), &id.name(),resolutions, resolver)?;
+        resolve_ident(&module.borrow(), &id.name(), resolutions, resolver)?;
     }
 
     resolutions.retarget();
