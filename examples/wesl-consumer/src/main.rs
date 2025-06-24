@@ -7,7 +7,10 @@ fn main() {
     #[cfg(not(feature = "build-time"))]
     let source = wesl::Wesl::new("src/shaders")
         .add_package(&random_wgsl::random::PACKAGE)
-        .compile("main")
+        .compile(&ModulePath::new(
+            PathOrigin::Absolute,
+            vec!["main".to_string()],
+        ))
         .inspect_err(|e| {
             eprintln!("{e}");
             panic!();

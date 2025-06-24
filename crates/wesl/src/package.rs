@@ -227,7 +227,7 @@ impl Pkg {
 
     /// run validation checks on each of the scanned files.
     pub fn validate(self) -> Result<Self, Error> {
-        let path = ModulePath::new(PathOrigin::Package, vec![self.root.name.clone()]);
+        let path = ModulePath::new(PathOrigin::Absolute, vec![self.root.name.clone()]);
         self.root.validate(path)?;
         Ok(self)
     }

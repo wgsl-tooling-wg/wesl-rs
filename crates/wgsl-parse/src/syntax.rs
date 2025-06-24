@@ -110,14 +110,14 @@ pub struct ImportStatement {
 #[cfg(feature = "imports")]
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, IsVariant)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, IsVariant)]
 pub enum PathOrigin {
     /// Import relative to the current package root, starting with 'package::'.
     Absolute,
     /// Import relative to the current module, starting with 'super::'. The  usize is the number of 'super'.
     Relative(usize),
     /// Import from a package dependency, starting with the extern package name.
-    Package,
+    Package(String),
 }
 
 #[cfg(feature = "imports")]

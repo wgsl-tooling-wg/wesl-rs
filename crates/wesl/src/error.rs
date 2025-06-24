@@ -37,6 +37,8 @@ pub enum Error {
     EvalError(#[from] EvalError),
     #[error("{0}")]
     Error(#[from] Diagnostic<Error>),
+    #[error("{0}")]
+    Custom(String),
 }
 
 /// Error diagnostics. Display user-friendly error snippets with `Display`.
@@ -118,15 +120,10 @@ impl From<Error> for Diagnostic<Error> {
     fn from(error: Error) -> Self {
         match error {
             Error::ParseError(e) => e.into(),
-            Error::ValidateError(e) => e.into(),
             Error::ResolveError(e) => e.into(),
             Error::ImportError(e) => e.into(),
-            Error::CondCompError(e) => e.into(),
-            #[cfg(feature = "generics")]
-            Error::GenericsError(e) => e.into(),
-            #[cfg(feature = "eval")]
-            Error::EvalError(e) => e.into(),
             Error::Error(e) => e,
+            error => Self::new(error),
         }
     }
 }
@@ -473,6 +470,7 @@ impl Diagnostic<Error> {
                 | EvalError::FlowInModule(_) => {}
             },
             Error::Error(_) => {}
+            Error::Custom(_) => {}
         };
 
         self

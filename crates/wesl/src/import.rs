@@ -4,7 +4,6 @@ use std::{
     rc::Rc,
 };
 
-use itertools::Itertools;
 use wgsl_parse::syntax::{
     GlobalDeclaration, Ident, ImportContent, ImportStatement, ModulePath, PathOrigin,
     TranslationUnit, TypeExpression,
@@ -188,7 +187,6 @@ pub fn resolve_lazy<'a>(
             .iter()
             .find(|(id, _)| *id.name() == *name.name())
         {
-            println!("resolve_ident equals {}: {}", name, name == ident);
             if module.treated_idents.borrow().contains(ident) {
                 return Ok(());
             } else {
@@ -398,32 +396,48 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
 }
 
 fn join_paths(parent_path: &ModulePath, path: &ModulePath) -> ModulePath {
-    match (parent_path.origin, path.origin) {
+    match (&parent_path.origin, &path.origin) {
         (PathOrigin::Absolute | PathOrigin::Relative(_), _)
-        | (PathOrigin::Package, PathOrigin::Relative(_)) => {
+        | (PathOrigin::Package(_), PathOrigin::Relative(_)) => {
             parent_path.join_path(&path).unwrap_or_else(|| path.clone())
         }
         // Absolute imports from within a package correspond to package imports.
-        (PathOrigin::Package, PathOrigin::Absolute) => ModulePath::new(
-            PathOrigin::Package,
-            parent_path
-                .first()
-                .map(str::to_string)
-                .into_iter()
-                .chain(path.components.iter().cloned())
-                .collect_vec(),
+        (PathOrigin::Package(pkg_name), PathOrigin::Absolute) => ModulePath::new(
+            PathOrigin::Package(pkg_name.clone()),
+            path.components.clone(),
         ),
         // Importing a sub-package. This is a hack: we rename the package to
         // parent_package/child_package, which cannot be spelled in code.
-        (PathOrigin::Package, PathOrigin::Package) => ModulePath::new(
-            PathOrigin::Package,
-            parent_path
-                .first()
-                .map(|name| format!("{name}/{}", path.first().unwrap()))
-                .into_iter()
-                .chain(path.components.iter().skip(1).cloned())
-                .collect_vec(),
+        (PathOrigin::Package(parent), PathOrigin::Package(child)) => ModulePath::new(
+            PathOrigin::Package(format!("{parent}/{child}")),
+            path.components.clone(),
         ),
+    }
+}
+
+#[test]
+fn test_join_paths() {
+    use std::str::FromStr;
+    // TODO: move this test and join_paths impl to ModulePath::join_path
+    let cases = [
+        ("package::m1", "package::foo", "package::foo"),
+        ("package::m1", "self::foo", "package::m1::foo"),
+        ("package::m1", "super::foo", "package::foo"),
+        ("pkg::m1::m2", "package::foo", "pkg::foo"),
+        ("pkg::m1::m2", "self::foo", "pkg::m1::m2::foo"),
+        ("pkg::m1::m2", "super::foo", "pkg::m1::foo"),
+        ("pkg::m1", "super::super::foo", "pkg::foo"),
+        ("super", "super::foo", "super::super::foo"),
+        ("super", "self::foo", "super::foo"),
+        ("self", "super::foo", "super::foo"),
+    ];
+
+    for (parent, child, expect) in cases {
+        let parent = ModulePath::from_str(parent).unwrap();
+        let child = ModulePath::from_str(child).unwrap();
+        let expect = ModulePath::from_str(expect).unwrap();
+        println!("testing join_paths({parent}, {child}) -> {expect}");
+        assert_eq!(join_paths(&parent, &child), expect);
     }
 }
 
@@ -468,6 +482,7 @@ fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Res
 
     for import in imports {
         let path = join_paths(parent_path, &import.path);
+        println!("joined {parent_path} + {} = {path}", import.path);
         let public = import.attributes.iter().any(|attr| attr.is_publish());
         rec(&import.content, path, public, &mut res)?;
     }
@@ -479,18 +494,17 @@ fn resolve_inline_path(
     parent_path: &ModulePath,
     imports: &Imports,
 ) -> ModulePath {
-    let module_path = match path.origin {
-        PathOrigin::Package => {
+    let module_path = match &path.origin {
+        PathOrigin::Package(pkg_name) => {
             // the path could be either a package, of referencing an imported module alias.
-            let prefix = path.first().unwrap();
-            let imported_item = imports.iter().find(|(ident, _)| *ident.name() == prefix);
+            let imported_item = imports.iter().find(|(ident, _)| *ident.name() == *pkg_name);
 
             if let Some((_, ext_item)) = imported_item {
                 // this inline path references an imported item. Example:
                 // import a::b::c as foo; foo::bar::baz() => a::b::c::bar::baz()
                 let mut res = ext_item.path.clone(); // a::b
                 res.push(&ext_item.ident.name()); // c
-                res.join(path.components.iter().skip(1).cloned())
+                res.join(path.components.iter().cloned())
             } else {
                 join_paths(parent_path, path)
             }

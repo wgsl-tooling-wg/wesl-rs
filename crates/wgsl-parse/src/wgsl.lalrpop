@@ -1008,9 +1008,10 @@ pub ImportStatement: ImportStatement = {
 
 #[cfg(all(feature = "imports", feature = "attributes"))]
 pub ImportStatement: ImportStatement = {
-    <attributes: AttributeNode*> "import" <path: ModulePath?> <content: ImportContent> ";" => ImportStatement {
-        attributes, path: path.unwrap_or_default(), content
-    }
+    <attributes: AttributeNode*> "import" <path: ModulePath?> <content: ImportContent> ";" => {
+        let path = path.unwrap_or(ModulePath::new(PathOrigin::Package("".to_string()), vec![]));
+        ImportStatement { attributes, path, content }
+    } 
 };
 
 #[cfg(feature = "imports")]
@@ -1026,6 +1027,9 @@ PathOrigin: PathOrigin = {
     "package" "::" => {
         PathOrigin::Absolute
     },
+    <name: PathIdent> "::" => {
+        PathOrigin::Package(name)
+    },
 };
 
 #[inline]
@@ -1033,10 +1037,6 @@ PathOrigin: PathOrigin = {
 ModulePath: ModulePath = {
     <origin: PathOrigin> <components: (<PathIdent> "::")*> => ModulePath {
         origin, components
-    },
-    <components: (<PathIdent> "::")+> => ModulePath {
-        origin: PathOrigin::Package,
-        components
     },
 };
 

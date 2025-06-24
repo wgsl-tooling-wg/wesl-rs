@@ -74,13 +74,16 @@ impl Display for ImportStatement {
 #[cfg(feature = "imports")]
 impl Display for ModulePath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.origin {
-            PathOrigin::Absolute => write!(f, "package::")?,
-            PathOrigin::Relative(0) => write!(f, "self::")?,
-            PathOrigin::Relative(n) => write!(f, "{}::", (0..n).map(|_| "super").format("::"))?,
-            PathOrigin::Package => (),
+        match &self.origin {
+            PathOrigin::Absolute => write!(f, "package")?,
+            PathOrigin::Relative(0) => write!(f, "self")?,
+            PathOrigin::Relative(n) => write!(f, "{}", (0..*n).map(|_| "super").format("::"))?,
+            PathOrigin::Package(p) => write!(f, "{p}")?,
         };
-        write!(f, "{}", self.components.iter().format("::"))
+        if !self.components.is_empty() {
+            write!(f, "::{}", self.components.iter().format("::"))?;
+        }
+        Ok(())
     }
 }
 

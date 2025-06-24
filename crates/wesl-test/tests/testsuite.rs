@@ -4,7 +4,7 @@
 //! These tests are run with `harness = false` in `Cargo.toml`, because they rely on the
 //! `libtest_mimic` custom harness to generate tests at runtime based on the JSON files.
 
-use std::{ffi::OsStr, path::PathBuf};
+use std::{ffi::OsStr, path::PathBuf, str::FromStr};
 
 use wesl::{CompileOptions, EscapeMangler, NoMangler, VirtualResolver, syntax::*};
 use wesl_test::schemas::*;
@@ -216,10 +216,11 @@ pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
     let mut resolver = VirtualResolver::new();
 
     for (path, file) in &case.wesl_src {
+        let path = ModulePath::from_path(path);
         resolver.add_module(path, file.into());
     }
 
-    let root_module = ModulePath::from_path("/main");
+    let root_module = ModulePath::from_str("package::main")?;
     let compile_options = CompileOptions {
         strip: false,
         ..Default::default()
@@ -239,7 +240,7 @@ pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
 
 pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
     let mut resolver = VirtualResolver::new();
-    let root = ModulePath::from_path("/main");
+    let root = ModulePath::from_str("package::main")?;
     resolver.add_module(root.clone(), input.into());
     let options = CompileOptions {
         imports: true,
@@ -256,7 +257,11 @@ pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
 
 pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
     let base = path.parent().ok_or("file not found")?;
-    let name = path.file_name().ok_or("file not found")?;
+    let name = path
+        .file_name()
+        .ok_or("file not found")?
+        .to_string_lossy()
+        .to_string();
     let mut compiler = wesl::Wesl::new(base);
     compiler
         .add_package(&bevy_wgsl::bevy::PACKAGE)
@@ -288,7 +293,7 @@ pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
         compiler.set_feature("PREPASS_FRAGMENT", true); // water_material needs it
         compiler.set_feature("PREPASS_PIPELINE", true); // water_material needs it
     }
-    compiler.compile(name)?;
+    compiler.compile(&ModulePath::new(PathOrigin::Absolute, vec![name]))?;
     Ok(())
 }
 

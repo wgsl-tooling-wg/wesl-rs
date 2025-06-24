@@ -88,35 +88,51 @@ pub struct EscapeMangler;
 
 impl EscapeMangler {
     pub fn escape_component(comp: &str) -> String {
-        let underscores = comp.chars().filter(|c| *c == '_').count();
-        if underscores > 0 {
-            format!("_{underscores}{comp}")
+        if comp.contains('/') {
+            // This can exist only for dependencies of dependencies. see join_paths in import.rs.
+            let underscores = comp.chars().filter(|c| *c == '/').count();
+            format!(
+                "_{underscores}import_{}",
+                comp.split('/').map(Self::escape_component).format("")
+            )
         } else {
-            comp.to_string()
+            let underscores = comp.chars().filter(|c| *c == '_').count();
+            if underscores > 0 {
+                format!("_{underscores}{comp}")
+            } else {
+                comp.to_string()
+            }
         }
     }
 }
 
 impl Mangler for EscapeMangler {
     fn mangle(&self, path: &ModulePath, item: &str) -> String {
-        let origin = match path.origin {
-            PathOrigin::Absolute => "package_".to_string(),
-            PathOrigin::Relative(0) => "self_".to_string(),
-            PathOrigin::Relative(n) => format!("{}_", (0..n).map(|_| "super").format("_")),
-            PathOrigin::Package => "".to_string(),
+        let origin = match &path.origin {
+            PathOrigin::Absolute => "package".to_string(),
+            PathOrigin::Relative(0) => "self".to_string(),
+            PathOrigin::Relative(n) => format!("{}", (0..*n).map(|_| "super").format("_")),
+            PathOrigin::Package(name) => format!("{}", Self::escape_component(name)),
         };
-        let path = path
-            .components
-            .iter()
-            .map(|comp| Self::escape_component(comp))
-            .format("_");
 
-        format!("{origin}{path}_{}", Self::escape_component(item))
+        let item = Self::escape_component(item);
+
+        if path.components.is_empty() {
+            format!("{origin}_{item}",)
+        } else {
+            let path = path
+                .components
+                .iter()
+                .map(|comp| Self::escape_component(comp))
+                .format("_");
+
+            format!("{origin}_{path}_{item}",)
+        }
     }
+
     fn unmangle(&self, mangled: &str) -> Option<(ModulePath, String)> {
-        let mut parts = mangled.split('_').peekable();
-        let mut origin = PathOrigin::Package;
         let mut components = Vec::new();
+        let mut parts = mangled.split('_').filter(|p| p != &"").peekable();
 
         fn extract_count(part: &str) -> Option<(usize, &str)> {
             let digits = part.chars().take_while(|c| c.is_ascii_digit()).count();
@@ -129,31 +145,30 @@ impl Mangler for EscapeMangler {
             Some((count, &part[digits..]))
         }
 
+        let origin = match parts.next() {
+            Some("package") => PathOrigin::Absolute,
+            Some("self") => PathOrigin::Relative(0),
+            Some("super") => {
+                let mut n = 1;
+                while let Some(&"super") = parts.peek() {
+                    n += 1;
+                    parts.next().unwrap();
+                }
+                PathOrigin::Relative(n)
+            }
+            Some(name) => PathOrigin::Package(name.to_string()),
+            None => return None,
+        };
+
         while let Some(part) = parts.next() {
-            match part {
-                "package" => {
-                    origin = PathOrigin::Absolute;
-                }
-                "super" => {
-                    if let PathOrigin::Relative(n) = &mut origin {
-                        *n += 1;
-                    } else {
-                        origin = PathOrigin::Relative(1)
-                    }
-                }
-                "self" => origin = PathOrigin::Relative(0),
-                "" => {}
-                _ => {
-                    if let Some((n, rem)) = extract_count(part) {
-                        let part = std::iter::once(rem)
-                            .chain((0..n).map(|_| parts.next().expect("invalid mangled string")))
-                            .format("_")
-                            .to_string();
-                        components.push(part)
-                    } else {
-                        components.push(part.to_string())
-                    }
-                }
+            if let Some((n, rem)) = extract_count(part) {
+                let part = std::iter::once(rem)
+                    .chain((0..n).map(|_| parts.next().expect("invalid mangled string")))
+                    .format("_")
+                    .to_string();
+                components.push(part)
+            } else {
+                components.push(part.to_string())
             }
         }
 
@@ -164,6 +179,7 @@ impl Mangler for EscapeMangler {
     }
 }
 
+#[cfg(test)]
 #[test]
 fn test_escape_mangler() {
     let paths = [
@@ -174,27 +190,28 @@ fn test_escape_mangler() {
     let paths = paths.iter().flat_map(|p| {
         [
             ModulePath::new(PathOrigin::Absolute, p.clone()),
-            ModulePath::new(PathOrigin::Package, p.clone()),
+            ModulePath::new(PathOrigin::Package("pkg".to_string()), p.clone()),
             ModulePath::new(PathOrigin::Relative(0), p.clone()),
             ModulePath::new(PathOrigin::Relative(2), p.clone()),
         ]
     });
     let mangled = [
         "package__1bevy_pbr_lighting_item",
-        "_1bevy_pbr_lighting_item",
+        "pkg__1bevy_pbr_lighting_item",
         "self__1bevy_pbr_lighting_item",
         "super_super__1bevy_pbr_lighting_item",
-        "package__item",
-        "_item",
-        "self__item",
-        "super_super__item",
+        "package_item",
+        "pkg_item",
+        "self_item",
+        "super_super_item",
         "package_a__2b_c_d_item",
-        "a__2b_c_d_item",
+        "pkg_a__2b_c_d_item",
         "self_a__2b_c_d_item",
         "super_super_a__2b_c_d_item",
     ];
 
     for (p, m) in paths.zip(mangled) {
+        println!("testing {p}::item -> {m}");
         assert_eq!(EscapeMangler.mangle(&p, "item"), m);
         assert_eq!(EscapeMangler.unmangle(m), Some((p, "item".to_string())));
     }
@@ -291,18 +308,19 @@ impl UnicodeMangler {
 impl Mangler for UnicodeMangler {
     fn mangle(&self, path: &ModulePath, item: &str) -> String {
         let sep = Self::SEP;
-        let origin = match path.origin {
+        let origin = match &path.origin {
             PathOrigin::Absolute => format!("package{sep}"),
             PathOrigin::Relative(0) => format!("self{sep}"),
-            PathOrigin::Relative(n) => format!("{}{sep}", (1..n).map(|_| "super").format(sep)),
-            PathOrigin::Package => "".to_string(),
+            PathOrigin::Relative(n) => format!("{}{sep}", (1..*n).map(|_| "super").format(sep)),
+            PathOrigin::Package(name) => format!("{name}{sep}"),
         };
         let path = path.components.iter().format(sep);
         format!("{origin}{path}{sep}{item}")
     }
+
     fn unmangle(&self, mangled: &str) -> Option<(ModulePath, String)> {
         let mut components = mangled.split(Self::SEP).map(str::to_string).collect_vec();
-        let mut origin = PathOrigin::Package;
+        let mut origin = PathOrigin::Absolute;
         while let Some(comp) = components.first() {
             match comp.as_str() {
                 "package" => {
@@ -313,6 +331,7 @@ impl Mangler for UnicodeMangler {
                 "self" => {
                     components.remove(0);
                     origin = PathOrigin::Relative(0);
+                    break;
                 }
                 "super" => {
                     components.remove(0);

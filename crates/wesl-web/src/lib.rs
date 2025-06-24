@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 use wesl::{
-    CompileResult, Eval, Inputs, VirtualResolver, Wesl,
+    CompileResult, Eval, Inputs, ModulePath, VirtualResolver, Wesl,
     eval::{EvalAttrs, HostShareable, Instance, RefInstance, Ty, ty_eval_ty},
-    syntax::{self, AccessMode, AddressSpace, TranslationUnit},
+    syntax::{self, AccessMode, AddressSpace, PathOrigin, TranslationUnit},
 };
 
 #[derive(Tsify, Clone, Copy, Debug, Default, Serialize, Deserialize)]
@@ -170,6 +170,9 @@ fn run_compile(args: CompileOptions) -> Result<CompileResult, wesl::Error> {
     let mut resolver = VirtualResolver::new();
 
     for (path, source) in args.files {
+        let path = path.parse().map_err(|e| {
+            wesl::Error::Custom(format!("`{path}` is not a valid module path: {e}"))
+        })?;
         resolver.add_module(path, source.into());
     }
 
@@ -196,7 +199,7 @@ fn run_compile(args: CompileOptions) -> Result<CompileResult, wesl::Error> {
         })
         .use_sourcemap(args.sourcemap)
         .set_mangler(args.mangler.into())
-        .compile(args.root)?;
+        .compile(&ModulePath::new(PathOrigin::Absolute, vec![args.root]))?;
     Ok(comp)
 }
 

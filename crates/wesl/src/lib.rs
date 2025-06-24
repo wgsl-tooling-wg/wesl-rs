@@ -54,7 +54,7 @@ use std::{collections::HashSet, fmt::Display, path::Path};
 
 use import::{Module, Resolutions};
 use strip::strip_except;
-use wgsl_parse::syntax::{Ident, PathOrigin, TranslationUnit};
+use wgsl_parse::syntax::{Ident, TranslationUnit};
 
 /// Compilation options. Used in [`compile`] and [`Wesl::set_options`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -688,9 +688,9 @@ impl<R: Resolver> Wesl<R> {
     ///
     /// # WESL Reference
     /// Spec: not available yet.
-    pub fn compile(&self, root: impl Into<ModulePath>) -> Result<CompileResult, Error> {
-        let mut root: ModulePath = root.into();
-        root.origin = PathOrigin::Absolute; // we force absolute paths
+    pub fn compile(&self, root: &ModulePath) -> Result<CompileResult, Error> {
+        // TODO
+        // root.origin = PathOrigin::Absolute; // we force absolute paths
 
         if self.use_sourcemap {
             compile_sourcemap(&root, &self.resolver, &self.mangler, &self.options)
@@ -731,7 +731,7 @@ impl<R: Resolver> Wesl<R> {
         let mut output = Path::new(&dirname).join(out_name);
         output.set_extension("wgsl");
         let compiled = self
-            .compile(entrypoint.clone())
+            .compile(&entrypoint)
             .inspect_err(|e| {
                 eprintln!("failed to build WESL shader `{entrypoint}`.\n{e}");
                 panic!();
