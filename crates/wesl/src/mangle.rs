@@ -303,3 +303,30 @@ impl Mangler for UnicodeMangler {
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mangle_textures3d() {
+        let mangler = EscapeMangler;
+        let module_path = ModulePath::new(PathOrigin::Absolute, vec![]);
+        let mangled = mangler.mangle(&module_path, "textures_3d");
+        assert_eq!("package___1textures_3d", mangled);
+    }
+
+    #[test]
+    fn unmangle_textures3d() {
+        let mangler = EscapeMangler;
+        let unmangled = mangler.unmangle("package___1textures_3d").map(|x| x.1);
+        assert_eq!(Some("textures_3d"), unmangled.as_deref());
+    }
+
+    #[test]
+    #[should_panic]
+    fn unmangle_invalid() {
+        let mangler = EscapeMangler;
+        mangler.unmangle("textures_3d");
+    }
+}

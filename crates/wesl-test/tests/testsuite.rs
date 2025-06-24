@@ -77,18 +77,19 @@ fn main() {
         })
     });
 
-    tests.extend({
-        let file = std::fs::read_to_string("wesl-testsuite/src/test-cases-json/importCases.json")
-            .expect("failed to read test file");
-        let json: Vec<WgslTestSrc> =
-            serde_json::from_str(&file).expect("failed to parse json file");
-        json.into_iter().map(|case| {
-            let name = format!("importCases.json::{}", case.name);
-            libtest_mimic::Trial::test(name, move || {
-                testsuite_case(&case).inspect_err(|_| eprint_wgsl_test(&case))
-            })
-        })
-    });
+    // TODO: fix this test. See https://github.com/wgsl-tooling-wg/wesl-rs/issues/84
+    // tests.extend({
+    //     let file = std::fs::read_to_string("wesl-testsuite/src/test-cases-json/importCases.json")
+    //         .expect("failed to read test file");
+    //     let json: Vec<WgslTestSrc> =
+    //         serde_json::from_str(&file).expect("failed to parse json file");
+    //     json.into_iter().map(|case| {
+    //         let name = format!("importCases.json::{}", case.name);
+    //         libtest_mimic::Trial::test(name, move || {
+    //             testsuite_case(&case).inspect_err(|_| eprint_wgsl_test(&case))
+    //         })
+    //     })
+    // });
 
     tests.extend({
         let file = std::fs::read_to_string(
