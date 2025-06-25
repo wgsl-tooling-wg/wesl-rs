@@ -13,6 +13,7 @@
             "mdBook",
             "Rust",
             "wesl-consumer",
+            "wesl-lang",
             "wesl-rs",
             "wesl-test",
             "wesl-web",

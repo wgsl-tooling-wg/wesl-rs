@@ -8,7 +8,7 @@
 [spec]: https://github.com/wgsl-tooling-wg/wesl-spec
 [discord]: https://discord.gg/Ng5FWmHuSv
 
-`wesl-rs` implements the necessary tools to build complex WGSL shaders, like what [naga_oil](https://github.com/bevyengine/naga_oil) does for [Bevy](https://bevyengine.org/), but in a framework-agnostic way. Visit [WESL-lang.dev](https://wesl-lang.dev/) to learn more about WGSL shader tools and language extensions.
+`wesl-rs` implements the necessary tools to build complex WGSL shaders, like what [naga_oil](https://github.com/bevyengine/naga_oil) does for [Bevy](https://bevyengine.org/), but in a framework-agnostic way. Visit [wesl-lang.dev](https://wesl-lang.dev/) to learn more about WGSL shader tools and language extensions.
 
 ## Status
 
