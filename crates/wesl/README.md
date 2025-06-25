@@ -26,7 +26,7 @@ let wgsl_str = compiler
 
 ## Usage in [`build.rs`](https://doc.rust-lang.org/cargo/reference/build-scripts.html)
 
-In your rust project you probably want to have your WESL code converted automatically
+In your Rust project you probably want to have your WESL code converted automatically
 to a WGSL string at build-time, unless your WGSL code must be assembled at runtime.
 
 Add this crate to your build dependencies in `Cargo.toml`:
@@ -87,6 +87,7 @@ let wgsl = wesl::quote_module! {
 
 One can inject variables into the following places by prefixing the name with
 a `#` symbol:
+
 | Code location | Injected type | Indirectly supported injection type with `Into` |
 |---------------|---------------|-------------------------------------------------|
 | name of a global declaration | `GlobalDeclaration` | `Declaration` `TypeAlias` `Struct` `Function` `ConstAssert` |
