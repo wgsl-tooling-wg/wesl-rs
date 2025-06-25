@@ -5,5 +5,15 @@
             "details",
             "summary"
         ]
-    }
+    },
+	"proper-names": {
+		"code_blocks": false,
+		"html_elements": true,
+		"names": [
+			"mdBook",
+			"Rust",
+			"WESL",
+			"WGSL",
+		]
+	},
 }
