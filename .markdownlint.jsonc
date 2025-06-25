@@ -12,7 +12,11 @@
         "names": [
             "mdBook",
             "Rust",
+            "wesl-rs",
+            "wesl-web",
             "WESL",
+            "wgsl-parse",
+            "wesl-test",
             "WGSL"
         ]
     }
