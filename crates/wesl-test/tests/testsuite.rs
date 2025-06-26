@@ -63,6 +63,20 @@ fn main() {
     });
 
     tests.extend({
+        let file = std::fs::read_to_string("spec-tests/idents.json")
+            .expect("failed to read test file");
+        let json: Vec<Test> = serde_json::from_str(&file).expect("failed to parse json file");
+        json.into_iter().map(|case| {
+            let name = format!("idents.json::{}", case.name);
+            let ignored = case.skip.unwrap_or(false);
+            libtest_mimic::Trial::test(name, move || {
+                json_case(&case).inspect_err(|_| eprint_test(&case))
+            })
+            .with_ignored_flag(ignored)
+        })
+    });
+
+    tests.extend({
         let file =
             std::fs::read_to_string("wesl-testsuite/src/test-cases-json/importSyntaxCases.json")
                 .expect("failed to read test file");
@@ -182,7 +196,7 @@ fn json_case(case: &Test) -> Result<(), libtest_mimic::Failed> {
                     }
                 }
                 Err(e) => {
-                    if case.expect == Expectation::Fail {
+                    if case.expect == Expectation::Pass {
                         return Err(format!("expected Pass, got Fail (`{e}`)").into());
                     }
                 }
