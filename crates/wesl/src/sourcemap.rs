@@ -6,6 +6,14 @@ use crate::{Mangler, ModulePath, ResolveError, Resolver};
 
 /// A SourceMap is a lookup from compiled WGSL to source WESL. It translates a mangled
 /// name into a module path and declaration name.
+///
+/// Using SourceMaps improves the readability of error diagnostics, by providing needed
+/// information to identify the originating code snippet, file name and declaration name.
+/// It is highly recommended to use them, but they can increase the compilation memory
+/// footprint, since they cache all loaded files.
+///
+/// Typically you record to a SourceMap by passing a [`SourceMapper`] as the [`Resolver`]
+/// and [`Mangler`] when compiling code.
 pub trait SourceMap {
     /// Get the module path and declaration name from a mangled name.
     fn get_decl(&self, decl: &str) -> Option<(&ModulePath, &str)>;
@@ -74,6 +82,10 @@ impl<T: SourceMap> SourceMap for Option<T> {
     }
 }
 
+/// This [`SourceMap`] implementation simply does nothing and returns `None`.
+///
+/// It can be useful to pass this struct to functions requiring a sourcemap, but
+/// you don't care about sourcemapping.
 pub struct NoSourceMap;
 
 impl SourceMap for NoSourceMap {
@@ -91,11 +103,12 @@ impl SourceMap for NoSourceMap {
     }
 }
 
-/// Generate a SourceMap by keeping track of name mangling and file resolutions.
+/// Generate a SourceMap by keeping track of loaded files and mangled identifiers.
 ///
 /// `SourceMapper` is a proxy that implements [`Mangler`] and [`Resolver`]. To record a
-/// sourcemap, invoke the compiler with this instance as both the mangler and the
-/// resolver.
+/// SourceMap, invoke the compiler with this instance as both the mangler and the
+/// resolver. Call [`SourceMapper::finish`] to get the final SourceMap once finished
+/// recording.
 pub struct SourceMapper<'a> {
     pub root: &'a ModulePath,
     pub resolver: &'a dyn Resolver,
