@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 use tsify_next::Tsify;
 use wasm_bindgen::prelude::*;
 use wesl::{
-    CompileResult, Eval, Inputs, ModulePath, VirtualResolver, Wesl,
+    CompileResult, Eval, Inputs, VirtualResolver, Wesl,
     eval::{EvalAttrs, HostShareable, Instance, RefInstance, Ty, ty_eval_ty},
-    syntax::{self, AccessMode, AddressSpace, PathOrigin, TranslationUnit},
+    syntax::{self, AccessMode, AddressSpace, TranslationUnit},
 };
 
 #[derive(Tsify, Clone, Copy, Debug, Default, Serialize, Deserialize)]
@@ -168,6 +168,9 @@ pub struct Error {
 
 fn run_compile(args: CompileOptions) -> Result<CompileResult, wesl::Error> {
     let mut resolver = VirtualResolver::new();
+    let root = args.root.parse().map_err(|e| {
+        wesl::Error::Custom(format!("`{}` is not a valid module path: {e}", args.root))
+    })?;
 
     for (path, source) in args.files {
         let path = path.parse().map_err(|e| {
@@ -199,7 +202,7 @@ fn run_compile(args: CompileOptions) -> Result<CompileResult, wesl::Error> {
         })
         .use_sourcemap(args.sourcemap)
         .set_mangler(args.mangler.into())
-        .compile(&ModulePath::new(PathOrigin::Absolute, vec![args.root]))?;
+        .compile(&root)?;
     Ok(comp)
 }
 

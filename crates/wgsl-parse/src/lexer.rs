@@ -206,7 +206,11 @@ fn parse_hex_f64(lex: &mut logos::Lexer<Token>) -> Option<f64> {
 fn parse_line_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
     let rem = lex.remainder();
     // see blankspace and line breaks: https://www.w3.org/TR/WGSL/#blankspace-and-line-breaks
-    let line_end = rem.char_indices().find(|(_, c)| "\n\u{000B}\u{000C}\r\u{0085}\u{2028}\u{2029}".contains(*c)).map(|(i, _)| i).unwrap_or(rem.len());
+    let line_end = rem
+        .char_indices()
+        .find(|(_, c)| "\n\u{000B}\u{000C}\r\u{0085}\u{2028}\u{2029}".contains(*c))
+        .map(|(i, _)| i)
+        .unwrap_or(rem.len());
     lex.bump(line_end);
     logos::Skip
 }

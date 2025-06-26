@@ -482,7 +482,6 @@ fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Res
 
     for import in imports {
         let path = join_paths(parent_path, &import.path);
-        println!("joined {parent_path} + {} = {path}", import.path);
         let public = import.attributes.iter().any(|attr| attr.is_publish());
         rec(&import.content, path, public, &mut res)?;
     }
