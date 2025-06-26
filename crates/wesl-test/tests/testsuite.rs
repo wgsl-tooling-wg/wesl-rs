@@ -63,8 +63,8 @@ fn main() {
     });
 
     tests.extend({
-        let file = std::fs::read_to_string("spec-tests/idents.json")
-            .expect("failed to read test file");
+        let file =
+            std::fs::read_to_string("spec-tests/idents.json").expect("failed to read test file");
         let json: Vec<Test> = serde_json::from_str(&file).expect("failed to parse json file");
         json.into_iter().map(|case| {
             let name = format!("idents.json::{}", case.name);
@@ -159,12 +159,6 @@ fn main() {
             "unity_webgpu_000001D9D2114040.fs.wgsl",
             "unity_webgpu_0000014DFB395020.fs.wgsl",
             "unity_webgpu_0000017E9E2D81A0.vs.wgsl",
-            "unity_webgpu_00000277907BA020.fs.wgsl",
-            "unity_webgpu_000002778F64B030.vs.wgsl",
-            "unity_webgpu_000001F972AC3D10.vs.wgsl",
-            "unity_webgpu_0000026E57303490.fs.wgsl",
-            "unity_webgpu_000001D9D2114040.fs.wgsl",
-            "unity_webgpu_000001D9CDD5C6D0.vs.wgsl",
         ]
         .iter()
         .map(|file| {
