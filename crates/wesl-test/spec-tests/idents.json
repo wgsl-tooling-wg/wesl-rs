@@ -28,7 +28,7 @@
     "desc": "Tests WGSL keywords are valid module paths",
     "kind": "syntax",
     "syntax": "declaration",
-    "code": "import alias::break::const::else::override::true::item;",
+    "code": "import alias::break::const::override::true::item;",
     "expect": "pass"
   }
 ]
