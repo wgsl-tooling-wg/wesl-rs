@@ -136,16 +136,25 @@ fn main() {
 
     tests.extend({
         [
-            // these are the two biggest files from unity's `boat_attack` sample. There is not great
+            // these are the most distinct files from unity's `boat_attack` sample. There is not great
             // value in testing all of them, they don't differ by much.
-            "unity_webgpu_0000026E5689B260.fs.wgsl",
+            // https://github.com/wgsl-tooling-wg/wesl-js/issues/161
+            "unity_webgpu_0000020A44565050.fs.wgsl",
+            "unity_webgpu_000001D9D2114040.fs.wgsl",
+            "unity_webgpu_0000014DFB395020.fs.wgsl",
             "unity_webgpu_0000017E9E2D81A0.vs.wgsl",
+            "unity_webgpu_00000277907BA020.fs.wgsl",
+            "unity_webgpu_000002778F64B030.vs.wgsl",
+            "unity_webgpu_000001F972AC3D10.vs.wgsl",
+            "unity_webgpu_0000026E57303490.fs.wgsl",
+            "unity_webgpu_000001D9D2114040.fs.wgsl",
+            "unity_webgpu_000001D9CDD5C6D0.vs.wgsl",
         ]
         .iter()
         .map(|file| {
             let name = format!("unity_web_research::{}", file);
             libtest_mimic::Trial::test(name, move || {
-                let path = format!("unity_web_research/webgpu/wgsl/boat_attack/{}", file);
+                let path = format!("unity_web_research/boat_attack/{}", file);
                 let case = std::fs::read_to_string(&path).expect("failed to read test file");
                 validation_case(&case)
             })
