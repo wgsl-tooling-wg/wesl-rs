@@ -161,9 +161,9 @@ fn main() {
         ]
         .iter()
         .map(|file| {
-            let name = format!("unity_web_research::{}", file);
+            let name = format!("unity_web_research::{file}");
             libtest_mimic::Trial::test(name, move || {
-                let path = format!("unity_web_research/boat_attack/{}", file);
+                let path = format!("unity_web_research/boat_attack/{file}");
                 let case = std::fs::read_to_string(&path).expect("failed to read test file");
                 validation_case(&case)
             })

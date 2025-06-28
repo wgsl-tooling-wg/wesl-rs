@@ -602,7 +602,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
             if !args.options.no_naga {
                 naga_validate(&comp.to_string())?;
             }
-            println!("{}", comp);
+            println!("{comp}");
         }
         Command::Eval(args) => {
             let comp = file_or_source(args.file)
@@ -649,7 +649,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
                         .ok_or_else(|| CliError::NotStorable(inst.ty()))?;
                     std::io::stdout().write_all(buf.as_slice()).unwrap();
                 } else {
-                    println!("return: {}", inst)
+                    println!("return: {inst}")
                 }
             } else if !args.binary {
                 println!("return: void")

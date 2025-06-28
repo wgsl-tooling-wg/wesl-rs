@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 fn main() {
     // run wesl at build-time
     #[cfg(feature = "build-time")]
@@ -9,7 +7,7 @@ fn main() {
     #[cfg(not(feature = "build-time"))]
     let source = wesl::Wesl::new("src/shaders")
         .add_package(&random_wgsl::random::PACKAGE)
-        .compile(&wesl::ModulePath::from_str("package::main").unwrap())
+        .compile(&"package::main".parse().unwrap())
         .inspect_err(|e| {
             eprintln!("{e}");
             panic!();

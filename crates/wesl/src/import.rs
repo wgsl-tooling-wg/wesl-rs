@@ -357,7 +357,7 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
         {
             return Err(err_with_module(
                 E::MissingDecl(ext_path.clone(), ext_id.to_string()).into(),
-                &module,
+                module,
                 resolver,
             ));
         }
@@ -399,7 +399,7 @@ fn join_paths(parent_path: &ModulePath, path: &ModulePath) -> ModulePath {
     match (&parent_path.origin, &path.origin) {
         (PathOrigin::Absolute | PathOrigin::Relative(_), _)
         | (PathOrigin::Package(_), PathOrigin::Relative(_)) => {
-            parent_path.join_path(&path).unwrap_or_else(|| path.clone())
+            parent_path.join_path(path).unwrap_or_else(|| path.clone())
         }
         // Absolute imports from within a package correspond to package imports.
         (PathOrigin::Package(pkg_name), PathOrigin::Absolute) => ModulePath::new(
@@ -493,7 +493,7 @@ fn resolve_inline_path(
     parent_path: &ModulePath,
     imports: &Imports,
 ) -> ModulePath {
-    let module_path = match &path.origin {
+    match &path.origin {
         PathOrigin::Package(pkg_name) => {
             // the path could be either a package, of referencing an imported module alias.
             let imported_item = imports.iter().find(|(ident, _)| *ident.name() == *pkg_name);
@@ -509,8 +509,7 @@ fn resolve_inline_path(
             }
         }
         _ => join_paths(parent_path, path),
-    };
-    module_path
+    }
 }
 
 pub(crate) fn mangle_decls<'a>(
@@ -531,7 +530,7 @@ impl Resolutions {
     pub fn retarget(&mut self) {
         fn find_target_ident(modules: &Modules, src_path: &ModulePath, src_id: &Ident) -> Ident {
             // load the external module for this external ident
-            if let Some(module) = modules.get(&src_path) {
+            if let Some(module) = modules.get(src_path) {
                 let module = module.borrow(); // safety: only 1 module is borrowed at a time, the current one.
                 module
                     .idents

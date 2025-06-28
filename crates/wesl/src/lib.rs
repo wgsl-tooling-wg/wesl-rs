@@ -433,7 +433,7 @@ impl<R: Resolver> Wesl<R> {
     /// # WESL Reference
     /// Conditional translation is a *mandatory* WESL extension.
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
-    pub fn set_features<'a>(
+    pub fn set_features(
         &mut self,
         feats: impl IntoIterator<Item = (impl ToString, impl Into<Feature>)>,
     ) -> &mut Self {
@@ -693,14 +693,9 @@ impl<R: Resolver> Wesl<R> {
         // root.origin = PathOrigin::Absolute; // we force absolute paths
 
         if self.use_sourcemap {
-            compile_sourcemap(&root, &self.resolver, &self.mangler, &self.options)
+            compile_sourcemap(root, &self.resolver, &self.mangler, &self.options)
         } else {
-            Ok(compile(
-                &root,
-                &self.resolver,
-                &self.mangler,
-                &self.options,
-            )?)
+            Ok(compile(root, &self.resolver, &self.mangler, &self.options)?)
         }
     }
 
@@ -720,8 +715,7 @@ impl<R: Resolver> Wesl<R> {
     /// # Panics
     /// Panics when compilation fails or if the output file cannot be written.
     /// Pretty-prints the WESL error message to stderr.
-    pub fn build_artifact(&self, entrypoint: impl Into<ModulePath>, out_name: &str) {
-        let entrypoint = entrypoint.into();
+    pub fn build_artifact(&self, entrypoint: &ModulePath, out_name: &str) {
         let dirname = std::env::var("OUT_DIR").unwrap();
         let out_name = Path::new(out_name);
         if out_name.iter().count() != 1 || out_name.extension().is_some() {
@@ -731,7 +725,7 @@ impl<R: Resolver> Wesl<R> {
         let mut output = Path::new(&dirname).join(out_name);
         output.set_extension("wgsl");
         let compiled = self
-            .compile(&entrypoint)
+            .compile(entrypoint)
             .inspect_err(|e| {
                 eprintln!("failed to build WESL shader `{entrypoint}`.\n{e}");
                 panic!();

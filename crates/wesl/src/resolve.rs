@@ -282,7 +282,6 @@ impl Router {
     /// Mount a resolver at a given path prefix. All imports that start with this prefix
     /// will be dispatched to that resolver with the suffix of the path.
     pub fn mount_resolver(&mut self, path: ModulePath, resolver: impl Resolver + 'static) {
-        let path: ModulePath = path.into();
         let resolver: Box<dyn Resolver> = Box::new(resolver);
         if path.is_empty() {
             // when the path is empty, the resolver would match any path anyways.

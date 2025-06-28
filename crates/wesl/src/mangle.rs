@@ -112,7 +112,7 @@ impl Mangler for EscapeMangler {
             PathOrigin::Absolute => "package".to_string(),
             PathOrigin::Relative(0) => "self".to_string(),
             PathOrigin::Relative(n) => format!("{}", (0..*n).map(|_| "super").format("_")),
-            PathOrigin::Package(name) => format!("{}", Self::escape_component(name)),
+            PathOrigin::Package(name) => Self::escape_component(name).to_string(),
         };
 
         let item = Self::escape_component(item);

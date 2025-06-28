@@ -168,6 +168,7 @@ impl Module {
         let submods = self.submodules.iter().map(|submod| submod.codegen());
 
         quote! {
+            #[allow(clippy::all)]
             pub mod #mod_ident {
                 use super::PkgModule;
                 pub const MODULE: PkgModule = PkgModule {

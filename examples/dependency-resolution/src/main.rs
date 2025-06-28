@@ -8,7 +8,7 @@ fn main() {
         })
         .add_package(&a::a::PACKAGE)
         .add_package(&b::b::PACKAGE)
-        .compile(&wesl::ModulePath::from_str("package::main").unwrap())
+        .compile(&"package::main".parse().unwrap())
         .map_err(|e| eprintln!("{e}"))
         .expect("compilation error")
         .to_string();

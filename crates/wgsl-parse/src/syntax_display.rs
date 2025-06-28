@@ -28,7 +28,7 @@ impl<T: Display> Display for Indent<T> {
         let fmt = inner_display
             .lines()
             .format_with("\n", |l, f| f(&format_args!("{indent}{l}")));
-        write!(f, "{}", fmt)?;
+        write!(f, "{fmt}")?;
         Ok(())
     }
 }
@@ -118,9 +118,9 @@ impl Display for ImportContent {
 impl Display for GlobalDirective {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            GlobalDirective::Diagnostic(print) => write!(f, "{}", print),
-            GlobalDirective::Enable(print) => write!(f, "{}", print),
-            GlobalDirective::Requires(print) => write!(f, "{}", print),
+            GlobalDirective::Diagnostic(print) => write!(f, "{print}"),
+            GlobalDirective::Enable(print) => write!(f, "{print}"),
+            GlobalDirective::Requires(print) => write!(f, "{print}"),
         }
     }
 }
@@ -168,11 +168,11 @@ impl Display for GlobalDeclaration {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             GlobalDeclaration::Void => write!(f, ";"),
-            GlobalDeclaration::Declaration(print) => write!(f, "{}", print),
-            GlobalDeclaration::TypeAlias(print) => write!(f, "{}", print),
-            GlobalDeclaration::Struct(print) => write!(f, "{}", print),
-            GlobalDeclaration::Function(print) => write!(f, "{}", print),
-            GlobalDeclaration::ConstAssert(print) => write!(f, "{}", print),
+            GlobalDeclaration::Declaration(print) => write!(f, "{print}"),
+            GlobalDeclaration::TypeAlias(print) => write!(f, "{print}"),
+            GlobalDeclaration::Struct(print) => write!(f, "{print}"),
+            GlobalDeclaration::Function(print) => write!(f, "{print}"),
+            GlobalDeclaration::ConstAssert(print) => write!(f, "{print}"),
         }
     }
 }
@@ -185,11 +185,11 @@ impl Display for Declaration {
         let ty = self
             .ty
             .iter()
-            .format_with("", |ty, f| f(&format_args!(": {}", ty)));
+            .format_with("", |ty, f| f(&format_args!(": {ty}")));
         let init = self
             .initializer
             .iter()
-            .format_with("", |ty, f| f(&format_args!(" = {}", ty)));
+            .format_with("", |ty, f| f(&format_args!(" = {ty}")));
         write!(f, "{kind} {name}{ty}{init};")
     }
 }
@@ -731,7 +731,7 @@ impl Display for CaseSelector {
         match self {
             CaseSelector::Default => write!(f, "default"),
             CaseSelector::Expression(expr) => {
-                write!(f, "{}", expr)
+                write!(f, "{expr}")
             }
         }
     }
@@ -791,7 +791,7 @@ impl Display for ForStatement {
         let mut init = self
             .initializer
             .as_ref()
-            .map(|stmt| format!("{}", stmt))
+            .map(|stmt| format!("{stmt}"))
             .unwrap_or_default();
         if init.ends_with(';') {
             init.pop();
@@ -803,7 +803,7 @@ impl Display for ForStatement {
         let mut updt = self
             .update
             .as_ref()
-            .map(|stmt| format!("{}", stmt))
+            .map(|stmt| format!("{stmt}"))
             .unwrap_or_default();
         if updt.ends_with(';') {
             updt.pop();

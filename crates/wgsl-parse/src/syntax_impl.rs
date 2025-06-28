@@ -48,7 +48,7 @@ impl ModulePath {
     /// * The path must not start with a prefix, like C:\ on windows.
     /// * The path must contain at least one named component.
     /// * Named components must be valid module names.
-    /// (Module names are WGSL identifiers + certain reserved names, see wesl-spec#127)
+    ///   (Module names are WGSL identifiers + certain reserved names, see wesl-spec#127)
     pub fn from_path(path: impl AsRef<std::path::Path>) -> Self {
         use std::path::Component;
         let path = path.as_ref().with_extension("");
