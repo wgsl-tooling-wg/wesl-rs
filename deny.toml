@@ -44,6 +44,9 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = []
 
+[sources.allow-org]
+github = ["wgsl-tooling-wg"]
+
 [[bans.features]]
 # thiserror is the preferred way to derive error types
 crate = "derive_more"

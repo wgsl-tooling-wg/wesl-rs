@@ -15,7 +15,7 @@ a = { path = "./a" }
 b = { path = "./b" }
 
 [patch.crates-io]
-c1 = { package = "c", path  = "./c1" }
-c2 = { package = "c", path  = "./c2" }
-d1 = { package = "d", path  = "./d1" }
-d2 = { package = "d", path  = "./d2" }
+c1 = { package = "c", path = "./c1" }
+c2 = { package = "c", path = "./c2" }
+d1 = { package = "d", path = "./d1" }
+d2 = { package = "d", path = "./d2" }
