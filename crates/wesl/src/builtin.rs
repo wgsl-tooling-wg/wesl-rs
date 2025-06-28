@@ -470,7 +470,7 @@ pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
 }
 
 /// Get the name of the type corresponding to a literal suffix.
-pub fn litteral_suffix_type(suffix: &str) -> Option<&'static str> {
+pub fn literal_suffix_type(suffix: &str) -> Option<&'static str> {
     match suffix {
         "i" => Some("i32"),
         "u" => Some("u32"),
