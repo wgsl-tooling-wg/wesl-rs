@@ -368,13 +368,13 @@ mod tests {
         let mangler = EscapeMangler;
         let module_path = ModulePath::new(PathOrigin::Absolute, vec![]);
         let mangled = mangler.mangle(&module_path, "textures_3d");
-        assert_eq!("package___1textures_3d", mangled);
+        assert_eq!("package__1textures_3d", mangled);
     }
 
     #[test]
     fn unmangle_textures3d() {
         let mangler = EscapeMangler;
-        let unmangled = mangler.unmangle("package___1textures_3d").map(|x| x.1);
+        let unmangled = mangler.unmangle("package__1textures_3d").map(|x| x.1);
         assert_eq!(Some("textures_3d"), unmangled.as_deref());
     }
 

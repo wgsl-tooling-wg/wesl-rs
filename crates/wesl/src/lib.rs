@@ -349,10 +349,10 @@ impl<R: Resolver> Wesl<R> {
     /// # use wesl::{FileResolver, Router, VirtualResolver, Wesl};
     /// // `import runtime::constants::PI` is in a custom module mounted at runtime.
     /// let mut resolver = VirtualResolver::new();
-    /// resolver.add_module("constants", "const PI = 3.1415; const TAU = PI * 2.0;".into());
+    /// resolver.add_module("constants".parse().unwrap(), "const PI = 3.1415; const TAU = PI * 2.0;".into());
     /// let mut router = Router::new();
     /// router.mount_fallback_resolver(FileResolver::new("src/shaders"));
-    /// router.mount_resolver("runtime", resolver);
+    /// router.mount_resolver("runtime".parse().unwrap(), resolver);
     /// let compiler = Wesl::new("").set_custom_resolver(router);
     /// ```
     ///

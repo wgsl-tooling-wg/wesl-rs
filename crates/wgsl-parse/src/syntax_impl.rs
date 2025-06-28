@@ -160,7 +160,7 @@ impl ModulePath {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
 pub enum ModulePathParseError {
-    #[error("module path cannot be empty")]
+    #[error("module name cannot be empty")]
     Empty,
     #[error("`package` must be a prefix of the module path")]
     MisplacedPackage,
@@ -191,8 +191,8 @@ impl FromStr for ModulePath {
                 }
                 PathOrigin::Relative(n)
             }
+            Some("") | None => return Err(ModulePathParseError::Empty),
             Some(name) => PathOrigin::Package(name.to_string()),
-            None => return Err(ModulePathParseError::Empty),
         };
 
         let components = parts

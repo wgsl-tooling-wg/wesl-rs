@@ -13,12 +13,12 @@ See [`Wesl`] for an overview of the high-level API.
 let compiler = Wesl::new("src/shaders");
 # // just adding a virtual file here so the doctest runs without a filesystem
 # let mut resolver = VirtualResolver::new();
-# resolver.add_module("main", "fn my_fn() {}".into());
+# resolver.add_module("package::main".parse().unwrap(), "fn my_fn() {}".into());
 # let compiler = compiler.set_custom_resolver(resolver);
 
 // compile a WESL file to a WGSL string
 let wgsl_str = compiler
-    .compile(&ModulePath::from_str("package::main").unwrap())
+    .compile(&"package::main".parse().unwrap())
     .inspect_err(|e| eprintln!("WESL error: {e}")) // pretty errors with `display()`
     .unwrap()
     .to_string();
@@ -136,10 +136,10 @@ assert_eq!(wgsl_expr, "2");
 // ...expression using declarations in a WESL file
 let source = "const my_const = 4; @const fn my_fn(v: u32) -> u32 { return v * 10; }";
 # let mut resolver = VirtualResolver::new();
-# resolver.add_module("source", source.into());
+# resolver.add_module("package::source".parse().unwrap(), source.into());
 # let compiler = Wesl::new_barebones().set_custom_resolver(resolver);
 let wgsl_expr = compiler
-    .compile(&ModulePath::from_str("package::source").unwrap()).unwrap()
+    .compile(&"package::source".parse().unwrap()).unwrap()
     .eval("my_fn(my_const) + 2").unwrap()
     .to_string();
 assert_eq!(wgsl_expr, "42u");
