@@ -5,7 +5,6 @@
 
 [crates-io]: https://crates.io/crates/wesl
 [docs-rs]: https://docs.rs/wesl/
-[wesl]: https://wesl-lang.dev/
 [spec]: https://github.com/wgsl-tooling-wg/wesl-spec
 [discord]: https://discord.gg/Ng5FWmHuSv
 
@@ -13,30 +12,33 @@
 
 ## Status
 
-*update: 2025-04*
+(*update: 2025-04*)
 
 * WESL recently released its first [M1 release](https://github.com/wgsl-tooling-wg/wesl-spec/issues/54). It includes imports, Conditional Compilation and Packaging.
 * Experimental support for WESL in Bevy was merged.
 
 Currently implemented:
-- [x] Imports & Modules
-- [x] Conditional Compilation
+
+* [x] Imports & Modules
+* [x] Conditional Compilation
 
 Experimental:
-- [x] Cargo Packages
-- [x] Validation
-- [x] Compile-time Evaluation and Execution
-- [x] Polyfills
+
+* [x] Cargo Packages
+* [x] Validation
+* [x] Compile-time Evaluation and Execution
+* [x] Polyfills
 
 Probable future work:
-- [ ] Namespaces
-- [ ] Generics
+
+* [ ] Namespaces
+* [ ] Generics
 
 ## Usage
 
-Read the [WESL for rust tutorial](https://wesl-lang.dev/docs/Getting-Started-Rust).
+Read the [WESL for Rust tutorial](https://wesl-lang.dev/docs/Getting-Started-Rust).
 
-This project can be used as a rust library or as a standalone CLI, refer to the following crates documentation.
+This project can be used as a Rust library or as a standalone CLI, refer to the following crates documentation.
 
 [![crates.io](https://img.shields.io/crates/v/wesl)](https://crates.io/crates/wesl)
 [![docs.rs](https://img.shields.io/docsrs/wesl)](https://docs.rs/wesl)
@@ -52,14 +54,14 @@ This project can be used as a rust library or as a standalone CLI, refer to the 
 
 ## Contributing
 
-Contributions are welcome. Please join the [discord][discord] to get in touch with the community. Read [CONTRIBUTING.md][CONTRIBUTING.md] before submitting Pull Requests.
+Contributions are welcome. Please join the [discord][discord] to get in touch with the community. Read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting Pull Requests.
 
 ## License
 
 Except where noted (below and/or in individual files), all code in this repository is dual-licensed under either:
 
-- MIT License ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
+* MIT License ([LICENSE-MIT](LICENSE-MIT) or [http://opensource.org/licenses/MIT](http://opensource.org/licenses/MIT))
+* Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or [http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0))
 
 at your option.
 

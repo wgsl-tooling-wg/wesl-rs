@@ -26,7 +26,7 @@ env:
   CARGO_TERM_COLOR: always
   # If nightly is breaking CI, modify this variable to target a specific nightly version.
   NIGHTLY_TOOLCHAIN: nightly
-  STABLE_TOOLCHAIN: "1.86.0"
+  STABLE_TOOLCHAIN: "1.87.0"
   MIRIFLAGS: "-Zmiri-disable-isolation"
 
 concurrency:
@@ -117,20 +117,12 @@ jobs:
   markdownlint:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: always()
     steps:
       - uses: actions/checkout@v4
+      - uses: DavidAnson/markdownlint-cli2-action@v20
         with:
-          submodules: "true"
-          # Full git history is needed to get a proper list of changed files within `super-linter`
-          fetch-depth: 0
-      - name: Run Markdown Lint
-        uses: docker://ghcr.io/github/super-linter:slim-v4
-        env:
-          MULTI_STATUS: false
-          VALIDATE_ALL_CODEBASE: false
-          VALIDATE_MARKDOWN: true
-          DEFAULT_BRANCH: main
+          config: '.markdownlint.jsonc'
+          globs: '**/*.md'
 
   toml:
     runs-on: ubuntu-latest

@@ -22,7 +22,7 @@ enum BranchKind {
     Members,
 }
 
-#[allow(clippy::large_enum_variant)]
+#[expect(clippy::large_enum_variant, reason = "TODO")]
 enum QueryComponent {
     Variant(Ident, Ident),
     Member(Ident),

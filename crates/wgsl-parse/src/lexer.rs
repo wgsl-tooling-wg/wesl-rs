@@ -390,12 +390,12 @@ const RESERVED_WORDS: &[&str] = &[
     "yield",
 ];
 
-fn parse_ident(lex: &mut logos::Lexer<Token>) -> Result<String, ParseError> {
+fn parse_ident(lex: &mut logos::Lexer<Token>) -> Token {
     let ident = lex.slice().to_string();
     if RESERVED_WORDS.iter().contains(&ident.as_str()) {
-        Err(ParseError::ReservedWord(ident))
+        Token::ReservedWord(ident)
     } else {
-        Ok(ident)
+        Token::Ident(ident)
     }
 }
 
@@ -414,10 +414,16 @@ pub struct LexerState {
     extras = LexerState,
     error = ParseError)]
 pub enum Token {
-    // line comments. This variant is never produced.
     #[token("//", parse_line_comment)]
-    // block comments. This variant is never produced.
     #[token("/*", parse_block_comment, priority = 2)]
+    // the parse_ident function can return either Token::Ident or Token::ReservedWord.
+    #[regex(
+        r#"([_\p{XID_Start}][\p{XID_Continue}]+)|([\p{XID_Start}])"#,
+        parse_ident,
+        priority = 1
+    )]
+    // Token::Ignored variant is never produced.
+    // It serves as a placeholder for above logos callbacks.
     Ignored,
     // syntactic tokens
     // https://www.w3.org/TR/WGSL/#syntactic-tokens
@@ -569,13 +575,13 @@ pub enum Token {
     #[token("while")]
     KwWhile,
 
-    // XXX: should we also register reserved words as tokens?
-    #[regex(
-        r#"([_\p{XID_Start}][\p{XID_Continue}]+)|([\p{XID_Start}])"#,
-        parse_ident,
-        priority = 1
-    )]
+    // Idents and ReservedWord tokens are parsed on the Ignored variant, because of a current
+    // limitation of logos. See logos#295.
     Ident(String),
+    // variant produced by parse_ident for reserved words.
+    // Reserved words can be used in context-dependent words, e.g. attribute names and module names.
+    ReservedWord(String),
+
     #[regex(r#"0|[1-9]\d*"#, parse_dec_abstract_int)]
     #[regex(r#"0[xX][\da-fA-F]+"#, parse_hex_abstract_int)]
     AbstractInt(i64),
@@ -751,6 +757,7 @@ impl Token {
 }
 
 impl Display for Token {
+    /// This display implementation is used for error messages.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Token::Ignored => unreachable!(),
@@ -826,7 +833,8 @@ impl Display for Token {
             Token::KwTrue => f.write_str("true"),
             Token::KwVar => f.write_str("var"),
             Token::KwWhile => f.write_str("while"),
-            Token::Ident(s) => write!(f, "identifier `{s}` ({})", s.len()),
+            Token::Ident(s) => write!(f, "identifier `{s}`"),
+            Token::ReservedWord(s) => write!(f, "reserved word `{s}`"),
             Token::AbstractInt(n) => write!(f, "{n}"),
             Token::AbstractFloat(n) => write!(f, "{n}"),
             Token::I32(n) => write!(f, "{n}i"),

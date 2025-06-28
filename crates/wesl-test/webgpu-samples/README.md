@@ -1,5 +1,7 @@
+# webgpu-samples
+
 Samples taken from <https://github.com/webgpu/webgpu-samples>.
 
-# License
+## License
 
-See LICENSE.txt
+See [LICENSE.txt](LICENSE.txt)
