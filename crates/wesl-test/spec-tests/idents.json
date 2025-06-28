@@ -8,6 +8,30 @@
     "expect": "pass"
   },
   {
+    "name": "ident-disallow-digit-first-char",
+    "desc": "Tests identifier cannot start with a digit",
+    "kind": "syntax",
+    "syntax": "declaration",
+    "code": "const 1 = 1u",
+    "expect": "fail"
+  },
+  {
+    "name": "ident-disallow-two-leading-underscores",
+    "desc": "Tests identifier cannot start with two underscores",
+    "kind": "syntax",
+    "syntax": "declaration",
+    "code": "const __foo = 1u",
+    "expect": "fail"
+  },
+  {
+    "name": "ident-disallow-single-underscore",
+    "desc": "Tests identifier cannot be a single underscore",
+    "kind": "syntax",
+    "syntax": "declaration",
+    "code": "const _ = 1u",
+    "expect": "fail"
+  },
+  {
     "name": "ident-disallow-reserved-words",
     "desc": "Tests WGSL reserved words are not valid identifiers",
     "kind": "syntax",
