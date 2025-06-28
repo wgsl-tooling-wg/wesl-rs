@@ -1,25 +1,27 @@
 {
-    "line-length": false,
-    "no-inline-html": {
-        "allowed_elements": [
-            "details",
-            "summary"
-        ]
-    },
-    "proper-names": {
-        "code_blocks": false,
-        "html_elements": true,
-        "names": [
-            "mdBook",
-            "Rust",
-            "wesl-consumer",
-            "wesl-lang",
-            "wesl-rs",
-            "wesl-test",
-            "wesl-web",
-            "WESL",
-            "wgsl-parse",
-            "WGSL"
-        ]
-    }
+  "line-length": false,
+  "no-inline-html": {
+    "allowed_elements": [
+      "details",
+      "summary"
+    ]
+  },
+  "proper-names": {
+    "code_blocks": false,
+    "html_elements": true,
+    "names": [
+      "mdBook",
+      "Rust",
+      "wesl-consumer",
+      "wesl-lang",
+      "wesl-rs",
+      "wesl-test",
+      "wesl-web",
+      ".wesl",
+      "WESL",
+      "wgsl-parse",
+      ".wgsl",
+      "WGSL"
+    ]
+  }
 }

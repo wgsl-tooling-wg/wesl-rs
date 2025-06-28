@@ -39,7 +39,7 @@ pub use resolve::{
     FileResolver, NoResolver, PkgModule, PkgResolver, Preprocessor, ResolveError, Resolver, Router,
     StandardResolver, VirtualResolver, emit_rerun_if_changed,
 };
-pub use sourcemap::{BasicSourceMap, SourceMap, SourceMapper};
+pub use sourcemap::{BasicSourceMap, NoSourceMap, SourceMap, SourceMapper};
 pub use syntax_util::SyntaxUtil;
 pub use validate::{ValidateError, validate_wesl, validate_wgsl};
 
@@ -631,7 +631,7 @@ impl CompileResult {
     /// # WESL Reference
     /// The user-defined `@const` attribute is non-standard.
     /// See issue [#46](https://github.com/wgsl-tooling-wg/wesl-spec/issues/46#issuecomment-2389531479).
-    pub fn eval(&self, source: &str) -> Result<EvalResult, Error> {
+    pub fn eval<'a>(&'a self, source: &str) -> Result<EvalResult<'a>, Error> {
         let expr = source
             .parse::<syntax::Expression>()
             .map_err(|e| Error::Error(Diagnostic::from(e).with_source(source.to_string())))?;
@@ -658,13 +658,13 @@ impl CompileResult {
     ///
     /// # WESL Reference
     /// The `@const` attribute is non-standard.
-    pub fn exec(
-        &self,
+    pub fn exec<'a>(
+        &'a self,
         entrypoint: &str,
         inputs: Inputs,
         bindings: HashMap<(u32, u32), eval::RefInstance>,
         overrides: HashMap<String, eval::Instance>,
-    ) -> Result<ExecResult, Error> {
+    ) -> Result<ExecResult<'a>, Error> {
         let mut ctx = eval::Context::new(&self.syntax);
         ctx.add_bindings(bindings);
         ctx.add_overrides(overrides);

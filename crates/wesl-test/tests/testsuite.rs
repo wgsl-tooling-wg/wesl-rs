@@ -64,6 +64,20 @@ fn main() {
 
     tests.extend({
         let file =
+            std::fs::read_to_string("spec-tests/idents.json").expect("failed to read test file");
+        let json: Vec<Test> = serde_json::from_str(&file).expect("failed to parse json file");
+        json.into_iter().map(|case| {
+            let name = format!("idents.json::{}", case.name);
+            let ignored = case.skip.unwrap_or(false);
+            libtest_mimic::Trial::test(name, move || {
+                json_case(&case).inspect_err(|_| eprint_test(&case))
+            })
+            .with_ignored_flag(ignored)
+        })
+    });
+
+    tests.extend({
+        let file =
             std::fs::read_to_string("wesl-testsuite/src/test-cases-json/importSyntaxCases.json")
                 .expect("failed to read test file");
         let json: Vec<ParsingTest> =
@@ -77,19 +91,21 @@ fn main() {
         })
     });
 
-    // TODO: fix this test. See https://github.com/wgsl-tooling-wg/wesl-rs/issues/84
-    // tests.extend({
-    //     let file = std::fs::read_to_string("wesl-testsuite/src/test-cases-json/importCases.json")
-    //         .expect("failed to read test file");
-    //     let json: Vec<WgslTestSrc> =
-    //         serde_json::from_str(&file).expect("failed to parse json file");
-    //     json.into_iter().map(|case| {
-    //         let name = format!("importCases.json::{}", case.name);
-    //         libtest_mimic::Trial::test(name, move || {
-    //             testsuite_case(&case).inspect_err(|_| eprint_wgsl_test(&case))
-    //         })
-    //     })
-    // });
+    tests.extend({
+        let file = std::fs::read_to_string("wesl-testsuite/src/test-cases-json/importCases.json")
+            .expect("failed to read test file");
+        let json: Vec<WgslTestSrc> =
+            serde_json::from_str(&file).expect("failed to parse json file");
+        json.into_iter().map(|case| {
+            let name = format!("importCases.json::{}", case.name);
+            // TODO: fix this test. See https://github.com/wgsl-tooling-wg/wesl-rs/issues/84
+            let ignored = case.name == "circular import";
+            libtest_mimic::Trial::test(name, move || {
+                testsuite_case(&case).inspect_err(|_| eprint_wgsl_test(&case))
+            })
+            .with_ignored_flag(ignored)
+        })
+    });
 
     tests.extend({
         let file = std::fs::read_to_string(
@@ -100,9 +116,11 @@ fn main() {
             serde_json::from_str(&file).expect("failed to parse json file");
         json.into_iter().map(|case| {
             let name = format!("conditionalTranslationCases.json::{}", case.name);
+            let ignored = case.name == "declaration shadowing"; // this test requires stripping enabled.
             libtest_mimic::Trial::test(name, move || {
                 testsuite_case(&case).inspect_err(|_| eprint_wgsl_test(&case))
             })
+            .with_ignored_flag(ignored)
         })
     });
 
@@ -136,16 +154,19 @@ fn main() {
 
     tests.extend({
         [
-            // these are the two biggest files from unity's `boat_attack` sample. There is not great
+            // these are the most distinct files from unity's `boat_attack` sample. There is not great
             // value in testing all of them, they don't differ by much.
-            "unity_webgpu_0000026E5689B260.fs.wgsl",
+            // https://github.com/wgsl-tooling-wg/wesl-js/issues/161
+            "unity_webgpu_0000020A44565050.fs.wgsl",
+            "unity_webgpu_000001D9D2114040.fs.wgsl",
+            "unity_webgpu_0000014DFB395020.fs.wgsl",
             "unity_webgpu_0000017E9E2D81A0.vs.wgsl",
         ]
         .iter()
         .map(|file| {
             let name = format!("unity_web_research::{}", file);
             libtest_mimic::Trial::test(name, move || {
-                let path = format!("unity_web_research/webgpu/wgsl/boat_attack/{}", file);
+                let path = format!("unity_web_research/boat_attack/{}", file);
                 let case = std::fs::read_to_string(&path).expect("failed to read test file");
                 validation_case(&case)
             })
@@ -171,7 +192,7 @@ fn json_case(case: &Test) -> Result<(), libtest_mimic::Failed> {
                     }
                 }
                 Err(e) => {
-                    if case.expect == Expectation::Fail {
+                    if case.expect == Expectation::Pass {
                         return Err(format!("expected Pass, got Fail (`{e}`)").into());
                     }
                 }

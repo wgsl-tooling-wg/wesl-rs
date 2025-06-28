@@ -92,6 +92,7 @@ extern {
         "while" => Token::KwWhile,
 
         IdentPatternToken => Token::Ident(<String>),
+        ReservedWord => Token::ReservedWord(<String>),
         TokAbstractInt => Token::AbstractInt(<i64>),
         TokAbstractFloat => Token::AbstractFloat(<f64>),
         TokI32 => Token::I32(<i32>),
@@ -120,7 +121,6 @@ extern {
 }
 
 // these are context-dependent names. e.g. the @const attribute.
-#[cfg(not(feature = "imports"))]
 Keyword: String = {
     "alias" => <>.to_string(),
     "break" => <>.to_string(),
@@ -148,6 +148,14 @@ Keyword: String = {
     "true" => <>.to_string(),
     "var" => <>.to_string(),
     "while" => <>.to_string(),
+    #[cfg(feature = "imports")]
+    "self" => <>.to_string(),
+    #[cfg(feature = "imports")]
+    "super" => <>.to_string(),
+    #[cfg(feature = "imports")]
+    "as" => <>.to_string(),
+    #[cfg(feature = "imports")]
+    "import" => <>.to_string(),
 };
 
 // the grammar rules are laid out in the same order as in the spec.
@@ -211,8 +219,11 @@ BoolLiteral: LiteralExpression = {
 };
 
 Ident: Ident = {
-    IdentPatternToken /* _DisambiguateTemplate */ => {
+    IdentPatternToken => {
         Ident::new(<>)
+    },
+    <l: @L> <word: ReservedWord> <r: @R> =>? {
+        Err(lalrpop_util::ParseError::User{ error: (l, ParseError::ReservedWord(word), r) })
     },
 };
 
@@ -220,14 +231,16 @@ MemberIdent: Ident = {
     IdentPatternToken => {
         Ident::new(<>)
     },
-};
-
-BuiltinValueName: String = {
-    IdentPatternToken => <>,
+    <l: @L> <word: ReservedWord> <r: @R> =>? {
+        Err(lalrpop_util::ParseError::User{ error: (l, ParseError::ReservedWord(word), r) })
+    },
 };
 
 DiagnosticNameToken: String = {
     IdentPatternToken => <>,
+    <l: @L> <word: ReservedWord> <r: @R> =>? {
+        Err(lalrpop_util::ParseError::User{ error: (l, ParseError::ReservedWord(word), r) })
+    },
 };
 
 SeverityControlName: DiagnosticSeverity = {
@@ -235,22 +248,37 @@ SeverityControlName: DiagnosticSeverity = {
         DiagnosticSeverity::from_str(&ident)
             .map_err(|()| lalrpop_util::ParseError::User{ error: (l, ParseError::DiagnosticSeverity, r) })
     },
+    <l: @L> <word: ReservedWord> <r: @R> =>? {
+        Err(lalrpop_util::ParseError::User{ error: (l, ParseError::ReservedWord(word), r) })
+    },
 };
 
 EnableExtensionName: String = {
     IdentPatternToken => <>,
+    <l: @L> <word: ReservedWord> <r: @R> =>? {
+        Err(lalrpop_util::ParseError::User{ error: (l, ParseError::ReservedWord(word), r) })
+    },
 };
 
 SoftwareExtensionName: String = {
     IdentPatternToken => <>,
+    <l: @L> <word: ReservedWord> <r: @R> =>? {
+        Err(lalrpop_util::ParseError::User{ error: (l, ParseError::ReservedWord(word), r) })
+    },
 };
 
 InterpolateSamplingName: String = {
     IdentPatternToken => <>,
+    <l: @L> <word: ReservedWord> <r: @R> =>? {
+        Err(lalrpop_util::ParseError::User{ error: (l, ParseError::ReservedWord(word), r) })
+    },
 };
 
 SwizzleName: String = {
     IdentPatternToken => <>,
+    <l: @L> <word: ReservedWord> <r: @R> =>? {
+        Err(lalrpop_util::ParseError::User{ error: (l, ParseError::ReservedWord(word), r) })
+    },
 };
 
 TemplateList: Vec<TemplateArg> = {
@@ -519,7 +547,7 @@ LhsExpression: Expression = {
  };
  
 CoreLhsExpression: Expression = {
-    Ident /* DisambiguateTemplate */ => Expression::TypeOrIdentifier(<>.into()),
+    Ident => Expression::TypeOrIdentifier(<>.into()),
     "(" <Spanned<LhsExpression>> ")" => Expression::Parenthesized(ParenthesizedExpression {
         expression: <>
     }),
@@ -940,6 +968,10 @@ Attribute: Attribute = {
         parse_attribute(name, arguments)
             .map_err(|e| lalrpop_util::ParseError::User{ error: (l, e, r) })
     },
+    <l: @L> "@" <name: ReservedWord> <arguments: ArgumentExpressionList?> <r: @R> =>? {
+        parse_attribute(name, arguments)
+            .map_err(|e| lalrpop_util::ParseError::User{ error: (l, e, r) })
+    },
 };
 
 AttributeNode: AttributeNode = Spanned<Attribute>;
@@ -955,35 +987,35 @@ DiagnosticControl: (DiagnosticSeverity, String) = {
 #[cfg(feature = "imports")]
 PathIdent: String = {
     IdentPatternToken => <>,
-    // "alias" => <>.to_string(),
-    // "break" => <>.to_string(),
-    // "case" => <>.to_string(),
-    // "const" => <>.to_string(),
-    // "const_assert" => <>.to_string(),
-    // "continue" => <>.to_string(),
-    // "continuing" => <>.to_string(),
-    // "default" => <>.to_string(),
-    // "diagnostic" => <>.to_string(),
-    // "discard" => <>.to_string(),
-    // // the "else" keyword is LR(1) conflict: if () {} else::call_fn();
-    // // "else" => <>.to_string(),
-    // "enable" => <>.to_string(),
-    // "false" => <>.to_string(),
-    // "fn" => <>.to_string(),
-    // "for" => <>.to_string(),
-    // "if" => <>.to_string(),
-    // "let" => <>.to_string(),
-    // "loop" => <>.to_string(),
-    // "override" => <>.to_string(),
-    // "requires" => <>.to_string(),
-    // "return" => <>.to_string(),
-    // "struct" => <>.to_string(),
-    // "switch" => <>.to_string(),
-    // "true" => <>.to_string(),
-    // "var" => <>.to_string(),
-    // "while" => <>.to_string(),
-    // "as" => <>.to_string(),
-    // "import" => <>.to_string(),
+    ReservedWord => <>,
+    // All keywords and reserved words are allowed module names, except import-related ones (import, as, self, super)
+    // The "else" keyword is the only exception, because of a LR(1) conflict: if () {} else::call_fn();
+    // see wesl-spec#127 and wesl-spec#76
+    "alias" => <>.to_string(),
+    "break" => <>.to_string(),
+    "case" => <>.to_string(),
+    "const" => <>.to_string(),
+    "const_assert" => <>.to_string(),
+    "continue" => <>.to_string(),
+    "continuing" => <>.to_string(),
+    "default" => <>.to_string(),
+    "diagnostic" => <>.to_string(),
+    "discard" => <>.to_string(),
+    "enable" => <>.to_string(),
+    "false" => <>.to_string(),
+    "fn" => <>.to_string(),
+    "for" => <>.to_string(),
+    "if" => <>.to_string(),
+    "let" => <>.to_string(),
+    "loop" => <>.to_string(),
+    "override" => <>.to_string(),
+    "requires" => <>.to_string(),
+    "return" => <>.to_string(),
+    "struct" => <>.to_string(),
+    "switch" => <>.to_string(),
+    "true" => <>.to_string(),
+    "var" => <>.to_string(),
+    "while" => <>.to_string(),
 };
 
 #[cfg(feature = "imports")]
@@ -1071,38 +1103,6 @@ ImportCollection: Vec<Import> = {
 // EXTENSION: WESL-CONDITIONAL-TRANSLATION
 // https://github.com/wgsl-tooling-wg/wesl-spec/pull/19
 // date: 2024-09-14, hash: b1446356ff206e5826a58812895bc6d3d64a2220
-
-#[cfg(feature = "imports")]
-Keyword: String = {
-    "alias" => <>.to_string(),
-    "break" => <>.to_string(),
-    "case" => <>.to_string(),
-    "const" => <>.to_string(),
-    "const_assert" => <>.to_string(),
-    "continue" => <>.to_string(),
-    "continuing" => <>.to_string(),
-    "default" => <>.to_string(),
-    "diagnostic" => <>.to_string(),
-    "discard" => <>.to_string(),
-    "else" => <>.to_string(),
-    "enable" => <>.to_string(),
-    "false" => <>.to_string(),
-    "fn" => <>.to_string(),
-    "for" => <>.to_string(),
-    "if" => <>.to_string(),
-    "let" => <>.to_string(),
-    "loop" => <>.to_string(),
-    "override" => <>.to_string(),
-    "requires" => <>.to_string(),
-    "return" => <>.to_string(),
-    "struct" => <>.to_string(),
-    "switch" => <>.to_string(),
-    "true" => <>.to_string(),
-    "var" => <>.to_string(),
-    "while" => <>.to_string(),
-    "as" => <>.to_string(),
-    "import" => <>.to_string(),
-};
 
 #[cfg(feature = "attributes")]
 EnableDirective: EnableDirective = {
