@@ -54,66 +54,71 @@ impl PkgBuilder {
 
     /// Reads all files in a directory to build the package.
     pub fn scan_directory(self, path: impl AsRef<Path>) -> std::io::Result<Module> {
-        let dir = path.as_ref().to_path_buf();
-        // we look for a file with the same name as the dir in the same directory
-        let mut lib_path = dir.clone();
-        lib_path.set_extension("wesl");
+        fn process_dir(lib_path: std::path::PathBuf) -> std::io::Result<Module> {
+            let module_name = lib_path
+                .file_stem()
+                .unwrap()
+                .to_string_lossy()
+                .replace('-', "_");
 
-        let source = if lib_path.is_file() {
-            std::fs::read_to_string(&lib_path)?
-        } else {
-            lib_path.set_extension("wgsl");
-            if lib_path.is_file() {
-                std::fs::read_to_string(&lib_path)?
-            } else {
-                String::from("")
+            // if path is wesl/wgsl use it as source
+            let source_wesl = lib_path.with_extension("wesl");
+            let source_wgsl = lib_path.with_extension("wgsl");
+            if source_wesl.is_file() {
+                return Ok(Module {
+                    name: module_name,
+                    source: std::fs::read_to_string(source_wesl)?,
+                    submodules: Vec::new(),
+                });
+            } else if source_wgsl.is_file() {
+                return Ok(Module {
+                    name: module_name,
+                    source: std::fs::read_to_string(source_wgsl)?,
+                    submodules: Vec::new(),
+                });
             }
-        };
 
-        let mut module = Module {
-            name: self.name.clone(),
-            source,
-            submodules: Vec::new(),
-        };
+            let mut module = Module {
+                name: module_name,
+                source: String::new(),
+                submodules: Vec::new(),
+            };
 
-        fn process_dir(module: &mut Module, dir: &Path) -> std::io::Result<()> {
-            for entry in std::fs::read_dir(dir)? {
-                let entry = entry?;
-                let path = entry.path();
-                if path.is_file()
-                    && path
-                        .extension()
-                        .is_some_and(|ext| ext == "wesl" || ext == "wgsl")
-                {
-                    let source = std::fs::read_to_string(&path)?;
-                    let name = path
-                        .file_stem()
-                        .unwrap()
-                        .to_string_lossy()
-                        .replace('-', "_");
-                    // we look for a dir with the same name as the file in the same directory
-                    let mut subdir = dir.to_path_buf();
-                    subdir.push(&name);
+            // if path is dir treat all files/dir as new submodules
+            if lib_path.is_dir() {
+                for file in std::fs::read_dir(&lib_path)? {
+                    let submodule_path = file?.path();
 
-                    let mut submod = Module {
-                        name,
-                        source,
-                        submodules: Vec::new(),
-                    };
-
-                    if subdir.is_dir() {
-                        process_dir(&mut submod, &subdir)?;
+                    if let Ok(submodule) = process_dir(submodule_path) {
+                        module.submodules.push(submodule);
                     }
-
-                    module.submodules.push(submod);
                 }
             }
 
-            Ok(())
+            Ok(module)
         }
 
-        if dir.is_dir() {
-            process_dir(&mut module, &dir)?;
+        let mut module = Module {
+            name: self.name.clone(),
+            source: String::new(),
+            submodules: Vec::new(),
+        };
+
+        let lib_path = path.as_ref().to_path_buf();
+
+        // If path is directory, treat all files/dir as submodules
+        // ignores files with same name as pkg name (see below)
+        if lib_path.is_dir() {
+            module.submodules = process_dir(lib_path.clone())?.submodules;
+        }
+
+        // If file with same name as pkg exist, use content as source
+        let source_wesl = lib_path.join(self.name.clone()).with_extension("wesl");
+        let source_wgsl = lib_path.join(self.name.clone()).with_extension("wgsl");
+        if source_wesl.is_file() {
+            module.source = std::fs::read_to_string(source_wesl)?
+        } else if source_wgsl.is_file() {
+            module.source = std::fs::read_to_string(source_wgsl)?
         }
 
         Ok(module)
