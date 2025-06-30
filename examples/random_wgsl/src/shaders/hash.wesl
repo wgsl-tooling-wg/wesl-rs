@@ -12,3 +12,7 @@ fn rand22(n: vec2f) -> f32 {
 fn permute4(x: vec4f) -> vec4f {
     return ((x * 34. + 1.) * x) % vec4f(289.);
 }
+fn fade2(t: vec2f) -> vec2f {
+    return t * t * t * (t * (t * 6. - 15.) + 10.);
+}
+

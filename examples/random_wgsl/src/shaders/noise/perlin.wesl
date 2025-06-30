@@ -1,4 +1,4 @@
-import super::super::fade2;
+import super::super::hash::fade2;
 import super::super::hash::permute4;
 
 // MIT License. © Stefan Gustavson, Munrocket
