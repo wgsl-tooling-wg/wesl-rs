@@ -6,12 +6,9 @@ import random::hash::rand11;
 
 @compute
 fn main(@builtin(global_invocation_id) index: vec3u) {
-    // fully qualified
-    let rotated_vec3f = super::util::rotate_3u(vec3f(1.0, 0.0, 0.0));
-    // partially qualified
-    let rotated_vec3f = util::rotate_3u(vec3f(1.0, 0.0, 0.0));
-    // unqualified
-    let rotated_vec3f = rotate_3u(vec3f(1.0, 0.0, 0.0));
+    let rotated_fully_qualified = super::util::rotate_3u(vec3f(1.0, 0.0, 0.0));
+    let rotated_partially_qualified = util::rotate_3u(vec3f(1.0, 0.0, 0.0));
+    let rotated_unqualified = rotate_3u(vec3f(1.0, 0.0, 0.0));
 
     // external module
     let hash = rand11(18.0);
