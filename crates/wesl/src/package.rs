@@ -61,33 +61,41 @@ impl PkgBuilder {
                 .to_string_lossy()
                 .replace('-', "_");
 
-            // if path is wesl/wgsl use it as source
-            let source_wesl = lib_path.with_extension("wesl");
-            let source_wgsl = lib_path.with_extension("wgsl");
-            if source_wesl.is_file() {
-                return Ok(Module {
-                    name: module_name,
-                    source: std::fs::read_to_string(source_wesl)?,
-                    submodules: Vec::new(),
-                });
-            } else if source_wgsl.is_file() {
-                return Ok(Module {
-                    name: module_name,
-                    source: std::fs::read_to_string(source_wgsl)?,
-                    submodules: Vec::new(),
-                });
-            }
-
             let mut module = Module {
                 name: module_name,
                 source: String::new(),
                 submodules: Vec::new(),
             };
 
-            // if path is dir treat all files/dir as new submodules
+            if lib_path.is_file() {
+                // if path is wesl/wgsl use it as source
+                let source_wesl = lib_path.with_extension("wesl");
+                let source_wgsl = lib_path.with_extension("wgsl");
+                if source_wesl.is_file() {
+                    module.source = std::fs::read_to_string(source_wesl)?;
+                } else if source_wgsl.is_file() {
+                    module.source = std::fs::read_to_string(source_wgsl)?;
+                }
+            }
+
             if lib_path.is_dir() {
+                // check if folder contains same named file
+                let source_wesl = lib_path.join(&module.name).with_extension("wesl");
+                let source_wgsl = lib_path.join(&module.name).with_extension("wgsl");
+
+                if source_wesl.is_file() {
+                    module.source = std::fs::read_to_string(&source_wesl)?
+                } else if source_wgsl.is_file() {
+                    module.source = std::fs::read_to_string(&source_wgsl)?
+                }
+
+                // add submodules
                 for file in std::fs::read_dir(&lib_path)? {
                     let submodule_path = file?.path();
+
+                    if submodule_path == source_wesl || submodule_path == source_wgsl {
+                        continue;
+                    }
 
                     if let Ok(submodule) = process_dir(submodule_path) {
                         module.submodules.push(submodule);
