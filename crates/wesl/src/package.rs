@@ -106,28 +106,32 @@ impl PkgBuilder {
             Ok(module)
         }
 
-        let mut module = Module {
-            name: self.name.clone(),
-            source: String::new(),
-            submodules: Vec::new(),
-        };
-
         let lib_path = path.as_ref().to_path_buf();
 
         // If path is directory, treat all files/dir as submodules
         // ignores files with same name as pkg name (see below)
-        if lib_path.is_dir() {
-            module.submodules = process_dir(lib_path.clone())?.submodules;
-        }
+        let submodules = if lib_path.is_dir() {
+            process_dir(lib_path.clone())?.submodules
+        } else {
+            Vec::new()
+        };
 
         // If file with same name as pkg exist, use content as source
         let source_wesl = lib_path.join(self.name.clone()).with_extension("wesl");
         let source_wgsl = lib_path.join(self.name.clone()).with_extension("wgsl");
-        if source_wesl.is_file() {
-            module.source = std::fs::read_to_string(source_wesl)?
+        let source = if source_wesl.is_file() {
+            std::fs::read_to_string(source_wesl)?
         } else if source_wgsl.is_file() {
-            module.source = std::fs::read_to_string(source_wgsl)?
-        }
+            std::fs::read_to_string(source_wgsl)?
+        } else {
+            String::new()
+        };
+
+        let module = Module {
+            name: self.name.clone(),
+            source,
+            submodules,
+        };
 
         Ok(module)
     }
