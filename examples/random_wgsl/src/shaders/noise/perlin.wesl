@@ -8,11 +8,11 @@ fn perlin_noise2(P: vec2f) -> f32 {
     var Pi: vec4f = floor(P.xyxy) + vec4f(0., 0., 1., 1.);
     let Pf = fract(P.xyxy) - vec4f(0., 0., 1., 1.);
     Pi = Pi % vec4f(289.); // To avoid truncation effects in permutation
-    let ix = Pi.xzxz;
-    let iy = Pi.yyww;
+    let i_x = Pi.xzxz;
+    let i_y = Pi.yyww;
     let fx = Pf.xzxz;
     let fy = Pf.yyww;
-    let i = permute4(permute4(ix) + iy);
+    let i = permute4(permute4(i_x) + i_y);
     var gx: vec4f = 2. * fract(i * 0.0243902439) - 1.; // 1/41 = 0.024...
     let gy = abs(gx) - 0.5;
     let tx = floor(gx + 0.5);

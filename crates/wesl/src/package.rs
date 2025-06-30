@@ -77,12 +77,12 @@ impl PkgBuilder {
             let mut submodules = Vec::new();
             if path_without_ext.is_dir() {
                 // use hashset to avoid duplicate entries
-                let mut unqiue_submodules = HashSet::new();
+                let mut unique_submodules = HashSet::new();
                 for entry in fs::read_dir(&path_without_ext)? {
                     let submodule_path = entry?.path().with_extension("");
-                    unqiue_submodules.insert(submodule_path);
+                    unique_submodules.insert(submodule_path);
                 }
-                for entry in unqiue_submodules {
+                for entry in unique_submodules {
                     submodules.push(process_directory(entry.clone())?);
                 }
             };
