@@ -1,10 +1,7 @@
-use std::{collections::HashSet, fs, path::Path};
-
+use crate::{Diagnostic, Error, ModulePath, SyntaxUtil, validate::validate_wesl};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use wgsl_parse::syntax::{PathOrigin, TranslationUnit};
-
-use crate::{Diagnostic, Error, ModulePath, SyntaxUtil, validate::validate_wesl};
 
 /// A builder that generates code for WESL packages.
 ///
@@ -40,10 +37,15 @@ pub struct PkgBuilder {
 }
 
 #[derive(Debug)]
-pub struct Module {
-    name: String,
-    source: String,
-    submodules: Vec<Module>,
+pub enum ScanDirectoryError {
+    PackageNotFound,
+    Io(std::io::Error),
+}
+
+impl From<std::io::Error> for ScanDirectoryError {
+    fn from(err: std::io::Error) -> Self {
+        ScanDirectoryError::Io(err)
+    }
 }
 
 impl PkgBuilder {
@@ -54,17 +56,18 @@ impl PkgBuilder {
     }
 
     /// Reads all files in a directory to build the package.
-    pub fn scan_directory(self, path: impl AsRef<Path>) -> std::io::Result<Module> {
-        fn process_directory(path: std::path::PathBuf) -> std::io::Result<Module> {
+    pub fn scan_directory(
+        self,
+        path: impl AsRef<std::path::Path>,
+    ) -> std::result::Result<Module, ScanDirectoryError> {
+        fn process_directory(
+            path: std::path::PathBuf,
+        ) -> std::result::Result<Option<Module>, std::io::Error> {
             let path_with_ext_wesl = path.with_extension("wesl");
             let path_with_ext_wgsl = path.with_extension("wgsl");
             let path_without_ext = path.clone().with_extension("");
-            let path_filename = path_without_ext
-                .file_stem()
-                .unwrap()
-                .to_string_lossy()
-                .replace('-', "_");
 
+            // check for source file
             let source = if path_with_ext_wesl.is_file() {
                 std::fs::read_to_string(&path_with_ext_wesl)?
             } else if path_with_ext_wgsl.is_file() {
@@ -73,33 +76,65 @@ impl PkgBuilder {
                 String::new()
             };
 
-            // If path is directory, treat all files/dir as submodules
+            // check for submodules
             let mut submodules = Vec::new();
             if path_without_ext.is_dir() {
                 // use hashset to avoid duplicate entries
-                let mut unique_submodules = HashSet::new();
-                for entry in fs::read_dir(&path_without_ext)? {
+                let mut unique_submodules = std::collections::HashSet::new();
+                for entry in std::fs::read_dir(&path_without_ext)? {
                     let submodule_path = entry?.path().with_extension("");
                     unique_submodules.insert(submodule_path);
                 }
                 for entry in unique_submodules {
-                    submodules.push(process_directory(entry.clone())?);
+                    // errors in the top module should be returned
+                    // other errors should only be logged
+                    match process_directory(entry.clone()) {
+                        Ok(Some(module)) => submodules.push(module),
+                        Ok(None) => {
+                            eprintln!("INFO: found non shader/dir at {:?}: ignoring", entry)
+                        }
+                        Err(err) => {
+                            eprintln!("WARN: error processing submodule {:?}: {}", entry, err)
+                        }
+                    }
                 }
             };
+
+            // check for empty module
+            if source.is_empty() && submodules.is_empty() {
+                return Ok(None);
+            }
+
+            let path_filename = path_without_ext
+                .file_stem()
+                .unwrap()
+                .to_string_lossy()
+                .replace('-', "_");
             let module = Module {
                 name: path_filename,
                 source,
                 submodules,
             };
 
-            Ok(module)
+            Ok(Some(module))
         }
 
-        let mut module = process_directory(path.as_ref().to_path_buf())?;
-        module.name = self.name; // overwrite root folder name with pkg name
+        let potential_module = process_directory(path.as_ref().to_path_buf())?;
+        let Some(mut module) = potential_module else {
+            return Err(ScanDirectoryError::PackageNotFound);
+        };
+        // top level module should be named by package builder and not file path
+        module.name = self.name;
 
         Ok(module)
     }
+}
+
+#[derive(Debug)]
+pub struct Module {
+    name: String,
+    source: String,
+    submodules: Vec<Module>,
 }
 
 impl Module {
@@ -202,7 +237,7 @@ impl Module {
     /// ran from a `build.rs` file.
     pub fn build_artifact(&self) -> std::io::Result<()> {
         let code = self.codegen()?;
-        let out_dir = Path::new(
+        let out_dir = std::path::Path::new(
             &std::env::var_os("OUT_DIR").expect("OUT_DIR environment variable is not defined"),
         )
         .join(format!("{}.rs", self.name));
