@@ -1,3 +1,8 @@
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
+
 use crate::{Diagnostic, Error, ModulePath, SyntaxUtil, validate::validate_wesl};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
@@ -13,7 +18,7 @@ use wgsl_parse::syntax::{PathOrigin, TranslationUnit};
 /// fn main() {
 ///    wesl::PkgBuilder::new("my_package")
 ///        // read all wesl files in the directory "src/shaders"
-///        .scan_directory("src/shaders")
+///        .scan_root("src/shaders")
 ///        .expect("failed to scan WESL files")
 ///        // validation is optional
 ///        .validate()
@@ -36,16 +41,12 @@ pub struct PkgBuilder {
     name: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum ScanDirectoryError {
-    PackageNotFound,
-    Io(std::io::Error),
-}
-
-impl From<std::io::Error> for ScanDirectoryError {
-    fn from(err: std::io::Error) -> Self {
-        ScanDirectoryError::Io(err)
-    }
+    #[error("Package root was not found: `{0}`")]
+    RootNotFound(PathBuf),
+    #[error("I/O error while scanning package root: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 impl PkgBuilder {
@@ -55,17 +56,16 @@ impl PkgBuilder {
         }
     }
 
-    /// Reads all files in a directory to build the package.
-    pub fn scan_directory(
-        self,
-        path: impl AsRef<std::path::Path>,
-    ) -> std::result::Result<Module, ScanDirectoryError> {
-        fn process_directory(
-            path: std::path::PathBuf,
-        ) -> std::result::Result<Option<Module>, std::io::Error> {
+    /// Reads all files to include in the package, starting from the root module.
+    ///
+    /// The input path must point at the root file or folder. The package will include
+    /// all .wesl and .wgsl files reachable from the root module, recursively.
+    /// The name or the root file is ignored, instead the name of the package is used.
+    pub fn scan_root(self, path: impl AsRef<Path>) -> Result<Module, ScanDirectoryError> {
+        fn process_path(path: &Path) -> Result<Option<Module>, std::io::Error> {
             let path_with_ext_wesl = path.with_extension("wesl");
             let path_with_ext_wgsl = path.with_extension("wgsl");
-            let path_without_ext = path.clone().with_extension("");
+            let path_without_ext = path.with_extension("");
 
             // check for source file
             let source = if path_with_ext_wesl.is_file() {
@@ -80,15 +80,16 @@ impl PkgBuilder {
             let mut submodules = Vec::new();
             if path_without_ext.is_dir() {
                 // use hashset to avoid duplicate entries
-                let mut unique_submodules = std::collections::HashSet::new();
+                let mut unique_submodules = HashSet::new();
                 for entry in std::fs::read_dir(&path_without_ext)? {
-                    let submodule_path = entry?.path().with_extension("");
+                    let Ok(entry) = entry else { continue };
+                    let submodule_path = entry.path().with_extension("");
                     unique_submodules.insert(submodule_path);
                 }
                 for entry in unique_submodules {
                     // errors in the top module should be returned
                     // other errors should only be logged
-                    match process_directory(entry.clone()) {
+                    match process_path(&entry) {
                         Ok(Some(module)) => submodules.push(module),
                         Ok(None) => {
                             eprintln!("INFO: found non shader/dir at {:?}: ignoring", entry)
@@ -119,9 +120,10 @@ impl PkgBuilder {
             Ok(Some(module))
         }
 
-        let potential_module = process_directory(path.as_ref().to_path_buf())?;
+        let root_path = path.as_ref().to_path_buf();
+        let potential_module = process_path(&root_path)?;
         let Some(mut module) = potential_module else {
-            return Err(ScanDirectoryError::PackageNotFound);
+            return Err(ScanDirectoryError::RootNotFound(root_path));
         };
         // top level module should be named by package builder and not file path
         module.name = self.name;
