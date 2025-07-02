@@ -1,6 +1,6 @@
 fn main() {
     wesl::PkgBuilder::new("random")
-        .scan_directory("src/shaders/random")
+        .scan_root("src/shaders")
         .expect("failed to scan WESL files")
         .validate()
         .inspect_err(|e| {
