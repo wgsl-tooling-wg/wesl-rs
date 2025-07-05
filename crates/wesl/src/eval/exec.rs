@@ -685,7 +685,6 @@ pub struct Inputs {
     pub instance_index: Option<u32>,
     pub position: Option<[f32; 4]>,
     pub front_facing: Option<bool>,
-    pub frag_depth: Option<f32>,
     pub sample_index: Option<u32>,
     pub sample_mask: Option<u32>,
     pub local_invocation_id: Option<[u32; 3]>,
@@ -693,6 +692,10 @@ pub struct Inputs {
     pub global_invocation_id: Option<[u32; 3]>,
     pub workgroup_id: Option<[u32; 3]>,
     pub num_workgroups: Option<[u32; 3]>,
+    /// Within the range [0, subgroup_size - 1]
+    pub subgroup_invocation_id: Option<u32>,
+    /// A power of two within the range [4, 128]
+    pub subgroup_size: Option<u32>,
     #[cfg(feature = "naga_ext")]
     pub primitive_index: Option<u32>,
     #[cfg(feature = "naga_ext")]
@@ -708,7 +711,6 @@ impl Inputs {
             instance_index: Some(0),
             position: Some([0.0, 0.0, 0.0, 0.0]),
             front_facing: Some(true),
-            frag_depth: Some(0.0),
             sample_index: Some(0),
             sample_mask: Some(0),
             local_invocation_id: Some([0, 0, 0]),
@@ -716,6 +718,8 @@ impl Inputs {
             global_invocation_id: Some([0, 0, 0]),
             workgroup_id: Some([0, 0, 0]),
             num_workgroups: Some([1, 1, 1]),
+            subgroup_invocation_id: Some(0),
+            subgroup_size: Some(4),
             #[cfg(feature = "naga_ext")]
             primitive_index: Some(0),
             #[cfg(feature = "naga_ext")]
@@ -756,7 +760,6 @@ pub fn exec_entrypoint(
                         inputs.position.map(|pos| VecInstance::from(pos).into())
                     }
                     BuiltinValue::FrontFacing => inputs.front_facing.map(Instance::from),
-                    BuiltinValue::FragDepth => inputs.frag_depth.map(Instance::from),
                     BuiltinValue::SampleIndex => inputs.sample_index.map(Instance::from),
                     BuiltinValue::SampleMask => inputs.sample_mask.map(Instance::from),
                     BuiltinValue::LocalInvocationId => inputs
@@ -774,10 +777,17 @@ pub fn exec_entrypoint(
                     BuiltinValue::NumWorkgroups => inputs
                         .num_workgroups
                         .map(|pos| VecInstance::from(pos).into()),
+                    BuiltinValue::SubgroupInvocationId => {
+                        inputs.subgroup_invocation_id.map(Instance::from)
+                    }
+                    BuiltinValue::SubgroupSize => inputs.subgroup_size.map(Instance::from),
                     #[cfg(feature = "naga_ext")]
                     BuiltinValue::PrimitiveIndex => inputs.primitive_index.map(Instance::from),
                     #[cfg(feature = "naga_ext")]
                     BuiltinValue::ViewIndex => inputs.view_index.map(Instance::from),
+                    BuiltinValue::ClipDistances | BuiltinValue::FragDepth => {
+                        return Err(E::OutputBuiltin(builtin));
+                    }
                 }
                 .ok_or_else(|| E::MissingBuiltinInput(builtin, p.ident.to_string()))
             } else if let Some(location) = p.attr_location(ctx)? {

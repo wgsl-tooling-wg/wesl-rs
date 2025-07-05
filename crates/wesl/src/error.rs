@@ -444,6 +444,8 @@ impl Diagnostic<Error> {
                 | EvalError::TemplateArgs(_)
                 | EvalError::InvalidEntrypointParam(_)
                 | EvalError::MissingBuiltinInput(_, _)
+                | EvalError::OutputBuiltin(_)
+                | EvalError::InputBuiltin(_)
                 | EvalError::MissingUserInput(_, _)
                 | EvalError::OverrideInConst
                 | EvalError::OverrideInFn

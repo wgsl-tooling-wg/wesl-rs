@@ -325,6 +325,7 @@ pub struct ConstAssert {
 pub enum BuiltinValue {
     VertexIndex,
     InstanceIndex,
+    ClipDistances, // requires WGSL extension clip_distances
     Position,
     FrontFacing,
     FragDepth,
@@ -335,6 +336,8 @@ pub enum BuiltinValue {
     GlobalInvocationId,
     WorkgroupId,
     NumWorkgroups,
+    SubgroupInvocationId, // requires WGSL extension subgroups
+    SubgroupSize,         // requires WGSL extension subgroups
     #[cfg(feature = "naga_ext")]
     PrimitiveIndex,
     #[cfg(feature = "naga_ext")]

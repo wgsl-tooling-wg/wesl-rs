@@ -101,6 +101,7 @@ impl FromStr for BuiltinValue {
         match s {
             "vertex_index" => Ok(Self::VertexIndex),
             "instance_index" => Ok(Self::InstanceIndex),
+            "clip_distances" => Ok(Self::ClipDistances),
             "position" => Ok(Self::Position),
             "front_facing" => Ok(Self::FrontFacing),
             "frag_depth" => Ok(Self::FragDepth),
@@ -111,6 +112,8 @@ impl FromStr for BuiltinValue {
             "global_invocation_id" => Ok(Self::GlobalInvocationId),
             "workgroup_id" => Ok(Self::WorkgroupId),
             "num_workgroups" => Ok(Self::NumWorkgroups),
+            "subgroup_invocation_id" => Ok(Self::SubgroupInvocationId),
+            "subgroup_size" => Ok(Self::SubgroupSize),
             #[cfg(feature = "naga_ext")]
             "primitive_index" => Ok(Self::PrimitiveIndex),
             #[cfg(feature = "naga_ext")]
