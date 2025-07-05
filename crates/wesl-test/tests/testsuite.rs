@@ -226,12 +226,23 @@ fn json_case(case: &Test) -> Result<(), libtest_mimic::Failed> {
 
 fn testsuite_syntax_case(case: &ParsingTest) -> Result<(), libtest_mimic::Failed> {
     let parse = wgsl_parse::parse_str(&case.src);
-    if case.fails && parse.is_ok() {
-        Err("expected Fail, got Pass".into())
-    } else if !case.fails && parse.is_err() {
-        Err(format!("expected Pass, got Fail (`{}`)", parse.unwrap_err()).into())
-    } else {
-        Ok(())
+    match parse {
+        Ok(s) if case.fails => Err(format!("expected Fail, got Pass (`{s}`)").into()),
+        Ok(s) => {
+            let str1 = s.to_string();
+            let str2 = wgsl_parse::parse_str(&str1)
+                .map_err(|e| {
+                    format!("failed to parse after stringification\nerror: `{e}`\nsource: `{str1}`")
+                })?
+                .to_string();
+            if str1 == str2 {
+                Ok(())
+            } else {
+                Err(format!("stringification is lossy\nbefore: `{str1}`\nafter: `{str2}`").into())
+            }
+        }
+        Err(e) if !case.fails => Err(format!("expected Pass, got Fail (`{e}`)").into()),
+        Err(_) => Ok(()),
     }
 }
 pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
