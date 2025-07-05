@@ -211,32 +211,6 @@ pub fn resolve_lazy<'a>(
         }
     }
 
-    // fn resolve_name(
-    //     module: &Module,
-    //     name: &str,
-    //     resolutions: &mut Resolutions,
-    //     resolver: &impl Resolver,
-    // ) -> Result<(), E> {
-    //     let decl = if let Some((ident, n)) = module.idents.iter().find(|(id, _)| *id.name() == name)
-    //     {
-    //         println!("{name} {}")
-    //         if module.treated_idents.borrow().contains(ident) {
-    //             return Ok(());
-    //         } else {
-    //             module.treated_idents.borrow_mut().insert(ident.clone());
-    //         }
-    //         let decl = module.source.global_declarations.get(*n).unwrap();
-    //         decl
-    //     } else if let Some((_, item)) = module.imports.iter().find(|(id, item)| *id.name() == name)
-    //     {
-    //         panic!("TODO")
-    //     } else {
-    //         return Err(E::MissingDecl(module.path.clone(), name.to_string()));
-    //     };
-
-    //     resolve_decl(module, decl, resolutions, resolver)
-    // }
-
     fn resolve_ty(
         module: &Module,
         ty: &TypeExpression,
