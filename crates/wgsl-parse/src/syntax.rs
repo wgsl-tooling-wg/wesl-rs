@@ -103,7 +103,7 @@ impl std::hash::Hash for Ident {
 pub struct ImportStatement {
     #[cfg(feature = "attributes")]
     pub attributes: Attributes,
-    pub path: ModulePath,
+    pub path: Option<ModulePath>,
     pub content: ImportContent,
 }
 

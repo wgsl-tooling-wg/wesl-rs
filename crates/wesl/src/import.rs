@@ -369,52 +369,6 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
     Ok(())
 }
 
-fn join_paths(parent_path: &ModulePath, path: &ModulePath) -> ModulePath {
-    match (&parent_path.origin, &path.origin) {
-        (PathOrigin::Absolute | PathOrigin::Relative(_), _)
-        | (PathOrigin::Package(_), PathOrigin::Relative(_)) => {
-            parent_path.join_path(path).unwrap_or_else(|| path.clone())
-        }
-        // Absolute imports from within a package correspond to package imports.
-        (PathOrigin::Package(pkg_name), PathOrigin::Absolute) => ModulePath::new(
-            PathOrigin::Package(pkg_name.clone()),
-            path.components.clone(),
-        ),
-        // Importing a sub-package. This is a hack: we rename the package to
-        // parent_package/child_package, which cannot be spelled in code.
-        (PathOrigin::Package(parent), PathOrigin::Package(child)) => ModulePath::new(
-            PathOrigin::Package(format!("{parent}/{child}")),
-            path.components.clone(),
-        ),
-    }
-}
-
-#[test]
-fn test_join_paths() {
-    use std::str::FromStr;
-    // TODO: move this test and join_paths impl to ModulePath::join_path
-    let cases = [
-        ("package::m1", "package::foo", "package::foo"),
-        ("package::m1", "self::foo", "package::m1::foo"),
-        ("package::m1", "super::foo", "package::foo"),
-        ("pkg::m1::m2", "package::foo", "pkg::foo"),
-        ("pkg::m1::m2", "self::foo", "pkg::m1::m2::foo"),
-        ("pkg::m1::m2", "super::foo", "pkg::m1::foo"),
-        ("pkg::m1", "super::super::foo", "pkg::foo"),
-        ("super", "super::foo", "super::super::foo"),
-        ("super", "self::foo", "super::foo"),
-        ("self", "super::foo", "super::foo"),
-    ];
-
-    for (parent, child, expect) in cases {
-        let parent = ModulePath::from_str(parent).unwrap();
-        let child = ModulePath::from_str(child).unwrap();
-        let expect = ModulePath::from_str(expect).unwrap();
-        println!("testing join_paths({parent}, {child}) -> {expect}");
-        assert_eq!(join_paths(&parent, &child), expect);
-    }
-}
-
 /// Flatten imports to a list of module paths.
 fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Result<Imports, E> {
     fn rec(
@@ -455,13 +409,29 @@ fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Res
     let mut res = Imports::new();
 
     for import in imports {
-        let path = join_paths(parent_path, &import.path);
-        let public = import.attributes.iter().any(|attr| attr.is_publish());
-        rec(&import.content, path, public, &mut res)?;
+        match &import.path {
+            Some(import_path) => {
+                let path = parent_path.join_path(import_path);
+                let public = import.attributes.iter().any(|attr| attr.is_publish());
+                rec(&import.content, path, public, &mut res)?;
+            }
+            None => {
+                // this cover two cases: `import foo;` and `import {foo, ..};`.
+                // there is no import path, but `foo` refers to an external package.
+                match &import.content {
+                    ImportContent::Item(item) => todo!(),
+                    ImportContent::Collection(coll) => todo!(),
+                }
+            }
+        }
     }
     Ok(res)
 }
 
+/// Finds the normalized module path for an inline import.
+///
+/// Inline imports differ from import statements only in case of package imports:
+/// the package component may refer to a local import shadowing the package name.
 fn resolve_inline_path(
     path: &ModulePath,
     parent_path: &ModulePath,
@@ -479,10 +449,10 @@ fn resolve_inline_path(
                 res.push(&ext_item.ident.name()); // c
                 res.join(path.components.iter().cloned())
             } else {
-                join_paths(parent_path, path)
+                parent_path.join_path(path)
             }
         }
-        _ => join_paths(parent_path, path),
+        _ => parent_path.join_path(path),
     }
 }
 

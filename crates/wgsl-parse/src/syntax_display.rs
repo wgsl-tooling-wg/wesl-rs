@@ -65,9 +65,11 @@ impl Display for ImportStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         #[cfg(feature = "attributes")]
         write!(f, "{}", fmt_attrs(&self.attributes, false))?;
-        let path = &self.path;
+        if let Some(path) = &self.path {
+            write!(f, "{path}::")?;
+        }
         let content = &self.content;
-        write!(f, "{path}::{content};")
+        write!(f, "{content};")
     }
 }
 
@@ -90,9 +92,12 @@ impl Display for ModulePath {
 #[cfg(feature = "imports")]
 impl Display for Import {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let path = self.path.iter().format("::");
+        if !self.path.is_empty() {
+            let path = self.path.iter().format("::");
+            write!(f, "{path}::")?;
+        }
         let content = &self.content;
-        write!(f, "{path}{content}")
+        write!(f, "{content}")
     }
 }
 

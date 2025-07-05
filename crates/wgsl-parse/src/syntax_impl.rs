@@ -117,11 +117,30 @@ impl ModulePath {
         self
     }
     /// Append `suffix` to the module path.
-    /// The suffix must be a relative module path.
-    pub fn join_path(&self, suffix: &Self) -> Option<Self> {
+    ///
+    /// This function produces a `ModulePath` relative to `self`, as if `suffix` was
+    /// imported from module `self`.
+    ///
+    /// * If `suffix` is relative, it appends its components to `self`.
+    /// * If `suffix` if absolute or package, it ignores `self` components.
+    /// * If both `self` and `suffix` are package paths, then `suffix` imports from a
+    ///   sub-package. The package is renamed with a slash separating package names.
+    ///   (TODO: this is a hack)
+    pub fn join_path(&self, suffix: &Self) -> Self {
         match suffix.origin {
+            PathOrigin::Absolute => {
+                match self.origin {
+                    PathOrigin::Absolute | PathOrigin::Relative(_) => suffix.clone(),
+                    PathOrigin::Package(_) => {
+                        // absolute import from inside a package is a package import
+                        let origin = self.origin.clone();
+                        let components = suffix.components.clone();
+                        Self { origin, components }
+                    }
+                }
+            }
             PathOrigin::Relative(n) => {
-                let to_keep = self.components.len().max(n) - n;
+                let to_keep = self.components.len().saturating_sub(n);
                 let components = self
                     .components
                     .iter()
@@ -129,19 +148,24 @@ impl ModulePath {
                     .chain(&suffix.components)
                     .cloned()
                     .collect_vec();
-                let origin = match &self.origin {
+                let origin = match self.origin {
                     PathOrigin::Absolute | PathOrigin::Package(_) => self.origin.clone(),
-                    PathOrigin::Relative(m) => {
-                        if n > self.components.len() {
-                            PathOrigin::Relative(m + n - self.components.len())
-                        } else {
-                            PathOrigin::Relative(*m)
-                        }
-                    }
+                    PathOrigin::Relative(m) => PathOrigin::Relative(m + n - to_keep),
                 };
-                Some(Self { origin, components })
+                Self { origin, components }
             }
-            _ => None,
+            PathOrigin::Package(ref suffix_pkg) => {
+                match &self.origin {
+                    PathOrigin::Absolute | PathOrigin::Relative(_) => suffix.clone(),
+                    PathOrigin::Package(self_pkg) => {
+                        // Importing a sub-package. This is a hack: we rename the package to
+                        // parent/child, which cannot be spelled in code.
+                        let origin = PathOrigin::Package(format!("{self_pkg}/{suffix_pkg}"));
+                        let components = suffix.components.clone();
+                        Self { origin, components }
+                    }
+                }
+            }
         }
     }
     pub fn starts_with(&self, prefix: &Self) -> bool {
@@ -155,6 +179,32 @@ impl ModulePath {
     }
     pub fn is_empty(&self) -> bool {
         self.origin.is_package() && self.components.is_empty()
+    }
+}
+
+#[test]
+fn test_module_path_join() {
+    use std::str::FromStr;
+    // TODO: move this test and join_paths impl to ModulePath::join_path
+    let cases = [
+        ("package::m1", "package::foo", "package::foo"),
+        ("package::m1", "self::foo", "package::m1::foo"),
+        ("package::m1", "super::foo", "package::foo"),
+        ("pkg::m1::m2", "package::foo", "pkg::foo"),
+        ("pkg::m1::m2", "self::foo", "pkg::m1::m2::foo"),
+        ("pkg::m1::m2", "super::foo", "pkg::m1::foo"),
+        ("pkg::m1", "super::super::foo", "pkg::foo"),
+        ("super", "super::foo", "super::super::foo"),
+        ("super", "self::foo", "super::foo"),
+        ("self", "super::foo", "super::foo"),
+    ];
+
+    for (parent, child, expect) in cases {
+        let parent = ModulePath::from_str(parent).unwrap();
+        let child = ModulePath::from_str(child).unwrap();
+        let expect = ModulePath::from_str(expect).unwrap();
+        println!("testing join_paths({parent}, {child}) -> {expect}");
+        assert_eq!(parent.join_path(&child), expect);
     }
 }
 
