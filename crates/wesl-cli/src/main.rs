@@ -449,7 +449,7 @@ fn parse_binding(
     b: &Binding,
     wgsl: &TranslationUnit,
 ) -> Result<((u32, u32), RefInstance), CliError> {
-    let mut ctx = wesl::eval::Context::new_with_builtins(wgsl);
+    let mut ctx = wesl::eval::Context::new(wgsl);
 
     let ty_expr = wgsl
         .global_declarations
@@ -510,7 +510,7 @@ fn parse_binding(
 }
 
 fn parse_override(src: &str, wgsl: &TranslationUnit) -> Result<Instance, CliError> {
-    let mut ctx = wesl::eval::Context::new_with_builtins(wgsl);
+    let mut ctx = wesl::eval::Context::new(wgsl);
     let expr = src
         .parse::<syntax::Expression>()
         .map_err(|e| Diagnostic::from(e).with_source(src.to_string()))?;

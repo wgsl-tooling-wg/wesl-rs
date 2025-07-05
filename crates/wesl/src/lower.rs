@@ -47,7 +47,7 @@ pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
         // we want to drop wesl2 at the end of the block for idents use_count
         {
             let wesl2 = wesl.clone();
-            let mut ctx = Context::new_with_builtins(&wesl2);
+            let mut ctx = Context::new(&wesl2);
             wesl.exec(&mut ctx)?; // populate the ctx with module-scope declarations
             wesl.lower(&mut ctx)
                 .map_err(|e| Diagnostic::from(e).with_ctx(&ctx))?;

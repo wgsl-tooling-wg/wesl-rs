@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::LazyLock};
 
 use itertools::chain;
-use wgsl_parse::syntax::*;
+use wgsl_parse::syntax::Ident;
 
 /// Builtin WGSL types.
 /// reference: https://www.w3.org/TR/WGSL/#predeclared-types
@@ -96,38 +96,7 @@ pub const BUILTIN_STRUCT_NAMES: &[&str] = &[
     "__atomic_compare_exchange_result",
 ];
 
-pub const BUILTIN_DECLARATION_NAMES: &[&str] = &[
-    #[cfg(feature = "naga_ext")]
-    "RAY_FLAG_NONE",
-    #[cfg(feature = "naga_ext")]
-    "RAY_FLAG_FORCE_OPAQUE",
-    #[cfg(feature = "naga_ext")]
-    "RAY_FLAG_FORCE_NO_OPAQUE",
-    #[cfg(feature = "naga_ext")]
-    "RAY_FLAG_TERMINATE_ON_FIRST_HIT",
-    #[cfg(feature = "naga_ext")]
-    "RAY_FLAG_SKIP_CLOSEST_HIT_SHADER",
-    #[cfg(feature = "naga_ext")]
-    "RAY_FLAG_CULL_BACK_FACING",
-    #[cfg(feature = "naga_ext")]
-    "RAY_FLAG_CULL_FRONT_FACING",
-    #[cfg(feature = "naga_ext")]
-    "RAY_FLAG_CULL_OPAQUE",
-    #[cfg(feature = "naga_ext")]
-    "RAY_FLAG_CULL_NO_OPAQUE",
-    #[cfg(feature = "naga_ext")]
-    "RAY_FLAG_SKIP_TRIANGLES",
-    #[cfg(feature = "naga_ext")]
-    "RAY_FLAG_SKIP_AABBS",
-    #[cfg(feature = "naga_ext")]
-    "RAY_QUERY_INTERSECTION_NONE",
-    #[cfg(feature = "naga_ext")]
-    "RAY_QUERY_INTERSECTION_TRIANGLE",
-    #[cfg(feature = "naga_ext")]
-    "RAY_QUERY_INTERSECTION_GENERATED",
-    #[cfg(feature = "naga_ext")]
-    "RAY_QUERY_INTERSECTION_AABB",
-];
+pub const BUILTIN_DECLARATION_NAMES: &[&str] = &[];
 
 pub const BUILTIN_ALIAS_NAMES: &[&str] = &[
     "vec2i", "vec3i", "vec4i", "vec2u", "vec3u", "vec4u", "vec2f", "vec3f", "vec4f", "vec2h",
@@ -467,21 +436,4 @@ pub static BUILTIN_IDENTS: LazyLock<HashMap<&str, Ident>> = LazyLock::new(|| {
 /// Using these idents allow better use-count tracking and referencing.
 pub fn builtin_ident(name: &str) -> Option<&'static Ident> {
     BUILTIN_IDENTS.get(name)
-}
-
-/// Get the name of the type corresponding to a literal suffix.
-pub fn literal_suffix_type(suffix: &str) -> Option<&'static str> {
-    match suffix {
-        "i" => Some("i32"),
-        "u" => Some("u32"),
-        "f" => Some("f32"),
-        "h" => Some("f16"),
-        #[cfg(feature = "naga_ext")]
-        "li" => Some("i64"),
-        #[cfg(feature = "naga_ext")]
-        "lu" => Some("u64"),
-        #[cfg(feature = "naga_ext")]
-        "lf" => Some("f64"),
-        _ => None,
-    }
 }

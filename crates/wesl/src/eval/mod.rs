@@ -182,19 +182,6 @@ pub struct Context<'s> {
 }
 
 impl<'s> Context<'s> {
-    pub fn new_with_builtins(source: &'s TranslationUnit) -> Self {
-        Self {
-            source,
-            scope: Default::default(),
-            resources: Default::default(),
-            overrides: Default::default(),
-            kind: ScopeKind::Function,
-            stage: EvalStage::Const,
-            err_span: None,
-            err_decl: None,
-        }
-    }
-
     pub fn new(source: &'s TranslationUnit) -> Self {
         Self {
             source,
