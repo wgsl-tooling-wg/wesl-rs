@@ -2,7 +2,7 @@ fn main() {
     wesl::PkgBuilder::new("b")
         .add_package(&c::c::PACKAGE)
         .add_package(&d::d::PACKAGE)
-        .scan_directory("src/main")
+        .scan_root("src/main")
         .expect("failed to scan WESL files")
         .validate()
         .map_err(|e| eprintln!("{e}"))

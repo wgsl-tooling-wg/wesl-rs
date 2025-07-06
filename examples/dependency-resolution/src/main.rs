@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 fn main() {
     let shader = wesl::Wesl::new("src")
         .set_options(wesl::CompileOptions {

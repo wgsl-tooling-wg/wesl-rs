@@ -678,7 +678,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
         }
         Command::Package(args) => {
             let code = PkgBuilder::new(&args.name)
-                .scan_directory(args.dir)
+                .scan_root(args.dir)
                 .expect("failed to scan WESL files")
                 .validate()
                 .map_err(|e| {
