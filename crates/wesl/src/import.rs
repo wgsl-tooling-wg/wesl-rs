@@ -4,6 +4,7 @@ use std::{
     rc::Rc,
 };
 
+use itertools::Itertools;
 use wgsl_parse::syntax::{
     GlobalDeclaration, Ident, ImportContent, ImportStatement, ModulePath, PathOrigin,
     TranslationUnit, TypeExpression,
@@ -409,18 +410,38 @@ fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Res
     let mut res = Imports::new();
 
     for import in imports {
+        let public = import.attributes.iter().any(|attr| attr.is_publish());
         match &import.path {
             Some(import_path) => {
                 let path = parent_path.join_path(import_path);
-                let public = import.attributes.iter().any(|attr| attr.is_publish());
                 rec(&import.content, path, public, &mut res)?;
             }
             None => {
-                // this cover two cases: `import foo;` and `import {foo, ..};`.
-                // there is no import path, but `foo` refers to an external package.
+                // this covers two cases: `import foo;` and `import {foo, ..};`.
+                // COMBAK: these edge-cases smell
                 match &import.content {
-                    ImportContent::Item(item) => todo!(),
-                    ImportContent::Collection(coll) => todo!(),
+                    ImportContent::Item(_) => {
+                        // `import foo`, this import statement does nothing currently.
+                        // In the future, it may become a visibility/re-export mechanism.
+                    }
+                    ImportContent::Collection(coll) => {
+                        for import in coll {
+                            let mut components = import.path.iter().cloned();
+                            match components.next() {
+                                Some(pkg_name) => {
+                                    // `import {foo::bar}`, foo becomes the package name.
+                                    let path = ModulePath::new(
+                                        PathOrigin::Package(pkg_name),
+                                        components.collect_vec(),
+                                    );
+                                    rec(&import.content, path, public, &mut res)?;
+                                }
+                                None => {
+                                    // `import {foo}`, this does nothing, same as above.
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
