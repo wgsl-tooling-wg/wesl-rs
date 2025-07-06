@@ -303,6 +303,7 @@ impl Display for BuiltinValue {
         match self {
             Self::VertexIndex => write!(f, "vertex_index"),
             Self::InstanceIndex => write!(f, "instance_index"),
+            Self::ClipDistances => write!(f, "clip_distances"),
             Self::Position => write!(f, "position"),
             Self::FrontFacing => write!(f, "front_facing"),
             Self::FragDepth => write!(f, "frag_depth"),
@@ -313,6 +314,8 @@ impl Display for BuiltinValue {
             Self::GlobalInvocationId => write!(f, "global_invocation_id"),
             Self::WorkgroupId => write!(f, "workgroup_id"),
             Self::NumWorkgroups => write!(f, "num_workgroups"),
+            Self::SubgroupInvocationId => write!(f, "subgroup_invocation_id"),
+            Self::SubgroupSize => write!(f, "subgroup_size"),
             #[cfg(feature = "naga_ext")]
             Self::PrimitiveIndex => write!(f, "primitive_index"),
             #[cfg(feature = "naga_ext")]

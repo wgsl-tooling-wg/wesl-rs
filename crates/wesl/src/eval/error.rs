@@ -123,6 +123,10 @@ pub enum EvalError {
     InvalidEntrypointParam(String),
     #[error("missing builtin input `{0}` bound to parameter `{0}`")]
     MissingBuiltinInput(BuiltinValue, String),
+    #[error("builtin value `{0}` is an output, but is used as a function parameter")]
+    OutputBuiltin(BuiltinValue),
+    #[error("builtin value `{0}` is an input, but is used as a function return type")]
+    InputBuiltin(BuiltinValue),
     #[error("missing user-defined input bound to parameter `{0}` at location `{1}`")]
     MissingUserInput(String, u32),
 
