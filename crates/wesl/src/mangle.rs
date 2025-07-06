@@ -78,22 +78,25 @@ impl Mangler for HashMangler {
     }
 }
 
-/// A mangler that replaces `::` with `_` and prefixes components with the number
-/// of `_` they contain.
+/// A mangler that replaces `::` with `_` and prefixes components with the number of `_`
+/// they contain.
 /// e.g. `foo::bar_baz item => foo__1bar_baz_item`
 ///
 /// This is WESL's default mangler.
+///
+/// If a component contains `_`, it is prefixed by `_`, followed by the number of `_`.
+/// This scheme guarantees that paths can be unambiguously mangled and unmangled.
 #[derive(Default, Clone, Debug)]
 pub struct EscapeMangler;
 
 impl EscapeMangler {
-    pub fn escape_component(comp: &str) -> String {
+    fn escape_component(comp: &str) -> String {
         if comp.contains('/') {
-            // This can exist only for dependencies of dependencies. see join_paths in import.rs.
-            let underscores = comp.chars().filter(|c| *c == '/').count();
+            // This can exist only for dependencies of dependencies. see ModulePath::join_path.
+            let count = comp.chars().filter(|c| *c == '/').count() + 1;
             format!(
-                "_{underscores}import_{}",
-                comp.split('/').map(Self::escape_component).format("")
+                "import_{count}_{}",
+                comp.split('/').map(Self::escape_component).format("_")
             )
         } else {
             let underscores = comp.chars().filter(|c| *c == '_').count();
@@ -103,6 +106,36 @@ impl EscapeMangler {
                 comp.to_string()
             }
         }
+    }
+
+    fn unescape_component<'a>(
+        part: &str,
+        parts: &mut impl Iterator<Item = &'a str>,
+    ) -> Option<String> {
+        fn extract_count(part: &str) -> Option<(usize, &str)> {
+            let digits = part.chars().take_while(|c| c.is_ascii_digit()).count();
+
+            if digits == 0 {
+                return None;
+            }
+
+            let count = part[..digits].parse().ok()?;
+            Some((count, &part[digits..]))
+        }
+
+        let component = if part.is_empty() {
+            let first = parts.next()?;
+            let (n, rem) = extract_count(first)?;
+
+            std::iter::once(Some(rem))
+                .chain((0..n).map(|_| parts.next()))
+                .collect::<Option<Vec<_>>>()?
+                .join("_")
+        } else {
+            part.to_string()
+        };
+
+        Some(component)
     }
 }
 
@@ -130,20 +163,11 @@ impl Mangler for EscapeMangler {
         }
     }
 
+    /// This function does not check that the module names are valid. Unmangling invalid
+    /// names (or names not mangled with the EscapeMangler) may produce erroneous results.
     fn unmangle(&self, mangled: &str) -> Option<(ModulePath, String)> {
         let mut components = Vec::new();
-        let mut parts = mangled.split('_').filter(|p| p != &"").peekable();
-
-        fn extract_count(part: &str) -> Option<(usize, &str)> {
-            let digits = part.chars().take_while(|c| c.is_ascii_digit()).count();
-
-            if digits == 0 {
-                return None;
-            }
-
-            let count = part[..digits].parse().ok()?;
-            Some((count, &part[digits..]))
-        }
+        let mut parts = mangled.split('_').peekable();
 
         let origin = match parts.next() {
             Some("package") => PathOrigin::Absolute,
@@ -156,20 +180,20 @@ impl Mangler for EscapeMangler {
                 }
                 PathOrigin::Relative(n)
             }
-            Some(name) => PathOrigin::Package(name.to_string()),
+            Some("import") => {
+                let count: u32 = parts.next()?.parse().ok()?;
+                let pkg_name = (0..count)
+                    .map(|_| Self::unescape_component(parts.next()?, &mut parts))
+                    .collect::<Option<Vec<_>>>()?
+                    .join("/");
+                PathOrigin::Package(pkg_name)
+            }
+            Some(name) => PathOrigin::Package(Self::unescape_component(name, &mut parts)?),
             None => return None,
         };
 
         while let Some(part) = parts.next() {
-            if let Some((n, rem)) = extract_count(part) {
-                let part = std::iter::once(rem)
-                    .chain((0..n).map(|_| parts.next().expect("invalid mangled string")))
-                    .format("_")
-                    .to_string();
-                components.push(part)
-            } else {
-                components.push(part.to_string())
-            }
+            components.push(Self::unescape_component(part, &mut parts)?);
         }
 
         let item = components.pop()?;
@@ -179,38 +203,25 @@ impl Mangler for EscapeMangler {
     }
 }
 
-#[cfg(test)]
 #[test]
 fn test_escape_mangler() {
-    let paths = [
-        vec!["bevy_pbr".to_string(), "lighting".to_string()],
-        vec![],
-        vec!["a".to_string(), "b_c_d".to_string()],
-    ];
-    let paths = paths.iter().flat_map(|p| {
-        [
-            ModulePath::new(PathOrigin::Absolute, p.clone()),
-            ModulePath::new(PathOrigin::Package("pkg".to_string()), p.clone()),
-            ModulePath::new(PathOrigin::Relative(0), p.clone()),
-            ModulePath::new(PathOrigin::Relative(2), p.clone()),
-        ]
-    });
-    let mangled = [
-        "package__1bevy_pbr_lighting_item",
-        "pkg__1bevy_pbr_lighting_item",
-        "self__1bevy_pbr_lighting_item",
-        "super_super__1bevy_pbr_lighting_item",
-        "package_item",
-        "pkg_item",
-        "self_item",
-        "super_super_item",
-        "package_a__2b_c_d_item",
-        "pkg_a__2b_c_d_item",
-        "self_a__2b_c_d_item",
-        "super_super_a__2b_c_d_item",
+    let tests = [
+        (
+            "package::bevy_pbr::lighting",
+            "package__1bevy_pbr_lighting_item",
+        ),
+        ("a_b::c_d::e", "_1a_b__1c_d_e_item"),
+        ("self::a", "self_a_item"),
+        ("super::super", "super_super_item"),
+        ("package::_a_b__c___", "package__7_a_b__c____item"),
+        // test package dependencies with slashes
+        ("bevy/pbr", "import_2_bevy_pbr_item"),
+        ("bevy/pbr::lighting", "import_2_bevy_pbr_lighting_item"),
+        ("bevy_pbr::lighting", "_1bevy_pbr_lighting_item"),
     ];
 
-    for (p, m) in paths.zip(mangled) {
+    for (p, m) in tests {
+        let p = p.parse().expect("failed to parse module path");
         println!("testing {p}::item -> {m}");
         assert_eq!(EscapeMangler.mangle(&p, "item"), m);
         assert_eq!(EscapeMangler.unmangle(m), Some((p, "item".to_string())));
@@ -376,12 +387,5 @@ mod tests {
         let mangler = EscapeMangler;
         let unmangled = mangler.unmangle("package__1textures_3d").map(|x| x.1);
         assert_eq!(Some("textures_3d"), unmangled.as_deref());
-    }
-
-    #[test]
-    #[should_panic]
-    fn unmangle_invalid() {
-        let mangler = EscapeMangler;
-        mangler.unmangle("textures_3d");
     }
 }
