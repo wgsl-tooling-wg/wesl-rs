@@ -944,34 +944,6 @@ impl<'s> Lexer<'s> {
 
 /// Returns `true` if the source starts with a valid template list.
 ///
-/// # Bugs
-///
-/// There might be a bug in the spec algorithm, which rejects the following:
-/// `assert_eq!(recognize_template_list("<X<Y<Z>>>"), false);`
-/// This implementation doesn't.
-///
-/// ## Examples
-///
-/// ```rust,ignore
-/// # use wgsl_parse::lexer::recognize_template_list;
-/// // examples from the spec:
-/// assert_eq!(recognize_template_list("<i32,select(2,3,a>b)>"), true);
-/// assert_eq!(recognize_template_list("<d]>"), false);
-/// assert_eq!(recognize_template_list("<B<<C>"), true);
-/// assert_eq!(recognize_template_list("<B<=C>"), true);
-/// assert_eq!(recognize_template_list("<(B>=C)>"), true);
-/// assert_eq!(recognize_template_list("<(B!=C)>"), true);
-/// assert_eq!(recognize_template_list("<(B==C)>"), true);
-///
-/// // more cases
-/// assert_eq!(recognize_template_list("<X<Y>>"), true);
-/// assert_eq!(recognize_template_list("<X<Y<Z>>>"), true);
-/// assert_eq!(recognize_template_list(""), false);
-/// assert_eq!(recognize_template_list(""), false);
-/// assert_eq!(recognize_template_list("<>"), false);
-/// assert_eq!(recognize_template_list("<b || c>d"), false);
-/// ```
-///
 /// ## Specification
 ///
 /// [3.9. Template Lists](https://www.w3.org/TR/WGSL/#template-lists-sec)
@@ -994,9 +966,23 @@ pub fn recognize_template_list(source: &str) -> bool {
 }
 
 #[test]
-fn tmp_test() {
-    println!("-- {}", recognize_template_list("<X<Y>> foo"));
-    println!("-- {}", recognize_template_list("<X<Y> > foo"));
+fn test_recognize_template() {
+    // cases from the WGSL spec
+    assert_eq!(recognize_template_list("<i32,select(2,3,a>b)>"), true);
+    assert_eq!(recognize_template_list("<d]>"), false);
+    assert_eq!(recognize_template_list("<B<<C>"), true);
+    assert_eq!(recognize_template_list("<B<=C>"), true);
+    assert_eq!(recognize_template_list("<(B>=C)>"), true);
+    assert_eq!(recognize_template_list("<(B!=C)>"), true);
+    assert_eq!(recognize_template_list("<(B==C)>"), true);
+    // more cases
+    assert_eq!(recognize_template_list("<X>"), true);
+    assert_eq!(recognize_template_list("<X<Y>>"), true);
+    assert_eq!(recognize_template_list("<X<Y<Z>>>"), true);
+    assert_eq!(recognize_template_list(""), false);
+    assert_eq!(recognize_template_list(""), false);
+    assert_eq!(recognize_template_list("<>"), false);
+    assert_eq!(recognize_template_list("<b || c>d"), false);
 }
 
 pub trait TokenIterator: IntoIterator<Item = Spanned<Token, usize, ParseError>> {}
