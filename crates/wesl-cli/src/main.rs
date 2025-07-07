@@ -159,10 +159,13 @@ struct CompOptsArgs {
     #[cfg(feature = "naga")]
     #[arg(long)]
     no_naga: bool,
-    /// Root module declaration names to keep. Keeps all root module declarations by
+    /// Root module declaration names to keep. Keeps all root module entrypoints by
     /// default. Can be repeated to keep multiple declarations
     #[arg(long)]
     keep: Option<Vec<String>>,
+    /// Keep all root module declarations instead of just the entrypoints
+    #[arg(long)]
+    keep_root: bool,
     /// Set a conditional compilation feature flag. Can be repeated
     #[arg(short='D', long, value_name="NAME | NAME=[enable, disable, keep, error]", value_parser = parse_key_val::<String, ClapFeature>)]
     feature: Vec<(String, ClapFeature)>,
@@ -196,6 +199,7 @@ impl From<&CompOptsArgs> for CompileOptions {
             } else {
                 opts.keep.clone()
             },
+            keep_root: opts.keep_root,
             features: Features {
                 default: opts.feature_default.into(),
                 flags,
