@@ -28,7 +28,7 @@ impl<T: Display> Display for Indent<T> {
         let fmt = inner_display
             .lines()
             .format_with("\n", |l, f| f(&format_args!("{indent}{l}")));
-        write!(f, "{}", fmt)?;
+        write!(f, "{fmt}")?;
         Ok(())
     }
 }
@@ -65,31 +65,39 @@ impl Display for ImportStatement {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         #[cfg(feature = "attributes")]
         write!(f, "{}", fmt_attrs(&self.attributes, false))?;
-        let path = &self.path;
+        if let Some(path) = &self.path {
+            write!(f, "{path}::")?;
+        }
         let content = &self.content;
-        write!(f, "{path}::{content};")
+        write!(f, "{content};")
     }
 }
 
 #[cfg(feature = "imports")]
 impl Display for ModulePath {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.origin {
-            PathOrigin::Absolute => write!(f, "package::")?,
-            PathOrigin::Relative(0) => write!(f, "self::")?,
-            PathOrigin::Relative(n) => write!(f, "{}::", (0..n).map(|_| "super").format("::"))?,
-            PathOrigin::Package => (),
+        match &self.origin {
+            PathOrigin::Absolute => write!(f, "package")?,
+            PathOrigin::Relative(0) => write!(f, "self")?,
+            PathOrigin::Relative(n) => write!(f, "{}", (0..*n).map(|_| "super").format("::"))?,
+            PathOrigin::Package(p) => write!(f, "{p}")?,
         };
-        write!(f, "{}", self.components.iter().format("::"))
+        if !self.components.is_empty() {
+            write!(f, "::{}", self.components.iter().format("::"))?;
+        }
+        Ok(())
     }
 }
 
 #[cfg(feature = "imports")]
 impl Display for Import {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let path = self.path.iter().format("::");
+        if !self.path.is_empty() {
+            let path = self.path.iter().format("::");
+            write!(f, "{path}::")?;
+        }
         let content = &self.content;
-        write!(f, "{path}{content}")
+        write!(f, "{content}")
     }
 }
 
@@ -115,9 +123,9 @@ impl Display for ImportContent {
 impl Display for GlobalDirective {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            GlobalDirective::Diagnostic(print) => write!(f, "{}", print),
-            GlobalDirective::Enable(print) => write!(f, "{}", print),
-            GlobalDirective::Requires(print) => write!(f, "{}", print),
+            GlobalDirective::Diagnostic(print) => write!(f, "{print}"),
+            GlobalDirective::Enable(print) => write!(f, "{print}"),
+            GlobalDirective::Requires(print) => write!(f, "{print}"),
         }
     }
 }
@@ -165,11 +173,11 @@ impl Display for GlobalDeclaration {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             GlobalDeclaration::Void => write!(f, ";"),
-            GlobalDeclaration::Declaration(print) => write!(f, "{}", print),
-            GlobalDeclaration::TypeAlias(print) => write!(f, "{}", print),
-            GlobalDeclaration::Struct(print) => write!(f, "{}", print),
-            GlobalDeclaration::Function(print) => write!(f, "{}", print),
-            GlobalDeclaration::ConstAssert(print) => write!(f, "{}", print),
+            GlobalDeclaration::Declaration(print) => write!(f, "{print}"),
+            GlobalDeclaration::TypeAlias(print) => write!(f, "{print}"),
+            GlobalDeclaration::Struct(print) => write!(f, "{print}"),
+            GlobalDeclaration::Function(print) => write!(f, "{print}"),
+            GlobalDeclaration::ConstAssert(print) => write!(f, "{print}"),
         }
     }
 }
@@ -182,11 +190,11 @@ impl Display for Declaration {
         let ty = self
             .ty
             .iter()
-            .format_with("", |ty, f| f(&format_args!(": {}", ty)));
+            .format_with("", |ty, f| f(&format_args!(": {ty}")));
         let init = self
             .initializer
             .iter()
-            .format_with("", |ty, f| f(&format_args!(" = {}", ty)));
+            .format_with("", |ty, f| f(&format_args!(" = {ty}")));
         write!(f, "{kind} {name}{ty}{init};")
     }
 }
@@ -388,6 +396,8 @@ impl Display for Attribute {
             Attribute::Vertex => write!(f, "@vertex"),
             Attribute::Fragment => write!(f, "@fragment"),
             Attribute::Compute => write!(f, "@compute"),
+            #[cfg(feature = "imports")]
+            Attribute::Publish => write!(f, "@publish"),
             #[cfg(feature = "condcomp")]
             Attribute::If(e1) => write!(f, "@if({e1})"),
             #[cfg(feature = "condcomp")]
@@ -401,7 +411,7 @@ impl Display for Attribute {
             #[cfg(feature = "naga_ext")]
             Attribute::EarlyDepthTest(Some(e1)) => write!(f, "@early_depth_test({e1})"),
             Attribute::Custom(custom) => {
-                let name = &custom.ident;
+                let name = &custom.name;
                 let args = custom.arguments.iter().format_with("", |args, f| {
                     f(&format_args!("({})", args.iter().format(", ")))
                 });
@@ -729,7 +739,7 @@ impl Display for CaseSelector {
         match self {
             CaseSelector::Default => write!(f, "default"),
             CaseSelector::Expression(expr) => {
-                write!(f, "{}", expr)
+                write!(f, "{expr}")
             }
         }
     }
@@ -789,7 +799,7 @@ impl Display for ForStatement {
         let mut init = self
             .initializer
             .as_ref()
-            .map(|stmt| format!("{}", stmt))
+            .map(|stmt| format!("{stmt}"))
             .unwrap_or_default();
         if init.ends_with(';') {
             init.pop();
@@ -801,7 +811,7 @@ impl Display for ForStatement {
         let mut updt = self
             .update
             .as_ref()
-            .map(|stmt| format!("{}", stmt))
+            .map(|stmt| format!("{stmt}"))
             .unwrap_or_default();
         if updt.ends_with(';') {
             updt.pop();

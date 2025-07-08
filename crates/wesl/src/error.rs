@@ -37,6 +37,8 @@ pub enum Error {
     EvalError(#[from] EvalError),
     #[error("{0}")]
     Error(#[from] Diagnostic<Error>),
+    #[error("{0}")]
+    Custom(String),
 }
 
 /// Error diagnostics. Display user-friendly error snippets with `Display`.
@@ -118,15 +120,10 @@ impl From<Error> for Diagnostic<Error> {
     fn from(error: Error) -> Self {
         match error {
             Error::ParseError(e) => e.into(),
-            Error::ValidateError(e) => e.into(),
             Error::ResolveError(e) => e.into(),
             Error::ImportError(e) => e.into(),
-            Error::CondCompError(e) => e.into(),
-            #[cfg(feature = "generics")]
-            Error::GenericsError(e) => e.into(),
-            #[cfg(feature = "eval")]
-            Error::EvalError(e) => e.into(),
             Error::Error(e) => e,
+            error => Self::new(error),
         }
     }
 }
@@ -163,19 +160,25 @@ impl<E: std::error::Error> Diagnostic<E> {
     }
     /// Provide the declaration in which the error originated.
     pub fn with_declaration(mut self, decl: String) -> Self {
-        self.detail.declaration = Some(decl);
+        if self.detail.declaration.is_none() {
+            self.detail.declaration = Some(decl);
+        }
         self
     }
     /// Provide the output code that was generated, even if an error was emitted.
     pub fn with_output(mut self, out: String) -> Self {
-        self.detail.output = Some(out);
+        if self.detail.output.is_none() {
+            self.detail.output = Some(out);
+        }
         self
     }
     /// Provide the module path in which the error was emitted. The `disp_name` is
     /// usually the file name of the module.
     pub fn with_module_path(mut self, path: ModulePath, disp_name: Option<String>) -> Self {
-        self.detail.module_path = Some(path);
-        self.detail.display_name = disp_name;
+        if self.detail.module_path.is_none() {
+            self.detail.module_path = Some(path);
+            self.detail.display_name = disp_name;
+        }
         self
     }
     /// Add metadata collected by the evaluation/execution context.
@@ -469,6 +472,7 @@ impl Diagnostic<Error> {
                 | EvalError::FlowInModule(_) => {}
             },
             Error::Error(_) => {}
+            Error::Custom(_) => {}
         };
 
         self

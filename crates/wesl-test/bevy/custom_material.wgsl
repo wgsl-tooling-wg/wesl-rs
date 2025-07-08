@@ -1,4 +1,4 @@
-import bevy_pbr::forward_io::VertexOutput;
+import bevy::pbr::forward_io::VertexOutput;
 // we can import items from shader modules in the assets folder with a quoted path
 import super::custom_material_import::COLOR_MULTIPLIER;
 

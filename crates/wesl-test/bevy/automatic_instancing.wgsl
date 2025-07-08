@@ -1,4 +1,4 @@
-import bevy_pbr::{
+import bevy::pbr::{
     mesh_functions,
     view_transformations::position_world_to_clip
 };

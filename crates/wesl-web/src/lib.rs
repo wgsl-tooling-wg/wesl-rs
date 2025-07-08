@@ -168,8 +168,14 @@ pub struct Error {
 
 fn run_compile(args: CompileOptions) -> Result<CompileResult, wesl::Error> {
     let mut resolver = VirtualResolver::new();
+    let root = args.root.parse().map_err(|e| {
+        wesl::Error::Custom(format!("`{}` is not a valid module path: {e}", args.root))
+    })?;
 
     for (path, source) in args.files {
+        let path = path.parse().map_err(|e| {
+            wesl::Error::Custom(format!("`{path}` is not a valid module path: {e}"))
+        })?;
         resolver.add_module(path, source.into());
     }
 
@@ -196,7 +202,7 @@ fn run_compile(args: CompileOptions) -> Result<CompileResult, wesl::Error> {
         })
         .use_sourcemap(args.sourcemap)
         .set_mangler(args.mangler.into())
-        .compile(args.root)?;
+        .compile(&root)?;
     Ok(comp)
 }
 

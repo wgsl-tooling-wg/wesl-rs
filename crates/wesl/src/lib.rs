@@ -36,8 +36,8 @@ pub use import::ImportError;
 pub use lower::lower;
 pub use mangle::{CacheMangler, EscapeMangler, HashMangler, Mangler, NoMangler, UnicodeMangler};
 pub use resolve::{
-    FileResolver, NoResolver, PkgModule, PkgResolver, Preprocessor, ResolveError, Resolver, Router,
-    StandardResolver, VirtualResolver, emit_rerun_if_changed,
+    FileResolver, NoResolver, Pkg, PkgModule, PkgResolver, Preprocessor, ResolveError, Resolver,
+    Router, StandardResolver, VirtualResolver, emit_rerun_if_changed,
 };
 pub use sourcemap::{BasicSourceMap, NoSourceMap, SourceMap, SourceMapper};
 pub use syntax_util::SyntaxUtil;
@@ -54,7 +54,7 @@ use std::{collections::HashSet, fmt::Display, path::Path};
 
 use import::{Module, Resolutions};
 use strip::strip_except;
-use wgsl_parse::syntax::{Ident, PathOrigin, TranslationUnit};
+use wgsl_parse::syntax::{Ident, TranslationUnit};
 
 /// Compilation options. Used in [`compile`] and [`Wesl::set_options`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -170,8 +170,7 @@ macro_rules! wesl_pkg {
     };
     ($pkg_name:ident, $source:expr) => {
         pub mod $pkg_name {
-            #![allow(clippy::all)]
-            use $crate::PkgModule;
+            use $crate::{Pkg, PkgModule};
 
             include!(concat!(env!("OUT_DIR"), $source));
         }
@@ -241,7 +240,7 @@ impl Wesl<StandardResolver> {
     /// Add a package dependency.
     ///
     /// Learn more about packages in [`PkgBuilder`].
-    pub fn add_package(&mut self, pkg: &'static dyn PkgModule) -> &mut Self {
+    pub fn add_package(&mut self, pkg: &'static Pkg) -> &mut Self {
         self.resolver.add_package(pkg);
         self
     }
@@ -249,10 +248,7 @@ impl Wesl<StandardResolver> {
     /// Add several package dependencies.
     ///
     /// Learn more about packages in [`PkgBuilder`].
-    pub fn add_packages(
-        &mut self,
-        pkgs: impl IntoIterator<Item = &'static dyn PkgModule>,
-    ) -> &mut Self {
+    pub fn add_packages(&mut self, pkgs: impl IntoIterator<Item = &'static Pkg>) -> &mut Self {
         for pkg in pkgs {
             self.resolver.add_package(pkg);
         }
@@ -353,10 +349,10 @@ impl<R: Resolver> Wesl<R> {
     /// # use wesl::{FileResolver, Router, VirtualResolver, Wesl};
     /// // `import runtime::constants::PI` is in a custom module mounted at runtime.
     /// let mut resolver = VirtualResolver::new();
-    /// resolver.add_module("constants", "const PI = 3.1415; const TAU = PI * 2.0;".into());
+    /// resolver.add_module("constants".parse().unwrap(), "const PI = 3.1415; const TAU = PI * 2.0;".into());
     /// let mut router = Router::new();
     /// router.mount_fallback_resolver(FileResolver::new("src/shaders"));
-    /// router.mount_resolver("runtime", resolver);
+    /// router.mount_resolver("runtime".parse().unwrap(), resolver);
     /// let compiler = Wesl::new("").set_custom_resolver(router);
     /// ```
     ///
@@ -437,9 +433,9 @@ impl<R: Resolver> Wesl<R> {
     /// # WESL Reference
     /// Conditional translation is a *mandatory* WESL extension.
     /// Spec: [`ConditionalTranslation.md`](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
-    pub fn set_features<'a>(
+    pub fn set_features(
         &mut self,
-        feats: impl IntoIterator<Item = (&'a str, impl Into<Feature>)>,
+        feats: impl IntoIterator<Item = (impl ToString, impl Into<Feature>)>,
     ) -> &mut Self {
         self.options
             .features
@@ -692,19 +688,14 @@ impl<R: Resolver> Wesl<R> {
     ///
     /// # WESL Reference
     /// Spec: not available yet.
-    pub fn compile(&self, root: impl Into<ModulePath>) -> Result<CompileResult, Error> {
-        let mut root: ModulePath = root.into();
-        root.origin = PathOrigin::Absolute; // we force absolute paths
+    pub fn compile(&self, root: &ModulePath) -> Result<CompileResult, Error> {
+        // TODO
+        // root.origin = PathOrigin::Absolute; // we force absolute paths
 
         if self.use_sourcemap {
-            compile_sourcemap(&root, &self.resolver, &self.mangler, &self.options)
+            compile_sourcemap(root, &self.resolver, &self.mangler, &self.options)
         } else {
-            Ok(compile(
-                &root,
-                &self.resolver,
-                &self.mangler,
-                &self.options,
-            )?)
+            Ok(compile(root, &self.resolver, &self.mangler, &self.options)?)
         }
     }
 
@@ -724,8 +715,7 @@ impl<R: Resolver> Wesl<R> {
     /// # Panics
     /// Panics when compilation fails or if the output file cannot be written.
     /// Pretty-prints the WESL error message to stderr.
-    pub fn build_artifact(&self, entrypoint: impl Into<ModulePath>, out_name: &str) {
-        let entrypoint = entrypoint.into();
+    pub fn build_artifact(&self, entrypoint: &ModulePath, out_name: &str) {
         let dirname = std::env::var("OUT_DIR").unwrap();
         let out_name = Path::new(out_name);
         if out_name.iter().count() != 1 || out_name.extension().is_some() {
@@ -735,7 +725,7 @@ impl<R: Resolver> Wesl<R> {
         let mut output = Path::new(&dirname).join(out_name);
         output.set_extension("wgsl");
         let compiled = self
-            .compile(entrypoint.clone())
+            .compile(entrypoint)
             .inspect_err(|e| {
                 eprintln!("failed to build WESL shader `{entrypoint}`.\n{e}");
                 panic!();

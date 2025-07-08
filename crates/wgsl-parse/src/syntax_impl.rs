@@ -1,4 +1,7 @@
+use std::str::FromStr;
+
 use itertools::Itertools;
+use thiserror::Error;
 
 use crate::span::Spanned;
 
@@ -31,6 +34,9 @@ impl ModulePath {
     pub fn new(origin: PathOrigin, components: Vec<String>) -> Self {
         Self { origin, components }
     }
+    pub fn new_root() -> Self {
+        Self::new(PathOrigin::Absolute, vec![])
+    }
     /// Create a new module path from a filesystem path.
     ///
     /// * Paths with a root (leading `/` on Unix) produce `package::` paths.
@@ -38,35 +44,40 @@ impl ModulePath {
     /// * The file extension is ignored.
     /// * The path is canonicalized and to do so it does NOT follow symlinks.
     ///
-    /// Precondition: the path components must be valid WGSL identifiers.
+    /// Preconditions:
+    /// * The path must not start with a prefix, like C:\ on windows.
+    /// * The path must contain at least one named component.
+    /// * Named components must be valid module names.
+    ///   (Module names are WGSL identifiers + certain reserved names, see wesl-spec#127)
     pub fn from_path(path: impl AsRef<std::path::Path>) -> Self {
         use std::path::Component;
-        let mut origin = PathOrigin::Package;
-        let mut components = Vec::new();
+        let path = path.as_ref().with_extension("");
+        let mut parts = path.components().peekable();
 
-        for comp in path.as_ref().with_extension("").components() {
-            match comp {
-                Component::Prefix(_) => {}
-                Component::RootDir => origin = PathOrigin::Absolute,
-                Component::CurDir => {
-                    if components.is_empty() && origin.is_package() {
-                        origin = PathOrigin::Relative(0);
-                    }
+        let origin = match parts.next() {
+            Some(Component::Prefix(_)) => panic!("path starts with a Windows prefix"),
+            Some(Component::RootDir) => PathOrigin::Absolute,
+            Some(Component::CurDir) => PathOrigin::Relative(0),
+            Some(Component::ParentDir) => {
+                let mut n = 1;
+                while let Some(&Component::ParentDir) = parts.peek() {
+                    n += 1;
+                    parts.next().unwrap();
                 }
-                Component::ParentDir => {
-                    if components.is_empty() {
-                        if let PathOrigin::Relative(n) = &mut origin {
-                            *n += 1;
-                        } else {
-                            origin = PathOrigin::Relative(1)
-                        }
-                    } else {
-                        components.pop();
-                    }
-                }
-                Component::Normal(comp) => components.push(comp.to_string_lossy().to_string()),
+                PathOrigin::Relative(n)
             }
-        }
+            Some(Component::Normal(name)) => {
+                PathOrigin::Package(name.to_string_lossy().to_string())
+            }
+            None => panic!("path is empty"),
+        };
+
+        let components = parts
+            .map(|part| match part {
+                Component::Normal(name) => name.to_string_lossy().to_string(),
+                _ => panic!("unexpected path component"),
+            })
+            .collect_vec();
 
         Self { origin, components }
     }
@@ -77,11 +88,11 @@ impl ModulePath {
     /// * There is no file extension.
     pub fn to_path_buf(&self) -> std::path::PathBuf {
         use std::path::PathBuf;
-        let mut fs_path = match self.origin {
+        let mut fs_path = match &self.origin {
             PathOrigin::Absolute => PathBuf::from("/"),
             PathOrigin::Relative(0) => PathBuf::from("."),
-            PathOrigin::Relative(n) => PathBuf::from_iter((0..n).map(|_| "..")),
-            PathOrigin::Package => PathBuf::new(),
+            PathOrigin::Relative(n) => PathBuf::from_iter((0..*n).map(|_| "..")),
+            PathOrigin::Package(name) => PathBuf::from(name),
         };
         fs_path.extend(&self.components);
         fs_path
@@ -106,37 +117,55 @@ impl ModulePath {
         self
     }
     /// Append `suffix` to the module path.
-    /// the suffix must be a relative module path.
-    pub fn join_path(&self, path: &Self) -> Option<Self> {
-        match path.origin {
+    ///
+    /// This function produces a `ModulePath` relative to `self`, as if `suffix` was
+    /// imported from module `self`.
+    ///
+    /// * If `suffix` is relative, it appends its components to `self`.
+    /// * If `suffix` if absolute or package, it ignores `self` components.
+    /// * If both `self` and `suffix` are package paths, then `suffix` imports from a
+    ///   sub-package. The package is renamed with a slash separating package names.
+    ///   (TODO: this is a hack)
+    pub fn join_path(&self, suffix: &Self) -> Self {
+        match suffix.origin {
+            PathOrigin::Absolute => {
+                match self.origin {
+                    PathOrigin::Absolute | PathOrigin::Relative(_) => suffix.clone(),
+                    PathOrigin::Package(_) => {
+                        // absolute import from inside a package is a package import
+                        let origin = self.origin.clone();
+                        let components = suffix.components.clone();
+                        Self { origin, components }
+                    }
+                }
+            }
             PathOrigin::Relative(n) => {
-                let to_keep = self.components.len().max(n) - n;
+                let to_keep = self.components.len().saturating_sub(n);
                 let components = self
                     .components
                     .iter()
                     .take(to_keep)
-                    .chain(&path.components)
+                    .chain(&suffix.components)
                     .cloned()
                     .collect_vec();
                 let origin = match self.origin {
-                    PathOrigin::Absolute | PathOrigin::Package => {
-                        if n > self.components.len() {
-                            PathOrigin::Relative(n - self.components.len())
-                        } else {
-                            self.origin
-                        }
-                    }
-                    PathOrigin::Relative(m) => {
-                        if n > self.components.len() {
-                            PathOrigin::Relative(m + n - self.components.len())
-                        } else {
-                            self.origin
-                        }
-                    }
+                    PathOrigin::Absolute | PathOrigin::Package(_) => self.origin.clone(),
+                    PathOrigin::Relative(m) => PathOrigin::Relative(m + n - to_keep),
                 };
-                Some(Self { origin, components })
+                Self { origin, components }
             }
-            _ => None,
+            PathOrigin::Package(ref suffix_pkg) => {
+                match &self.origin {
+                    PathOrigin::Absolute | PathOrigin::Relative(_) => suffix.clone(),
+                    PathOrigin::Package(self_pkg) => {
+                        // Importing a sub-package. This is a hack: we rename the package to
+                        // parent/child, which cannot be spelled in code.
+                        let origin = PathOrigin::Package(format!("{self_pkg}/{suffix_pkg}"));
+                        let components = suffix.components.clone();
+                        Self { origin, components }
+                    }
+                }
+            }
         }
     }
     pub fn starts_with(&self, prefix: &Self) -> bool {
@@ -153,21 +182,110 @@ impl ModulePath {
     }
 }
 
-#[cfg(feature = "imports")]
-impl Default for ModulePath {
-    /// The path that is represented as ``, i.e. a package import with no components.
-    fn default() -> Self {
-        Self {
-            origin: PathOrigin::Package,
-            components: Vec::new(),
-        }
+#[test]
+fn test_module_path_join() {
+    use std::str::FromStr;
+    // TODO: move this test and join_paths impl to ModulePath::join_path
+    let cases = [
+        ("package::m1", "package::foo", "package::foo"),
+        ("package::m1", "self::foo", "package::m1::foo"),
+        ("package::m1", "super::foo", "package::foo"),
+        ("pkg::m1::m2", "package::foo", "pkg::foo"),
+        ("pkg::m1::m2", "self::foo", "pkg::m1::m2::foo"),
+        ("pkg::m1::m2", "super::foo", "pkg::m1::foo"),
+        ("pkg::m1", "super::super::foo", "pkg::foo"),
+        ("super", "super::foo", "super::super::foo"),
+        ("super", "self::foo", "super::foo"),
+        ("self", "super::foo", "super::foo"),
+    ];
+
+    for (parent, child, expect) in cases {
+        let parent = ModulePath::from_str(parent).unwrap();
+        let child = ModulePath::from_str(child).unwrap();
+        let expect = ModulePath::from_str(expect).unwrap();
+        println!("testing join_paths({parent}, {child}) -> {expect}");
+        assert_eq!(parent.join_path(&child), expect);
     }
 }
 
-#[cfg(feature = "imports")]
-impl<T: AsRef<std::path::Path>> From<T> for ModulePath {
-    fn from(value: T) -> Self {
-        ModulePath::from_path(value.as_ref())
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
+pub enum ModulePathParseError {
+    #[error("module name cannot be empty")]
+    Empty,
+    #[error("`package` must be a prefix of the module path")]
+    MisplacedPackage,
+    #[error("`self` must be a prefix of the module path")]
+    MisplacedSelf,
+    #[error("`super` must be a prefix of the module path")]
+    MisplacedSuper,
+}
+
+impl FromStr for ModulePath {
+    type Err = ModulePathParseError;
+
+    /// Parse a WGSL string into a module path.
+    ///
+    /// Preconditions:
+    /// * The path components must be valid WESL module names.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut parts = s.split("::").peekable();
+
+        let origin = match parts.next() {
+            Some("package") => PathOrigin::Absolute,
+            Some("self") => PathOrigin::Relative(0),
+            Some("super") => {
+                let mut n = 1;
+                while let Some(&"super") = parts.peek() {
+                    n += 1;
+                    parts.next().unwrap();
+                }
+                PathOrigin::Relative(n)
+            }
+            Some("") | None => return Err(ModulePathParseError::Empty),
+            Some(name) => PathOrigin::Package(name.to_string()),
+        };
+
+        let components = parts
+            .map(|part| match part {
+                "package" => Err(ModulePathParseError::MisplacedPackage),
+                "self" => Err(ModulePathParseError::MisplacedSelf),
+                "super" => Err(ModulePathParseError::MisplacedSuper),
+                _ => Ok(part.to_string()),
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Self { origin, components })
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn test_module_path_fromstr() {
+    let ok_cases = [
+        ("self", ModulePath::new(PathOrigin::Relative(0), vec![])),
+        ("super", ModulePath::new(PathOrigin::Relative(1), vec![])),
+        ("package", ModulePath::new(PathOrigin::Absolute, vec![])),
+        (
+            "a",
+            ModulePath::new(PathOrigin::Package("a".to_string()), vec![]),
+        ),
+        (
+            "super::super::a",
+            ModulePath::new(PathOrigin::Relative(2), vec!["a".to_string()]),
+        ),
+    ];
+    let err_cases = [
+        ("", ModulePathParseError::Empty),
+        ("a::super", ModulePathParseError::MisplacedSuper),
+        ("super::self", ModulePathParseError::MisplacedSelf),
+        ("self::package", ModulePathParseError::MisplacedPackage),
+    ];
+
+    for (s, m) in ok_cases {
+        assert_eq!(ModulePath::from_str(s), Ok(m))
+    }
+    for (s, e) in err_cases {
+        assert_eq!(ModulePath::from_str(s), Err(e))
     }
 }
 

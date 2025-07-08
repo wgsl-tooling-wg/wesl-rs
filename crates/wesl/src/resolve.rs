@@ -184,8 +184,7 @@ impl<'a> VirtualResolver<'a> {
     }
 
     /// Resolve imports of `path` with the given WESL string.
-    pub fn add_module(&mut self, path: impl Into<ModulePath>, file: Cow<'a, str>) {
-        let mut path: ModulePath = path.into();
+    pub fn add_module(&mut self, mut path: ModulePath, file: Cow<'a, str>) {
         path.origin = PathOrigin::Absolute; // we force absolute paths
         self.files.insert(path, file);
     }
@@ -282,12 +281,7 @@ impl Router {
 
     /// Mount a resolver at a given path prefix. All imports that start with this prefix
     /// will be dispatched to that resolver with the suffix of the path.
-    pub fn mount_resolver(
-        &mut self,
-        path: impl Into<ModulePath>,
-        resolver: impl Resolver + 'static,
-    ) {
-        let path: ModulePath = path.into();
+    pub fn mount_resolver(&mut self, path: ModulePath, resolver: impl Resolver + 'static) {
         let resolver: Box<dyn Resolver> = Box::new(resolver);
         if path.is_empty() {
             // when the path is empty, the resolver would match any path anyways.
@@ -300,7 +294,7 @@ impl Router {
 
     /// Mount a fallback resolver that is used when no other prefix match.
     pub fn mount_fallback_resolver(&mut self, resolver: impl Resolver + 'static) {
-        self.mount_resolver("", resolver);
+        self.mount_resolver(ModulePath::new(PathOrigin::Absolute, vec![]), resolver);
     }
 
     fn route(&self, path: &ModulePath) -> Result<(&dyn Resolver, ModulePath), ResolveError> {
@@ -348,27 +342,29 @@ impl Resolver for Router {
     }
 }
 
-/// The trait implemented by external packages.
+/// The type implemented by external packages.
 ///
-/// You typically don't implement this, instead it is implemented for you by the
+/// You typically don't implement this, instead it is implemented for you by
 /// [`crate::PkgBuilder`].
-pub trait PkgModule: Send + Sync {
-    fn name(&self) -> &'static str;
-    fn source(&self) -> &'static str;
-    fn submodules(&self) -> &[&dyn PkgModule];
-    fn submodule(&self, name: &str) -> Option<&dyn PkgModule> {
-        self.submodules()
-            .iter()
-            .find(|sm| sm.name() == name)
-            .copied()
-    }
+#[derive(Debug, PartialEq, Eq)]
+pub struct PkgModule {
+    pub name: &'static str,
+    pub source: &'static str,
+    pub submodules: &'static [&'static PkgModule],
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Pkg {
+    pub crate_name: &'static str,
+    pub root: &'static PkgModule,
+    pub dependencies: &'static [&'static Pkg],
 }
 
 /// A resolver that only resolves module paths that refer to modules in external packages.
 ///
 /// Register external packages with [`Self::add_package`].
 pub struct PkgResolver {
-    packages: Vec<&'static dyn PkgModule>,
+    packages: Vec<&'static Pkg>,
 }
 
 impl PkgResolver {
@@ -380,7 +376,7 @@ impl PkgResolver {
     }
 
     /// Add a package to the resolver.
-    pub fn add_package(&mut self, pkg: &'static dyn PkgModule) {
+    pub fn add_package(&mut self, pkg: &'static Pkg) {
         self.packages.push(pkg);
     }
 }
@@ -392,37 +388,62 @@ impl Default for PkgResolver {
 }
 
 impl Resolver for PkgResolver {
-    fn resolve_source<'a>(
-        &'a self,
-        path: &ModulePath,
-    ) -> Result<std::borrow::Cow<'a, str>, ResolveError> {
-        for pkg in &self.packages {
-            // TODO: the resolution algorithm is currently not spec-compliant.
-            // https://github.com/wgsl-tooling-wg/wesl-spec/blob/imports-update/Imports.md
-            if path.origin.is_package()
-                && path.components.first().map(String::as_str) == Some(pkg.name())
-            {
-                let mut cur_mod = *pkg;
-                for comp in path.components.iter().skip(1) {
-                    if let Some(submod) = cur_mod.submodule(comp) {
-                        cur_mod = submod;
-                    } else {
-                        return Err(E::ModuleNotFound(
-                            path.clone(),
-                            format!(
-                                "in module `{}`, no submodule named `{comp}`",
-                                cur_mod.name()
-                            ),
-                        ));
-                    }
-                }
-                return Ok(cur_mod.source().into());
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<std::borrow::Cow<'a, str>, E> {
+        // This is a hack: when the package name contains `/`, it corresponds to a sub-dependency
+        // of a package dependency. The name is created by the import resolution algorithm.
+        // (see import.rs:join_paths)
+        let pkg_path = match &path.origin {
+            PathOrigin::Package(pkg) => pkg,
+            _ => {
+                return Err(E::ModuleNotFound(
+                    path.clone(),
+                    "resolver can only resolve package imports".to_string(),
+                ));
+            }
+        };
+
+        let pkg_parts = pkg_path.split('/').collect_vec();
+
+        let root_pkg = pkg_parts
+            .first()
+            .and_then(|name| self.packages.iter().find(|p| p.root.name == *name))
+            .ok_or_else(|| {
+                E::ModuleNotFound(
+                    path.clone(),
+                    format!("dependency `{}` not found", pkg_parts.iter().format("/"),),
+                )
+            })?;
+
+        let pkg = pkg_parts.iter().skip(1).try_fold(root_pkg, |dep, name| {
+            dep.dependencies
+                .iter()
+                .find(|p| p.root.name == *name)
+                .ok_or_else(|| {
+                    E::ModuleNotFound(
+                        path.clone(),
+                        format!(
+                            "dependency `{}` not found in package path `{}`",
+                            name,
+                            pkg_parts.iter().format("/"),
+                        ),
+                    )
+                })
+        })?;
+
+        // TODO: the resolution algorithm is currently not spec-compliant.
+        // https://github.com/wgsl-tooling-wg/wesl-spec/blob/imports-update/Imports.md
+        let mut cur_mod = pkg.root;
+        for comp in &path.components {
+            if let Some(submod) = cur_mod.submodules.iter().find(|m| m.name == comp) {
+                cur_mod = submod;
+            } else {
+                return Err(E::ModuleNotFound(
+                    path.clone(),
+                    format!("in module `{}`, no submodule named `{comp}`", cur_mod.name),
+                ));
             }
         }
-        Err(E::ModuleNotFound(
-            path.clone(),
-            "no package found".to_string(),
-        ))
+        Ok(cur_mod.source.into())
     }
 }
 
@@ -433,7 +454,6 @@ impl Resolver for PkgResolver {
 pub struct StandardResolver {
     pkg: PkgResolver,
     files: FileResolver,
-    constant_path: ModulePath,
     constants: HashMap<String, f64>,
 }
 
@@ -445,13 +465,12 @@ impl StandardResolver {
         Self {
             pkg: PkgResolver::new(),
             files: FileResolver::new(base),
-            constant_path: ModulePath::new(PathOrigin::Package, vec!["constants".to_string()]),
             constants: HashMap::new(),
         }
     }
 
     /// Add an external package.
-    pub fn add_package(&mut self, pkg: &'static dyn PkgModule) {
+    pub fn add_package(&mut self, pkg: &'static Pkg) {
         self.pkg.add_package(pkg)
     }
 
@@ -476,12 +495,17 @@ impl StandardResolver {
 
 impl Resolver for StandardResolver {
     fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
-        if path.origin.is_package() {
-            if path.starts_with(&self.constant_path) {
-                Ok(self.generate_constant_module().into())
-            } else {
-                self.pkg.resolve_source(path)
+        // a special case to handle the constants virtual module. For now, this module
+        // is shared for all sub-dependencies.
+        // TODO: in the future we'll change that.
+        if let PathOrigin::Package(pkg_name) = &path.origin {
+            if pkg_name == "constants" || pkg_name.ends_with("/constants") {
+                return Ok(self.generate_constant_module().into());
             }
+        }
+
+        if path.origin.is_package() {
+            self.pkg.resolve_source(path)
         } else {
             self.files.resolve_source(path)
         }

@@ -34,3 +34,9 @@ tokrepr-derive = { path = "crates/tokrepr-derive", version = "0.0.1" }
 [workspace.lints.clippy]
 # TODO: change eventually
 mutable_key_type = "allow"
+
+[patch.crates-io]
+wesl = { path = "crates/wesl" }
+
+# [patch.'https://github.com/wgsl-tooling-wg/bevy-wgsl']
+# bevy-wgsl = { path = "../bevy-wgsl" }

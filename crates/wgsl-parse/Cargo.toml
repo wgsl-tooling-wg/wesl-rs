@@ -58,8 +58,10 @@ condcomp = ["attributes"]
 imports = []
 
 # allow naga/wgpu extensions.
-# listed here: https://github.com/gfx-rs/wgpu/issues/4410
-# more here: https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
+# They are not well-documented, the best I could find is this:
+# * https://github.com/gfx-rs/wgpu/issues/4410
+# * https://github.com/gfx-rs/wgpu/blob/trunk/docs/api-specs/ray_tracing.md
+# * https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
 naga_ext = ["push_constant"]
 push_constant = []
 

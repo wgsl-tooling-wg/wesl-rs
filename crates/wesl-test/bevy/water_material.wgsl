@@ -3,12 +3,12 @@
 //
 // This is used in the `ssr` example. It only supports deferred rendering.
 
-import bevy_pbr::{
+import bevy::pbr::{
     pbr_deferred_functions::deferred_output,
     pbr_fragment::pbr_input_from_standard_material,
     prepass_io::{VertexOutput, FragmentOutput},
 };
-import bevy_render::globals::Globals;
+import bevy::render::globals::Globals;
 
 // Parameters to the water shader.
 struct WaterSettings {

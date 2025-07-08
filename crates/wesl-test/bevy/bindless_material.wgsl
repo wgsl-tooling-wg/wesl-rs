@@ -1,5 +1,5 @@
-import bevy_pbr::forward_io::VertexOutput;
-import bevy_pbr::mesh_bindings::mesh;
+import bevy::pbr::forward_io::VertexOutput;
+import bevy::pbr::mesh_bindings::mesh;
 
 struct Color {
     base_color: vec4<f32>,

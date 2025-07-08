@@ -75,7 +75,6 @@ macro_rules! impl_with_totokens {
 
 impl_with_totokens!(bool);
 impl_with_totokens!(char);
-impl_with_totokens!(str);
 impl_with_totokens!(f32);
 impl_with_totokens!(f64);
 impl_with_totokens!(i8);
@@ -91,15 +90,23 @@ impl_with_totokens!(u64);
 impl_with_totokens!(u128);
 impl_with_totokens!(usize);
 
+impl TokRepr for &str {
+    fn tok_repr(&self) -> TokenStream {
+        self.to_token_stream()
+    }
+}
+
 impl<T: TokRepr> TokRepr for &T {
     fn tok_repr(&self) -> TokenStream {
-        (**self).tok_repr()
+        let val = (**self).tok_repr();
+        quote! { &#val }
     }
 }
 
 impl<T: TokRepr> TokRepr for &mut T {
     fn tok_repr(&self) -> TokenStream {
-        (**self).tok_repr()
+        let val = (**self).tok_repr();
+        quote! { &mut #val }
     }
 }
 

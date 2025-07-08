@@ -11,9 +11,9 @@ use std::{
 };
 use wesl::{
     CompileOptions, CompileResult, Diagnostic, Feature, Features, FileResolver, Inputs,
-    ManglerKind, PkgBuilder, Router, SyntaxUtil, VirtualResolver, Wesl,
+    ManglerKind, ModulePath, PkgBuilder, Router, SyntaxUtil, VirtualResolver, Wesl,
     eval::{Eval, EvalAttrs, HostShareable, Instance, RefInstance, Ty, ty_eval_ty},
-    syntax::{self, AccessMode, AddressSpace, TranslationUnit},
+    syntax::{self, AccessMode, AddressSpace, PathOrigin, TranslationUnit},
 };
 
 // adapted from clap cookbook: https://docs.rs/clap/latest/clap/_derive/_cookbook/typed_derive/index.html
@@ -418,10 +418,15 @@ fn run_compile(
                 .as_deref()
                 .or(path.parent())
                 .ok_or(CliError::FileNotFound)?;
-            let name = path.file_name().ok_or(CliError::FileNotFound)?;
+            let name = path
+                .file_name()
+                .ok_or(CliError::FileNotFound)?
+                .to_string_lossy()
+                .to_string();
+            let path = ModulePath::new(PathOrigin::Absolute, vec![name]);
             let resolver = FileResolver::new(base);
 
-            let res = compiler.set_custom_resolver(resolver).compile(name)?;
+            let res = compiler.set_custom_resolver(resolver).compile(&path)?;
             Ok(res)
         }
         FileOrSource::Source(source) => {
@@ -429,11 +434,12 @@ fn run_compile(
             let name = "command-line";
             let mut router = Router::new();
             let mut resolver = VirtualResolver::new();
-            resolver.add_module("", source.into());
-            router.mount_resolver(name, resolver);
+            let path = ModulePath::new(PathOrigin::Absolute, vec![name.to_string()]);
+            resolver.add_module(ModulePath::new_root(), source.into());
+            router.mount_resolver(path.clone(), resolver);
             router.mount_fallback_resolver(FileResolver::new(base));
 
-            let res = compiler.set_custom_resolver(router).compile(name)?;
+            let res = compiler.set_custom_resolver(router).compile(&path)?;
             Ok(res)
         }
     }
@@ -596,7 +602,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
             if !args.options.no_naga {
                 naga_validate(&comp.to_string())?;
             }
-            println!("{}", comp);
+            println!("{comp}");
         }
         Command::Eval(args) => {
             let comp = file_or_source(args.file)
@@ -643,7 +649,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
                         .ok_or_else(|| CliError::NotStorable(inst.ty()))?;
                     std::io::stdout().write_all(buf.as_slice()).unwrap();
                 } else {
-                    println!("return: {}", inst)
+                    println!("return: {inst}")
                 }
             } else if !args.binary {
                 println!("return: void")

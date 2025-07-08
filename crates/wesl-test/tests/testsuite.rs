@@ -4,9 +4,9 @@
 //! These tests are run with `harness = false` in `Cargo.toml`, because they rely on the
 //! `libtest_mimic` custom harness to generate tests at runtime based on the JSON files.
 
-use std::ffi::OsStr;
+use std::{ffi::OsStr, path::PathBuf, str::FromStr};
 
-use wesl::{CompileOptions, EscapeMangler, NoMangler, Resolver, VirtualResolver, syntax::*};
+use wesl::{CompileOptions, EscapeMangler, NoMangler, VirtualResolver, syntax::*};
 use wesl_test::schemas::*;
 
 fn eprint_test(case: &Test) {
@@ -145,10 +145,7 @@ fn main() {
             .filter(|e| e.path().extension() == Some(OsStr::new("wgsl")))
             .map(|e| {
                 let name = format!("bevy::{:?}", e.file_name());
-                libtest_mimic::Trial::test(name, move || {
-                    let case = std::fs::read_to_string(e.path()).expect("failed to read test file");
-                    bevy_parse_case(&case)
-                })
+                libtest_mimic::Trial::test(name, move || bevy_case(e.path()))
             })
     });
 
@@ -164,9 +161,9 @@ fn main() {
         ]
         .iter()
         .map(|file| {
-            let name = format!("unity_web_research::{}", file);
+            let name = format!("unity_web_research::{file}");
             libtest_mimic::Trial::test(name, move || {
-                let path = format!("unity_web_research/boat_attack/{}", file);
+                let path = format!("unity_web_research/boat_attack/{file}");
                 let case = std::fs::read_to_string(&path).expect("failed to read test file");
                 validation_case(&case)
             })
@@ -229,22 +226,34 @@ fn json_case(case: &Test) -> Result<(), libtest_mimic::Failed> {
 
 fn testsuite_syntax_case(case: &ParsingTest) -> Result<(), libtest_mimic::Failed> {
     let parse = wgsl_parse::parse_str(&case.src);
-    if case.fails && parse.is_ok() {
-        Err("expected Fail, got Pass".into())
-    } else if !case.fails && parse.is_err() {
-        Err(format!("expected Pass, got Fail (`{}`)", parse.unwrap_err()).into())
-    } else {
-        Ok(())
+    match parse {
+        Ok(s) if case.fails => Err(format!("expected Fail, got Pass (`{s}`)").into()),
+        Ok(s) => {
+            let str1 = s.to_string();
+            let str2 = wgsl_parse::parse_str(&str1)
+                .map_err(|e| {
+                    format!("failed to parse after stringification\nerror: `{e}`\nsource: `{str1}`")
+                })?
+                .to_string();
+            if str1 == str2 {
+                Ok(())
+            } else {
+                Err(format!("stringification is lossy\nbefore: `{str1}`\nafter: `{str2}`").into())
+            }
+        }
+        Err(e) if !case.fails => Err(format!("expected Pass, got Fail (`{e}`)").into()),
+        Err(_) => Ok(()),
     }
 }
 pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
     let mut resolver = VirtualResolver::new();
 
     for (path, file) in &case.wesl_src {
+        let path = ModulePath::from_path(path);
         resolver.add_module(path, file.into());
     }
 
-    let root_module = ModulePath::from_path("/main");
+    let root_module = ModulePath::from_str("package::main")?;
     let compile_options = CompileOptions {
         strip: false,
         ..Default::default()
@@ -264,7 +273,7 @@ pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
 
 pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
     let mut resolver = VirtualResolver::new();
-    let root = ModulePath::from_path("/main");
+    let root = ModulePath::from_str("package::main")?;
     resolver.add_module(root.clone(), input.into());
     let options = CompileOptions {
         imports: true,
@@ -279,38 +288,45 @@ pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
     Ok(())
 }
 
-pub fn bevy_parse_case(input: &str) -> Result<(), libtest_mimic::Failed> {
-    // TODO this is temporary, eventually we want to resolve bevy internal shaders.
-    struct UniversalResolver<'a> {
-        root: ModulePath,
-        input: &'a str,
+pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
+    let base = path.parent().ok_or("file not found")?;
+    let name = path
+        .file_name()
+        .ok_or("file not found")?
+        .to_string_lossy()
+        .to_string();
+    let mut compiler = wesl::Wesl::new(base);
+    compiler
+        .add_package(&bevy_wgsl::bevy::PACKAGE)
+        .add_constants([
+            ("MAX_CASCADES_PER_LIGHT", 10.0),
+            ("MAX_DIRECTIONAL_LIGHTS", 10.0),
+            ("PER_OBJECT_BUFFER_BATCH_SIZE", 10.0),
+            ("TONEMAPPING_LUT_TEXTURE_BINDING_INDEX", 10.0),
+            ("TONEMAPPING_LUT_SAMPLER_BINDING_INDEX", 10.0),
+        ])
+        .set_options(CompileOptions {
+            imports: true,
+            condcomp: true,
+            generics: false,
+            strip: false,
+            lower: false,
+            validate: false,
+            lazy: false,
+            ..Default::default()
+        })
+        .set_feature("MULTISAMPLED", true) // show_prepass needs it
+        .set_feature("DEPTH_PREPASS", true) // show_prepass needs it
+        .set_feature("NORMAL_PREPASS", true) // show_prepass needs it
+        .set_feature("IRRADIANCE_VOLUMES_ARE_USABLE", true) // irradiance_volume_voxel_visualization needs it
+        .set_feature("IRRADIANCE_VOLUMES_ARE_USABLE", true) // irradiance_volume_voxel_visualization needs it
+        .set_feature("MOTION_VECTOR_PREPASS", true) // show_prepass needs it
+        .set_feature("CLUSTERED_DECALS_ARE_USABLE", true); // custom_clustered_decal needs it
+    if name == "water_material.wgsl" {
+        compiler.set_feature("PREPASS_FRAGMENT", true); // water_material needs it
+        compiler.set_feature("PREPASS_PIPELINE", true); // water_material needs it
     }
-    impl Resolver for UniversalResolver<'_> {
-        fn resolve_source<'a>(
-            &'a self,
-            path: &ModulePath,
-        ) -> Result<std::borrow::Cow<'a, str>, wesl::ResolveError> {
-            if path == &self.root {
-                Ok(self.input.into())
-            } else {
-                Ok("".into())
-            }
-        }
-    }
-    let resolver = UniversalResolver {
-        root: ModulePath::from_path("/main"),
-        input,
-    };
-    let options = CompileOptions {
-        imports: false,
-        condcomp: true,
-        generics: false,
-        strip: false,
-        lower: false,
-        validate: false,
-        ..Default::default()
-    };
-    wesl::compile(&resolver.root, &resolver, &NoMangler, &options)?;
+    compiler.compile(&ModulePath::new(PathOrigin::Absolute, vec![name]))?;
     Ok(())
 }
 

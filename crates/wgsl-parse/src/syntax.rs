@@ -103,18 +103,21 @@ impl std::hash::Hash for Ident {
 pub struct ImportStatement {
     #[cfg(feature = "attributes")]
     pub attributes: Attributes,
-    pub path: ModulePath,
+    pub path: Option<ModulePath>,
     pub content: ImportContent,
 }
 
 #[cfg(feature = "imports")]
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, IsVariant)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, IsVariant)]
 pub enum PathOrigin {
+    /// Import relative to the current package root, starting with 'package::'.
     Absolute,
+    /// Import relative to the current module, starting with 'super::'. The  usize is the number of 'super'.
     Relative(usize),
-    Package,
+    /// Import from a package dependency, starting with the extern package name.
+    Package(String),
 }
 
 #[cfg(feature = "imports")]
@@ -393,7 +396,7 @@ pub struct WorkgroupSizeAttribute {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct CustomAttribute {
-    pub ident: Ident,
+    pub name: String,
     pub arguments: Option<Vec<ExpressionNode>>,
 }
 
@@ -422,6 +425,8 @@ pub enum Attribute {
     Vertex,
     Fragment,
     Compute,
+    #[cfg(feature = "imports")]
+    Publish,
     #[cfg(feature = "condcomp")]
     If(ExpressionNode),
     #[cfg(feature = "condcomp")]

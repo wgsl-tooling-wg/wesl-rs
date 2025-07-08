@@ -1,4 +1,4 @@
-import bevy_pbr::{
+import bevy::pbr::{
     mesh_view_bindings::view,
     forward_io::VertexOutput,
     utils::coords_to_viewport_uv,

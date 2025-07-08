@@ -4,7 +4,6 @@ use std::{
 };
 
 use crate::{Diagnostic, Error, ModulePath, SyntaxUtil, validate::validate_wesl};
-use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use wgsl_parse::syntax::{PathOrigin, TranslationUnit};
 
@@ -39,6 +38,13 @@ use wgsl_parse::syntax::{PathOrigin, TranslationUnit};
 /// Dashes are replaced with underscores `_`.
 pub struct PkgBuilder {
     name: String,
+    dependencies: Vec<&'static crate::Pkg>,
+}
+
+pub struct Pkg {
+    crate_name: String,
+    root: Module,
+    dependencies: Vec<&'static crate::Pkg>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -53,7 +59,26 @@ impl PkgBuilder {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.replace('-', "_"),
+            dependencies: Vec::new(),
         }
+    }
+
+    /// Add a package dependency.
+    ///
+    /// Learn more about packages in [`PkgBuilder`].
+    pub fn add_package(mut self, pkg: &'static crate::Pkg) -> Self {
+        self.dependencies.push(pkg);
+        self
+    }
+
+    /// Add several package dependencies.
+    ///
+    /// Learn more about packages in [`PkgBuilder`].
+    pub fn add_packages(mut self, pkgs: impl IntoIterator<Item = &'static crate::Pkg>) -> Self {
+        for pkg in pkgs {
+            self = self.add_package(pkg);
+        }
+        self
     }
 
     /// Reads all files to include in the package, starting from the root module.
@@ -61,7 +86,7 @@ impl PkgBuilder {
     /// The input path must point at the root file or folder. The package will include
     /// all .wesl and .wgsl files reachable from the root module, recursively.
     /// The name or the root file is ignored, instead the name of the package is used.
-    pub fn scan_root(self, path: impl AsRef<Path>) -> Result<Module, ScanDirectoryError> {
+    pub fn scan_root(self, path: impl AsRef<Path>) -> Result<Pkg, ScanDirectoryError> {
         fn process_path(path: &Path) -> Result<Option<Module>, std::io::Error> {
             let path_with_ext_wesl = path.with_extension("wesl");
             let path_with_ext_wgsl = path.with_extension("wgsl");
@@ -128,7 +153,15 @@ impl PkgBuilder {
         // top level module should be named by package builder and not file path
         module.name = self.name;
 
-        Ok(module)
+        let crate_name = std::env::var("CARGO_PKG_NAME")
+            .expect("CARGO_PKG_NAME environment variable is not defined")
+            .to_string();
+
+        Ok(Pkg {
+            crate_name,
+            root: module,
+            dependencies: self.dependencies,
+        })
     }
 }
 
@@ -140,92 +173,82 @@ pub struct Module {
 }
 
 impl Module {
-    /// generate the rust code that holds the packaged wesl files.
-    /// you probably want to use [`Self::build`] instead.
-    pub fn codegen(&self) -> std::io::Result<String> {
-        fn codegen_module(module: &Module) -> TokenStream {
-            let name = &module.name;
-            let source = &module.source;
+    fn codegen(&self) -> proc_macro2::TokenStream {
+        let mod_ident = format_ident!("{}", self.name);
+        let name = &self.name;
+        let source = &self.source;
 
-            let submodules = module.submodules.iter().map(|submod| {
-                let name = &submod.name;
-                let ident = format_ident!("{}", name);
-                quote! {
-                    &#ident::Mod,
-                }
-            });
+        let submodules = self.submodules.iter().map(|submod| {
+            let name = &submod.name;
+            let ident = format_ident!("{}", name);
+            quote! { &#ident::MODULE }
+        });
 
-            let match_arms = module.submodules.iter().map(|submod| {
-                let name = &submod.name;
-                let ident = format_ident!("{}", name);
-                quote! {
-                    #name => Some(&#ident::Mod),
-                }
-            });
+        let submods = self.submodules.iter().map(|submod| submod.codegen());
 
-            let subquotes = module.submodules.iter().map(|submod| {
-                let ident = format_ident!("{}", submod.name);
-                let module = codegen_module(submod);
-                quote! {
-                    pub mod #ident {
-                        use super::PkgModule;
-                        #module
-                    }
-                }
-            });
+        quote! {
+            #[allow(clippy::all)]
+            pub mod #mod_ident {
+                use super::PkgModule;
+                pub const MODULE: PkgModule = PkgModule {
+                    name: #name,
+                    source: #source,
+                    submodules: &[#(#submodules),*]
+                };
 
-            quote! {
-                pub struct Mod;
-
-                impl PkgModule for Mod {
-                    fn name(&self) -> &'static str {
-                        #name
-                    }
-                    fn source(&self) -> &'static str {
-                        #source
-                    }
-                    fn submodules(&self) -> &[&dyn PkgModule] {
-                        static SUBMODULES: &[&dyn PkgModule] = &[
-                            #(#submodules)*
-                        ];
-                        SUBMODULES
-                    }
-                    fn submodule(&self, name: &str) -> Option<&'static dyn PkgModule> {
-                        #[allow(clippy::match_single_binding)]
-                        match name {
-                            #(#match_arms)*
-                            _ => None,
-                        }
-                    }
-                }
-
-                #(#subquotes)*
+                #(#submods)*
             }
         }
+    }
 
-        let tokens = codegen_module(self);
+    fn validate(&self, path: ModulePath) -> Result<(), Error> {
+        let mut wesl: TranslationUnit = self.source.parse().map_err(|e| {
+            Diagnostic::from(e)
+                .with_module_path(path.clone(), None)
+                .with_source(self.source.clone())
+        })?;
+        wesl.retarget_idents();
+        validate_wesl(&wesl)?;
+        for module in &self.submodules {
+            let mut path = path.clone();
+            path.push(&self.name);
+            module.validate(path)?;
+        }
+        Ok(())
+    }
+}
+
+impl Pkg {
+    /// generate the rust code that holds the packaged wesl files.
+    /// you probably want to use [`Self::build_artifact`] instead.
+    pub fn codegen(&self) -> std::io::Result<String> {
+        let deps = self.dependencies.iter().map(|dep| {
+            let crate_name = format_ident!("{}", dep.crate_name);
+            let mod_name = format_ident!("{}", dep.root.name);
+            quote! { &#crate_name::#mod_name::PACKAGE }
+        });
+
+        let crate_name = &self.crate_name;
+        let root = format_ident!("{}", self.root.name);
+        let root_mod = self.root.codegen();
+
+        let tokens = quote! {
+            pub const PACKAGE: Pkg = Pkg {
+                crate_name: #crate_name,
+                root: &#root::MODULE,
+                dependencies: &[#(#deps),*],
+            };
+
+            #root_mod
+        };
+
         Ok(tokens.to_string())
     }
 
     /// run validation checks on each of the scanned files.
     pub fn validate(self) -> Result<Self, Error> {
-        fn validate_module(module: &Module, path: ModulePath) -> Result<(), Error> {
-            let mut wesl: TranslationUnit = module.source.parse().map_err(|e| {
-                Diagnostic::from(e)
-                    .with_module_path(path.clone(), None)
-                    .with_source(module.source.clone())
-            })?;
-            wesl.retarget_idents();
-            validate_wesl(&wesl)?;
-            for module in &module.submodules {
-                let mut path = path.clone();
-                path.push(&module.name);
-                validate_module(module, path)?;
-            }
-            Ok(())
-        }
-        let path = ModulePath::new(PathOrigin::Package, vec![self.name.clone()]);
-        validate_module(&self, path)?;
+        let path = ModulePath::new(PathOrigin::Absolute, vec![self.root.name.clone()]);
+        self.root.validate(path)?;
         Ok(self)
     }
 
@@ -242,7 +265,7 @@ impl Module {
         let out_dir = std::path::Path::new(
             &std::env::var_os("OUT_DIR").expect("OUT_DIR environment variable is not defined"),
         )
-        .join(format!("{}.rs", self.name));
+        .join(format!("{}.rs", self.root.name));
         std::fs::write(&out_dir, code)?;
         Ok(())
     }

@@ -1031,18 +1031,16 @@ pub TranslationUnit: TranslationUnit = {
     },
 };
 
-#[cfg(all(feature = "imports", not(feature = "attributes")))]
+#[cfg(feature = "imports")]
 pub ImportStatement: ImportStatement = {
-    "import" <path: ModulePath> <content: ImportContent> ";" => ImportStatement {
-        path, content
-    }
-};
-
-#[cfg(all(feature = "imports", feature = "attributes"))]
-pub ImportStatement: ImportStatement = {
-    <attributes: AttributeNode*> "import" <path: ModulePath?> <content: ImportContent> ";" => ImportStatement {
-        attributes, path: path.unwrap_or_default(), content
-    }
+    #[cfg(not(feature = "attributes"))]
+    "import" <path: ModulePath?> <content: ImportContent> ";" => {
+        ImportStatement { path, content }
+    },
+    #[cfg(feature = "attributes")]
+    <attributes: AttributeNode*> "import" <path: ModulePath?> <content: ImportContent> ";" => {
+        ImportStatement { attributes, path, content }
+    },
 };
 
 #[cfg(feature = "imports")]
@@ -1058,6 +1056,9 @@ PathOrigin: PathOrigin = {
     "package" "::" => {
         PathOrigin::Absolute
     },
+    <name: PathIdent> "::" => {
+        PathOrigin::Package(name)
+    },
 };
 
 #[inline]
@@ -1065,10 +1066,6 @@ PathOrigin: PathOrigin = {
 ModulePath: ModulePath = {
     <origin: PathOrigin> <components: (<PathIdent> "::")*> => ModulePath {
         origin, components
-    },
-    <components: (<PathIdent> "::")+> => ModulePath {
-        origin: PathOrigin::Package,
-        components
     },
 };
 
