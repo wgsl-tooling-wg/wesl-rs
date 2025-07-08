@@ -535,6 +535,7 @@ pub fn emit_rerun_if_changed(modules: &[ModulePath], resolver: &impl Resolver) {
             !module.origin.is_relative(),
             "the modules passed to emit_rerun_if_changed must be absolute"
         );
+        println!("cargo::rerun-if-changed=build.rs");
         if let Some(mut path) = resolver.fs_path(module) {
             // Path::display is safe here because of the ModulePath naming restrictions
             println!("cargo::rerun-if-changed={}", path.display());
