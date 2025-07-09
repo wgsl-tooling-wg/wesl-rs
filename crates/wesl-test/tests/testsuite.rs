@@ -4,7 +4,7 @@
 //! These tests are run with `harness = false` in `Cargo.toml`, because they rely on the
 //! `libtest_mimic` custom harness to generate tests at runtime based on the JSON files.
 
-use std::{ffi::OsStr, path::PathBuf, str::FromStr};
+use std::{ffi::OsStr, path::PathBuf, process::Command, str::FromStr};
 
 use wesl::{CompileOptions, EscapeMangler, NoMangler, VirtualResolver, syntax::*};
 use wesl_test::schemas::*;
@@ -125,6 +125,42 @@ fn main() {
     });
 
     tests.extend({
+        let file = std::fs::read_to_string("wesl-testsuite/src/test-cases-json/bulkTests.json")
+            .expect("failed to read test file");
+        let json: Vec<WgslBulkTest> =
+            serde_json::from_str(&file).expect("failed to parse json file");
+        json.into_iter().flat_map(|bulk_case| {
+            let name = format!("bulkTests.json::{}", bulk_case.name);
+            let cwd = std::path::Path::new("wesl-testsuite");
+            fetch_bulk_test(&bulk_case, cwd).expect(&format!("failed to fetch bulk test {}", name));
+
+            assert!(
+                bulk_case.exclude.is_none_or(|v| v.is_empty()),
+                "Globs are not supported"
+            );
+            let base_dir = cwd.join(&bulk_case.base_dir);
+            let include_paths: Vec<_> = bulk_case
+                .include
+                .map(|v| v.iter().map(|v| base_dir.join(v)).collect())
+                .unwrap_or_else(|| {
+                    std::fs::read_dir(&bulk_case.base_dir)
+                        .expect(format!("missing dir `{}`", &bulk_case.base_dir).as_str())
+                        .filter_map(|e| e.ok())
+                        .filter(|e| e.path().extension() == Some(OsStr::new("wgsl")))
+                        .map(|v| v.path())
+                        .collect()
+                });
+
+            include_paths.into_iter().map(move |shader_path| {
+                let case = std::fs::read_to_string(&shader_path).expect("failed to read test file");
+                libtest_mimic::Trial::test(format!("{}::{:?}", name, shader_path), move || {
+                    validation_case(&case)
+                })
+            })
+        })
+    });
+
+    tests.extend({
         let entries = std::fs::read_dir("webgpu-samples").expect("missing dir `webgpu-samples`");
         entries
             .filter_map(|e| e.ok())
@@ -172,6 +208,79 @@ fn main() {
 
     let args = libtest_mimic::Arguments::from_args();
     libtest_mimic::run(&args, tests).exit();
+}
+
+fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::Result<()> {
+    // Modeled after https://github.com/gfx-rs/wgpu/blob/c0a580d6f0343a725b3defa8be4fdf0a9691eaad/xtask/src/cts.rs
+    let Some(WgslGitSrc { url, revision }) = &bulk_test.git else {
+        return Ok(());
+    };
+    let base_dir = cwd.join(&bulk_test.base_dir);
+    if std::fs::exists(&base_dir)? {
+        // Do a git update
+        let commit_exists = Command::new("git")
+            .args(["cat-file", "commit", &revision])
+            .current_dir(&base_dir)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("failed to execute git cat-file")
+            .wait()
+            .expect("failed to wait on git")
+            .success();
+
+        if !commit_exists {
+            let git_fetch = Command::new("git")
+                .args(["fetch", "--quiet"])
+                .current_dir(&base_dir)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::inherit())
+                .spawn()
+                .expect("failed to execute git fetch")
+                .wait()
+                .expect("failed to wait on git");
+            if !git_fetch.success() {
+                panic!("Git fetch failed");
+            }
+        }
+
+        let git_checkout = Command::new("git")
+            .args(["checkout", "--quiet", &revision])
+            .current_dir(&base_dir)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .expect("failed to execute git checkout")
+            .wait()
+            .expect("failed to wait on git");
+
+        if !git_checkout.success() {
+            panic!("Git checkout failed");
+        }
+    } else {
+        let git_clone = Command::new("git")
+            .args([
+                "clone",
+                "--depth=1",
+                &url,
+                "--revision",
+                &revision,
+                &bulk_test.base_dir,
+            ])
+            .current_dir(cwd)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .expect("failed to execute git clone")
+            .wait()
+            .expect("failed to wait on git");
+
+        if !git_clone.success() {
+            panic!("Git clone failed");
+        }
+    }
+
+    Ok(())
 }
 
 fn json_case(case: &Test) -> Result<(), libtest_mimic::Failed> {

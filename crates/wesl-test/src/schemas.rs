@@ -23,6 +23,23 @@ pub struct WgslTestSrc {
     pub underscore_wgsl: Option<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WgslBulkTest {
+    pub name: String,
+    pub base_dir: String,
+    pub git: Option<WgslGitSrc>,
+    pub include: Option<Vec<String>>,
+    pub exclude: Option<Vec<String>>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WgslGitSrc {
+    pub url: String,
+    pub revision: String,
+}
+
 impl WgslTestSrc {
     pub fn normalize(&mut self) {
         self.wesl_src.values_mut().for_each(|src| {
