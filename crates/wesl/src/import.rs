@@ -172,8 +172,8 @@ pub fn resolve_lazy<'a>(
             .filter(|decl| decl.is_const_assert());
 
         for decl in const_asserts {
-            resolve_decl(&module, decl, resolutions, resolver)
-                .map_err(|e| err_with_module(e, &module, resolver))?;
+            resolve_decl(module, decl, resolutions, resolver)
+                .map_err(|e| err_with_module(e, module, resolver))?;
         }
 
         Ok(())
@@ -562,7 +562,7 @@ impl Resolutions {
         }
     }
 
-    /// Mangle all declartions in all modules. Should be called after [`Self::retarget`].
+    /// Mangle all declarations in all modules. Should be called after [`Self::retarget`].
     ///
     /// Panics if a module is already borrowed.
     pub(crate) fn mangle(&mut self, mangler: &impl Mangler, mangle_root: bool) {
