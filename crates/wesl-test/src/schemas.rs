@@ -16,6 +16,8 @@ pub struct WgslTestSrc {
     pub wesl_src: HashMap<String, String>,
     #[serde(default)]
     pub notes: Option<String>,
+    #[serde(default)]
+    pub requires: Vec<String>,
     #[allow(unused)]
     #[serde(default)]
     pub expected_wgsl: Option<String>,

@@ -75,7 +75,12 @@ pub struct CompileOptions {
     pub generics: bool,
     /// Enable stripping (aka. Dead Code Elimination).
     ///
-    /// DCE can have side-effects in rare cases, refer to the WESL docs to learn more.
+    /// By default, all declarations reachable by entrypoint functions, const_asserts and
+    /// pipeline-overridable constants are kept. See [`Self::keep`] and
+    /// [`Self::keep_root`] to control what gets stripped.
+    ///
+    /// Stripping can have side-effects in rare cases, refer to the WESL docs to learn
+    /// more.
     pub strip: bool,
     /// Enable lowering/polyfills. This transforms the output code in various ways.
     ///
@@ -101,9 +106,16 @@ pub struct CompileOptions {
     /// If `Some`, specify a list of root module declarations to keep. If `None`, only the
     /// entrypoint functions (and their dependencies) are kept.
     ///
-    /// This option has no effect if [`Self::strip`] is disabled.
+    /// This option has no effect if [`Self::keep_root`] is enabled or  [`Self::strip`] is
+    /// disabled.
     pub keep: Option<Vec<String>>,
-    /// [WESL Conditional Translation](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md) features to enable/disable.
+    /// If `true`, all root module declarations are preserved when stripping is enabled.
+    ///
+    /// This option takes precedence over [`Self::keep`], and has no effect if
+    /// [`Self::strip`] is disabled.
+    pub keep_root: bool,
+    /// [WESL Conditional Translation](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
+    /// features to enable/disable.
     ///
     /// Conditional translation can be incremental. If not all feature flags are handled,
     /// the output will contain unevaluated `@if` attributes and will therefore *not* be
@@ -125,6 +137,7 @@ impl Default for CompileOptions {
             lazy: true,
             mangle_root: false,
             keep: Default::default(),
+            keep_root: false,
             features: Default::default(),
         }
     }
@@ -307,6 +320,7 @@ impl Wesl<NoResolver> {
                 lazy: false,
                 mangle_root: false,
                 keep: None,
+                keep_root: false,
                 features: Default::default(),
             },
             use_sourcemap: false,
@@ -759,11 +773,16 @@ impl<R: Resolver> Wesl<R> {
 }
 
 /// What idents to keep from the root module. They should be either:
-/// * options.keep idents that exist, if it is set and options.strip is enabled,
-/// * all entrypoints, if options.strip is enabled and options.keep is not set,
-/// * all named declarations, if options.strip is disabled.
-fn keep_idents(wesl: &TranslationUnit, keep: &Option<Vec<String>>, strip: bool) -> HashSet<Ident> {
-    if strip {
+/// * all named declarations, if `strip` is disabled or `keep_root` is enabled.
+/// * `keep` idents that exist, if it is set and `strip` is enabled,
+/// * all entrypoints, if `strip` is enabled and `keep` is not set
+fn keep_idents(
+    wesl: &TranslationUnit,
+    keep: &Option<Vec<String>>,
+    keep_root: bool,
+    strip: bool,
+) -> HashSet<Ident> {
+    if strip && !keep_root {
         if let Some(keep) = keep {
             wesl.global_declarations
                 .iter()
@@ -791,11 +810,11 @@ fn keep_idents(wesl: &TranslationUnit, keep: &Option<Vec<String>>, strip: bool) 
 fn compile_pre_assembly(
     root: &ModulePath,
     resolver: &impl Resolver,
-    options: &CompileOptions,
+    opts: &CompileOptions,
 ) -> Result<(Resolutions, HashSet<Ident>), Error> {
-    let resolver: Box<dyn Resolver> = if options.condcomp {
+    let resolver: Box<dyn Resolver> = if opts.condcomp {
         Box::new(Preprocessor::new(resolver, |wesl| {
-            condcomp::run(wesl, &options.features)?;
+            condcomp::run(wesl, &opts.features)?;
             Ok(())
         }))
     } else {
@@ -804,21 +823,21 @@ fn compile_pre_assembly(
 
     let mut wesl = resolver.resolve_module(root)?;
     wesl.retarget_idents();
-    let keep = keep_idents(&wesl, &options.keep, options.strip);
+    let keep = keep_idents(&wesl, &opts.keep, opts.keep_root, opts.strip);
 
     let mut resolutions = Resolutions::new();
     let module = Module::new(wesl, root.clone())?;
     resolutions.push_module(module);
 
-    if options.imports {
-        if options.lazy {
+    if opts.imports {
+        if opts.lazy {
             import::resolve_lazy(&keep, &mut resolutions, &resolver)?
         } else {
             import::resolve_eager(&mut resolutions, &resolver)?
         }
     }
 
-    if options.validate {
+    if opts.validate {
         for module in resolutions.modules() {
             let module = module.borrow();
             validate_wesl(&module.source).map_err(|d| {

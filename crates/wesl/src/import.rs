@@ -46,7 +46,6 @@ pub(crate) struct Module {
     idents: HashMap<Ident, usize>, // lookup (ident, decl_index)
     treated_idents: RefCell<HashSet<Ident>>, // used idents that have already been usage-analyzed
     imports: Imports,
-    is_resolved: bool,
 }
 
 impl Module {
@@ -75,7 +74,6 @@ impl Module {
             idents,
             treated_idents: Default::default(),
             imports,
-            is_resolved: false,
         })
     }
 }
@@ -126,11 +124,11 @@ fn err_with_module(e: Error, module: &Module, resolver: &impl Resolver) -> Error
 /// Load all modules "used" transitively by the root module. Make external idents point at
 /// the right declaration in the external module.
 ///
-/// it is "lazy" because external modules are loaded only if used by the `keep` declarations
+/// It is "lazy" because external modules are loaded only if used by the `keep` declarations
 /// or module-scope `const_assert`s.
 ///
 /// "used": used declarations in the root module are the `keep` parameter. Used declarations
-/// in other modules are those reached by `keep` the declaration, recursively.
+/// in other modules are those reached by `keep` declarations, recursively.
 /// Module-scope `const_assert`s are always included.
 ///
 /// Returns a list of [`Module`]s with the list of their "used" idents.
@@ -152,29 +150,33 @@ pub fn resolve_lazy<'a>(
             let mut source = resolver.resolve_module(path)?;
             source.retarget_idents();
             let module = Module::new(source, path.clone())?;
-            resolutions.push_module(module)
+            let module = resolutions.push_module(module);
+            resolve_module(&module.borrow(), resolutions, resolver)?;
+            module
         };
 
-        {
-            let mut module = module.borrow_mut();
-            if !module.is_resolved {
-                module.is_resolved = true;
-                // const_asserts of used modules must be included.
-                // https://github.com/wgsl-tooling-wg/wesl-spec/issues/66
-                let const_asserts = module
-                    .source
-                    .global_declarations
-                    .iter()
-                    .filter(|decl| decl.is_const_assert());
+        Ok(module)
+    }
 
-                for decl in const_asserts {
-                    resolve_decl(&module, decl, resolutions, resolver)
-                        .map_err(|e| err_with_module(e, &module, resolver))?;
-                }
-            }
+    fn resolve_module(
+        module: &Module,
+        resolutions: &mut Resolutions,
+        resolver: &impl Resolver,
+    ) -> Result<(), Error> {
+        // const_asserts of used modules must be included.
+        // https://github.com/wgsl-tooling-wg/wesl-spec/issues/66
+        let const_asserts = module
+            .source
+            .global_declarations
+            .iter()
+            .filter(|decl| decl.is_const_assert());
+
+        for decl in const_asserts {
+            resolve_decl(module, decl, resolutions, resolver)
+                .map_err(|e| err_with_module(e, module, resolver))?;
         }
 
-        Ok(module)
+        Ok(())
     }
 
     fn resolve_ident(
@@ -270,10 +272,14 @@ pub fn resolve_lazy<'a>(
     let path = resolutions.root_path().clone();
     let module = load_module(&path, resolutions, resolver)?;
 
-    for id in keep {
+    {
         let module = module.borrow();
-        resolve_ident(&module, id, resolutions, resolver)
-            .map_err(|e| err_with_module(e, &module, resolver))?;
+        resolve_module(&module, resolutions, resolver)?;
+
+        for id in keep {
+            resolve_ident(&module, id, resolutions, resolver)
+                .map_err(|e| err_with_module(e, &module, resolver))?;
+        }
     }
 
     resolutions.retarget();
@@ -321,7 +327,7 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
             module
         };
 
-        let ext_mod = ext_mod.borrow(); // safety: only 1 module is borrowed at a time, the current one.
+        let ext_mod = ext_mod.borrow();
         // get the ident of the external declaration pointed to by the type
         if !ext_mod.idents.keys().any(|id| *id.name() == *ext_id.name())
             // TODO private err msg
@@ -492,28 +498,34 @@ pub(crate) fn mangle_decls<'a>(
 }
 
 impl Resolutions {
-    pub fn retarget(&mut self) {
-        fn find_target_ident(modules: &Modules, src_path: &ModulePath, src_id: &Ident) -> Ident {
+    /// Retarget identifiers to point at the corresponding declaration.
+    ///
+    /// Panics if a module is already borrowed.
+    pub(crate) fn retarget(&mut self) {
+        fn find_ext_ident(
+            modules: &Modules,
+            src_path: &ModulePath,
+            src_id: &Ident,
+        ) -> Option<Ident> {
             // load the external module for this external ident
-            if let Some(module) = modules.get(src_path) {
-                let module = module.borrow(); // safety: only 1 module is borrowed at a time, the current one.
-                module
-                    .idents
-                    .iter()
-                    .find(|(id, _)| *id.name() == *src_id.name())
-                    .map(|(id, _)| id.clone())
-                    .or_else(|| {
-                        // or it could be a re-exported import with `@publish`
-                        module
-                            .imports
-                            .iter()
-                            .find(|(id, _)| *id.name() == *src_id.name())
-                            .map(|(_, item)| find_target_ident(modules, &item.path, &item.ident))
-                    })
-                    .expect("external declaration not found")
-            } else {
-                panic!("no module for path")
-            }
+            let module = modules.get(src_path)?;
+            // SAFETY: since this is an external ident, it cannot be in the currently
+            // borrowed module.
+            let module = module.borrow();
+
+            module
+                .idents
+                .iter()
+                .find(|(id, _)| *id.name() == *src_id.name())
+                .map(|(id, _)| id.clone())
+                .or_else(|| {
+                    // or it could be a re-exported import with `@publish`
+                    module
+                        .imports
+                        .iter()
+                        .find(|(id, _)| *id.name() == *src_id.name())
+                        .and_then(|(_, item)| find_ext_ident(modules, &item.path, &item.ident))
+                })
         }
 
         for module in self.modules.values() {
@@ -541,16 +553,19 @@ impl Resolutions {
                     ty.path = None;
                     ty.ident = ext_id;
                 }
-
                 // get the ident of the external declaration pointed to by the type
-                let ext_id = find_target_ident(&self.modules, &ext_path, &ext_id);
-                ty.path = None;
-                ty.ident = ext_id;
+                else if let Some(ext_id) = find_ext_ident(&self.modules, &ext_path, &ext_id) {
+                    ty.path = None;
+                    ty.ident = ext_id;
+                }
             });
         }
     }
 
-    pub fn mangle(&mut self, mangler: &impl Mangler, mangle_root: bool) {
+    /// Mangle all declarations in all modules. Should be called after [`Self::retarget`].
+    ///
+    /// Panics if a module is already borrowed.
+    pub(crate) fn mangle(&mut self, mangler: &impl Mangler, mangle_root: bool) {
         let root_path = self.root_path().clone();
         for (path, module) in self.modules.iter_mut() {
             if mangle_root || path != &root_path {
@@ -560,7 +575,9 @@ impl Resolutions {
         }
     }
 
-    pub fn assemble(&self, strip: bool) -> TranslationUnit {
+    /// Merge all declarations into a single module. If the `strip` flag is set, it will
+    /// copy over only used declarations.
+    pub(crate) fn assemble(&self, strip: bool) -> TranslationUnit {
         let mut wesl = TranslationUnit::default();
         for module in self.modules() {
             let module = module.borrow();
