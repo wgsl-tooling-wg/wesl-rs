@@ -117,10 +117,10 @@ impl PkgBuilder {
                     match process_path(&entry) {
                         Ok(Some(module)) => submodules.push(module),
                         Ok(None) => {
-                            eprintln!("INFO: found non shader/dir at {:?}: ignoring", entry)
+                            eprintln!("INFO: found non shader/dir at {entry:?}: ignoring")
                         }
                         Err(err) => {
-                            eprintln!("WARN: error processing submodule {:?}: {}", entry, err)
+                            eprintln!("WARN: error processing submodule {entry:?}: {err}")
                         }
                     }
                 }
