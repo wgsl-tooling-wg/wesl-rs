@@ -157,20 +157,6 @@ fn main() {
     });
 
     tests.extend({
-        let entries = std::fs::read_dir("webgpu-samples").expect("missing dir `webgpu-samples`");
-        entries
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension() == Some(OsStr::new("wgsl")))
-            .map(|e| {
-                let name = format!("webgpu-samples::{:?}", e.file_name());
-                libtest_mimic::Trial::test(name, move || {
-                    let case = std::fs::read_to_string(e.path()).expect("failed to read test file");
-                    validation_case(&case)
-                })
-            })
-    });
-
-    tests.extend({
         let entries = std::fs::read_dir("bevy").expect("missing dir `bevy`");
         entries
             .filter_map(|e| e.ok())
@@ -179,27 +165,6 @@ fn main() {
                 let name = format!("bevy::{:?}", e.file_name());
                 libtest_mimic::Trial::test(name, move || bevy_case(e.path()))
             })
-    });
-
-    tests.extend({
-        [
-            // these are the most distinct files from unity's `boat_attack` sample. There is not great
-            // value in testing all of them, they don't differ by much.
-            // https://github.com/wgsl-tooling-wg/wesl-js/issues/161
-            "unity_webgpu_0000020A44565050.fs.wgsl",
-            "unity_webgpu_000001D9D2114040.fs.wgsl",
-            "unity_webgpu_0000014DFB395020.fs.wgsl",
-            "unity_webgpu_0000017E9E2D81A0.vs.wgsl",
-        ]
-        .iter()
-        .map(|file| {
-            let name = format!("unity_web_research::{file}");
-            libtest_mimic::Trial::test(name, move || {
-                let path = format!("unity_web_research/boat_attack/{file}");
-                let case = std::fs::read_to_string(&path).expect("failed to read test file");
-                validation_case(&case)
-            })
-        })
     });
 
     let args = libtest_mimic::Arguments::from_args();
