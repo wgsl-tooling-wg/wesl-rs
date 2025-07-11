@@ -127,7 +127,8 @@ fn main() {
         json.into_iter().flat_map(|bulk_case| {
             let name = format!("bulkTests.json::{}", bulk_case.name);
             let cwd = std::path::Path::new("wesl-testsuite");
-            fetch_bulk_test(&bulk_case, cwd).expect(&format!("failed to fetch bulk test {}", name));
+            fetch_bulk_test(&bulk_case, cwd)
+                .unwrap_or_else(|_| panic!("failed to fetch bulk test {name}"));
 
             assert!(
                 bulk_case.exclude.is_none_or(|v| v.is_empty()),
@@ -139,7 +140,7 @@ fn main() {
                 .map(|v| v.iter().map(|v| base_dir.join(v)).collect())
                 .unwrap_or_else(|| {
                     std::fs::read_dir(&bulk_case.base_dir)
-                        .expect(format!("missing dir `{}`", &bulk_case.base_dir).as_str())
+                        .unwrap_or_else(|_| panic!("missing dir `{}`", &bulk_case.base_dir))
                         .filter_map(|e| e.ok())
                         .filter(|e| e.path().extension() == Some(OsStr::new("wgsl")))
                         .map(|v| v.path())
@@ -148,7 +149,7 @@ fn main() {
 
             include_paths.into_iter().map(move |shader_path| {
                 let case = std::fs::read_to_string(&shader_path).expect("failed to read test file");
-                libtest_mimic::Trial::test(format!("{}::{:?}", name, shader_path), move || {
+                libtest_mimic::Trial::test(format!("{name}::{shader_path:?}"), move || {
                     validation_case(&case)
                 })
             })
@@ -214,7 +215,7 @@ fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::
     if std::fs::exists(&base_dir)? {
         // Do a git update
         let commit_exists = Command::new("git")
-            .args(["cat-file", "commit", &revision])
+            .args(["cat-file", "commit", revision])
             .current_dir(&base_dir)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -240,7 +241,7 @@ fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::
         }
 
         let git_checkout = Command::new("git")
-            .args(["checkout", "--quiet", &revision])
+            .args(["checkout", "--quiet", revision])
             .current_dir(&base_dir)
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::inherit())
@@ -257,9 +258,9 @@ fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::
             .args([
                 "clone",
                 "--depth=1",
-                &url,
+                url,
                 "--revision",
-                &revision,
+                revision,
                 &bulk_test.base_dir,
             ])
             .current_dir(cwd)

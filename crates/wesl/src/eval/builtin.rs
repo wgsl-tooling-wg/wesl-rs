@@ -1972,9 +1972,9 @@ fn call_mat_t(
 
             Ok(MatInstance::from_cols(args).into())
         } else {
-            return Err(E::Builtin(
+            Err(E::Builtin(
                 "matrix constructor expects float or vector of float arguments",
-            ));
+            ))
         }
     }
 }
@@ -2025,9 +2025,9 @@ fn call_mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
 
             Ok(MatInstance::from_cols(args).into())
         } else {
-            return Err(E::Builtin(
+            Err(E::Builtin(
                 "matrix constructor expects float or vector of float arguments",
-            ));
+            ))
         }
     }
 }
