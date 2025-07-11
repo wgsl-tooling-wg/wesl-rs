@@ -385,7 +385,7 @@ pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
         condcomp: true,
         generics: false,
         strip: false,
-        lower: true,
+        lower: false,
         validate: true,
         ..Default::default()
     };
