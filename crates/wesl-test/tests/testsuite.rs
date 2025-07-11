@@ -98,12 +98,9 @@ fn main() {
             serde_json::from_str(&file).expect("failed to parse json file");
         json.into_iter().map(|case| {
             let name = format!("importCases.json::{}", case.name);
-            // TODO: fix this test. See https://github.com/wgsl-tooling-wg/wesl-rs/issues/84
-            let ignored = case.name == "circular import";
             libtest_mimic::Trial::test(name, move || {
                 testsuite_case(&case).inspect_err(|_| eprint_wgsl_test(&case))
             })
-            .with_ignored_flag(ignored)
         })
     });
 
@@ -116,11 +113,9 @@ fn main() {
             serde_json::from_str(&file).expect("failed to parse json file");
         json.into_iter().map(|case| {
             let name = format!("conditionalTranslationCases.json::{}", case.name);
-            let ignored = case.name == "declaration shadowing"; // this test requires stripping enabled.
             libtest_mimic::Trial::test(name, move || {
                 testsuite_case(&case).inspect_err(|_| eprint_wgsl_test(&case))
             })
-            .with_ignored_flag(ignored)
         })
     });
 
@@ -364,7 +359,7 @@ pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
 
     let root_module = ModulePath::from_str("package::main")?;
     let compile_options = CompileOptions {
-        strip: false,
+        keep_root: true,
         ..Default::default()
     };
 

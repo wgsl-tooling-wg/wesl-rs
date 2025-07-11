@@ -968,21 +968,21 @@ pub fn recognize_template_list(source: &str) -> bool {
 #[test]
 fn test_recognize_template() {
     // cases from the WGSL spec
-    assert_eq!(recognize_template_list("<i32,select(2,3,a>b)>"), true);
-    assert_eq!(recognize_template_list("<d]>"), false);
-    assert_eq!(recognize_template_list("<B<<C>"), true);
-    assert_eq!(recognize_template_list("<B<=C>"), true);
-    assert_eq!(recognize_template_list("<(B>=C)>"), true);
-    assert_eq!(recognize_template_list("<(B!=C)>"), true);
-    assert_eq!(recognize_template_list("<(B==C)>"), true);
+    assert!(recognize_template_list("<i32,select(2,3,a>b)>"));
+    assert!(!recognize_template_list("<d]>"));
+    assert!(recognize_template_list("<B<<C>"));
+    assert!(recognize_template_list("<B<=C>"));
+    assert!(recognize_template_list("<(B>=C)>"));
+    assert!(recognize_template_list("<(B!=C)>"));
+    assert!(recognize_template_list("<(B==C)>"));
     // more cases
-    assert_eq!(recognize_template_list("<X>"), true);
-    assert_eq!(recognize_template_list("<X<Y>>"), true);
-    assert_eq!(recognize_template_list("<X<Y<Z>>>"), true);
-    assert_eq!(recognize_template_list(""), false);
-    assert_eq!(recognize_template_list(""), false);
-    assert_eq!(recognize_template_list("<>"), false);
-    assert_eq!(recognize_template_list("<b || c>d"), false);
+    assert!(recognize_template_list("<X>"));
+    assert!(recognize_template_list("<X<Y>>"));
+    assert!(recognize_template_list("<X<Y<Z>>>"));
+    assert!(!recognize_template_list(""));
+    assert!(!recognize_template_list(""));
+    assert!(!recognize_template_list("<>"));
+    assert!(!recognize_template_list("<b || c>d"));
 }
 
 pub trait TokenIterator: IntoIterator<Item = Spanned<Token, usize, ParseError>> {}

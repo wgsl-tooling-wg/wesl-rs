@@ -69,13 +69,18 @@ pub struct CompileOptions {
     ///
     /// See `features` to enable/disable each feature flag.
     pub condcomp: bool,
-    /// Toggle generics. Generics is super experimental, don't expect anything from it.
+    /// Toggle generics. Generics are super experimental, don't expect anything from it.
     ///
     /// Requires the `generics` crate feature flag.
     pub generics: bool,
     /// Enable stripping (aka. Dead Code Elimination).
     ///
-    /// DCE can have side-effects in rare cases, refer to the WESL docs to learn more.
+    /// By default, all declarations reachable by entrypoint functions, const_asserts and
+    /// pipeline-overridable constants are kept. See [`Self::keep`] and
+    /// [`Self::keep_root`] to control what gets stripped.
+    ///
+    /// Stripping can have side-effects in rare cases, refer to the WESL docs to learn
+    /// more.
     pub strip: bool,
     /// Enable lowering/polyfills. This transforms the output code in various ways.
     ///
@@ -101,9 +106,16 @@ pub struct CompileOptions {
     /// If `Some`, specify a list of root module declarations to keep. If `None`, only the
     /// entrypoint functions (and their dependencies) are kept.
     ///
-    /// This option has no effect if [`Self::strip`] is disabled.
+    /// This option has no effect if [`Self::keep_root`] is enabled or  [`Self::strip`] is
+    /// disabled.
     pub keep: Option<Vec<String>>,
-    /// [WESL Conditional Translation](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md) features to enable/disable.
+    /// If `true`, all root module declarations are preserved when stripping is enabled.
+    ///
+    /// This option takes precedence over [`Self::keep`], and has no effect if
+    /// [`Self::strip`] is disabled.
+    pub keep_root: bool,
+    /// [WESL Conditional Translation](https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md)
+    /// features to enable/disable.
     ///
     /// Conditional translation can be incremental. If not all feature flags are handled,
     /// the output will contain unevaluated `@if` attributes and will therefore *not* be
@@ -125,6 +137,7 @@ impl Default for CompileOptions {
             lazy: true,
             mangle_root: false,
             keep: Default::default(),
+            keep_root: false,
             features: Default::default(),
         }
     }
@@ -134,7 +147,7 @@ impl Default for CompileOptions {
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ManglerKind {
     /// Escaped path mangler.
-    /// `foo_bar::item -> foo__bar_item`
+    /// `foo_bar::item -> _1foo_bar_item`
     #[default]
     Escape,
     /// Hash mangler.
@@ -143,13 +156,13 @@ pub enum ManglerKind {
     /// Make valid identifiers with unicode "confusables" characters.
     /// `foo::bar<baz, moo> -> foo::barᐸbazˏmooᐳ`
     Unicode,
-    /// Disable mangling. (warning: will break if case of name conflicts!)
+    /// Disable mangling. (warning: will break shaders if case of name conflicts!)
     None,
 }
 
 /// Include a WGSL file compiled with [`Wesl::build_artifact`] as a string.
 ///
-/// The argument corresponds to the `out_name` passed to [`Wesl::build_artifact`].
+/// The argument corresponds to the `artifact_name` passed to [`Wesl::build_artifact`].
 ///
 /// This is a very simple convenience macro. See the crate documentation for a usage
 /// example.
@@ -171,7 +184,6 @@ macro_rules! wesl_pkg {
     ($pkg_name:ident, $source:expr) => {
         pub mod $pkg_name {
             use $crate::{Pkg, PkgModule};
-
             include!(concat!(env!("OUT_DIR"), $source));
         }
     };
@@ -181,10 +193,20 @@ macro_rules! wesl_pkg {
 ///
 /// # Basic Usage
 ///
-/// ```ignore
-/// # use wesl::Wesl;
+/// ```rust
+/// # use wesl::{Wesl, VirtualResolver};
+/// #
 /// let compiler = Wesl::new("path/to/dir/containing/shaders");
-/// let wgsl_string = compiler.compile("main.wesl").unwrap().to_string();
+/// #
+/// # // just adding a virtual file here so the doctest runs without a filesystem
+/// # let mut resolver = VirtualResolver::new();
+/// # resolver.add_module("package::main".parse().unwrap(), "fn my_fn() {}".into());
+/// # let compiler = compiler.set_custom_resolver(resolver);
+/// #
+/// let wgsl_string = compiler
+///     .compile(&"package::main".parse().unwrap())
+///     .unwrap()
+///     .to_string();
 /// ```
 pub struct Wesl<R: Resolver> {
     options: CompileOptions,
@@ -280,7 +302,7 @@ impl Wesl<StandardResolver> {
 impl Wesl<NoResolver> {
     /// Get a WESL compiler with no extensions, no mangler and no resolver.
     ///
-    /// You *should* set a [`Mangler`] and a [`Resolver`] manually to use this compiler,
+    /// You must set a [`Mangler`] and a [`Resolver`] manually to use this compiler,
     /// see [`Wesl::set_mangler`] and [`Wesl::set_custom_resolver`].
     ///
     /// # WESL Reference
@@ -298,6 +320,7 @@ impl Wesl<NoResolver> {
                 lazy: false,
                 mangle_root: false,
                 keep: None,
+                keep_root: false,
                 features: Default::default(),
             },
             use_sourcemap: false,
@@ -371,9 +394,9 @@ impl<R: Resolver> Wesl<R> {
         }
     }
 
-    /// Enable source-mapping (experimental).
+    /// Enable sourcemapping.
     ///
-    /// Turning "on" this option will improve the quality of error messages.
+    /// Turning "on" this option improves the quality of error messages.
     ///
     /// # WESL Reference
     /// Sourcemapping is not yet part of the WESL Specification and does not impact
@@ -545,6 +568,27 @@ impl CompileResult {
     pub fn write_to_file(&self, path: impl AsRef<Path>) -> std::io::Result<()> {
         std::fs::write(path, self.to_string())
     }
+
+    /// Write the result in rust's `OUT_DIR`.
+    ///
+    /// This function is meant to be used in a `build.rs` workflow. The output WGSL will
+    /// be accessed with the [`include_wesl`] macro. See the crate documentation for a
+    /// usage example.
+    ///
+    /// # Panics
+    /// Panics when the output file cannot be written.
+    pub fn write_artifact(&self, artifact_name: &str) {
+        let dirname = std::env::var("OUT_DIR").unwrap();
+        let out_name = Path::new(artifact_name);
+        if out_name.iter().count() != 1 || out_name.extension().is_some() {
+            eprintln!("`out_name` cannot contain path separators or file extension");
+            panic!()
+        }
+        let mut output = Path::new(&dirname).join(out_name);
+        output.set_extension("wgsl");
+        self.write_to_file(output)
+            .expect("failed to write output shader");
+    }
 }
 
 impl Display for CompileResult {
@@ -695,55 +739,50 @@ impl<R: Resolver> Wesl<R> {
         if self.use_sourcemap {
             compile_sourcemap(root, &self.resolver, &self.mangler, &self.options)
         } else {
-            Ok(compile(root, &self.resolver, &self.mangler, &self.options)?)
+            compile(root, &self.resolver, &self.mangler, &self.options)
         }
     }
 
-    /// Compile a WESL program from a root file and output the result in rust's `OUT_DIR`.
+    /// Compile a WESL program from a root file and output the result in Rust's `OUT_DIR`.
     ///
     /// This function is meant to be used in a `build.rs` workflow. The output WGSL will
     /// be accessed with the [`include_wesl`] macro. See the crate documentation for a
     /// usage example.
     ///
-    /// * The first argument is the path to the entrypoint file relative to the base
+    /// * The first argument is the path to the root module relative to the base
     ///   directory.
     /// * The second argument is the name of the artifact, used in [`include_wesl`].
     ///
-    /// Will emit `rerun-if-changed`. Remember to include a `println!("cargo::rerun-if-changed=build.rs")`
-    /// in your build script.
+    /// Will emit `rerun-if-changed` instructions so the build script reruns only if the
+    /// shader files are modified.
     ///
     /// # Panics
     /// Panics when compilation fails or if the output file cannot be written.
     /// Pretty-prints the WESL error message to stderr.
-    pub fn build_artifact(&self, entrypoint: &ModulePath, out_name: &str) {
-        let dirname = std::env::var("OUT_DIR").unwrap();
-        let out_name = Path::new(out_name);
-        if out_name.iter().count() != 1 || out_name.extension().is_some() {
-            eprintln!("`out_name` cannot contain path separators or file extension");
-            panic!()
-        }
-        let mut output = Path::new(&dirname).join(out_name);
-        output.set_extension("wgsl");
+    pub fn build_artifact(&self, root: &ModulePath, artifact_name: &str) {
         let compiled = self
-            .compile(entrypoint)
+            .compile(root)
             .inspect_err(|e| {
-                eprintln!("failed to build WESL shader `{entrypoint}`.\n{e}");
+                eprintln!("failed to build WESL shader `{root}`.\n{e}");
                 panic!();
             })
             .unwrap();
         emit_rerun_if_changed(&compiled.modules, &self.resolver);
-        compiled
-            .write_to_file(output)
-            .expect("failed to write output shader");
+        compiled.write_artifact(artifact_name);
     }
 }
 
 /// What idents to keep from the root module. They should be either:
-/// * options.keep idents that exist, if it is set and options.strip is enabled,
-/// * all entrypoints, if options.strip is enabled and options.keep is not set,
-/// * all named declarations, if options.strip is disabled.
-fn keep_idents(wesl: &TranslationUnit, keep: &Option<Vec<String>>, strip: bool) -> HashSet<Ident> {
-    if strip {
+/// * all named declarations, if `strip` is disabled or `keep_root` is enabled.
+/// * `keep` idents that exist, if it is set and `strip` is enabled,
+/// * all entrypoints, if `strip` is enabled and `keep` is not set
+fn keep_idents(
+    wesl: &TranslationUnit,
+    keep: &Option<Vec<String>>,
+    keep_root: bool,
+    strip: bool,
+) -> HashSet<Ident> {
+    if strip && !keep_root {
         if let Some(keep) = keep {
             wesl.global_declarations
                 .iter()
@@ -771,11 +810,11 @@ fn keep_idents(wesl: &TranslationUnit, keep: &Option<Vec<String>>, strip: bool) 
 fn compile_pre_assembly(
     root: &ModulePath,
     resolver: &impl Resolver,
-    options: &CompileOptions,
+    opts: &CompileOptions,
 ) -> Result<(Resolutions, HashSet<Ident>), Error> {
-    let resolver: Box<dyn Resolver> = if options.condcomp {
+    let resolver: Box<dyn Resolver> = if opts.condcomp {
         Box::new(Preprocessor::new(resolver, |wesl| {
-            condcomp::run(wesl, &options.features)?;
+            condcomp::run(wesl, &opts.features)?;
             Ok(())
         }))
     } else {
@@ -784,21 +823,21 @@ fn compile_pre_assembly(
 
     let mut wesl = resolver.resolve_module(root)?;
     wesl.retarget_idents();
-    let keep = keep_idents(&wesl, &options.keep, options.strip);
+    let keep = keep_idents(&wesl, &opts.keep, opts.keep_root, opts.strip);
 
     let mut resolutions = Resolutions::new();
     let module = Module::new(wesl, root.clone())?;
     resolutions.push_module(module);
 
-    if options.imports {
-        if options.lazy {
+    if opts.imports {
+        if opts.lazy {
             import::resolve_lazy(&keep, &mut resolutions, &resolver)?
         } else {
             import::resolve_eager(&mut resolutions, &resolver)?
         }
     }
 
-    if options.validate {
+    if opts.validate {
         for module in resolutions.modules() {
             let module = module.borrow();
             validate_wesl(&module.source).map_err(|d| {
@@ -833,13 +872,13 @@ fn compile_post_assembly(
 }
 
 /// Low-level version of [`Wesl::compile`].
-/// To get a source map, use [`compile_sourcemap`] instead
+/// To get a source map, use [`compile_sourcemap`] instead.
 pub fn compile(
     root: &ModulePath,
     resolver: &impl Resolver,
     mangler: &impl Mangler,
     options: &CompileOptions,
-) -> Result<CompileResult, Diagnostic<Error>> {
+) -> Result<CompileResult, Error> {
     let (mut resolutions, keep) = compile_pre_assembly(root, resolver, options)?;
     resolutions.mangle(mangler, options.mangle_root);
     let mut assembly = resolutions.assemble(options.strip && options.lazy);

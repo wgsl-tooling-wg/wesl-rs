@@ -58,6 +58,7 @@ pub struct CompileOptions {
     pub lazy: bool,
     #[serde(default)]
     pub keep: Option<Vec<String>>,
+    pub keep_root: bool,
     pub mangle_root: bool,
     #[tsify(type = "{ [name: string]: boolean }")]
     pub features: HashMap<String, bool>,
@@ -199,6 +200,7 @@ fn run_compile(args: CompileOptions) -> Result<CompileResult, wesl::Error> {
                     .map(|(k, v)| (k, v.into()))
                     .collect(),
             },
+            keep_root: args.keep_root,
         })
         .use_sourcemap(args.sourcemap)
         .set_mangler(args.mangler.into())
