@@ -1752,8 +1752,8 @@ fn call_i32_1(a1: &Instance) -> Result<Instance, E> {
                 LiteralInstance::AbstractFloat(n) => Some(*n as i32), // rounding towards 0
                 LiteralInstance::I32(n) => Some(*n),           // identity operation
                 LiteralInstance::U32(n) => Some(*n as i32),    // reinterpretation of bits
-                LiteralInstance::F32(n) => Some(*n as i32),    // rounding towards 0
-                LiteralInstance::F16(n) => Some(f16::to_f32(*n) as i32), // rounding towards 0
+                LiteralInstance::F32(n) => Some((*n as i32).min(2147483520)), // rounding towards 0 AND representable in f32
+                LiteralInstance::F16(n) => Some((f16::to_f32(*n) as i32).min(65504)), // rounding towards 0 AND representable in f16
                 #[cfg(feature = "naga_ext")]
                 LiteralInstance::I64(n) => n.to_i32(), // identity if representable
                 #[cfg(feature = "naga_ext")]
@@ -1777,8 +1777,8 @@ fn call_u32_1(a1: &Instance) -> Result<Instance, E> {
                 LiteralInstance::AbstractFloat(n) => Some(*n as u32), // rounding towards 0
                 LiteralInstance::I32(n) => Some(*n as u32),    // reinterpretation of bits
                 LiteralInstance::U32(n) => Some(*n),           // identity operation
-                LiteralInstance::F32(n) => Some(*n as u32),    // rounding towards 0
-                LiteralInstance::F16(n) => Some(f16::to_f32(*n) as u32), // rounding towards 0
+                LiteralInstance::F32(n) => Some((*n as u32).min(4294967040)), // rounding towards 0 AND representable in f32
+                LiteralInstance::F16(n) => Some((f16::to_f32(*n) as u32).min(65504)), // rounding towards 0 AND representable in f16
                 #[cfg(feature = "naga_ext")]
                 LiteralInstance::I64(n) => n.to_u32(), // identity if representable
                 #[cfg(feature = "naga_ext")]
