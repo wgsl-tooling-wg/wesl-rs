@@ -1,6 +1,7 @@
 use std::fmt::Display;
 
 use itertools::Itertools;
+use wgsl_parse::syntax::AddressSpace;
 
 use crate::eval::Ty;
 
@@ -81,9 +82,22 @@ impl Display for MatInstance {
     }
 }
 
+fn addr_space(space: AddressSpace) -> &'static str {
+    match space {
+        AddressSpace::Function => "function",
+        AddressSpace::Private => "private",
+        AddressSpace::Workgroup => "workgroup",
+        AddressSpace::Uniform => "uniform",
+        AddressSpace::Storage(_) => "storage",
+        AddressSpace::Handle => "handle",
+        #[cfg(feature = "naga_ext")]
+        AddressSpace::PushConstant => "push_constant",
+    }
+}
+
 impl Display for PtrInstance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let space = &self.ptr.space;
+        let space = addr_space(self.ptr.space);
         let ty = &self.ptr.ty;
         let access = &self.ptr.access;
         let val = self.ptr.read().expect("invalid reference");
@@ -93,7 +107,7 @@ impl Display for PtrInstance {
 
 impl Display for RefInstance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let space = &self.space;
+        let space = addr_space(self.space);
         let ty = &self.ty;
         let access = &self.access;
         let val = self.read().expect("invalid reference");
