@@ -3342,14 +3342,14 @@ fn call_atomic_load(e: &Instance) -> Result<Instance, E> {
 fn call_atomic_store(e1: &Instance, e2: &Instance) -> Result<(), E> {
     let err = E::Builtin("`atomicStore` expects a pointer to atomic argument");
     if let Instance::Ptr(ptr) = e1 {
-        let inst = ptr.ptr.read_write()?;
-        if let Instance::Atomic(inst) = &*inst {
+        let mut inst = ptr.ptr.read_write()?;
+        if let Instance::Atomic(inst) = &mut *inst {
             let ty = inst.inner().ty();
             let e2 = e2
                 .convert_to(&ty)
                 .ok_or_else(|| E::ParamType(ty, e2.ty()))?;
-            let e2 = Instance::Atomic(AtomicInstance::new(e2));
-            ptr.ptr.write(e2)
+            *inst = AtomicInstance::new(e2);
+            Ok(())
         } else {
             Err(err)
         }
