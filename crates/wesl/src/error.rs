@@ -374,7 +374,7 @@ impl Diagnostic<Error> {
                     unmangle_ty(ty2, sourcemap, mangler);
                 }
                 EvalError::ConvOverflow(_, ty) => unmangle_ty(ty, sourcemap, mangler),
-                EvalError::Component(_, name) => unmangle_name(name, sourcemap, mangler),
+                EvalError::Component(ty, _) => unmangle_ty(ty, sourcemap, mangler),
                 EvalError::Index(ty) => unmangle_ty(ty, sourcemap, mangler),
                 EvalError::NotIndexable(ty) => unmangle_ty(ty, sourcemap, mangler),
                 EvalError::OutOfBounds(_, ty, _) => unmangle_ty(ty, sourcemap, mangler),

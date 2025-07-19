@@ -1425,6 +1425,55 @@ impl ArrayTemplate {
     }
 }
 
+#[cfg(feature = "naga_ext")]
+pub struct BindingArrayTemplate {
+    n: Option<usize>,
+    ty: Type,
+}
+
+#[cfg(feature = "naga_ext")]
+impl BindingArrayTemplate {
+    pub fn parse(tplt: &[TemplateArg], ctx: &mut Context) -> Result<BindingArrayTemplate, E> {
+        let (t1, t2) = match tplt {
+            [t1] => Ok((t1, None)),
+            [t1, t2] => Ok((t1, Some(t2))),
+            _ => Err(E::TemplateArgs("binding_array")),
+        }?;
+        let ty = match t1.expression.node() {
+            Expression::TypeOrIdentifier(ty) => ty_eval_ty(ty, ctx),
+            _ => Err(E::TemplateArgs("binding_array")),
+        }?;
+        if let Some(t2) = t2 {
+            let n = t2.expression.eval_value(ctx)?;
+            let n = match n {
+                Instance::Literal(LiteralInstance::AbstractInt(n)) => (n > 0).then_some(n as usize),
+                Instance::Literal(LiteralInstance::I32(n)) => (n > 0).then_some(n as usize),
+                Instance::Literal(LiteralInstance::U32(n)) => (n > 0).then_some(n as usize),
+                #[cfg(feature = "naga_ext")]
+                Instance::Literal(LiteralInstance::I64(n)) => (n > 0).then_some(n as usize),
+                #[cfg(feature = "naga_ext")]
+                Instance::Literal(LiteralInstance::U64(n)) => (n > 0).then_some(n as usize),
+                _ => None,
+            }
+            .ok_or(E::Builtin(
+                "the binding_array element count must evaluate to a `u32` or a `i32` greater than `0`",
+            ))?;
+            Ok(BindingArrayTemplate { n: Some(n), ty })
+        } else {
+            Ok(BindingArrayTemplate { n: None, ty })
+        }
+    }
+    pub fn ty(&self) -> Type {
+        Type::BindingArray(Box::new(self.ty.clone()), self.n)
+    }
+    pub fn inner_ty(&self) -> Type {
+        self.ty.clone()
+    }
+    pub fn n(&self) -> Option<usize> {
+        self.n
+    }
+}
+
 pub struct VecTemplate {
     ty: Type,
 }
