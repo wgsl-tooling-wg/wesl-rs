@@ -203,6 +203,7 @@ fn eval_if_attr(
         if let Attribute::If(expr) = attr.node_mut() {
             **expr = eval_attr(expr, features)?;
             has_if = true;
+            prev.is_true = false;
         } else if let Attribute::Elif(expr) = attr.node_mut() {
             if !prev.has_if {
                 return Err(CondCompError::NoPrecedingIf.into());
