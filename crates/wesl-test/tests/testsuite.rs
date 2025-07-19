@@ -346,11 +346,8 @@ pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
     let root = ModulePath::from_str("package::main")?;
     resolver.add_module(root.clone(), input.into());
     let options = CompileOptions {
-        imports: true,
-        condcomp: true,
-        generics: false,
         strip: false,
-        lower: false,
+        lower: true,
         validate: true,
         ..Default::default()
     };
@@ -376,12 +373,9 @@ pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
             ("TONEMAPPING_LUT_SAMPLER_BINDING_INDEX", 10.0),
         ])
         .set_options(CompileOptions {
-            imports: true,
-            condcomp: true,
-            generics: false,
             strip: false,
-            lower: false,
-            validate: false,
+            lower: true,
+            validate: true,
             lazy: false,
             ..Default::default()
         })
