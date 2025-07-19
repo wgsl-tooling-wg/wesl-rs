@@ -1206,7 +1206,7 @@ pub fn call_builtin(
         ("min", None, [a1, a2]) => call_min(a1, a2),
         ("mix", None, [a1, a2, a3]) => call_mix(a1, a2, a3, ctx.stage),
         ("modf", None, [a]) => call_modf(a),
-        ("normalize", None, [a]) => call_normalize(a),
+        ("normalize", None, [a]) => call_normalize(a, ctx.stage),
         ("pow", None, [a1, a2]) => call_pow(a1, a2),
         ("quantizeToF16", None, [a]) => call_quantizetof16(a),
         ("radians", None, [a]) => call_radians(a),
@@ -3101,8 +3101,8 @@ fn call_modf(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("modf".to_string()))
 }
 
-fn call_normalize(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("normalize".to_string()))
+fn call_normalize(e: &Instance, stage: EvalStage) -> Result<Instance, E> {
+    e.op_div(&call_length(e)?, stage)
 }
 
 fn call_pow(e1: &Instance, e2: &Instance) -> Result<Instance, E> {

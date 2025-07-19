@@ -385,10 +385,23 @@ pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
         .set_feature("IRRADIANCE_VOLUMES_ARE_USABLE", true) // irradiance_volume_voxel_visualization needs it
         .set_feature("IRRADIANCE_VOLUMES_ARE_USABLE", true) // irradiance_volume_voxel_visualization needs it
         .set_feature("MOTION_VECTOR_PREPASS", true) // show_prepass needs it
-        .set_feature("CLUSTERED_DECALS_ARE_USABLE", true); // custom_clustered_decal needs it
+        .set_feature("CLUSTERED_DECALS_ARE_USABLE", true) // custom_clustered_decal needs it
+        .set_feature("VERTEX_UVS_A", true) // texture_binding_array needs it
+        .set_feature("VERTEX_OUTPUT_INSTANCE_INDEX", true); // extended_material needs it
     if name == "water_material.wgsl" {
         compiler.set_feature("PREPASS_FRAGMENT", true); // water_material needs it
         compiler.set_feature("PREPASS_PIPELINE", true); // water_material needs it
+        compiler.set_feature("NORMAL_PREPASS_OR_DEFERRED_PREPASS", true); // water_material needs it
+
+        compiler
+            .compile(&ModulePath::new(PathOrigin::Absolute, vec![name.clone()]))
+            .inspect_err(|e| {
+                println!(
+                    "{}",
+                    wesl::Diagnostic::from(e.clone()).detail.output.unwrap()
+                )
+            })
+            .ok();
     }
     compiler.compile(&ModulePath::new(PathOrigin::Absolute, vec![name]))?;
     Ok(())
