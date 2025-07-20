@@ -15,8 +15,7 @@ pub trait Eval {
     fn eval_value(&self, ctx: &mut Context) -> Result<Instance, E> {
         let mut inst = self.eval(ctx)?;
         while let Instance::Ref(r) = inst {
-            let r = r.read()?;
-            inst = (*r).clone();
+            inst = r.read()?.to_owned();
         }
         Ok(inst)
     }

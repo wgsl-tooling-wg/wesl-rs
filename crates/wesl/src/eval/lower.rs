@@ -428,7 +428,10 @@ impl Lower for CompoundStatement {
 
 impl Lower for AssignmentStatement {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
-        self.lhs.lower(ctx)?;
+        let is_phony = matches!(self.lhs.node(), Expression::TypeOrIdentifier(TypeExpression { path: None, ident, template_args: None }) if *ident.name() == "_");
+        if !is_phony {
+            self.lhs.lower(ctx)?;
+        }
         self.rhs.lower(ctx)?;
         Ok(())
     }

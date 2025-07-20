@@ -346,11 +346,8 @@ pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
     let root = ModulePath::from_str("package::main")?;
     resolver.add_module(root.clone(), input.into());
     let options = CompileOptions {
-        imports: true,
-        condcomp: true,
-        generics: false,
         strip: false,
-        lower: false,
+        lower: true,
         validate: true,
         ..Default::default()
     };
@@ -376,12 +373,9 @@ pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
             ("TONEMAPPING_LUT_SAMPLER_BINDING_INDEX", 10.0),
         ])
         .set_options(CompileOptions {
-            imports: true,
-            condcomp: true,
-            generics: false,
             strip: false,
-            lower: false,
-            validate: false,
+            lower: true,
+            validate: true,
             lazy: false,
             ..Default::default()
         })
@@ -391,10 +385,23 @@ pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
         .set_feature("IRRADIANCE_VOLUMES_ARE_USABLE", true) // irradiance_volume_voxel_visualization needs it
         .set_feature("IRRADIANCE_VOLUMES_ARE_USABLE", true) // irradiance_volume_voxel_visualization needs it
         .set_feature("MOTION_VECTOR_PREPASS", true) // show_prepass needs it
-        .set_feature("CLUSTERED_DECALS_ARE_USABLE", true); // custom_clustered_decal needs it
+        .set_feature("CLUSTERED_DECALS_ARE_USABLE", true) // custom_clustered_decal needs it
+        .set_feature("VERTEX_UVS_A", true) // texture_binding_array needs it
+        .set_feature("VERTEX_OUTPUT_INSTANCE_INDEX", true); // extended_material needs it
     if name == "water_material.wgsl" {
         compiler.set_feature("PREPASS_FRAGMENT", true); // water_material needs it
         compiler.set_feature("PREPASS_PIPELINE", true); // water_material needs it
+        compiler.set_feature("NORMAL_PREPASS_OR_DEFERRED_PREPASS", true); // water_material needs it
+
+        compiler
+            .compile(&ModulePath::new(PathOrigin::Absolute, vec![name.clone()]))
+            .inspect_err(|e| {
+                println!(
+                    "{}",
+                    wesl::Diagnostic::from(e.clone()).detail.output.unwrap()
+                )
+            })
+            .ok();
     }
     compiler.compile(&ModulePath::new(PathOrigin::Absolute, vec![name]))?;
     Ok(())

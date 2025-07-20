@@ -16,7 +16,7 @@ libtest-mimic = "0.8.1"
 serde_json = "1.0.140"
 wgsl-parse = { workspace = true }
 wesl = { workspace = true, features = ["eval", "naga_ext"] }
-bevy-wgsl = { git = "https://github.com/wgsl-tooling-wg/bevy-wgsl", rev = "d2504a1bcc2bca9511fcbf2ac407793056ff02c8" }
+bevy-wgsl = { git = "https://github.com/wgsl-tooling-wg/bevy-wgsl", rev = "a577b14d6ff75a01329131035dbe374c066a1928" }
 
 [lints]
 workspace = true

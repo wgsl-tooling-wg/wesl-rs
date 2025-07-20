@@ -42,7 +42,7 @@ Create the `build.rs` file with the following content:
 # use wesl::{Wesl, FileResolver};
 fn main() {
     Wesl::new("src/shaders")
-        .build_artifact("main.wesl", "my_shader");
+        .build_artifact(&"package::main".parse().unwrap(), "my_shader");
 }
 ```
 

@@ -817,6 +817,11 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
                 let tplt = ArrayTemplate::parse(tplt, ctx)?;
                 Ok(tplt.ty())
             }
+            #[cfg(feature = "naga_ext")]
+            "binding_array" => {
+                let tplt = super::BindingArrayTemplate::parse(tplt, ctx)?;
+                Ok(tplt.ty())
+            }
             "vec2" | "vec3" | "vec4" => {
                 let tplt = VecTemplate::parse(tplt, ctx)?;
                 let n = name.chars().nth(3).unwrap().to_digit(10).unwrap() as u8;
@@ -927,6 +932,8 @@ impl EvalTy for IndexingExpression {
         if index_ty.is_integer() {
             match self.base.eval_ty(ctx)? {
                 Type::Array(ty, _) => Ok(*ty),
+                #[cfg(feature = "naga_ext")]
+                Type::BindingArray(ty, _) => Ok(*ty),
                 Type::Vec(_, ty) => Ok(*ty),
                 Type::Mat(_, r, ty) => Ok(Type::Vec(r, ty)),
                 ty => Err(E::NotIndexable(ty)),

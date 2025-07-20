@@ -1206,7 +1206,7 @@ pub fn call_builtin(
         ("min", None, [a1, a2]) => call_min(a1, a2),
         ("mix", None, [a1, a2, a3]) => call_mix(a1, a2, a3, ctx.stage),
         ("modf", None, [a]) => call_modf(a),
-        ("normalize", None, [a]) => call_normalize(a),
+        ("normalize", None, [a]) => call_normalize(a, ctx.stage),
         ("pow", None, [a1, a2]) => call_pow(a1, a2),
         ("quantizeToF16", None, [a]) => call_quantizetof16(a),
         ("radians", None, [a]) => call_radians(a),
@@ -1416,6 +1416,55 @@ impl ArrayTemplate {
     }
     pub fn ty(&self) -> Type {
         Type::Array(Box::new(self.ty.clone()), self.n)
+    }
+    pub fn inner_ty(&self) -> Type {
+        self.ty.clone()
+    }
+    pub fn n(&self) -> Option<usize> {
+        self.n
+    }
+}
+
+#[cfg(feature = "naga_ext")]
+pub struct BindingArrayTemplate {
+    n: Option<usize>,
+    ty: Type,
+}
+
+#[cfg(feature = "naga_ext")]
+impl BindingArrayTemplate {
+    pub fn parse(tplt: &[TemplateArg], ctx: &mut Context) -> Result<BindingArrayTemplate, E> {
+        let (t1, t2) = match tplt {
+            [t1] => Ok((t1, None)),
+            [t1, t2] => Ok((t1, Some(t2))),
+            _ => Err(E::TemplateArgs("binding_array")),
+        }?;
+        let ty = match t1.expression.node() {
+            Expression::TypeOrIdentifier(ty) => ty_eval_ty(ty, ctx),
+            _ => Err(E::TemplateArgs("binding_array")),
+        }?;
+        if let Some(t2) = t2 {
+            let n = t2.expression.eval_value(ctx)?;
+            let n = match n {
+                Instance::Literal(LiteralInstance::AbstractInt(n)) => (n > 0).then_some(n as usize),
+                Instance::Literal(LiteralInstance::I32(n)) => (n > 0).then_some(n as usize),
+                Instance::Literal(LiteralInstance::U32(n)) => (n > 0).then_some(n as usize),
+                #[cfg(feature = "naga_ext")]
+                Instance::Literal(LiteralInstance::I64(n)) => (n > 0).then_some(n as usize),
+                #[cfg(feature = "naga_ext")]
+                Instance::Literal(LiteralInstance::U64(n)) => (n > 0).then_some(n as usize),
+                _ => None,
+            }
+            .ok_or(E::Builtin(
+                "the binding_array element count must evaluate to a `u32` or a `i32` greater than `0`",
+            ))?;
+            Ok(BindingArrayTemplate { n: Some(n), ty })
+        } else {
+            Ok(BindingArrayTemplate { n: None, ty })
+        }
+    }
+    pub fn ty(&self) -> Type {
+        Type::BindingArray(Box::new(self.ty.clone()), self.n)
     }
     pub fn inner_ty(&self) -> Type {
         self.ty.clone()
@@ -1752,8 +1801,8 @@ fn call_i32_1(a1: &Instance) -> Result<Instance, E> {
                 LiteralInstance::AbstractFloat(n) => Some(*n as i32), // rounding towards 0
                 LiteralInstance::I32(n) => Some(*n),           // identity operation
                 LiteralInstance::U32(n) => Some(*n as i32),    // reinterpretation of bits
-                LiteralInstance::F32(n) => Some(*n as i32),    // rounding towards 0
-                LiteralInstance::F16(n) => Some(f16::to_f32(*n) as i32), // rounding towards 0
+                LiteralInstance::F32(n) => Some((*n as i32).min(2147483520)), // rounding towards 0 AND representable in f32
+                LiteralInstance::F16(n) => Some((f16::to_f32(*n) as i32).min(65504)), // rounding towards 0 AND representable in f16
                 #[cfg(feature = "naga_ext")]
                 LiteralInstance::I64(n) => n.to_i32(), // identity if representable
                 #[cfg(feature = "naga_ext")]
@@ -1777,8 +1826,8 @@ fn call_u32_1(a1: &Instance) -> Result<Instance, E> {
                 LiteralInstance::AbstractFloat(n) => Some(*n as u32), // rounding towards 0
                 LiteralInstance::I32(n) => Some(*n as u32),    // reinterpretation of bits
                 LiteralInstance::U32(n) => Some(*n),           // identity operation
-                LiteralInstance::F32(n) => Some(*n as u32),    // rounding towards 0
-                LiteralInstance::F16(n) => Some(f16::to_f32(*n) as u32), // rounding towards 0
+                LiteralInstance::F32(n) => Some((*n as u32).min(4294967040)), // rounding towards 0 AND representable in f32
+                LiteralInstance::F16(n) => Some((f16::to_f32(*n) as u32).min(65504)), // rounding towards 0 AND representable in f16
                 #[cfg(feature = "naga_ext")]
                 LiteralInstance::I64(n) => n.to_u32(), // identity if representable
                 #[cfg(feature = "naga_ext")]
@@ -3052,8 +3101,8 @@ fn call_modf(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("modf".to_string()))
 }
 
-fn call_normalize(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("normalize".to_string()))
+fn call_normalize(e: &Instance, stage: EvalStage) -> Result<Instance, E> {
+    e.op_div(&call_length(e)?, stage)
 }
 
 fn call_pow(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
@@ -3342,14 +3391,14 @@ fn call_atomic_load(e: &Instance) -> Result<Instance, E> {
 fn call_atomic_store(e1: &Instance, e2: &Instance) -> Result<(), E> {
     let err = E::Builtin("`atomicStore` expects a pointer to atomic argument");
     if let Instance::Ptr(ptr) = e1 {
-        let inst = ptr.ptr.read_write()?;
-        if let Instance::Atomic(inst) = &*inst {
+        let mut inst = ptr.ptr.read_write()?;
+        if let Instance::Atomic(inst) = &mut *inst {
             let ty = inst.inner().ty();
             let e2 = e2
                 .convert_to(&ty)
                 .ok_or_else(|| E::ParamType(ty, e2.ty()))?;
-            let e2 = Instance::Atomic(AtomicInstance::new(e2));
-            ptr.ptr.write(e2)
+            *inst = AtomicInstance::new(e2);
+            Ok(())
         } else {
             Err(err)
         }
