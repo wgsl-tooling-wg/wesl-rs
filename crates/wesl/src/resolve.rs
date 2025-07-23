@@ -282,19 +282,12 @@ impl Router {
     /// Mount a resolver at a given path prefix. All imports that start with this prefix
     /// will be dispatched to that resolver with the suffix of the path.
     pub fn mount_resolver(&mut self, path: ModulePath, resolver: impl Resolver + 'static) {
-        let resolver: Box<dyn Resolver> = Box::new(resolver);
-        if path.is_empty() {
-            // when the path is empty, the resolver would match any path anyways.
-            // (except external packages)
-            self.fallback = Some((path, resolver));
-        } else {
-            self.mount_points.push((path, resolver));
-        }
+        self.mount_points.push((path, Box::new(resolver)));
     }
 
     /// Mount a fallback resolver that is used when no other prefix match.
     pub fn mount_fallback_resolver(&mut self, resolver: impl Resolver + 'static) {
-        self.mount_resolver(ModulePath::new(PathOrigin::Absolute, vec![]), resolver);
+        self.fallback = Some((ModulePath::new_root(), Box::new(resolver)));
     }
 
     fn route(&self, path: &ModulePath) -> Result<(&dyn Resolver, ModulePath), ResolveError> {
