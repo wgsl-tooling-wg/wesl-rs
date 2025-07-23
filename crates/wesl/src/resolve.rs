@@ -561,6 +561,10 @@ mod test {
         v2.add_module("package::baz".parse().unwrap(), "m5".into());
         r.mount_resolver("package::bar".parse().unwrap(), v2);
 
+        let mut v3 = VirtualResolver::new();
+        v3.add_module("package::bar".parse().unwrap(), "m6".into());
+        r.mount_fallback_resolver(v3);
+
         assert_eq!(r.resolve_source(&"package".parse().unwrap()).unwrap(), "m1");
         assert_eq!(
             r.resolve_source(&"package::foo".parse().unwrap()).unwrap(),
@@ -570,11 +574,14 @@ mod test {
             r.resolve_source(&"package::bar".parse().unwrap()).unwrap(),
             "m4"
         );
-        assert!(r.resolve_source(&"package::baz".parse().unwrap()).is_err(),);
         assert_eq!(
             r.resolve_source(&"package::bar::baz".parse().unwrap())
                 .unwrap(),
             "m5"
+        );
+        assert_eq!(
+            r.resolve_source(&"foo::bar".parse().unwrap()).unwrap(),
+            "m6"
         );
     }
 }

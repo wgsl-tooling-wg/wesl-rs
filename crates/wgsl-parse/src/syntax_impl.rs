@@ -38,7 +38,7 @@ impl ModulePath {
     /// Create a module path that refers to the root module, i.e. `package`.
     ///
     /// Technically `import package;` is not a valid import statement in WESL code.
-    /// However adding an item to the path, such as `imort package::foo;` points at
+    /// However adding an item to the path, such as `import package::foo;` points at
     /// declaration `foo` in the root module.
     pub fn new_root() -> Self {
         Self::new(PathOrigin::Absolute, vec![])
