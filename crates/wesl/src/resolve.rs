@@ -541,3 +541,40 @@ pub fn emit_rerun_if_changed(modules: &[ModulePath], resolver: &impl Resolver) {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn router_resolver() {
+        let mut r = Router::new();
+
+        let mut v1 = VirtualResolver::new();
+        v1.add_module("package".parse().unwrap(), "m1".into());
+        v1.add_module("package::foo".parse().unwrap(), "m2".into());
+        v1.add_module("package::bar".parse().unwrap(), "m3".into());
+        r.mount_resolver("package".parse().unwrap(), v1);
+
+        let mut v2 = VirtualResolver::new();
+        v2.add_module("package".parse().unwrap(), "m4".into());
+        v2.add_module("package::baz".parse().unwrap(), "m5".into());
+        r.mount_resolver("package::bar".parse().unwrap(), v2);
+
+        assert_eq!(r.resolve_source(&"package".parse().unwrap()).unwrap(), "m1");
+        assert_eq!(
+            r.resolve_source(&"package::foo".parse().unwrap()).unwrap(),
+            "m2"
+        );
+        assert_eq!(
+            r.resolve_source(&"package::bar".parse().unwrap()).unwrap(),
+            "m4"
+        );
+        assert!(r.resolve_source(&"package::baz".parse().unwrap()).is_err(),);
+        assert_eq!(
+            r.resolve_source(&"package::bar::baz".parse().unwrap())
+                .unwrap(),
+            "m5"
+        );
+    }
+}
