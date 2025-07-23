@@ -377,7 +377,7 @@ mod tests {
     #[test]
     fn mangle_textures3d() {
         let mangler = EscapeMangler;
-        let module_path = ModulePath::new(PathOrigin::Absolute, vec![]);
+        let module_path = ModulePath::new_root();
         let mangled = mangler.mangle(&module_path, "textures_3d");
         assert_eq!("package__1textures_3d", mangled);
     }

@@ -10,8 +10,8 @@ use std::{
     str::FromStr,
 };
 use wesl::{
-    CompileOptions, CompileResult, Diagnostic, Feature, Features, FileResolver, Inputs,
-    ManglerKind, ModulePath, PkgBuilder, Router, SyntaxUtil, VirtualResolver, Wesl,
+    CompileOptions, CompileResult, Diagnostic, Feature, Features, Inputs, ManglerKind, ModulePath,
+    PkgBuilder, Router, StandardResolver, SyntaxUtil, VirtualResolver, Wesl,
     eval::{Eval, EvalAttrs, HostShareable, Instance, RefInstance, Ty, ty_eval_ty},
     syntax::{self, AccessMode, AddressSpace, PathOrigin, TranslationUnit},
 };
@@ -428,7 +428,7 @@ fn run_compile(
                 .to_string_lossy()
                 .to_string();
             let path = ModulePath::new(PathOrigin::Absolute, vec![name]);
-            let resolver = FileResolver::new(base);
+            let resolver = StandardResolver::new(base);
 
             let res = compiler.set_custom_resolver(resolver).compile(&path)?;
             Ok(res)
@@ -441,7 +441,7 @@ fn run_compile(
             let path = ModulePath::new(PathOrigin::Absolute, vec![name.to_string()]);
             resolver.add_module(ModulePath::new_root(), source.into());
             router.mount_resolver(path.clone(), resolver);
-            router.mount_fallback_resolver(FileResolver::new(base));
+            router.mount_fallback_resolver(StandardResolver::new(base));
 
             let res = compiler.set_custom_resolver(router).compile(&path)?;
             Ok(res)

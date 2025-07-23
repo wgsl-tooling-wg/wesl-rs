@@ -282,19 +282,12 @@ impl Router {
     /// Mount a resolver at a given path prefix. All imports that start with this prefix
     /// will be dispatched to that resolver with the suffix of the path.
     pub fn mount_resolver(&mut self, path: ModulePath, resolver: impl Resolver + 'static) {
-        let resolver: Box<dyn Resolver> = Box::new(resolver);
-        if path.is_empty() {
-            // when the path is empty, the resolver would match any path anyways.
-            // (except external packages)
-            self.fallback = Some((path, resolver));
-        } else {
-            self.mount_points.push((path, resolver));
-        }
+        self.mount_points.push((path, Box::new(resolver)));
     }
 
     /// Mount a fallback resolver that is used when no other prefix match.
     pub fn mount_fallback_resolver(&mut self, resolver: impl Resolver + 'static) {
-        self.mount_resolver(ModulePath::new(PathOrigin::Absolute, vec![]), resolver);
+        self.fallback = Some((ModulePath::new_root(), Box::new(resolver)));
     }
 
     fn route(&self, path: &ModulePath) -> Result<(&dyn Resolver, ModulePath), ResolveError> {
@@ -546,5 +539,49 @@ pub fn emit_rerun_if_changed(modules: &[ModulePath], resolver: &impl Resolver) {
                 println!("cargo::rerun-if-changed={}", path.display());
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn router_resolver() {
+        let mut r = Router::new();
+
+        let mut v1 = VirtualResolver::new();
+        v1.add_module("package".parse().unwrap(), "m1".into());
+        v1.add_module("package::foo".parse().unwrap(), "m2".into());
+        v1.add_module("package::bar".parse().unwrap(), "m3".into());
+        r.mount_resolver("package".parse().unwrap(), v1);
+
+        let mut v2 = VirtualResolver::new();
+        v2.add_module("package".parse().unwrap(), "m4".into());
+        v2.add_module("package::baz".parse().unwrap(), "m5".into());
+        r.mount_resolver("package::bar".parse().unwrap(), v2);
+
+        let mut v3 = VirtualResolver::new();
+        v3.add_module("package::bar".parse().unwrap(), "m6".into());
+        r.mount_fallback_resolver(v3);
+
+        assert_eq!(r.resolve_source(&"package".parse().unwrap()).unwrap(), "m1");
+        assert_eq!(
+            r.resolve_source(&"package::foo".parse().unwrap()).unwrap(),
+            "m2"
+        );
+        assert_eq!(
+            r.resolve_source(&"package::bar".parse().unwrap()).unwrap(),
+            "m4"
+        );
+        assert_eq!(
+            r.resolve_source(&"package::bar::baz".parse().unwrap())
+                .unwrap(),
+            "m5"
+        );
+        assert_eq!(
+            r.resolve_source(&"foo::bar".parse().unwrap()).unwrap(),
+            "m6"
+        );
     }
 }

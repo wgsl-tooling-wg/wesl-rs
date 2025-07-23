@@ -34,9 +34,16 @@ impl ModulePath {
     pub fn new(origin: PathOrigin, components: Vec<String>) -> Self {
         Self { origin, components }
     }
+
+    /// Create a module path that refers to the root module, i.e. `package`.
+    ///
+    /// Technically `import package;` is not a valid import statement in WESL code.
+    /// However adding an item to the path, such as `import package::foo;` points at
+    /// declaration `foo` in the root module.
     pub fn new_root() -> Self {
         Self::new(PathOrigin::Absolute, vec![])
     }
+
     /// Create a new module path from a filesystem path.
     ///
     /// * Paths with a root (leading `/` on Unix) produce `package::` paths.
@@ -81,6 +88,7 @@ impl ModulePath {
 
         Self { origin, components }
     }
+
     /// Create a `PathBuf` from a `ModulePath`.
     ///
     /// * `package::` paths are rooted (start with `/`).
@@ -97,25 +105,30 @@ impl ModulePath {
         fs_path.extend(&self.components);
         fs_path
     }
+
     /// Append a component to the path.
     ///
     /// Precondition: the `item` must be a valid WGSL identifier.
     pub fn push(&mut self, item: &str) {
         self.components.push(item.to_string());
     }
+
     /// Get the first component of the module path.
     pub fn first(&self) -> Option<&str> {
         self.components.first().map(String::as_str)
     }
+
     /// Get the last component of the module path.
     pub fn last(&self) -> Option<&str> {
         self.components.last().map(String::as_str)
     }
+
     /// Append `suffix` to the module path.
     pub fn join(mut self, suffix: impl IntoIterator<Item = String>) -> Self {
         self.components.extend(suffix);
         self
     }
+
     /// Append `suffix` to the module path.
     ///
     /// This function produces a `ModulePath` relative to `self`, as if `suffix` was
@@ -168,17 +181,23 @@ impl ModulePath {
             }
         }
     }
+
+    /// Whether the module path starts with a `prefix`.
     pub fn starts_with(&self, prefix: &Self) -> bool {
         self.origin == prefix.origin
-            && prefix.components.len() >= self.components.len()
+            && self.components.len() >= prefix.components.len()
             && prefix
                 .components
                 .iter()
                 .zip(&self.components)
                 .all(|(a, b)| a == b)
     }
-    pub fn is_empty(&self) -> bool {
-        self.origin.is_package() && self.components.is_empty()
+
+    /// Whether the module path points at the route module.
+    ///
+    /// See [`Self::new_root`].
+    pub fn is_root(&self) -> bool {
+        self.origin.is_absolute() && self.components.is_empty()
     }
 }
 
