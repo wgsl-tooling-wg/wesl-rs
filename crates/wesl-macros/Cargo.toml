@@ -18,6 +18,10 @@ syn = "2.0.77"
 proc-macro-error2 = "2.0.1"
 token_stream_flatten = "0.1.0"
 
+[features]
+query = []
+quote = []
+
 [lib]
 proc-macro = true
 
