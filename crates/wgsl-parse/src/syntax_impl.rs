@@ -1,11 +1,5 @@
-use std::str::FromStr;
-
-use itertools::Itertools;
-use thiserror::Error;
-
-use crate::span::Spanned;
-
 use super::syntax::*;
+use crate::span::Spanned;
 
 impl TranslationUnit {
     /// New empty [`TranslationUnit`]
@@ -84,7 +78,7 @@ impl ModulePath {
                 Component::Normal(name) => name.to_string_lossy().to_string(),
                 _ => panic!("unexpected path component"),
             })
-            .collect_vec();
+            .collect::<Vec<_>>();
 
         Self { origin, components }
     }
@@ -160,7 +154,7 @@ impl ModulePath {
                     .take(to_keep)
                     .chain(&suffix.components)
                     .cloned()
-                    .collect_vec();
+                    .collect::<Vec<_>>();
                 let origin = match self.origin {
                     PathOrigin::Absolute | PathOrigin::Package(_) => self.origin.clone(),
                     PathOrigin::Relative(m) => PathOrigin::Relative(m + n - to_keep),
@@ -201,6 +195,7 @@ impl ModulePath {
     }
 }
 
+#[cfg(feature = "imports")]
 #[test]
 fn test_module_path_join() {
     use std::str::FromStr;
@@ -227,7 +222,8 @@ fn test_module_path_join() {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Error)]
+#[cfg(feature = "imports")]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, thiserror::Error)]
 pub enum ModulePathParseError {
     #[error("module name cannot be empty")]
     Empty,
@@ -239,7 +235,8 @@ pub enum ModulePathParseError {
     MisplacedSuper,
 }
 
-impl FromStr for ModulePath {
+#[cfg(feature = "imports")]
+impl std::str::FromStr for ModulePath {
     type Err = ModulePathParseError;
 
     /// Parse a WGSL string into a module path.
@@ -277,9 +274,11 @@ impl FromStr for ModulePath {
     }
 }
 
-#[cfg(test)]
+#[cfg(feature = "imports")]
 #[test]
 fn test_module_path_fromstr() {
+    use std::str::FromStr;
+
     let ok_cases = [
         ("self", ModulePath::new(PathOrigin::Relative(0), vec![])),
         ("super", ModulePath::new(PathOrigin::Relative(1), vec![])),

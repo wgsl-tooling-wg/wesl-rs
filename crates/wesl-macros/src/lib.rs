@@ -3,8 +3,8 @@ mod query_macro;
 #[cfg(feature = "quote")]
 mod quote_macro;
 
+#[cfg(feature = "quote")]
 use proc_macro_error2::proc_macro_error;
-use syn::parse_macro_input;
 
 #[cfg(feature = "query")]
 use query_macro::{QueryInput, query_impl};
@@ -14,13 +14,13 @@ use quote_macro::{QuoteNodeKind, quote_impl};
 #[cfg(feature = "query")]
 #[proc_macro]
 pub fn query(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(input as QueryInput);
+    let input = syn::parse_macro_input!(input as QueryInput);
     query_impl(input, false).into()
 }
 #[cfg(feature = "query")]
 #[proc_macro]
 pub fn query_mut(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(input as QueryInput);
+    let input = syn::parse_macro_input!(input as QueryInput);
     query_impl(input, true).into()
 }
 
