@@ -1,3 +1,6 @@
+<!-- markdownlint-disable MD041 -->
+
+<!-- markdownlint-capture -->
 <!-- markdownlint-disable -->
 <p align="center">
   <picture>
@@ -30,7 +33,7 @@
       alt="docs.rs wesl crate"
     /></a>
 </p>
-<!-- markdownlint-enable -->
+<!-- markdownlint-restore -->
 
 [docs-rs]: https://docs.rs/wesl
 [discord]: https://discord.gg/5UhkaSu4dt
