@@ -111,7 +111,7 @@ checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
 [[package]]
 name = "bevy-wgsl"
 version = "0.1.0"
-source = "git+https://github.com/wgsl-tooling-wg/bevy-wgsl?rev=a577b14d6ff75a01329131035dbe374c066a1928#a577b14d6ff75a01329131035dbe374c066a1928"
+source = "git+https://github.com/wgsl-tooling-wg/bevy-wgsl?rev=575208586e6fcbd9df21c3b8d90669e67045b3e0#575208586e6fcbd9df21c3b8d90669e67045b3e0"
 dependencies = [
  "wesl",
 ]
@@ -780,7 +780,7 @@ dependencies = [
 
 [[package]]
 name = "random_wgsl"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "wesl",
 ]
@@ -1083,7 +1083,7 @@ dependencies = [
 
 [[package]]
 name = "tokrepr"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1092,7 +1092,7 @@ dependencies = [
 
 [[package]]
 name = "tokrepr-derive"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -1246,7 +1246,7 @@ dependencies = [
 
 [[package]]
 name = "wesl"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "annotate-snippets",
  "derive_more",
@@ -1262,7 +1262,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-cli"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "clap",
  "naga",
@@ -1273,7 +1273,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-consumer"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "random_wgsl",
  "wesl",
@@ -1281,7 +1281,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-macros"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "itertools",
  "proc-macro-error2",
@@ -1294,7 +1294,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-test"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "bevy-wgsl",
  "libtest-mimic",
@@ -1307,7 +1307,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-web"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "ansi-to-html",
  "console_error_panic_hook",
@@ -1325,7 +1325,7 @@ dependencies = [
 
 [[package]]
 name = "wgsl-parse"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "annotate-snippets",
  "derive_more",
