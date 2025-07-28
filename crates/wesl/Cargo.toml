@@ -22,18 +22,18 @@ derive_more = { version = "2.0.1", features = [
 half = { version = "2.4.1", features = ["num-traits"] }
 itertools = "0.14.0"
 num-traits = "0.2.19"
-serde = { version = "1.0.215", features = ["derive"], optional = true }
 thiserror = "2.0.11"
 wgsl-parse = { workspace = true, features = ["wesl"] }
-wesl-macros = { workspace = true }
+wesl-macros = { workspace = true, features = ["query"] }
 # deps for feature 'package'
 proc-macro2 = { version = "1.0.93", optional = true }
 quote = { version = "1.0.38", optional = true }
 
 [features]
-eval = []
+quote = ["wesl-macros/quote"]
+eval = ["quote"]
 generics = ["wgsl-parse/generics"]
-serde = ["wgsl-parse/serde", "dep:serde"]
+serde = ["wgsl-parse/serde"]
 package = ["dep:proc-macro2", "dep:quote"]
 # allow naga/wgpu extensions.
 # They are not well-documented, the best I could find is this:

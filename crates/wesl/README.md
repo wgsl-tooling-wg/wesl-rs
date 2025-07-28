@@ -57,8 +57,8 @@ let module = device.create_shader_module(ShaderModuleDescriptor {
 
 ## Write shaders inline with the [`quote_module`] macro
 
-With the `quote_*!` macros one can write WGSL shaders directly in source code. This has a
-few advantages:
+The `quote` feature flag provides the `quote_*!` macros which let one write WGSL shaders
+directly in source code. This has a few advantages:
 
 * Like [`quote`](https://docs.rs/quote), it supports local variable injection. This can be
   used e.g. to customize a shader module at runtime.
