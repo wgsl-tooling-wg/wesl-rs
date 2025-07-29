@@ -153,6 +153,8 @@ void wesl_free_compile_result(WeslCompileResult* result);
 void wesl_free_exec_result(WeslExecResult* result);
 
 // -- utility
+
+// note: results from this function must not be freed
 const char* wesl_version(void);
 
 #ifdef __cplusplus

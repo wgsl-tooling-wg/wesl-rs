@@ -892,7 +892,9 @@ pub unsafe extern "C" fn wesl_free_exec_result(result: *mut WeslExecResult) {
 
 // -- utility
 
+// note: results from this function must not be freed
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wesl_version() -> *const c_char {
-    create_c_string(env!("CARGO_PKG_VERSION"))
+    const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
+    return VERSION.as_ptr() as *const c_char;
 }

@@ -27,7 +27,6 @@ int main() {
     // print version
     const char* version = wesl_version();
     printf("WESL version: %s\n", version);
-    wesl_free_string(version);
 
     // add some modules
     const char* modules[] = {
