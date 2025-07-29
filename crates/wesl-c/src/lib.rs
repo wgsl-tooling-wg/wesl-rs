@@ -5,7 +5,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_uint};
 use std::ptr;
 
-use wesl::{CompileResult, VirtualResolver, Wesl};
+use wesl::{VirtualResolver, Wesl};
 
 #[cfg(feature = "eval")]
 use wesl::{
