@@ -985,10 +985,10 @@ pub fn builtin_fn_type(
         ("pack4xU8", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::U32.into())) => {
             Ok(Some(Type::U32))
         }
-        ("pack4xI8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
+        ("pack4xI8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::I32.into())) => {
             Ok(Some(Type::U32))
         }
-        ("pack4xU8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
+        ("pack4xU8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::U32.into())) => {
             Ok(Some(Type::U32))
         }
         ("pack2x16snorm", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
@@ -2467,6 +2467,8 @@ fn call_acos(e: &Instance) -> Result<Instance, E> {
 
 // NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
 fn call_acosh(e: &Instance) -> Result<Instance, E> {
+    // TODO: Rust's asinh implementation overflows for inputs close to max_float.
+    // it's no big deal, but some cts tests fail because of that.
     impl_call_float_unary!("acosh", e, n => n.acosh())
 }
 
@@ -2476,6 +2478,8 @@ fn call_asin(e: &Instance) -> Result<Instance, E> {
 }
 
 fn call_asinh(e: &Instance) -> Result<Instance, E> {
+    // TODO: Rust's asinh implementation overflows for inputs close to max_float.
+    // it's no big deal, but some cts tests fail because of that.
     impl_call_float_unary!("asinh", e, n => n.asinh())
 }
 
@@ -3466,68 +3470,285 @@ fn call_atomic_compare_exchange_weak(e1: &Instance, e2: &Instance) -> Result<Ins
 // ------------
 // reference: <https://www.w3.org/TR/WGSL/#pack-builtin-functions>
 
-fn call_pack4x8snorm(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("pack4x8snorm".to_string()))
+fn call_pack4x8snorm(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`pack4x8snorm` expects a `vec4<f32>` argument");
+
+    let v = e
+        .convert_to(&Type::Vec(4, Type::F32.into()))
+        .ok_or(ERR)?
+        .unwrap_vec();
+
+    let mut result = 0u32;
+    for i in 0..4 {
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f_32();
+        let bits = (0.5 + 127.0 * val.clamp(-1.0, 1.0)).floor() as i8 as u8;
+        result |= (bits as u32) << (8 * i);
+    }
+    Ok(LiteralInstance::U32(result).into())
 }
 
-fn call_pack4x8unorm(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("pack4x8unorm".to_string()))
+fn call_pack4x8unorm(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`pack4x8unorm` expects a `vec4<f32>` argument");
+
+    let v = e
+        .convert_to(&Type::Vec(4, Type::F32.into()))
+        .ok_or(ERR)?
+        .unwrap_vec();
+
+    let mut result = 0u32;
+    for i in 0..4 {
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f_32();
+        let bits = (0.5 + 255.0 * val.clamp(0.0, 1.0)).floor() as u8;
+        result |= (bits as u32) << (8 * i);
+    }
+    Ok(LiteralInstance::U32(result).into())
 }
 
-fn call_pack4xi8(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("pack4xI8".to_string()))
+fn call_pack4xi8(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`pack4xI8` expects a `vec4<i32>` argument");
+
+    let v = e
+        .convert_to(&Type::Vec(4, Type::I32.into()))
+        .ok_or(ERR)?
+        .unwrap_vec();
+
+    let mut result = 0u32;
+    for i in 0..4 {
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_i_32();
+        result |= (val as u8 as u32) << (8 * i);
+    }
+    Ok(LiteralInstance::U32(result).into())
 }
 
-fn call_pack4xu8(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("pack4xU8".to_string()))
+fn call_pack4xu8(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`pack4xU8` expects a `vec4<u32>` argument");
+
+    let v = e
+        .convert_to(&Type::Vec(4, Type::U32.into()))
+        .ok_or(ERR)?
+        .unwrap_vec();
+
+    let mut result = 0u32;
+    for i in 0..4 {
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_u_32();
+        result |= (val as u8 as u32) << (8 * i);
+    }
+    Ok(LiteralInstance::U32(result).into())
 }
 
-fn call_pack4xi8clamp(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("pack4xI8Clamp".to_string()))
+fn call_pack4xi8clamp(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`pack4xI8Clamp` expects a `vec4<i32>` argument");
+
+    let v = e
+        .convert_to(&Type::Vec(4, Type::I32.into()))
+        .ok_or(ERR)?
+        .unwrap_vec();
+
+    let mut result = 0u32;
+    for i in 0..4 {
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_i_32();
+        result |= (val as i8 as u32) << (8 * i);
+    }
+    Ok(LiteralInstance::U32(result).into())
 }
 
-fn call_pack4xu8clamp(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("pack4xU8Clamp".to_string()))
+fn call_pack4xu8clamp(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`pack4xU8Clamp` expects a `vec4<u32>` argument");
+
+    let v = e
+        .convert_to(&Type::Vec(4, Type::U32.into()))
+        .ok_or(ERR)?
+        .unwrap_vec();
+
+    let mut result = 0u32;
+    for i in 0..4 {
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_u_32();
+        result |= (val as u8 as u32) << (8 * i);
+    }
+    Ok(LiteralInstance::U32(result).into())
 }
 
-fn call_pack2x16snorm(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("pack2x16snorm".to_string()))
+fn call_pack2x16snorm(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`pack2x16snorm` expects a `vec2<f32>` argument");
+
+    let v = e
+        .convert_to(&Type::Vec(2, Type::F32.into()))
+        .ok_or(ERR)?
+        .unwrap_vec();
+
+    let mut result = 0u32;
+    for i in 0..2 {
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f_32();
+        let bits = (0.5 + 32767.0 * val.clamp(-1.0, 1.0)).floor() as i16 as u16;
+        result |= (bits as u32) << (16 * i);
+    }
+    Ok(LiteralInstance::U32(result).into())
 }
 
-fn call_pack2x16unorm(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("pack2x16unorm".to_string()))
+fn call_pack2x16unorm(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`pack2x16unorm` expects a `vec2<f32>` argument");
+
+    let v = e
+        .convert_to(&Type::Vec(2, Type::F32.into()))
+        .ok_or(ERR)?
+        .unwrap_vec();
+
+    let mut result = 0u32;
+    for i in 0..2 {
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f_32();
+        let bits = (0.5 + 65535.0 * val.clamp(0.0, 1.0)).floor() as u16;
+        result |= (bits as u32) << (16 * i);
+    }
+    Ok(LiteralInstance::U32(result).into())
 }
 
-fn call_pack2x16float(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("pack2x16float".to_string()))
+fn call_pack2x16float(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`pack2x16float` expects a `vec2<f32>` argument");
+
+    let v = e
+        .convert_to(&Type::Vec(2, Type::F32.into()))
+        .ok_or(ERR)?
+        .unwrap_vec();
+
+    let mut result = 0u32;
+    for i in 0..2 {
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f_32();
+        let bits = f16::from_f32(val).to_bits();
+        result |= (bits as u32) << (16 * i);
+    }
+    Ok(LiteralInstance::U32(result).into())
 }
 
-fn call_unpack4x8snorm(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("unpack4x8snorm".to_string()))
+fn call_unpack4x8snorm(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`unpack4x8snorm` expects a `u32` argument");
+
+    let e = e
+        .convert_to(&Type::U32)
+        .ok_or(ERR)?
+        .unwrap_literal()
+        .unwrap_u_32();
+
+    let comps = e
+        .to_le_bytes()
+        .map(|c| ((c as i8 as f32) / 127.0).max(-1.0))
+        .map(Instance::from)
+        .to_vec();
+
+    Ok(VecInstance::new(comps).into())
 }
 
-fn call_unpack4x8unorm(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("unpack4x8unorm".to_string()))
+fn call_unpack4x8unorm(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`unpack4x8unorm` expects a `u32` argument");
+
+    let e = e
+        .convert_to(&Type::U32)
+        .ok_or(ERR)?
+        .unwrap_literal()
+        .unwrap_u_32();
+
+    let comps = e
+        .to_le_bytes()
+        .map(|c| (c as u8 as f32) / 255.0)
+        .map(Instance::from)
+        .to_vec();
+
+    Ok(VecInstance::new(comps).into())
 }
 
-fn call_unpack4xi8(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("unpack4xI8".to_string()))
+fn call_unpack4xi8(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`unpack4xI8` expects a `u32` argument");
+
+    let e = e
+        .convert_to(&Type::U32)
+        .ok_or(ERR)?
+        .unwrap_literal()
+        .unwrap_u_32();
+
+    let comps = e
+        .to_le_bytes()
+        .map(|c| c as i8 as i32)
+        .map(Instance::from)
+        .to_vec();
+
+    Ok(VecInstance::new(comps).into())
 }
 
-fn call_unpack4xu8(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("unpack4xU8".to_string()))
+fn call_unpack4xu8(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`unpack4xU8` expects a `u32` argument");
+
+    let e = e
+        .convert_to(&Type::U32)
+        .ok_or(ERR)?
+        .unwrap_literal()
+        .unwrap_u_32();
+
+    let comps = e
+        .to_le_bytes()
+        .map(|c| c as u32)
+        .map(Instance::from)
+        .to_vec();
+
+    Ok(VecInstance::new(comps).into())
 }
 
-fn call_unpack2x16snorm(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("unpack2x16snorm".to_string()))
+fn call_unpack2x16snorm(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`unpack2x16snorm` expects a `u32` argument");
+
+    let e = e
+        .convert_to(&Type::U32)
+        .ok_or(ERR)?
+        .unwrap_literal()
+        .unwrap_u_32();
+
+    let lsb = e as u16 as i16;
+    let msb = (e >> 16) as u16 as i16;
+
+    let comps = [lsb, msb]
+        .map(|c| ((c as f32) / 32767.0).max(-1.0))
+        .map(Instance::from)
+        .to_vec();
+
+    Ok(VecInstance::new(comps).into())
 }
 
-fn call_unpack2x16unorm(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("unpack2x16unorm".to_string()))
+fn call_unpack2x16unorm(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`unpack2x16unorm` expects a `u32` argument");
+
+    let e = e
+        .convert_to(&Type::U32)
+        .ok_or(ERR)?
+        .unwrap_literal()
+        .unwrap_u_32();
+
+    let lsb = e as u16;
+    let msb = (e >> 16) as u16;
+
+    let comps = [lsb, msb]
+        .map(|c| (c as f32) / 65535.0)
+        .map(Instance::from)
+        .to_vec();
+
+    Ok(VecInstance::new(comps).into())
 }
 
-fn call_unpack2x16float(_a1: &Instance) -> Result<Instance, E> {
-    Err(E::Todo("unpack2x16float".to_string()))
+fn call_unpack2x16float(e: &Instance) -> Result<Instance, E> {
+    const ERR: E = E::Builtin("`unpack2x16float` expects a `u32` argument");
+
+    let e = e
+        .convert_to(&Type::U32)
+        .ok_or(ERR)?
+        .unwrap_literal()
+        .unwrap_u_32();
+
+    let lsb = e as u16;
+    let msb = (e >> 16) as u16;
+
+    let comps = [lsb, msb]
+        .map(|c| f16::from_bits(c).to_f32())
+        .map(Instance::from)
+        .to_vec();
+
+    Ok(VecInstance::new(comps).into())
 }
 
 impl VecInstance {

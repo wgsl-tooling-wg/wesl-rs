@@ -649,10 +649,10 @@ pub fn builtin_fn_type(sig: &CallSignature) -> Result<Option<Type>, E> {
         ("pack4xU8", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::U32.into())) => {
             Ok(Some(Type::U32))
         }
-        ("pack4xI8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
+        ("pack4xI8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::F32.into())) => {
             Ok(Some(Type::U32))
         }
-        ("pack4xU8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
+        ("pack4xU8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::F32.into())) => {
             Ok(Some(Type::U32))
         }
         ("pack2x16snorm", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
