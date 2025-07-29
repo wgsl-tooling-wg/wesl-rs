@@ -90,7 +90,7 @@ int main() {
         WeslStringMap eval_file_map = create_string_map(eval_modules, eval_sources, 1);
 
         printf("\ncalling wesl_eval...\n");
-        WeslCompileOptions eval_options = {};
+        WeslCompileOptions eval_options = {0};
         WeslResult eval_result = wesl_eval(
             &eval_file_map,
             "package::source",
