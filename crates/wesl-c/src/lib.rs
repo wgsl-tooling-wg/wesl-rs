@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_uint};
@@ -243,8 +245,8 @@ fn wesl_error_to_c(e: wesl::Error) -> WeslError {
         };
 
         let boxed = Box::new(diag);
-        let ptr = Box::into_raw(boxed);
-        ptr
+
+        Box::into_raw(boxed)
     } else {
         ptr::null()
     };
@@ -896,5 +898,5 @@ pub unsafe extern "C" fn wesl_free_exec_result(result: *mut WeslExecResult) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wesl_version() -> *const c_char {
     const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
-    return VERSION.as_ptr() as *const c_char;
+    VERSION.as_ptr() as *const c_char
 }
