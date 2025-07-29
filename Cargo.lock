@@ -1261,6 +1261,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "wesl-c"
+version = "0.2.0"
+dependencies = [
+ "wesl",
+]
+
+[[package]]
 name = "wesl-cli"
 version = "0.2.0"
 dependencies = [
