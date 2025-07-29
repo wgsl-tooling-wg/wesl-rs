@@ -103,6 +103,19 @@ typedef struct WeslResult {
     WeslError error;
 } WeslResult;
 
+typedef struct WeslExecOptions {
+    WeslCompileOptions compile;
+    const char* entrypoint;
+    const WeslBindingArray* resources;
+    const WeslStringMap* overrides;
+} WeslExecOptions;
+
+typedef struct WeslExecResult {
+    bool success;
+    const WeslBindingArray* resources;
+    WeslError error;
+} WeslExecResult;
+
 // -- main API
 WeslCompiler* wesl_create_compiler(void);
 void wesl_destroy_compiler(WeslCompiler* compiler);
@@ -123,10 +136,21 @@ WeslResult wesl_eval(
     const WeslBoolMap* features
 );
 
+WeslExecResult wesl_exec(
+    const WeslStringMap* files,
+    const char* root,
+    const char* entrypoint,
+    const WeslCompileOptions* options,
+    const WeslBindingArray* resources,
+    const WeslStringMap* overrides,
+    const WeslBoolMap* features
+);
+
 // -- memory
 void wesl_free_string(const char* ptr);
 void wesl_free_result(WeslResult* result);
 void wesl_free_compile_result(WeslCompileResult* result);
+void wesl_free_exec_result(WeslExecResult* result);
 
 // -- utility
 const char* wesl_version(void);
