@@ -11,7 +11,6 @@ extern "C" {
 
 // -- handles
 typedef struct WeslCompiler WeslCompiler;
-typedef struct WeslCompileResult WeslCompileResult;
 
 // -- enums
 typedef enum WeslManglerKind {
@@ -149,7 +148,6 @@ WeslExecResult wesl_exec(
 // -- memory
 void wesl_free_string(const char* ptr);
 void wesl_free_result(WeslResult* result);
-void wesl_free_compile_result(WeslCompileResult* result);
 void wesl_free_exec_result(WeslExecResult* result);
 
 // -- utility

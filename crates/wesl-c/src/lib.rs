@@ -147,11 +147,6 @@ pub struct WeslCompiler {
     compiler: Box<dyn std::any::Any + Send + Sync>,
 }
 
-#[repr(C)]
-pub struct WeslCompileResult {
-    result: CompileResult,
-}
-
 // -- helpers
 
 unsafe fn string_map_to_hashmap(map: *const WeslStringMap) -> HashMap<String, String> {
@@ -832,13 +827,6 @@ pub unsafe extern "C" fn wesl_free_result(result: *mut WeslResult) {
                 let _ = Box::from_raw(result.error.diagnostics as *mut WeslDiagnostic);
             }
         }
-    }
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn wesl_free_compile_result(result: *mut WeslCompileResult) {
-    if !result.is_null() {
-        let _ = unsafe { Box::from_raw(result) };
     }
 }
 
