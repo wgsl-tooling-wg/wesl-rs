@@ -135,7 +135,7 @@ impl PkgBuilder {
                 .file_stem()
                 .unwrap()
                 .to_string_lossy()
-                .replace('-', "_");
+                .to_string();
             let module = Module {
                 name: path_filename,
                 source,
