@@ -4,7 +4,7 @@ C bindings for the [`wesl-rs`][wesl-rs] compiler.
 
 [Usage examples](./examples)
 
-# Building
+## Building
 
 ```bash
 cargo build --package wesl-c --features eval,generics --release

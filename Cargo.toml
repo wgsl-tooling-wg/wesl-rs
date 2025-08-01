@@ -4,13 +4,13 @@ members = [
     "crates/wesl-macros",
     "crates/wesl",
     "crates/wesl-test",
-    "crates/wesl-web",
     "crates/wesl-cli",
+    "crates/wesl-web",
+    "crates/wesl-c",
     "crates/tokrepr",
     "crates/tokrepr-derive",
     "examples/random_wgsl",
     "examples/wesl-consumer",
-    "crates/wesl-c",
 ]
 
 resolver = "3"

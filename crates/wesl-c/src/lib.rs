@@ -310,7 +310,7 @@ fn parse_c_binding(
         })?;
 
     let ty = wesl::eval::ty_eval_ty(&ty_expr, &mut ctx)
-        .map_err(|e| wesl::Error::Custom(format!("Failed to evaluate type: {}", e)))?;
+        .map_err(|e| wesl::Error::Custom(format!("Failed to evaluate type: {e}")))?;
 
     let (storage, access) = match b.kind {
         WeslBindingType::Uniform => (AddressSpace::Uniform, AccessMode::Read),
@@ -412,7 +412,7 @@ pub unsafe extern "C" fn wesl_compile(
                 data: ptr::null(),
                 error: WeslError {
                     source: ptr::null(),
-                    message: create_c_string(&format!("Invalid root path: {}", e)),
+                    message: create_c_string(&format!("Invalid root path: {e}")),
                     diagnostics: ptr::null(),
                     diagnostics_len: 0,
                 },
@@ -509,7 +509,7 @@ pub unsafe extern "C" fn wesl_eval(
                 data: ptr::null(),
                 error: WeslError {
                     source: ptr::null(),
-                    message: create_c_string(&format!("Invalid root path: {}", e)),
+                    message: create_c_string(&format!("Invalid root path: {e}")),
                     diagnostics: ptr::null(),
                     diagnostics_len: 0,
                 },
@@ -635,7 +635,7 @@ pub unsafe extern "C" fn wesl_exec(
                 resources: ptr::null(),
                 error: WeslError {
                     source: ptr::null(),
-                    message: create_c_string(&format!("Invalid root path: {}", e)),
+                    message: create_c_string(&format!("Invalid root path: {e}")),
                     diagnostics: ptr::null(),
                     diagnostics_len: 0,
                 },
@@ -700,10 +700,10 @@ pub unsafe extern "C" fn wesl_exec(
                 .map(|(name, expr)| {
                     let mut ctx = wesl::eval::Context::new(&result.syntax);
                     let expr = expr.parse::<wesl::syntax::Expression>().map_err(|e| {
-                        wesl::Error::Custom(format!("Failed to parse override expression: {}", e))
+                        wesl::Error::Custom(format!("Failed to parse override expression: {e}"))
                     })?;
                     let inst = expr.eval_value(&mut ctx).map_err(|e| {
-                        wesl::Error::Custom(format!("Failed to evaluate override: {}", e))
+                        wesl::Error::Custom(format!("Failed to evaluate override: {e}"))
                     })?;
                     Ok((name.clone(), inst))
                 })

@@ -17,6 +17,7 @@
       "wesl-rs",
       "wesl-test",
       "wesl-web",
+      "wesl-c",
       ".wesl",
       "WESL",
       "wgsl-parse",
