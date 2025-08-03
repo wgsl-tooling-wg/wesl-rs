@@ -43,7 +43,7 @@ pub enum Error {
 
 /// Error diagnostics. Display user-friendly error snippets with `Display`.
 ///
-/// A diagnostic is a wrapper around an error with extra contextual metata: the source,
+/// A diagnostic is a wrapper around an error with extra contextual metadata: the source,
 /// the declaration name, the span, ...
 #[derive(Clone, Debug)]
 pub struct Diagnostic<E: std::error::Error> {
