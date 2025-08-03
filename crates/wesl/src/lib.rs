@@ -28,7 +28,7 @@ pub use eval::{Eval, EvalError, Exec, Inputs, exec_entrypoint};
 pub use generics::GenericsError;
 
 #[cfg(feature = "package")]
-pub use package::PkgBuilder;
+pub use package::{Module, Pkg, PkgBuilder};
 
 pub use condcomp::{CondCompError, Feature, Features};
 pub use error::{Diagnostic, Error};
@@ -36,8 +36,8 @@ pub use import::ImportError;
 pub use lower::lower;
 pub use mangle::{CacheMangler, EscapeMangler, HashMangler, Mangler, NoMangler, UnicodeMangler};
 pub use resolve::{
-    FileResolver, NoResolver, Pkg, PkgModule, PkgResolver, Preprocessor, ResolveError, Resolver,
-    Router, StandardResolver, VirtualResolver, emit_rerun_if_changed,
+    CodegenModule, CodegenPkg, FileResolver, NoResolver, PkgResolver, Preprocessor, ResolveError,
+    Resolver, Router, StandardResolver, VirtualResolver, emit_rerun_if_changed,
 };
 pub use sourcemap::{BasicSourceMap, NoSourceMap, SourceMap, SourceMapper};
 pub use syntax_util::SyntaxUtil;
@@ -52,7 +52,6 @@ pub use wgsl_parse::syntax::ModulePath;
 use std::collections::HashMap;
 use std::{collections::HashSet, fmt::Display, path::Path};
 
-use import::{Module, Resolutions};
 use strip::strip_except;
 use wgsl_parse::syntax::{Ident, TranslationUnit};
 
@@ -183,7 +182,7 @@ macro_rules! wesl_pkg {
     };
     ($pkg_name:ident, $source:expr) => {
         pub mod $pkg_name {
-            use $crate::{Pkg, PkgModule};
+            use $crate::{CodegenModule, CodegenPkg};
             include!(concat!(env!("OUT_DIR"), $source));
         }
     };
@@ -262,7 +261,7 @@ impl Wesl<StandardResolver> {
     /// Add a package dependency.
     ///
     /// Learn more about packages in [`PkgBuilder`].
-    pub fn add_package(&mut self, pkg: &'static Pkg) -> &mut Self {
+    pub fn add_package(&mut self, pkg: &'static CodegenPkg) -> &mut Self {
         self.resolver.add_package(pkg);
         self
     }
@@ -270,7 +269,10 @@ impl Wesl<StandardResolver> {
     /// Add several package dependencies.
     ///
     /// Learn more about packages in [`PkgBuilder`].
-    pub fn add_packages(&mut self, pkgs: impl IntoIterator<Item = &'static Pkg>) -> &mut Self {
+    pub fn add_packages(
+        &mut self,
+        pkgs: impl IntoIterator<Item = &'static CodegenPkg>,
+    ) -> &mut Self {
         for pkg in pkgs {
             self.resolver.add_package(pkg);
         }
@@ -811,7 +813,7 @@ fn compile_pre_assembly(
     root: &ModulePath,
     resolver: &impl Resolver,
     opts: &CompileOptions,
-) -> Result<(Resolutions, HashSet<Ident>), Error> {
+) -> Result<(import::Resolutions, HashSet<Ident>), Error> {
     let resolver: Box<dyn Resolver> = if opts.condcomp {
         Box::new(Preprocessor::new(resolver, |wesl| {
             condcomp::run(wesl, &opts.features)?;
@@ -825,8 +827,8 @@ fn compile_pre_assembly(
     wesl.retarget_idents();
     let keep = keep_idents(&wesl, &opts.keep, opts.keep_root, opts.strip);
 
-    let mut resolutions = Resolutions::new();
-    let module = Module::new(wesl, root.clone())?;
+    let mut resolutions = import::Resolutions::new();
+    let module = import::Module::new(wesl, root.clone())?;
     resolutions.push_module(module);
 
     if opts.imports {

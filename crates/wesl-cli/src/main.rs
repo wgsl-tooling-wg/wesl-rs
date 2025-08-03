@@ -690,8 +690,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
                     panic!()
                 })
                 .unwrap()
-                .codegen()
-                .expect("failed to build package");
+                .codegen();
             println!("{code}");
         }
     };
