@@ -339,29 +339,33 @@ impl Resolver for Router {
     }
 }
 
-/// The type implemented by external packages.
+/// The type holding the source code of external packages.
 ///
-/// You typically don't implement this, instead it is implemented for you by
-/// [`crate::PkgBuilder`].
+/// You typically don't implement this, instead it is generated for you by [`crate::PkgBuilder`].
+/// Crates containing shader packages export `const` instances of this type, which you can
+/// then import and [add to your resolver][StandardResolver::add_package].
 #[derive(Debug, PartialEq, Eq)]
-pub struct PkgModule {
-    pub name: &'static str,
-    pub source: &'static str,
-    pub submodules: &'static [&'static PkgModule],
+pub struct CodegenPkg {
+    pub crate_name: &'static str,
+    pub root: &'static CodegenModule,
+    pub dependencies: &'static [&'static CodegenPkg],
 }
 
+/// The type holding the source code of modules in external packages.
+///
+/// See [`CodegenPkg`].
 #[derive(Debug, PartialEq, Eq)]
-pub struct Pkg {
-    pub crate_name: &'static str,
-    pub root: &'static PkgModule,
-    pub dependencies: &'static [&'static Pkg],
+pub struct CodegenModule {
+    pub name: &'static str,
+    pub source: &'static str,
+    pub submodules: &'static [&'static CodegenModule],
 }
 
 /// A resolver that only resolves module paths that refer to modules in external packages.
 ///
 /// Register external packages with [`Self::add_package`].
 pub struct PkgResolver {
-    packages: Vec<&'static Pkg>,
+    packages: Vec<&'static CodegenPkg>,
 }
 
 impl PkgResolver {
@@ -373,7 +377,7 @@ impl PkgResolver {
     }
 
     /// Add a package to the resolver.
-    pub fn add_package(&mut self, pkg: &'static Pkg) {
+    pub fn add_package(&mut self, pkg: &'static CodegenPkg) {
         self.packages.push(pkg);
     }
 }
@@ -467,7 +471,7 @@ impl StandardResolver {
     }
 
     /// Add an external package.
-    pub fn add_package(&mut self, pkg: &'static Pkg) {
+    pub fn add_package(&mut self, pkg: &'static CodegenPkg) {
         self.pkg.add_package(pkg)
     }
 
@@ -532,7 +536,6 @@ pub fn emit_rerun_if_changed(modules: &[ModulePath], resolver: &impl Resolver) {
             !module.origin.is_relative(),
             "the modules passed to emit_rerun_if_changed must be absolute"
         );
-        println!("cargo::rerun-if-changed=build.rs");
         if let Some(mut path) = resolver.fs_path(module) {
             // Path::display is safe here because of the ModulePath naming restrictions
             println!("cargo::rerun-if-changed={}", path.display());

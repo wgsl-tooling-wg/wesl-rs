@@ -3,14 +3,21 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::{Diagnostic, Error, ModulePath, SyntaxUtil, validate::validate_wesl};
+use crate::{
+    Diagnostic, Error, ModulePath, SyntaxUtil, resolve::CodegenPkg, validate::validate_wesl,
+};
 use quote::{format_ident, quote};
 use wgsl_parse::syntax::{PathOrigin, TranslationUnit};
 
 /// A builder that generates code for WESL packages.
 ///
-/// It is designed to be used in a build script (`build.rs` file). Add `wesl` to the
-/// build-dependencies of your project and enable the `package` feature flag.
+/// WESL packages are bundles of shader files that can be reused in other projects, like
+/// Rust crates. See the `consumer` example to see how to use them.
+///
+/// This type is mainly designed to be used in a build script (`build.rs` file). Add `wesl`
+/// to the build-dependencies of your project and enable the `package` feature flag.
+///
+/// # Usage
 ///
 /// ```ignore
 /// // in build.rs
@@ -38,13 +45,28 @@ use wgsl_parse::syntax::{PathOrigin, TranslationUnit};
 /// Dashes are replaced with underscores `_`.
 pub struct PkgBuilder {
     name: String,
-    dependencies: Vec<&'static crate::Pkg>,
+    dependencies: Vec<&'static CodegenPkg>,
 }
 
+/// The type holding the source code of packages.
+///
+/// This struct is produced by [`PkgBuilder::scan_root`], but one can also create or edit
+/// packages manually by modifying this struct. The final package is produced by calling
+/// [`Self::build_artifact`] or [`Self::codegen`].
 pub struct Pkg {
-    crate_name: String,
-    root: Module,
-    dependencies: Vec<&'static crate::Pkg>,
+    pub crate_name: String,
+    pub root: Module,
+    pub dependencies: Vec<&'static CodegenPkg>,
+}
+
+/// The type holding the source code of individual modules in packages.
+///
+/// See [`Pkg`].
+#[derive(Debug)]
+pub struct Module {
+    pub name: String,
+    pub source: String,
+    pub submodules: Vec<Module>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -66,7 +88,7 @@ impl PkgBuilder {
     /// Add a package dependency.
     ///
     /// Learn more about packages in [`PkgBuilder`].
-    pub fn add_package(mut self, pkg: &'static crate::Pkg) -> Self {
+    pub fn add_package(mut self, pkg: &'static CodegenPkg) -> Self {
         self.dependencies.push(pkg);
         self
     }
@@ -74,7 +96,7 @@ impl PkgBuilder {
     /// Add several package dependencies.
     ///
     /// Learn more about packages in [`PkgBuilder`].
-    pub fn add_packages(mut self, pkgs: impl IntoIterator<Item = &'static crate::Pkg>) -> Self {
+    pub fn add_packages(mut self, pkgs: impl IntoIterator<Item = &'static CodegenPkg>) -> Self {
         for pkg in pkgs {
             self = self.add_package(pkg);
         }
@@ -165,13 +187,6 @@ impl PkgBuilder {
     }
 }
 
-#[derive(Debug)]
-pub struct Module {
-    name: String,
-    source: String,
-    submodules: Vec<Module>,
-}
-
 impl Module {
     fn codegen(&self) -> proc_macro2::TokenStream {
         let mod_ident = format_ident!("{}", self.name);
@@ -189,8 +204,8 @@ impl Module {
         quote! {
             #[allow(clippy::all)]
             pub mod #mod_ident {
-                use super::PkgModule;
-                pub const MODULE: PkgModule = PkgModule {
+                use super::CodegenModule;
+                pub const MODULE: CodegenModule = CodegenModule {
                     name: #name,
                     source: #source,
                     submodules: &[#(#submodules),*]
@@ -219,9 +234,9 @@ impl Module {
 }
 
 impl Pkg {
-    /// generate the rust code that holds the packaged wesl files.
-    /// you probably want to use [`Self::build_artifact`] instead.
-    pub fn codegen(&self) -> std::io::Result<String> {
+    /// Generate the rust code that holds the packaged wesl files.
+    /// You probably want to use [`Self::build_artifact`] instead.
+    pub fn codegen(&self) -> String {
         let deps = self.dependencies.iter().map(|dep| {
             let crate_name = format_ident!("{}", dep.crate_name);
             let mod_name = format_ident!("{}", dep.root.name);
@@ -233,7 +248,7 @@ impl Pkg {
         let root_mod = self.root.codegen();
 
         let tokens = quote! {
-            pub const PACKAGE: Pkg = Pkg {
+            pub const PACKAGE: CodegenPkg = CodegenPkg {
                 crate_name: #crate_name,
                 root: &#root::MODULE,
                 dependencies: &[#(#deps),*],
@@ -242,26 +257,26 @@ impl Pkg {
             #root_mod
         };
 
-        Ok(tokens.to_string())
+        tokens.to_string()
     }
 
-    /// run validation checks on each of the scanned files.
+    /// Run validation checks on each of the scanned files.
     pub fn validate(self) -> Result<Self, Error> {
         let path = ModulePath::new(PathOrigin::Absolute, vec![self.root.name.clone()]);
         self.root.validate(path)?;
         Ok(self)
     }
 
-    /// generate the build artifact that can then be exposed by the [`super::wesl_pkg`] macro.
+    /// Generate the build artifact that can then be exposed by the [`super::wesl_pkg`] macro.
     ///
-    /// this function must be called from a `build.rs` file. Refer to the crate documentation
+    /// This function must be called from a `build.rs` file. Refer to the crate documentation
     /// for more details.
     ///
     /// # Panics
-    /// panics if the OUT_DIR environment variable is not set. This should not happen if
+    /// Panics if the OUT_DIR environment variable is not set. This should not happen if
     /// ran from a `build.rs` file.
     pub fn build_artifact(&self) -> std::io::Result<()> {
-        let code = self.codegen()?;
+        let code = self.codegen();
         let out_dir = std::path::Path::new(
             &std::env::var_os("OUT_DIR").expect("OUT_DIR environment variable is not defined"),
         )

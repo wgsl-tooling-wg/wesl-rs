@@ -743,7 +743,7 @@ dependencies = [
 
 [[package]]
 name = "tokrepr"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -752,7 +752,7 @@ dependencies = [
 
 [[package]]
 name = "tokrepr-derive"
-version = "0.0.1"
+version = "0.1.0"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -808,7 +808,7 @@ dependencies = [
 
 [[package]]
 name = "wesl"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "annotate-snippets",
  "derive_more",
@@ -824,7 +824,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-macros"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "itertools",
  "proc-macro-error2",
@@ -837,7 +837,7 @@ dependencies = [
 
 [[package]]
 name = "wgsl-parse"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "annotate-snippets",
  "derive_more",
