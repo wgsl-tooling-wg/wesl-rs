@@ -319,7 +319,7 @@ pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
     let mut resolver = VirtualResolver::new();
 
     for (path, file) in &case.wesl_src {
-        let path = ModulePath::from_path(path);
+        let path = ModulePath::new_root().join_path(&ModulePath::from_path(path));
         resolver.add_module(path, file.into());
     }
 

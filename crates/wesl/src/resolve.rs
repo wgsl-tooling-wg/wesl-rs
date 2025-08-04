@@ -184,8 +184,9 @@ impl<'a> VirtualResolver<'a> {
     }
 
     /// Resolve imports of `path` with the given WESL string.
-    pub fn add_module(&mut self, mut path: ModulePath, file: Cow<'a, str>) {
-        path.origin = PathOrigin::Absolute; // we force absolute paths
+    ///
+    /// The path must not be relative.
+    pub fn add_module(&mut self, path: ModulePath, file: Cow<'a, str>) {
         self.files.insert(path, file);
     }
 
@@ -279,10 +280,13 @@ impl Router {
         }
     }
 
-    /// Mount a resolver at a given path prefix. All imports that start with this prefix
-    /// will be dispatched to that resolver with the suffix of the path.
-    pub fn mount_resolver(&mut self, path: ModulePath, resolver: impl Resolver + 'static) {
-        self.mount_points.push((path, Box::new(resolver)));
+    /// Mount a resolver at a given path prefix.
+    ///
+    /// All import paths starting with `prefix` will be dispatched to the resolver with
+    /// the suffix of the path. The prefix path must have an `Absolute` or `Package`
+    /// origin and the suffix path will be given an `Absolute` origin.
+    pub fn mount_resolver(&mut self, prefix: ModulePath, resolver: impl Resolver + 'static) {
+        self.mount_points.push((prefix, Box::new(resolver)));
     }
 
     /// Mount a fallback resolver that is used when no other prefix match.
