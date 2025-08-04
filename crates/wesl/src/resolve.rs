@@ -184,8 +184,9 @@ impl<'a> VirtualResolver<'a> {
     }
 
     /// Resolve imports of `path` with the given WESL string.
-    pub fn add_module(&mut self, mut path: ModulePath, file: Cow<'a, str>) {
-        path.origin = PathOrigin::Absolute; // we force absolute paths
+    ///
+    /// The path must not be relative.
+    pub fn add_module(&mut self, path: ModulePath, file: Cow<'a, str>) {
         self.files.insert(path, file);
     }
 
