@@ -157,7 +157,9 @@ impl ModulePath {
                     .collect::<Vec<_>>();
                 let origin = match self.origin {
                     PathOrigin::Absolute | PathOrigin::Package(_) => self.origin.clone(),
-                    PathOrigin::Relative(m) => PathOrigin::Relative(m + n - to_keep),
+                    PathOrigin::Relative(m) => {
+                        PathOrigin::Relative(m + n.saturating_sub(self.components.len()))
+                    }
                 };
                 Self { origin, components }
             }
@@ -209,6 +211,7 @@ fn test_module_path_join() {
         ("pkg::m1::m2", "super::foo", "pkg::m1::foo"),
         ("pkg::m1", "super::super::foo", "pkg::foo"),
         ("super", "super::foo", "super::super::foo"),
+        ("super::m1::m2::m3", "super::super::m4", "super::m1::m4"),
         ("super", "self::foo", "super::foo"),
         ("self", "super::foo", "super::foo"),
     ];
