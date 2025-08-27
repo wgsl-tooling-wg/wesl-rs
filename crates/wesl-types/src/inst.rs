@@ -1,80 +1,54 @@
+//! [`Instance`]s of WGSL [`Type`]s.
+
 use std::{
     cell::{Ref, RefCell, RefMut},
     ops::Index,
     rc::Rc,
-    str::FromStr,
 };
 
 use derive_more::derive::{From, IsVariant, Unwrap};
 use half::f16;
 use itertools::Itertools;
 
-use super::{EvalError, Ty, Type};
+use crate::{
+    EvalError,
+    enums::{AccessMode, AddressSpace},
+    ty::{Ty, Type},
+};
 
 type E = EvalError;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
-pub enum AddressSpace {
-    Function,
-    Private,
-    Workgroup,
-    Uniform,
-    Storage(Option<AccessMode>),
-    Handle, // the handle address space cannot be spelled in WGSL.
-    #[cfg(feature = "naga_ext")]
-    PushConstant,
+/// Path to a memory view of an instance.
+///
+/// See [Instance::view]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MemView {
+    /// View the whole instance.
+    Whole,
+    /// Access a `struct` member or `vec` component.
+    Member(String, Box<MemView>),
+    /// Access an `array`, `vec` or `mat` component.
+    Index(usize, Box<MemView>),
 }
 
-impl FromStr for AddressSpace {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "function" => Ok(Self::Function),
-            "private" => Ok(Self::Private),
-            "workgroup" => Ok(Self::Workgroup),
-            "uniform" => Ok(Self::Uniform),
-            "storage" => Ok(Self::Storage(None)),
-            #[cfg(feature = "naga_ext")]
-            "push_constant" => Ok(Self::PushConstant),
-            // "WGSL predeclares an enumerant for each address space, except for the handle address space."
-            // "handle" => Ok(Self::Handle),
-            _ => Err(()),
+impl MemView {
+    pub fn append_member(&mut self, comp: String) {
+        match self {
+            MemView::Whole => *self = MemView::Member(comp, Box::new(MemView::Whole)),
+            MemView::Member(_, v) | MemView::Index(_, v) => v.append_member(comp),
+        }
+    }
+    pub fn append_index(&mut self, index: usize) {
+        match self {
+            MemView::Whole => *self = MemView::Index(index, Box::new(MemView::Whole)),
+            MemView::Member(_, v) | MemView::Index(_, v) => v.append_index(index),
         }
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AccessMode {
-    Read,
-    Write,
-    ReadWrite,
-}
-
-impl AccessMode {
-    /// Is [`Self::Read`] or [`Self::ReadWrite`]
-    pub fn is_read(&self) -> bool {
-        matches!(self, Self::Read | Self::ReadWrite)
-    }
-    /// Is [`Self::Write`] or [`Self::ReadWrite`]
-    pub fn is_write(&self) -> bool {
-        matches!(self, Self::Write | Self::ReadWrite)
-    }
-}
-
-impl FromStr for AccessMode {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "read" => Ok(Self::Read),
-            "write" => Ok(Self::Write),
-            "read_write" => Ok(Self::ReadWrite),
-            _ => Err(()),
-        }
-    }
-}
-
+/// Instance of a plain type.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#plain-types-section>
 #[derive(Clone, Debug, From, PartialEq, IsVariant, Unwrap)]
 #[unwrap(ref, ref_mut)]
 pub enum Instance {
@@ -86,7 +60,8 @@ pub enum Instance {
     Ptr(PtrInstance),
     Ref(RefInstance),
     Atomic(AtomicInstance),
-    /// for instances that cannot be computed at the current eval stage, we still store the type.
+    /// For instances that cannot be computed currently, we store the type.
+    /// TODO: remove this
     Deferred(Type),
 }
 
@@ -111,6 +86,13 @@ impl_transitive_from!(u32 => LiteralInstance => Instance);
 impl_transitive_from!(f32 => LiteralInstance => Instance);
 
 impl Instance {
+    /// Get an instance representing a memory view.
+    ///
+    /// There are two ways to create a memory view:
+    /// * Accessing a `struct` component (`struct.member`)
+    /// * Indexing an `array`, `vec`, or `mat` (`arr[n]`)
+    ///
+    /// Reference: <https://www.w3.org/TR/WGSL/#memory-views>
     pub fn view(&self, view: &MemView) -> Result<&Instance, E> {
         match view {
             MemView::Whole => Ok(self),
@@ -147,6 +129,10 @@ impl Instance {
             },
         }
     }
+
+    /// Get an instance representing a memory view.
+    ///
+    /// See [Self::view]
     pub fn view_mut(&mut self, view: &MemView) -> Result<&mut Instance, E> {
         let ty = self.ty();
         match view {
@@ -178,6 +164,10 @@ impl Instance {
             },
         }
     }
+
+    /// Mutate the instance.
+    ///
+    /// This is the operation performed by the assignment operator.
     pub fn write(&mut self, value: Instance) -> Result<Instance, E> {
         if value.ty() != self.ty() {
             return Err(E::WriteRefType(value.ty(), self.ty()));
@@ -187,6 +177,7 @@ impl Instance {
     }
 }
 
+/// Instance of a numeric literal type.
 #[derive(Clone, Copy, Debug, PartialEq, From, Unwrap)]
 pub enum LiteralInstance {
     Bool(bool),
@@ -207,6 +198,9 @@ pub enum LiteralInstance {
     F64(f64),
 }
 
+/// Instance of a `struct` type.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#struct-types>
 #[derive(Clone, Debug, PartialEq)]
 pub struct StructInstance {
     name: String,
@@ -220,11 +214,13 @@ impl StructInstance {
     pub fn name(&self) -> &str {
         &self.name
     }
+    /// Get a `struct` member value by name.
     pub fn member(&self, name: &str) -> Option<&Instance> {
         self.members
             .iter()
             .find_map(|(n, inst)| (n == name).then_some(inst))
     }
+    /// Get a `struct` member value by name.
     pub fn member_mut(&mut self, name: &str) -> Option<&mut Instance> {
         self.members
             .iter_mut()
@@ -235,6 +231,9 @@ impl StructInstance {
     }
 }
 
+/// Instance of an `array<T, N>` type.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#array-types>
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct ArrayInstance {
     components: Vec<Instance>,
@@ -242,6 +241,7 @@ pub struct ArrayInstance {
 }
 
 impl ArrayInstance {
+    /// Construct an `array`.
     ///
     /// # Panics
     /// * if the components is empty
@@ -254,12 +254,15 @@ impl ArrayInstance {
             runtime_sized,
         }
     }
+    /// The element count.
     pub fn n(&self) -> usize {
         self.components.len()
     }
+    /// Get an element by index.
     pub fn get(&self, i: usize) -> Option<&Instance> {
         self.components.get(i)
     }
+    /// Get an element by index.
     pub fn get_mut(&mut self, i: usize) -> Option<&mut Instance> {
         self.components.get_mut(i)
     }
@@ -273,6 +276,7 @@ impl ArrayInstance {
         self.components.as_slice()
     }
 }
+
 impl IntoIterator for ArrayInstance {
     type Item = Instance;
     type IntoIter = <Vec<Instance> as IntoIterator>::IntoIter;
@@ -282,12 +286,17 @@ impl IntoIterator for ArrayInstance {
     }
 }
 
+/// Instance of a `vecN<T>` type.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#vector-types>
 #[derive(Clone, Debug, PartialEq)]
 pub struct VecInstance {
     components: ArrayInstance,
 }
 
 impl VecInstance {
+    /// Construct a `vec`.
+    ///
     /// # Panics
     /// * if the components length is not [2, 3, 4]
     /// * if the components are not all the same type
@@ -298,12 +307,15 @@ impl VecInstance {
         assert!(components.inner_ty().is_scalar());
         Self { components }
     }
+    /// The component count.
     pub fn n(&self) -> usize {
         self.components.n()
     }
+    /// Get a component by index.
     pub fn get(&self, i: usize) -> Option<&Instance> {
         self.components.get(i)
     }
+    /// Get a component by index.
     pub fn get_mut(&mut self, i: usize) -> Option<&mut Instance> {
         self.components.get_mut(i)
     }
@@ -317,6 +329,7 @@ impl VecInstance {
         self.components.as_slice()
     }
 }
+
 impl IntoIterator for VecInstance {
     type Item = Instance;
     type IntoIter = <ArrayInstance as IntoIterator>::IntoIter;
@@ -325,6 +338,7 @@ impl IntoIterator for VecInstance {
         self.components.into_iter()
     }
 }
+
 impl Index<usize> for VecInstance {
     type Output = Instance;
 
@@ -349,13 +363,16 @@ impl<T: Into<Instance>> From<[T; 4]> for VecInstance {
     }
 }
 
+/// Instance of a `matCxR<T>` type.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#matrix-types>
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatInstance {
     components: Vec<Instance>,
 }
 
 impl MatInstance {
-    /// Constructor from column vectors.
+    /// Construct a `mat` from column vectors.
     ///
     /// # Panics
     /// * if the number of columns is not [2, 3, 4]
@@ -363,7 +380,7 @@ impl MatInstance {
     /// * if the number of rows is not [2, 3, 4]
     /// * if the elements don't have the same type
     /// * if the type is not a scalar
-    pub(crate) fn from_cols(components: Vec<Instance>) -> Self {
+    pub fn from_cols(components: Vec<Instance>) -> Self {
         assert!((2..=4).contains(&components.len()));
         assert!(
             components
@@ -379,21 +396,27 @@ impl MatInstance {
         Self { components }
     }
 
+    /// The row count.
     pub fn r(&self) -> usize {
         self.components.first().unwrap().unwrap_vec_ref().n()
     }
+    /// The column count.
     pub fn c(&self) -> usize {
         self.components.len()
     }
+    /// Get a column vector.
     pub fn col(&self, i: usize) -> Option<&Instance> {
         self.components.get(i)
     }
+    /// Get a column vector.
     pub fn col_mut(&mut self, i: usize) -> Option<&mut Instance> {
         self.components.get_mut(i)
     }
-    pub fn get(&self, i: usize, j: usize) -> Option<&Instance> {
-        self.col(i).and_then(|v| v.unwrap_vec_ref().get(j))
+    /// Get a component.
+    pub fn get(&self, col: usize, row: usize) -> Option<&Instance> {
+        self.col(col).and_then(|v| v.unwrap_vec_ref().get(row))
     }
+    /// Get a component.
     pub fn get_mut(&mut self, i: usize, j: usize) -> Option<&mut Instance> {
         self.col_mut(i).and_then(|v| v.unwrap_vec_mut().get_mut(j))
     }
@@ -423,6 +446,9 @@ impl IntoIterator for MatInstance {
     }
 }
 
+/// Instance of a `ptr<AS,T,AM>` type.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#ref-ptr-types>
 #[derive(Clone, Debug, PartialEq)]
 pub struct PtrInstance {
     pub ptr: RefInstance,
@@ -434,6 +460,9 @@ impl From<RefInstance> for PtrInstance {
     }
 }
 
+/// Instance of a `ref<AS,T,AM>` type.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#ref-ptr-types>
 #[derive(Clone, Debug, PartialEq)]
 pub struct RefInstance {
     pub ty: Type,
@@ -463,7 +492,7 @@ impl From<PtrInstance> for RefInstance {
 }
 
 impl RefInstance {
-    /// get a reference to a struct or vec member
+    /// Get a reference to a `struct` or `vec` member.
     pub fn view_member(&self, comp: String) -> Result<Self, E> {
         if !self.access.is_read() {
             return Err(E::NotRead);
@@ -479,7 +508,7 @@ impl RefInstance {
             ptr: self.ptr.clone(),
         })
     }
-    /// get a reference to an array, vec or mat component
+    /// Get a reference to an `array`, `vec` or `mat` component.
     pub fn view_index(&self, index: usize) -> Result<Self, E> {
         if !self.access.is_read() {
             return Err(E::NotRead);
@@ -529,28 +558,9 @@ impl RefInstance {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MemView {
-    Whole,
-    Member(String, Box<MemView>),
-    Index(usize, Box<MemView>),
-}
-
-impl MemView {
-    pub fn append_member(&mut self, comp: String) {
-        match self {
-            MemView::Whole => *self = MemView::Member(comp, Box::new(MemView::Whole)),
-            MemView::Member(_, v) | MemView::Index(_, v) => v.append_member(comp),
-        }
-    }
-    pub fn append_index(&mut self, index: usize) {
-        match self {
-            MemView::Whole => *self = MemView::Index(index, Box::new(MemView::Whole)),
-            MemView::Member(_, v) | MemView::Index(_, v) => v.append_index(index),
-        }
-    }
-}
-
+/// `atomic<T>` Instance.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atomic-types>
 #[derive(Clone, Debug, PartialEq)]
 pub struct AtomicInstance {
     content: Box<Instance>,

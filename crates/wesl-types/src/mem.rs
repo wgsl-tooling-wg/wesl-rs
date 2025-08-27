@@ -1,9 +1,12 @@
 use half::f16;
 use itertools::Itertools;
 
-use super::{
-    ArrayInstance, AtomicInstance, Instance, LiteralInstance, MatInstance, StructInstance, Ty,
-    Type, VecInstance,
+use crate::{
+    inst::{
+        ArrayInstance, AtomicInstance, Instance, LiteralInstance, MatInstance, StructInstance,
+        VecInstance,
+    },
+    ty::{Ty, Type},
 };
 
 pub trait HostShareable: Ty + Sized {

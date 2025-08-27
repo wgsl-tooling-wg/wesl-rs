@@ -1,57 +1,31 @@
+//! Implementations of built-in functions.
+//!
+//! This module implements the built-in functions and constructors.
+//! Operators are implemented on the [`Instance`] type directly.
+//! Some functions are still TODO.
+
 use half::prelude::*;
 use num_traits::{FromPrimitive, One, ToBytes, ToPrimitive, Zero, real::Real};
 
 use itertools::{Itertools, chain, izip};
 
-use crate::{AccessMode, AddressSpace, SampledType, StructType, TexelFormat, convert_ty};
-
-use super::{
-    ArrayInstance, AtomicInstance, EvalError, EvalStage, Instance, LiteralInstance, MatInstance,
-    RefInstance, StructInstance, TextureType, Ty, Type, VecInstance,
-    conv::{Convert, convert_all},
-    convert, convert_all_inner_to, convert_all_to, convert_all_ty,
+use crate::ty::StructType;
+use crate::{
+    CallSignature, EvalError, Instance, ShaderStage, TpltParam,
+    conv::{
+        Convert, convert, convert_all, convert_all_inner_to, convert_all_to, convert_all_ty,
+        convert_ty,
+    },
+    enums::{AccessMode, AddressSpace, TexelFormat, TextureType},
+    inst::{
+        ArrayInstance, AtomicInstance, LiteralInstance, MatInstance, RefInstance, StructInstance,
+        VecInstance,
+    },
     ops::Compwise,
+    ty::{SampledType, Ty, Type},
 };
 
 type E = EvalError;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum TpltParam {
-    Type(Type),
-    Instance(Instance),
-    Enumerant(String),
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct CallSignature {
-    name: String,
-    tplt: Option<Vec<TpltParam>>,
-    args: Vec<Type>,
-}
-
-impl std::fmt::Display for TpltParam {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TpltParam::Type(ty) => write!(f, "{ty}"),
-            TpltParam::Instance(inst) => write!(f, "{inst}"),
-            TpltParam::Enumerant(name) => write!(f, "{name}"),
-        }
-    }
-}
-
-impl std::fmt::Display for CallSignature {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = &self.name;
-        let tplt = self.tplt.as_ref().map(|tplt| tplt.iter().format(", "));
-        let args = self.args.iter().format(", ");
-
-        if let Some(tplt) = tplt {
-            write!(f, "{name}<{tplt}>({args})")
-        } else {
-            write!(f, "{name}({args})")
-        }
-    }
-}
 
 // -----------------
 // CONSTRUCTOR TYPES
@@ -230,6 +204,7 @@ fn vec_ctor_ty(n: u8, args: &[Type]) -> Result<Type, E> {
     }
 }
 
+/// Compute the return type of calling a constructor function.
 pub fn constructor_type(sig: &CallSignature) -> Result<Type, E> {
     match (sig.name.as_str(), &sig.tplt, sig.args.as_slice()) {
         ("array", Some(t), []) => Ok(ArrayTemplate::parse(&t)?.ty()),
@@ -289,6 +264,7 @@ pub fn constructor_type(sig: &CallSignature) -> Result<Type, E> {
 // BUILT-IN FUNCTION TYPES
 // -----------------------
 
+/// Compute the return type of calling a built-in function.
 pub fn builtin_fn_type(sig: &CallSignature) -> Result<Option<Type>, E> {
     fn is_float(ty: &Type) -> bool {
         ty.is_float() || ty.is_vec() && ty.inner_ty().is_float()
@@ -711,6 +687,7 @@ pub fn is_constructor_fn(name: &str) -> bool {
 // reference: <https://www.w3.org/TR/WGSL/#zero-value>
 
 impl LiteralInstance {
+    /// The zero-value constructor.
     pub fn zero_value(ty: &Type) -> Result<Self, E> {
         match ty {
             Type::Bool => Ok(LiteralInstance::Bool(false)),
@@ -732,7 +709,7 @@ impl LiteralInstance {
 }
 
 impl VecInstance {
-    /// zero-value initialize a vec instance.
+    /// Zero-value initialize a `vec` instance.
     pub fn zero_value(n: u8, ty: &Type) -> Result<Self, E> {
         let zero = Instance::Literal(LiteralInstance::zero_value(ty)?);
         let comps = (0..n).map(|_| zero.clone()).collect_vec();
@@ -741,7 +718,7 @@ impl VecInstance {
 }
 
 impl MatInstance {
-    /// zero-value initialize a mat instance.
+    /// Zero-value initialize a `mat` instance.
     pub fn zero_value(c: u8, r: u8, ty: &Type) -> Result<Self, E> {
         let zero = Instance::Literal(LiteralInstance::zero_value(ty)?);
         let zero_col = Instance::Vec(VecInstance::new((0..r).map(|_| zero.clone()).collect_vec()));
@@ -758,6 +735,7 @@ pub struct ArrayTemplate {
     n: Option<usize>,
     ty: Type,
 }
+
 impl ArrayTemplate {
     pub fn parse(tplt: &[TpltParam]) -> Result<ArrayTemplate, E> {
         let (ty, n) = match tplt {
@@ -842,6 +820,7 @@ impl BindingArrayTemplate {
 pub struct VecTemplate {
     ty: Type,
 }
+
 impl VecTemplate {
     pub fn parse(tplt: &[TpltParam]) -> Result<VecTemplate, E> {
         let ty = match tplt {
@@ -894,6 +873,7 @@ pub struct PtrTemplate {
     pub ty: Type,
     pub access: AccessMode,
 }
+
 impl PtrTemplate {
     pub fn parse(tplt: &[TpltParam]) -> Result<PtrTemplate, E> {
         let mut it = tplt.iter();
@@ -961,6 +941,7 @@ impl PtrTemplate {
 pub struct AtomicTemplate {
     pub ty: Type,
 }
+
 impl AtomicTemplate {
     pub fn parse(tplt: &[TpltParam]) -> Result<AtomicTemplate, E> {
         let ty = match tplt {
@@ -986,6 +967,7 @@ impl AtomicTemplate {
 pub struct TextureTemplate {
     ty: TextureType,
 }
+
 impl TextureTemplate {
     pub fn parse(name: &str, tplt: &[TpltParam]) -> Result<TextureTemplate, E> {
         let ty = match name {
@@ -1051,6 +1033,7 @@ impl TextureTemplate {
 pub struct BitcastTemplate {
     ty: Type,
 }
+
 impl BitcastTemplate {
     pub fn parse(tplt: &[TpltParam]) -> Result<BitcastTemplate, E> {
         let ty = match tplt {
@@ -1171,7 +1154,7 @@ pub fn call_u32_1(a1: &Instance) -> Result<Instance, E> {
 /// see [`LiteralInstance::convert_to`]
 /// "If T is a numeric scalar (other than f32), e is converted to f32 (including invalid conversions)."
 /// TODO: implicit conversions are incorrect, I think. I'm not sure if f32(too_big) is correct.
-pub fn call_f32_1(a1: &Instance, _stage: EvalStage) -> Result<Instance, E> {
+pub fn call_f32_1(a1: &Instance, _stage: ShaderStage) -> Result<Instance, E> {
     match a1 {
         Instance::Literal(l) => {
             let val = match l {
@@ -1198,14 +1181,14 @@ pub fn call_f32_1(a1: &Instance, _stage: EvalStage) -> Result<Instance, E> {
 
 /// see [`LiteralInstance::convert_to`]
 /// "If T is a numeric scalar (other than f16), e is converted to f16 (including invalid conversions)."
-pub fn call_f16_1(a1: &Instance, stage: EvalStage) -> Result<Instance, E> {
+pub fn call_f16_1(a1: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     match a1 {
         Instance::Literal(l) => {
             let val = match l {
                 LiteralInstance::Bool(n) => Some(n.then_some(f16::one()).unwrap_or(f16::zero())),
                 LiteralInstance::AbstractInt(n) => {
                     // scalar to float (can overflow)
-                    if stage == EvalStage::Const {
+                    if stage == ShaderStage::Const {
                         let range = -65504..=65504;
                         range.contains(n).then_some(f16::from_f32(*n as f32))
                     } else {
@@ -1214,7 +1197,7 @@ pub fn call_f16_1(a1: &Instance, stage: EvalStage) -> Result<Instance, E> {
                 }
                 LiteralInstance::AbstractFloat(n) => {
                     // scalar to float (can overflow)
-                    if stage == EvalStage::Const {
+                    if stage == ShaderStage::Const {
                         let range = -65504.0..=65504.0;
                         range.contains(n).then_some(f16::from_f32(*n as f32))
                     } else {
@@ -1223,7 +1206,7 @@ pub fn call_f16_1(a1: &Instance, stage: EvalStage) -> Result<Instance, E> {
                 }
                 LiteralInstance::I32(n) => {
                     // scalar to float (can overflow)
-                    if stage == EvalStage::Const {
+                    if stage == ShaderStage::Const {
                         f16::from_i32(*n)
                     } else {
                         Some(f16::from_f32(*n as f32))
@@ -1231,7 +1214,7 @@ pub fn call_f16_1(a1: &Instance, stage: EvalStage) -> Result<Instance, E> {
                 }
                 LiteralInstance::U32(n) => {
                     // scalar to float (can overflow)
-                    if stage == EvalStage::Const {
+                    if stage == ShaderStage::Const {
                         f16::from_u32(*n)
                     } else {
                         Some(f16::from_f32(*n as f32))
@@ -1239,7 +1222,7 @@ pub fn call_f16_1(a1: &Instance, stage: EvalStage) -> Result<Instance, E> {
                 }
                 LiteralInstance::F32(n) => {
                     // scalar to float (can overflow)
-                    if stage == EvalStage::Const {
+                    if stage == ShaderStage::Const {
                         let range = -65504.0..=65504.0;
                         range.contains(n).then_some(f16::from_f32(*n))
                     } else {
@@ -1250,7 +1233,7 @@ pub fn call_f16_1(a1: &Instance, stage: EvalStage) -> Result<Instance, E> {
                 #[cfg(feature = "naga_ext")]
                 LiteralInstance::I64(n) => {
                     // scalar to float (can overflow)
-                    if stage == EvalStage::Const {
+                    if stage == ShaderStage::Const {
                         let range = -65504..=65504;
                         range.contains(n).then_some(f16::from_f32(*n as f32))
                     } else {
@@ -1260,7 +1243,7 @@ pub fn call_f16_1(a1: &Instance, stage: EvalStage) -> Result<Instance, E> {
                 #[cfg(feature = "naga_ext")]
                 LiteralInstance::U64(n) => {
                     // scalar to float (can overflow)
-                    if stage == EvalStage::Const {
+                    if stage == ShaderStage::Const {
                         f16::from_u64(*n)
                     } else {
                         Some(f16::from_f32(*n as f32))
@@ -1269,7 +1252,7 @@ pub fn call_f16_1(a1: &Instance, stage: EvalStage) -> Result<Instance, E> {
                 #[cfg(feature = "naga_ext")]
                 LiteralInstance::F64(n) => {
                     // scalar to float (can overflow)
-                    if stage == EvalStage::Const {
+                    if stage == ShaderStage::Const {
                         let range = -65504.0..=65504.0;
                         range.contains(n).then_some(f16::from_f32(*n as f32))
                     } else {
@@ -1289,7 +1272,7 @@ pub fn call_mat_t(
     r: usize,
     tplt: MatTemplate,
     args: &[Instance],
-    stage: EvalStage,
+    stage: ShaderStage,
 ) -> Result<Instance, E> {
     // overload 1: mat conversion constructor
     if let [Instance::Mat(m)] = args {
@@ -1411,7 +1394,7 @@ pub fn call_vec_t(
     n: usize,
     tplt: VecTemplate,
     args: &[Instance],
-    stage: EvalStage,
+    stage: ShaderStage,
 ) -> Result<Instance, E> {
     // overload 1: vec init from single scalar value
     if let [Instance::Literal(l)] = args {
@@ -1960,7 +1943,7 @@ pub fn call_counttrailingzeros(e: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_cross(a: &Instance, b: &Instance, stage: EvalStage) -> Result<Instance, E> {
+pub fn call_cross(a: &Instance, b: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     let (a, b) = convert(a, b).ok_or(E::Builtin("`cross` arguments are incompatible"))?;
     match (a, b) {
         (Instance::Vec(a), Instance::Vec(b)) if a.n() == 3 => {
@@ -1985,16 +1968,17 @@ pub fn call_degrees(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("degrees", e, n => n.to_degrees())
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_determinant(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("determinant".to_string()))
 }
 
 // NOTE: the function returns an error if computed out of domain
-pub fn call_distance(e1: &Instance, e2: &Instance, stage: EvalStage) -> Result<Instance, E> {
+pub fn call_distance(e1: &Instance, e2: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     call_length(&e1.op_sub(e2, stage)?)
 }
 
-pub fn call_dot(e1: &Instance, e2: &Instance, stage: EvalStage) -> Result<Instance, E> {
+pub fn call_dot(e1: &Instance, e2: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     let (e1, e2) = convert(e1, e2).ok_or(E::Builtin("`dot` arguments are incompatible"))?;
     match (e1, e2) {
         (Instance::Vec(e1), Instance::Vec(e2)) => e1.dot(&e2, stage).map(Into::into),
@@ -2002,10 +1986,12 @@ pub fn call_dot(e1: &Instance, e2: &Instance, stage: EvalStage) -> Result<Instan
     }
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_dot4u8packed(_a1: &Instance, _a2: &Instance) -> Result<Instance, E> {
     Err(E::Todo("dot4U8Packed".to_string()))
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_dot4i8packed(_a1: &Instance, _a2: &Instance) -> Result<Instance, E> {
     Err(E::Todo("dot4I8Packed".to_string()))
 }
@@ -2018,18 +2004,22 @@ pub fn call_exp2(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("exp2", e, n => n.exp2())
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_extractbits(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
     Err(E::Todo("extractBits".to_string()))
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_faceforward(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
     Err(E::Todo("faceForward".to_string()))
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_firstleadingbit(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("firstLeadingBit".to_string()))
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_firsttrailingbit(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("firstTrailingBit".to_string()))
 }
@@ -2038,11 +2028,12 @@ pub fn call_floor(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("floor", e, n => n.floor())
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_fma(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
     Err(E::Todo("fma".to_string()))
 }
 
-pub fn call_fract(e: &Instance, stage: EvalStage) -> Result<Instance, E> {
+pub fn call_fract(e: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     e.op_sub(&call_floor(e)?, stage)
     // impl_call_float_unary!("fract", e, n => n.fract())
 }
@@ -2085,6 +2076,7 @@ fn frexp_struct_type(ty: &Type) -> Option<StructType> {
     })
 }
 
+/// TODO: This built-in is only partially implemented.
 pub fn call_frexp(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`frexp` expects a float or vector of float argument");
     fn make_frexp_inst(name: &'static str, fract: Instance, exp: Instance) -> Instance {
@@ -2201,6 +2193,7 @@ pub fn call_frexp(e: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_insertbits(
     _a1: &Instance,
     _a2: &Instance,
@@ -2324,10 +2317,10 @@ pub fn call_length(e: &Instance) -> Result<Instance, E> {
     match e {
         Instance::Literal(_) => call_abs(e),
         Instance::Vec(v) => call_sqrt(
-            &v.op_mul(v, EvalStage::Exec)?
+            &v.op_mul(v, ShaderStage::Exec)?
                 .into_iter()
                 .map(Ok)
-                .reduce(|a, b| a?.op_add(&b?, EvalStage::Exec))
+                .reduce(|a, b| a?.op_add(&b?, ShaderStage::Exec))
                 .unwrap()?,
         ),
         _ => Err(ERR),
@@ -2408,7 +2401,7 @@ pub fn call_mix(
     e1: &Instance,
     e2: &Instance,
     e3: &Instance,
-    stage: EvalStage,
+    stage: ShaderStage,
 ) -> Result<Instance, E> {
     let tys = [e1.inner_ty(), e2.inner_ty(), e3.inner_ty()];
     let inner_ty = convert_all_ty(&tys).ok_or(E::Builtin("`mix` arguments are incompatible"))?;
@@ -2455,11 +2448,12 @@ fn modf_struct_type(ty: &Type) -> Option<StructType> {
     })
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_modf(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("modf".to_string()))
 }
 
-pub fn call_normalize(e: &Instance, stage: EvalStage) -> Result<Instance, E> {
+pub fn call_normalize(e: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     e.op_div(&call_length(e)?, stage)
 }
 
@@ -2502,6 +2496,7 @@ pub fn call_pow(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_quantizetof16(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("quantizeToF16".to_string()))
 }
@@ -2510,14 +2505,17 @@ pub fn call_radians(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("radians", e, n => n.to_radians())
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_reflect(_a1: &Instance, _a2: &Instance) -> Result<Instance, E> {
     Err(E::Todo("reflect".to_string()))
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_refract(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
     Err(E::Todo("refract".to_string()))
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_reversebits(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("reverseBits".to_string()))
 }
@@ -2639,6 +2637,7 @@ pub fn call_sinh(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("sinh", e, n => n.sinh())
 }
 
+/// TODO: This built-in is not implemented!
 pub fn call_smoothstep(_low: &Instance, _high: &Instance, _x: &Instance) -> Result<Instance, E> {
     Err(E::Todo("smoothstep".to_string()))
 }
@@ -2766,7 +2765,7 @@ pub fn call_atomic_store(e1: &Instance, e2: &Instance) -> Result<(), E> {
 }
 pub fn call_atomic_sub(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     let initial = call_atomic_load(e1)?;
-    call_atomic_store(e1, &initial.op_sub(e2, EvalStage::Exec)?)?;
+    call_atomic_store(e1, &initial.op_sub(e2, ShaderStage::Exec)?)?;
     Ok(initial)
 }
 pub fn call_atomic_max(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
@@ -2901,7 +2900,7 @@ pub fn call_unpack2x16float(_a1: &Instance) -> Result<Instance, E> {
 
 impl VecInstance {
     /// Warning, this function does not check operand types
-    pub fn dot(&self, rhs: &VecInstance, stage: EvalStage) -> Result<LiteralInstance, E> {
+    pub fn dot(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<LiteralInstance, E> {
         self.compwise_binary(rhs, |a, b| a.op_mul(b, stage))?
             .into_iter()
             .map(|c| Ok(c.unwrap_literal()))

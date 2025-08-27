@@ -1,8 +1,10 @@
 use thiserror::Error;
 
-use crate::{AddressSpace, CallSignature};
-
-use super::{EvalStage, Instance, LiteralInstance, MemView, Type};
+use crate::{
+    CallSignature, Instance, ShaderStage, Type,
+    enums::AddressSpace,
+    inst::{LiteralInstance, MemView},
+};
 
 /// Evaluation and Execution errors.
 #[derive(Clone, Debug, Error)]
@@ -24,11 +26,11 @@ pub enum EvalError {
     #[error("unknown struct `{0}`")]
     UnknownStruct(String),
     #[error("declaration `{0}` is not accessible at {stage} time", stage = match .1 {
-        EvalStage::Const => "shader-module-creation",
-        EvalStage::Override => "pipeline-creation",
-        EvalStage::Exec => "shader-execution"
+        ShaderStage::Const => "shader-module-creation",
+        ShaderStage::Override => "pipeline-creation",
+        ShaderStage::Exec => "shader-execution"
     })]
-    NotAccessible(String, EvalStage),
+    NotAccessible(String, ShaderStage),
     #[error("type `{0}` does not take any template arguments")]
     UnexpectedTemplate(String),
     #[error("missing template arguments for type `{0}`")]

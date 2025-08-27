@@ -2,13 +2,39 @@ use std::fmt::Display;
 
 use itertools::Itertools;
 
-use crate::{AccessMode, AddressSpace};
-
-use super::{
-    ArrayInstance, AtomicInstance, Instance, LiteralInstance, MatInstance, MemView, PtrInstance,
-    RefInstance, SampledType, SamplerType, StructInstance, TexelFormat, TextureType, Ty, Type,
-    VecInstance,
+use crate::{
+    CallSignature, TpltParam,
+    enums::{AccessMode, AddressSpace, TexelFormat, TextureType},
+    inst::{
+        ArrayInstance, AtomicInstance, Instance, LiteralInstance, MatInstance, MemView,
+        PtrInstance, RefInstance, StructInstance, VecInstance,
+    },
+    ty::{SampledType, SamplerType, Ty, Type},
 };
+
+impl Display for TpltParam {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TpltParam::Type(ty) => write!(f, "{ty}"),
+            TpltParam::Instance(inst) => write!(f, "{inst}"),
+            TpltParam::Enumerant(name) => write!(f, "{name}"),
+        }
+    }
+}
+
+impl Display for CallSignature {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = &self.name;
+        let tplt = self.tplt.as_ref().map(|tplt| tplt.iter().format(", "));
+        let args = self.args.iter().format(", ");
+
+        if let Some(tplt) = tplt {
+            write!(f, "{name}<{tplt}>({args})")
+        } else {
+            write!(f, "{name}({args})")
+        }
+    }
+}
 
 impl Display for Instance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

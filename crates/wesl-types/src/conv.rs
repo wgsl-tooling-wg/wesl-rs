@@ -1,9 +1,18 @@
+//! Type conversion algorithms.
+//!
+//! Implementation of the [conversion_rank] algorithm and utilities to convert
+//! [`Type`]s and [`Instance`]s using [automatic conversions].
+//!
+//! [automatic conversions]: https://www.w3.org/TR/WGSL/#feasible-automatic-conversion
+
 use half::f16;
 use itertools::Itertools;
 use num_traits::{FromPrimitive, ToPrimitive};
 
-use super::{
-    ArrayInstance, Instance, LiteralInstance, MatInstance, StructInstance, Ty, Type, VecInstance,
+use crate::{
+    Instance,
+    inst::{ArrayInstance, LiteralInstance, MatInstance, StructInstance, VecInstance},
+    ty::{Ty, Type},
 };
 
 pub trait Convert: Sized + Clone + Ty {

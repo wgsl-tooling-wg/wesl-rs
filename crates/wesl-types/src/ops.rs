@@ -1,10 +1,10 @@
 use std::iter::zip;
 
-use crate::EvalError;
-
-use super::{
-    Convert, EvalStage, Instance, LiteralInstance, MatInstance, Ty, Type, VecInstance, convert,
-    convert_inner,
+use crate::{
+    EvalError, Instance, ShaderStage,
+    conv::{Convert, convert, convert_inner},
+    inst::{LiteralInstance, MatInstance, VecInstance},
+    ty::{Ty, Type},
 };
 
 use num_traits::{WrappingNeg, WrappingShl};
@@ -164,7 +164,7 @@ impl LiteralInstance {
             _ => Err(E::Unary("-", self.ty())),
         }
     }
-    pub fn op_add(&self, rhs: &Self, stage: EvalStage) -> Result<LiteralInstance, E> {
+    pub fn op_add(&self, rhs: &Self, stage: ShaderStage) -> Result<LiteralInstance, E> {
         let err = || E::Binary("+", self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::AbstractInt, lhs, rhs) => {
@@ -181,7 +181,7 @@ impl LiteralInstance {
             both!(Self::U32, lhs, rhs) => Ok(lhs.wrapping_add(rhs).into()),
             both!(Self::F32, lhs, rhs) => {
                 let res = lhs + rhs;
-                if stage == EvalStage::Const {
+                if stage == ShaderStage::Const {
                     res.is_finite()
                         .then_some(res)
                         .ok_or(E::AddOverflow)
@@ -192,7 +192,7 @@ impl LiteralInstance {
             }
             both!(Self::F16, lhs, rhs) => {
                 let res = lhs + rhs;
-                if stage == EvalStage::Const {
+                if stage == ShaderStage::Const {
                     res.is_finite()
                         .then_some(res)
                         .ok_or(E::AddOverflow)
@@ -204,7 +204,7 @@ impl LiteralInstance {
             _ => Err(err()),
         }
     }
-    pub fn op_sub(&self, rhs: &Self, stage: EvalStage) -> Result<LiteralInstance, E> {
+    pub fn op_sub(&self, rhs: &Self, stage: ShaderStage) -> Result<LiteralInstance, E> {
         let err = || E::Binary("-", self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::AbstractInt, lhs, rhs) => {
@@ -221,7 +221,7 @@ impl LiteralInstance {
             both!(Self::U32, lhs, rhs) => Ok(lhs.wrapping_sub(rhs).into()),
             both!(Self::F32, lhs, rhs) => {
                 let res = lhs - rhs;
-                if stage == EvalStage::Const {
+                if stage == ShaderStage::Const {
                     res.is_finite()
                         .then_some(res)
                         .ok_or(E::SubOverflow)
@@ -232,7 +232,7 @@ impl LiteralInstance {
             }
             both!(Self::F16, lhs, rhs) => {
                 let res = lhs - rhs;
-                if stage == EvalStage::Const {
+                if stage == ShaderStage::Const {
                     res.is_finite()
                         .then_some(res)
                         .ok_or(E::SubOverflow)
@@ -244,7 +244,7 @@ impl LiteralInstance {
             _ => Err(err()),
         }
     }
-    pub fn op_mul(&self, rhs: &Self, stage: EvalStage) -> Result<LiteralInstance, E> {
+    pub fn op_mul(&self, rhs: &Self, stage: ShaderStage) -> Result<LiteralInstance, E> {
         let err = || E::Binary("*", self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::AbstractInt, lhs, rhs) => {
@@ -261,7 +261,7 @@ impl LiteralInstance {
             both!(Self::U32, lhs, rhs) => Ok(lhs.wrapping_mul(rhs).into()),
             both!(Self::F32, lhs, rhs) => {
                 let res = lhs * rhs;
-                if stage == EvalStage::Const {
+                if stage == ShaderStage::Const {
                     res.is_finite()
                         .then_some(res)
                         .ok_or(E::MulOverflow)
@@ -272,7 +272,7 @@ impl LiteralInstance {
             }
             both!(Self::F16, lhs, rhs) => {
                 let res = lhs * rhs;
-                if stage == EvalStage::Const {
+                if stage == ShaderStage::Const {
                     res.is_finite()
                         .then_some(res)
                         .ok_or(E::MulOverflow)
@@ -284,7 +284,7 @@ impl LiteralInstance {
             _ => Err(err()),
         }
     }
-    pub fn op_div(&self, rhs: &Self, stage: EvalStage) -> Result<LiteralInstance, E> {
+    pub fn op_div(&self, rhs: &Self, stage: ShaderStage) -> Result<LiteralInstance, E> {
         let err = || E::Binary("/", self.ty(), rhs.ty());
         let res = match convert(self, rhs).ok_or_else(err)? {
             both!(Self::AbstractInt, lhs, rhs) => {
@@ -315,18 +315,18 @@ impl LiteralInstance {
             }
             _ => Err(err()),
         };
-        if stage == EvalStage::Exec {
+        if stage == ShaderStage::Exec {
             // runtime expressions return lhs when operation fails
             Ok(res.unwrap_or(*self))
         } else {
             res
         }
     }
-    pub fn op_rem(&self, rhs: &Self, stage: EvalStage) -> Result<LiteralInstance, E> {
+    pub fn op_rem(&self, rhs: &Self, stage: ShaderStage) -> Result<LiteralInstance, E> {
         let err = || E::Binary("%", self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::AbstractInt, lhs, rhs) => {
-                if stage == EvalStage::Const {
+                if stage == ShaderStage::Const {
                     lhs.checked_rem(rhs).ok_or(E::RemZeroDiv).map(Into::into)
                 } else {
                     Ok(lhs.checked_rem(rhs).unwrap_or(0).into())
@@ -340,14 +340,14 @@ impl LiteralInstance {
                     .map(Into::into)
             }
             both!(Self::I32, lhs, rhs) => {
-                if stage == EvalStage::Const {
+                if stage == ShaderStage::Const {
                     lhs.checked_rem(rhs).ok_or(E::RemZeroDiv).map(Into::into)
                 } else {
                     Ok(lhs.checked_rem(rhs).unwrap_or(0).into())
                 }
             }
             both!(Self::U32, lhs, rhs) => {
-                if stage == EvalStage::Const {
+                if stage == ShaderStage::Const {
                     lhs.checked_rem(rhs).ok_or(E::RemZeroDiv).map(Into::into)
                 } else {
                     Ok(lhs.checked_rem(rhs).unwrap_or(0).into())
@@ -355,7 +355,7 @@ impl LiteralInstance {
             }
             both!(Self::F32, lhs, rhs) => {
                 let res = lhs % rhs;
-                if stage == EvalStage::Const {
+                if stage == ShaderStage::Const {
                     res.is_finite()
                         .then_some(res)
                         .ok_or(E::RemZeroDiv)
@@ -366,7 +366,7 @@ impl LiteralInstance {
             }
             both!(Self::F16, lhs, rhs) => {
                 let res = lhs % rhs;
-                if stage == EvalStage::Const {
+                if stage == ShaderStage::Const {
                     res.is_finite()
                         .then_some(res)
                         .ok_or(E::RemZeroDiv)
@@ -378,28 +378,28 @@ impl LiteralInstance {
             _ => Err(err()),
         }
     }
-    pub fn op_add_vec(&self, rhs: &VecInstance, stage: EvalStage) -> Result<VecInstance, E> {
+    pub fn op_add_vec(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<VecInstance, E> {
         rhs.op_add_sca(self, stage)
     }
-    pub fn op_sub_vec(&self, rhs: &VecInstance, stage: EvalStage) -> Result<VecInstance, E> {
+    pub fn op_sub_vec(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<VecInstance, E> {
         let (lhs, rhs) =
             convert_inner(self, rhs).ok_or_else(|| E::Binary("-", self.ty(), rhs.ty()))?;
         rhs.compwise_unary(|r| lhs.op_sub(r, stage))
     }
-    pub fn op_mul_vec(&self, rhs: &VecInstance, stage: EvalStage) -> Result<VecInstance, E> {
+    pub fn op_mul_vec(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<VecInstance, E> {
         rhs.op_mul_sca(self, stage)
     }
-    pub fn op_div_vec(&self, rhs: &VecInstance, stage: EvalStage) -> Result<VecInstance, E> {
+    pub fn op_div_vec(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<VecInstance, E> {
         let (lhs, rhs) =
             convert_inner(self, rhs).ok_or_else(|| E::Binary("/", self.ty(), rhs.ty()))?;
         rhs.compwise_unary(|r| lhs.op_div(r, stage))
     }
-    pub fn op_rem_vec(&self, rhs: &VecInstance, stage: EvalStage) -> Result<VecInstance, E> {
+    pub fn op_rem_vec(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<VecInstance, E> {
         let (lhs, rhs) =
             convert_inner(self, rhs).ok_or_else(|| E::Binary("%", self.ty(), rhs.ty()))?;
         rhs.compwise_unary(|r| lhs.op_rem(r, stage))
     }
-    pub fn op_mul_mat(&self, rhs: &MatInstance, stage: EvalStage) -> Result<MatInstance, E> {
+    pub fn op_mul_mat(&self, rhs: &MatInstance, stage: ShaderStage) -> Result<MatInstance, E> {
         rhs.op_mul_sca(self, stage)
     }
 }
@@ -408,52 +408,52 @@ impl VecInstance {
     pub fn op_neg(&self) -> Result<Self, E> {
         self.compwise_unary(|c| c.op_neg())
     }
-    pub fn op_add(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_add(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("+", self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_add(r, stage))
     }
-    pub fn op_sub(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_sub(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("-", self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_sub(r, stage))
     }
-    pub fn op_mul(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_mul(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("*", self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_mul(r, stage))
     }
-    pub fn op_div(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_div(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("/", self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_div(r, stage))
     }
-    pub fn op_rem(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_rem(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("%", self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_rem(r, stage))
     }
-    pub fn op_add_sca(&self, rhs: &LiteralInstance, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_add_sca(&self, rhs: &LiteralInstance, stage: ShaderStage) -> Result<Self, E> {
         let (lhs, rhs) =
             convert_inner(self, rhs).ok_or_else(|| E::Binary("+", self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_add(&rhs, stage))
     }
-    pub fn op_sub_sca(&self, rhs: &LiteralInstance, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_sub_sca(&self, rhs: &LiteralInstance, stage: ShaderStage) -> Result<Self, E> {
         let (lhs, rhs) =
             convert_inner(self, rhs).ok_or_else(|| E::Binary("-", self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_sub(&rhs, stage))
     }
-    pub fn op_mul_sca(&self, rhs: &LiteralInstance, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_mul_sca(&self, rhs: &LiteralInstance, stage: ShaderStage) -> Result<Self, E> {
         let (lhs, rhs) =
             convert_inner(self, rhs).ok_or_else(|| E::Binary("*", self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_mul(&rhs, stage))
     }
-    pub fn op_div_sca(&self, rhs: &LiteralInstance, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_div_sca(&self, rhs: &LiteralInstance, stage: ShaderStage) -> Result<Self, E> {
         let (lhs, rhs) =
             convert_inner(self, rhs).ok_or_else(|| E::Binary("/", self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_div(&rhs, stage))
     }
-    pub fn op_rem_sca(&self, rhs: &LiteralInstance, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_rem_sca(&self, rhs: &LiteralInstance, stage: ShaderStage) -> Result<Self, E> {
         let (lhs, rhs) =
             convert_inner(self, rhs).ok_or_else(|| E::Binary("%", self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_rem(&rhs, stage))
     }
-    pub fn op_mul_mat(&self, rhs: &MatInstance, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_mul_mat(&self, rhs: &MatInstance, stage: ShaderStage) -> Result<Self, E> {
         let (vec, mat) =
             convert_inner(self, rhs).ok_or_else(|| E::Binary("*", self.ty(), rhs.ty()))?;
         let mat = mat.transpose();
@@ -466,23 +466,23 @@ impl VecInstance {
 }
 
 impl MatInstance {
-    pub fn op_add(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_add(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("+", self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_add(r, stage))
     }
 
-    pub fn op_sub(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_sub(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("-", self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_sub(r, stage))
     }
 
-    pub fn op_mul_sca(&self, rhs: &LiteralInstance, stage: EvalStage) -> Result<MatInstance, E> {
+    pub fn op_mul_sca(&self, rhs: &LiteralInstance, stage: ShaderStage) -> Result<MatInstance, E> {
         let (lhs, rhs) =
             convert_inner(self, rhs).ok_or_else(|| E::Binary("*", self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_mul(&rhs, stage))
     }
 
-    pub fn op_mul_vec(&self, rhs: &VecInstance, stage: EvalStage) -> Result<VecInstance, E> {
+    pub fn op_mul_vec(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<VecInstance, E> {
         let (lhs, rhs) =
             convert_inner(self, rhs).ok_or_else(|| E::Binary("*", self.ty(), rhs.ty()))?;
 
@@ -492,7 +492,7 @@ impl MatInstance {
             .unwrap()
     }
 
-    pub fn op_mul(&self, rhs: &Self, stage: EvalStage) -> Result<MatInstance, E> {
+    pub fn op_mul(&self, rhs: &Self, stage: ShaderStage) -> Result<MatInstance, E> {
         let (lhs, rhs) =
             convert_inner(self, rhs).ok_or_else(|| E::Binary("*", self.ty(), rhs.ty()))?;
         let lhs = lhs.transpose();
@@ -524,7 +524,7 @@ impl Instance {
             _ => Err(E::Unary("!", self.ty())),
         }
     }
-    pub fn op_add(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_add(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => (lhs.op_add(rhs, stage)).map(Into::into),
             (Self::Vec(lhs), Self::Literal(rhs)) => lhs.op_add_sca(rhs, stage).map(Into::into),
@@ -534,7 +534,7 @@ impl Instance {
             _ => Err(E::Binary("+", self.ty(), rhs.ty())),
         }
     }
-    pub fn op_sub(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_sub(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_sub(rhs, stage).map(Into::into),
             (Self::Vec(lhs), Self::Literal(rhs)) => lhs.op_sub_sca(rhs, stage).map(Into::into),
@@ -544,7 +544,7 @@ impl Instance {
             _ => Err(E::Binary("-", self.ty(), rhs.ty())),
         }
     }
-    pub fn op_mul(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_mul(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_mul(rhs, stage).map(Into::into),
             (Self::Vec(lhs), Self::Literal(rhs)) => lhs.op_mul_sca(rhs, stage).map(Into::into),
@@ -558,7 +558,7 @@ impl Instance {
             _ => Err(E::Binary("*", self.ty(), rhs.ty())),
         }
     }
-    pub fn op_div(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_div(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_div(rhs, stage).map(Into::into),
             (Self::Literal(s), Self::Vec(v)) => {
@@ -571,7 +571,7 @@ impl Instance {
             _ => Err(E::Binary("/", self.ty(), rhs.ty())),
         }
     }
-    pub fn op_rem(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_rem(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_rem(rhs, stage).map(Into::into),
             (Self::Literal(s), Self::Vec(v)) => {
@@ -799,10 +799,10 @@ impl LiteralInstance {
             _ => Err(err()),
         }
     }
-    pub fn op_shl(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_shl(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         let err = || E::Binary("<<", self.ty(), rhs.ty());
         let r = rhs.convert_to(&Type::U32).ok_or_else(err)?.unwrap_u_32();
-        let stage = stage == EvalStage::Const || stage == EvalStage::Override;
+        let stage = stage == ShaderStage::Const || stage == ShaderStage::Override;
 
         // in const and override expressions, shr operation must not overflow (all discarded bits
         // must be 0 in positive expressions and 1 in negative expressions).
@@ -859,10 +859,10 @@ impl LiteralInstance {
             _ => Err(err()),
         }
     }
-    pub fn op_shr(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_shr(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         let err = || E::Binary(">>", self.ty(), rhs.ty());
         let r = rhs.convert_to(&Type::U32).ok_or_else(err)?.unwrap_u_32();
-        let stage = stage == EvalStage::Const || stage == EvalStage::Override;
+        let stage = stage == ShaderStage::Const || stage == ShaderStage::Override;
 
         // shift by 0 is no-op
         if r == 0 {
@@ -904,10 +904,10 @@ impl VecInstance {
     pub fn op_bitxor(&self, rhs: &Self) -> Result<Self, E> {
         self.compwise_binary(rhs, |l, r| l.op_bitxor(r))
     }
-    pub fn op_shl(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_shl(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         self.compwise_binary(rhs, |l, r| l.op_shl(r, stage))
     }
-    pub fn op_shr(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_shr(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         self.compwise_binary(rhs, |l, r| l.op_shr(r, stage))
     }
 }
@@ -941,14 +941,14 @@ impl Instance {
             _ => Err(E::Binary("^", self.ty(), rhs.ty())),
         }
     }
-    pub fn op_shl(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_shl(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_shl(rhs, stage).map(Into::into),
             both!(Self::Vec, lhs, rhs) => lhs.op_shl(rhs, stage).map(Into::into),
             _ => Err(E::Binary("<<", self.ty(), rhs.ty())),
         }
     }
-    pub fn op_shr(&self, rhs: &Self, stage: EvalStage) -> Result<Self, E> {
+    pub fn op_shr(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_shr(rhs, stage).map(Into::into),
             both!(Self::Vec, lhs, rhs) => lhs.op_shr(rhs, stage).map(Into::into),
