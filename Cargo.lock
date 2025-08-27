@@ -1313,6 +1313,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "wesl-types"
+version = "0.2.0"
+dependencies = [
+ "derive_more",
+ "half",
+ "itertools",
+ "num-traits",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "wesl-web"
 version = "0.2.0"
 dependencies = [

@@ -3,6 +3,7 @@ members = [
     "crates/wgsl-parse",
     "crates/wesl-macros",
     "crates/wesl",
+    "crates/wesl-types",
     "crates/wesl-test",
     "crates/wesl-cli",
     "crates/wesl-web",
