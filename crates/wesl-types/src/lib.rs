@@ -6,6 +6,7 @@ mod ops;
 pub mod builtin;
 pub mod conv;
 pub mod enums;
+pub mod idents;
 pub mod inst;
 pub mod ty;
 
