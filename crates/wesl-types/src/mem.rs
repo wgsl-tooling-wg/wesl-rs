@@ -96,7 +96,7 @@ impl Instance {
                             offset = round_up(align, offset);
                             let buf = buf.get(offset as usize..(offset + size) as usize)?;
                             offset += size;
-                            Instance::from_buffer(buf, &ty)?
+                            Instance::from_buffer(buf, ty)?
                         };
                         Some((name.to_string(), inst))
                     })
