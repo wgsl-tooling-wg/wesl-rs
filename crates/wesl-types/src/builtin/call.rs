@@ -123,9 +123,6 @@ pub fn u32(a1: &Instance) -> Result<Instance, E> {
     }
 }
 
-/// see [`LiteralInstance::convert_to`]
-/// "If T is a numeric scalar (other than f32), e is converted to f32 (including invalid conversions)."
-/// TODO: implicit conversions are incorrect, I think. I'm not sure if f32(too_big) is correct.
 pub fn f32(a1: &Instance, _stage: ShaderStage) -> Result<Instance, E> {
     match a1 {
         Instance::Literal(l) => {
@@ -151,8 +148,6 @@ pub fn f32(a1: &Instance, _stage: ShaderStage) -> Result<Instance, E> {
     }
 }
 
-/// see [`LiteralInstance::convert_to`]
-/// "If T is a numeric scalar (other than f16), e is converted to f16 (including invalid conversions)."
 pub fn f16(a1: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     match a1 {
         Instance::Literal(l) => {
