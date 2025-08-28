@@ -11,6 +11,8 @@ pub enum EvalError {
     // types & templates
     #[error("expected a scalar type, got `{0}`")]
     NotScalar(Type),
+    #[error("`{0}` is not constructible")]
+    NotConstructible(Type),
     #[error("invalid sampled type, expected `i32`, `u32` of `f32`, got `{0}`")]
     SampledType(Type),
 

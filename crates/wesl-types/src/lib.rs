@@ -8,20 +8,14 @@ pub mod conv;
 pub mod enums;
 pub mod idents;
 pub mod inst;
+pub mod tplt;
 pub mod ty;
 
 pub use error::*;
 
 use inst::Instance;
+use tplt::TpltParam;
 use ty::Type;
-
-/// A single tempate parameter.
-#[derive(Clone, Debug, PartialEq)]
-pub enum TpltParam {
-    Type(Type),
-    Instance(Instance),
-    Enumerant(String),
-}
 
 /// Function call signature.
 #[derive(Clone, Debug, PartialEq)]

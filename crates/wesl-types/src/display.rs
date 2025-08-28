@@ -3,12 +3,13 @@ use std::fmt::Display;
 use itertools::Itertools;
 
 use crate::{
-    CallSignature, TpltParam,
+    CallSignature,
     enums::{AccessMode, AddressSpace, TexelFormat, TextureType},
     inst::{
         ArrayInstance, AtomicInstance, Instance, LiteralInstance, MatInstance, MemView,
         PtrInstance, RefInstance, StructInstance, VecInstance,
     },
+    tplt::TpltParam,
     ty::{SampledType, SamplerType, Ty, Type},
 };
 

@@ -1,0 +1,347 @@
+//! Built-in type-generator and function templates.
+
+use crate::{
+    EvalError,
+    enums::{AccessMode, AddressSpace, TexelFormat, TextureType},
+    inst::{Instance, LiteralInstance},
+    ty::{SampledType, Ty, Type},
+};
+
+/// A single tempate parameter.
+#[derive(Clone, Debug, PartialEq)]
+pub enum TpltParam {
+    Type(Type),
+    Instance(Instance),
+    Enumerant(String),
+}
+
+type E = EvalError;
+
+// ------------------------
+// TYPE-GENERATOR TEMPLATES
+// ------------------------
+
+pub struct ArrayTemplate {
+    n: Option<usize>,
+    ty: Type,
+}
+
+impl ArrayTemplate {
+    pub fn parse(tplt: &[TpltParam]) -> Result<ArrayTemplate, E> {
+        let (ty, n) = match tplt {
+            [TpltParam::Type(ty)] => Ok((ty.clone(), None)),
+            [TpltParam::Type(ty), TpltParam::Instance(n)] => Ok((ty.clone(), Some(n.clone()))),
+            _ => Err(E::TemplateArgs("array")),
+        }?;
+        if let Some(n) = n {
+            let n = match n {
+                Instance::Literal(LiteralInstance::AbstractInt(n)) => (n > 0).then_some(n as usize),
+                Instance::Literal(LiteralInstance::I32(n)) => (n > 0).then_some(n as usize),
+                Instance::Literal(LiteralInstance::U32(n)) => (n > 0).then_some(n as usize),
+                #[cfg(feature = "naga_ext")]
+                Instance::Literal(LiteralInstance::I64(n)) => (n > 0).then_some(n as usize),
+                #[cfg(feature = "naga_ext")]
+                Instance::Literal(LiteralInstance::U64(n)) => (n > 0).then_some(n as usize),
+                _ => None,
+            }
+            .ok_or(E::Builtin(
+                "the array element count must evaluate to a `u32` or a `i32` greater than `0`",
+            ))?;
+            Ok(ArrayTemplate { n: Some(n), ty })
+        } else {
+            Ok(ArrayTemplate { n: None, ty })
+        }
+    }
+    pub fn ty(&self) -> Type {
+        Type::Array(Box::new(self.ty.clone()), self.n)
+    }
+    pub fn inner_ty(&self) -> Type {
+        self.ty.clone()
+    }
+    pub fn n(&self) -> Option<usize> {
+        self.n
+    }
+}
+
+#[cfg(feature = "naga_ext")]
+pub struct BindingArrayTemplate {
+    n: Option<usize>,
+    ty: Type,
+}
+
+#[cfg(feature = "naga_ext")]
+impl BindingArrayTemplate {
+    pub fn parse(tplt: &[TpltParam]) -> Result<BindingArrayTemplate, E> {
+        let (ty, n) = match tplt {
+            [TpltParam::Type(ty)] => Ok((ty.clone(), None)),
+            [TpltParam::Type(ty), TpltParam::Instance(n)] => Ok((ty.clone(), Some(n.clone()))),
+            _ => Err(E::TemplateArgs("binding_array")),
+        }?;
+        if let Some(n) = n {
+            let n = match n {
+                Instance::Literal(LiteralInstance::AbstractInt(n)) => (n > 0).then_some(n as usize),
+                Instance::Literal(LiteralInstance::I32(n)) => (n > 0).then_some(n as usize),
+                Instance::Literal(LiteralInstance::U32(n)) => (n > 0).then_some(n as usize),
+                #[cfg(feature = "naga_ext")]
+                Instance::Literal(LiteralInstance::I64(n)) => (n > 0).then_some(n as usize),
+                #[cfg(feature = "naga_ext")]
+                Instance::Literal(LiteralInstance::U64(n)) => (n > 0).then_some(n as usize),
+                _ => None,
+            }
+            .ok_or(E::Builtin(
+                "the binding_array element count must evaluate to a `u32` or a `i32` greater than `0`",
+            ))?;
+            Ok(BindingArrayTemplate { n: Some(n), ty })
+        } else {
+            Ok(BindingArrayTemplate { n: None, ty })
+        }
+    }
+    pub fn ty(&self) -> Type {
+        Type::BindingArray(Box::new(self.ty.clone()), self.n)
+    }
+    pub fn inner_ty(&self) -> Type {
+        self.ty.clone()
+    }
+    pub fn n(&self) -> Option<usize> {
+        self.n
+    }
+}
+
+pub struct VecTemplate {
+    ty: Type,
+}
+
+impl VecTemplate {
+    pub fn parse(tplt: &[TpltParam]) -> Result<VecTemplate, E> {
+        let ty = match tplt {
+            [TpltParam::Type(ty)] => Ok(ty.clone()),
+            _ => Err(E::TemplateArgs("vector")),
+        }?;
+        if ty.is_scalar() && ty.is_concrete() {
+            Ok(VecTemplate { ty })
+        } else {
+            Err(EvalError::Builtin("vector template type must be a scalar"))
+        }
+    }
+    pub fn ty(&self, n: u8) -> Type {
+        Type::Vec(n, self.ty.clone().into())
+    }
+    pub fn inner_ty(&self) -> &Type {
+        &self.ty
+    }
+}
+
+pub struct MatTemplate {
+    ty: Type,
+}
+
+impl MatTemplate {
+    pub fn parse(tplt: &[TpltParam]) -> Result<MatTemplate, E> {
+        let ty = match tplt {
+            [TpltParam::Type(ty)] => Ok(ty.clone()),
+            _ => Err(E::TemplateArgs("matrix")),
+        }?;
+        if ty.is_f_32() || ty.is_f_16() {
+            Ok(MatTemplate { ty })
+        } else {
+            Err(EvalError::Builtin(
+                "matrix template type must be f32 or f16",
+            ))
+        }
+    }
+    pub fn ty(&self, c: u8, r: u8) -> Type {
+        Type::Mat(c, r, self.ty.clone().into())
+    }
+
+    pub fn inner_ty(&self) -> &Type {
+        &self.ty
+    }
+}
+
+pub struct PtrTemplate {
+    pub space: AddressSpace,
+    pub ty: Type,
+    pub access: AccessMode,
+}
+
+impl PtrTemplate {
+    pub fn parse(tplt: &[TpltParam]) -> Result<PtrTemplate, E> {
+        let mut it = tplt.iter();
+        match (it.next(), it.next(), it.next(), it.next()) {
+            (Some(TpltParam::Enumerant(space)), Some(TpltParam::Type(ty)), access, None) => {
+                let mut space = space
+                    .parse()
+                    .map_err(|()| EvalError::Builtin("invalid pointer storage space"))?;
+                if !ty.is_storable() {
+                    return Err(EvalError::Builtin("pointer type must be storable"));
+                }
+                let access = if let Some(TpltParam::Enumerant(access)) = access {
+                    Some(
+                        access
+                            .parse()
+                            .map_err(|()| EvalError::Builtin("invalid pointer access mode"))?,
+                    )
+                } else {
+                    None
+                };
+                // selecting the default access mode per address space.
+                // reference: <https://www.w3.org/TR/WGSL/#address-space>
+                let access = match (&mut space, access) {
+                    (AddressSpace::Function, Some(access))
+                    | (AddressSpace::Private, Some(access))
+                    | (AddressSpace::Workgroup, Some(access)) => access,
+                    (AddressSpace::Function, None)
+                    | (AddressSpace::Private, None)
+                    | (AddressSpace::Workgroup, None) => AccessMode::ReadWrite,
+                    (AddressSpace::Uniform, Some(AccessMode::Read) | None) => AccessMode::Read,
+                    (AddressSpace::Uniform, _) => {
+                        return Err(EvalError::Builtin(
+                            "pointer in uniform address space must have a `read` access mode",
+                        ));
+                    }
+                    (AddressSpace::Storage(a1), Some(a2)) => {
+                        *a1 = Some(a2);
+                        a2
+                    }
+                    (AddressSpace::Storage(None), None) => AccessMode::Read,
+                    (AddressSpace::Storage(_), _) => unreachable!(),
+                    (AddressSpace::Handle, _) => {
+                        unreachable!("handle address space cannot be spelled")
+                    }
+                    #[cfg(feature = "naga_ext")]
+                    (AddressSpace::PushConstant, _) => {
+                        todo!("push_constant")
+                    }
+                };
+                Ok(PtrTemplate {
+                    space,
+                    ty: ty.clone(),
+                    access,
+                })
+            }
+            _ => Err(E::TemplateArgs("pointer")),
+        }
+    }
+
+    pub fn ty(&self) -> Type {
+        Type::Ptr(self.space, self.ty.clone().into())
+    }
+}
+
+pub struct AtomicTemplate {
+    pub ty: Type,
+}
+
+impl AtomicTemplate {
+    pub fn parse(tplt: &[TpltParam]) -> Result<AtomicTemplate, E> {
+        let ty = match tplt {
+            [TpltParam::Type(ty)] => Ok(ty.clone()),
+            _ => Err(E::TemplateArgs("atomic")),
+        }?;
+        if ty.is_i_32() || ty.is_u_32() {
+            Ok(AtomicTemplate { ty })
+        } else {
+            Err(EvalError::Builtin(
+                "atomic template type must be i32 or u32",
+            ))
+        }
+    }
+    pub fn ty(&self) -> Type {
+        Type::Atomic(self.ty.clone().into())
+    }
+    pub fn inner_ty(&self) -> Type {
+        self.ty.clone()
+    }
+}
+
+pub struct TextureTemplate {
+    ty: TextureType,
+}
+
+impl TextureTemplate {
+    pub fn parse(name: &str, tplt: &[TpltParam]) -> Result<TextureTemplate, E> {
+        let ty = match name {
+            "texture_1d" => TextureType::Sampled1D(Self::sampled_type(tplt)?),
+            "texture_2d" => TextureType::Sampled2D(Self::sampled_type(tplt)?),
+            "texture_2d_array" => TextureType::Sampled2DArray(Self::sampled_type(tplt)?),
+            "texture_3d" => TextureType::Sampled3D(Self::sampled_type(tplt)?),
+            "texture_cube" => TextureType::SampledCube(Self::sampled_type(tplt)?),
+            "texture_cube_array" => TextureType::SampledCubeArray(Self::sampled_type(tplt)?),
+            "texture_multisampled_2d" => TextureType::Multisampled2D(Self::sampled_type(tplt)?),
+            "texture_storage_1d" => {
+                let (tex, acc) = Self::texel_access(tplt)?;
+                TextureType::Storage1D(tex, acc)
+            }
+            "texture_storage_2d" => {
+                let (tex, acc) = Self::texel_access(tplt)?;
+                TextureType::Storage2D(tex, acc)
+            }
+            "texture_storage_2d_array" => {
+                let (tex, acc) = Self::texel_access(tplt)?;
+                TextureType::Storage2DArray(tex, acc)
+            }
+            "texture_storage_3d" => {
+                let (tex, acc) = Self::texel_access(tplt)?;
+                TextureType::Storage3D(tex, acc)
+            }
+            _ => return Err(E::Builtin("not a templated texture type")),
+        };
+        Ok(Self { ty })
+    }
+    fn sampled_type(tplt: &[TpltParam]) -> Result<SampledType, E> {
+        match tplt {
+            [TpltParam::Type(ty)] => ty.try_into(),
+            [_] => Err(EvalError::Builtin(
+                "invalid sampled type, expected `i32`, `u32` of `f32`",
+            )),
+            _ => Err(EvalError::Builtin(
+                "sampled texture types take a single template parameter",
+            )),
+        }
+    }
+    fn texel_access(tplt: &[TpltParam]) -> Result<(TexelFormat, AccessMode), E> {
+        match tplt {
+            [TpltParam::Enumerant(t1), TpltParam::Enumerant(t2)] => {
+                let texel = t1
+                    .parse()
+                    .map_err(|()| EvalError::Builtin("invalid texel format"))?;
+                let access = t2
+                    .parse()
+                    .map_err(|()| EvalError::Builtin("invalid access mode"))?;
+                Ok((texel, access))
+            }
+            _ => Err(EvalError::Builtin(
+                "storage texture types take two template parameters",
+            )),
+        }
+    }
+    pub fn ty(&self) -> TextureType {
+        self.ty.clone()
+    }
+}
+
+pub struct BitcastTemplate {
+    ty: Type,
+}
+
+impl BitcastTemplate {
+    pub fn parse(tplt: &[TpltParam]) -> Result<BitcastTemplate, E> {
+        let ty = match tplt {
+            [TpltParam::Type(ty)] => Ok(ty.clone()),
+            _ => Err(E::TemplateArgs("bitcast")),
+        }?;
+        if ty.is_numeric() || ty.is_vec() && ty.inner_ty().is_numeric() {
+            Ok(BitcastTemplate { ty })
+        } else {
+            Err(EvalError::Builtin(
+                "bitcast template type must be a numeric scalar or numeric vector",
+            ))
+        }
+    }
+    pub fn ty(&self) -> Type {
+        self.ty.clone()
+    }
+    pub fn inner_ty(&self) -> Type {
+        self.ty.inner_ty()
+    }
+}

@@ -1,4 +1,4 @@
-//! built-in enumerations.
+//! Built-in enumerations.
 
 use std::str::FromStr;
 

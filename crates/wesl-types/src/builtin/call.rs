@@ -1,1086 +1,58 @@
-//! Implementations of built-in functions.
+//! Built-in functions call implementations.
 //!
-//! This module implements the built-in functions and constructors.
-//! Operators are implemented on the [`Instance`] type directly.
-//! Some functions are still TODO.
+//! Functions bear the same name as the WGSL counterpart.
+//! Functions that take template parameters are suffixed with `_t`.
+//!
+//! Some functions are still TODO and are documented as such.
+//! Derivatives and texture functions are also missing.
+
+#![allow(non_snake_case)]
 
 use half::prelude::*;
 use num_traits::{FromPrimitive, One, ToBytes, ToPrimitive, Zero, real::Real};
 
 use itertools::{Itertools, chain, izip};
 
-use crate::ty::StructType;
+use crate::builtin::frexp_struct_name;
+use crate::tplt::{ArrayTemplate, BitcastTemplate, MatTemplate, VecTemplate};
 use crate::{
-    CallSignature, EvalError, Instance, ShaderStage, TpltParam,
-    conv::{
-        Convert, convert, convert_all, convert_all_inner_to, convert_all_to, convert_all_ty,
-        convert_ty,
-    },
-    enums::{AccessMode, AddressSpace, TexelFormat, TextureType},
+    EvalError, Instance, ShaderStage,
+    conv::{Convert, convert, convert_all, convert_all_inner_to, convert_all_to, convert_all_ty},
     inst::{
         ArrayInstance, AtomicInstance, LiteralInstance, MatInstance, RefInstance, StructInstance,
         VecInstance,
     },
     ops::Compwise,
-    ty::{SampledType, Ty, Type},
+    ty::{Ty, Type},
 };
 
 type E = EvalError;
-
-// -----------------
-// CONSTRUCTOR TYPES
-// -----------------
-
-fn array_ctor_ty_t(tplt: ArrayTemplate, args: &[Type]) -> Result<Type, E> {
-    if let Some(arg) = args
-        .iter()
-        .find(|arg| !arg.is_convertible_to(&tplt.inner_ty()))
-    {
-        Err(E::Conversion(arg.clone(), tplt.inner_ty()))
-    } else {
-        Ok(tplt.ty())
-    }
-}
-
-fn array_ctor_ty(args: &[Type]) -> Result<Type, E> {
-    let ty = convert_all_ty(args).ok_or(E::Builtin("array elements are incompatible"))?;
-    Ok(Type::Array(Box::new(ty.clone()), Some(args.len())))
-}
-
-fn mat_ctor_ty_t(c: u8, r: u8, tplt: MatTemplate, args: &[Type]) -> Result<Type, E> {
-    // overload 1: mat conversion constructor
-    if let [ty @ Type::Mat(c2, r2, _)] = args {
-        // note: this is an explicit conversion, not automatic conversion
-        if *c2 != c || *r2 != r {
-            return Err(E::Conversion(ty.clone(), tplt.ty(c, r)));
-        }
-    } else {
-        if args.is_empty() {
-            return Err(E::Builtin("matrix constructor expects arguments"));
-        }
-        let ty = convert_all_ty(args).ok_or(E::Builtin("matrix components are incompatible"))?;
-        let ty = ty
-            .convert_inner_to(tplt.inner_ty())
-            .ok_or(E::Conversion(ty.inner_ty(), tplt.inner_ty().clone()))?;
-
-        // overload 2: mat from column vectors
-        if ty.is_vec() {
-            if args.len() != c as usize {
-                return Err(E::ParamCount(format!("mat{c}x{r}"), c as usize, args.len()));
-            }
-        }
-        // overload 3: mat from float values
-        else if ty.is_float() {
-            let n = c as usize * r as usize;
-            if args.len() != n {
-                return Err(E::ParamCount(format!("mat{c}x{r}"), n, args.len()));
-            }
-        } else {
-            return Err(E::Builtin(
-                "matrix constructor expects float or vector of float arguments",
-            ));
-        }
-    }
-
-    Ok(tplt.ty(c, r))
-}
-
-fn mat_ctor_ty(c: u8, r: u8, args: &[Type]) -> Result<Type, E> {
-    // overload 1: mat conversion constructor
-    if let [ty @ Type::Mat(c2, r2, ty2)] = args {
-        // note: this is an explicit conversion, not automatic conversion
-        if *c2 != c || *r2 != r {
-            return Err(E::Conversion(ty.clone(), Type::Mat(c, r, ty2.clone())));
-        }
-        Ok(ty.clone())
-    } else {
-        let ty = convert_all_ty(args).ok_or(E::Builtin("matrix components are incompatible"))?;
-        let inner_ty = ty.inner_ty();
-
-        if !inner_ty.is_float() && !inner_ty.is_abstract_int() {
-            return Err(E::Builtin(
-                "matrix constructor expects float or vector of float arguments",
-            ));
-        }
-
-        // overload 2: mat from column vectors
-        if ty.is_vec() {
-            if args.len() != c as usize {
-                return Err(E::ParamCount(format!("mat{c}x{r}"), c as usize, args.len()));
-            }
-        }
-        // overload 3: mat from float values
-        else if ty.is_float() || ty.is_abstract_int() {
-            let n = c as usize * r as usize;
-            if args.len() != n {
-                return Err(E::ParamCount(format!("mat{c}x{r}"), n, args.len()));
-            }
-        } else {
-            return Err(E::Builtin(
-                "matrix constructor expects float or vector of float arguments",
-            ));
-        }
-
-        Ok(Type::Mat(c, r, inner_ty.into()))
-    }
-}
-
-fn vec_ctor_ty_t(n: u8, tplt: VecTemplate, args: &[Type]) -> Result<Type, E> {
-    if let [arg] = args {
-        // overload 1: vec init from single scalar value
-        if arg.is_scalar() {
-            if !arg.is_convertible_to(tplt.inner_ty()) {
-                return Err(E::Conversion(arg.clone(), tplt.inner_ty().clone()));
-            }
-        }
-        // overload 2: vec conversion constructor
-        else if arg.is_vec() {
-            // note: this is an explicit conversion, not automatic conversion
-        } else {
-            return Err(E::Conversion(arg.clone(), tplt.inner_ty().clone()));
-        }
-    }
-    // overload 3: vec init from component values
-    else {
-        // flatten vecN args
-        let n2 = args
-            .iter()
-            .try_fold(0, |acc, arg| match arg {
-                ty if ty.is_scalar() => ty.is_convertible_to(tplt.inner_ty()).then_some(acc + 1),
-                Type::Vec(n, ty) => ty.is_convertible_to(tplt.inner_ty()).then_some(acc + n),
-                _ => None,
-            })
-            .ok_or(E::Builtin(
-                "vector constructor expects scalar or vector arguments",
-            ))?;
-        if n2 != n {
-            return Err(E::ParamCount(format!("vec{n}"), n as usize, args.len()));
-        }
-    }
-
-    Ok(tplt.ty(n))
-}
-
-fn vec_ctor_ty(n: u8, args: &[Type]) -> Result<Type, E> {
-    if let [arg] = args {
-        // overload 1: vec init from single scalar value
-        if arg.is_scalar() {
-        }
-        // overload 2: vec conversion constructor
-        else if arg.is_vec() {
-            // note: `vecN(e: vecN<S>) -> vecN<S>` is no-op
-        } else {
-            return Err(E::Builtin(
-                "vector constructor expects scalar or vector arguments",
-            ));
-        }
-        Ok(Type::Vec(n, arg.inner_ty().into()))
-    }
-    // overload 3: vec init from component values
-    else if !args.is_empty() {
-        // flatten vecN args
-        let n2 = args
-            .iter()
-            .try_fold(0, |acc, arg| match arg {
-                ty if ty.is_scalar() => Some(acc + 1),
-                Type::Vec(n, _) => Some(acc + n),
-                _ => None,
-            })
-            .ok_or(E::Builtin(
-                "vector constructor expects scalar or vector arguments",
-            ))?;
-        if n2 != n {
-            return Err(E::ParamCount(format!("vec{n}"), n as usize, args.len()));
-        }
-
-        let tys = args.iter().map(|arg| arg.inner_ty()).collect_vec();
-        let ty = convert_all_ty(&tys).ok_or(E::Builtin("vector components are incompatible"))?;
-
-        Ok(Type::Vec(n, ty.clone().into()))
-    }
-    // overload 3: zero-vec
-    else {
-        Ok(Type::Vec(n, Type::AbstractInt.into()))
-    }
-}
-
-/// Compute the return type of calling a constructor function.
-pub fn constructor_type(sig: &CallSignature) -> Result<Type, E> {
-    match (sig.name.as_str(), &sig.tplt, sig.args.as_slice()) {
-        ("array", Some(t), []) => Ok(ArrayTemplate::parse(t)?.ty()),
-        ("array", Some(t), _) => array_ctor_ty_t(ArrayTemplate::parse(t)?, &sig.args),
-        ("array", None, _) => array_ctor_ty(&sig.args),
-        ("bool", None, []) => Ok(Type::Bool),
-        ("bool", None, [a]) if a.is_scalar() => Ok(Type::Bool),
-        ("i32", None, []) => Ok(Type::I32),
-        ("i32", None, [a]) if a.is_scalar() => Ok(Type::I32),
-        ("u32", None, []) => Ok(Type::U32),
-        ("u32", None, [a]) if a.is_scalar() => Ok(Type::U32),
-        ("f32", None, []) => Ok(Type::F32),
-        ("f32", None, [a]) if a.is_scalar() => Ok(Type::F32),
-        ("f16", None, []) => Ok(Type::F16),
-        ("f16", None, [a]) if a.is_scalar() => Ok(Type::F16),
-        ("mat2x2", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(2, 2)),
-        ("mat2x2", Some(t), _) => mat_ctor_ty_t(2, 2, MatTemplate::parse(t)?, &sig.args),
-        ("mat2x2", None, _) => mat_ctor_ty(2, 2, &sig.args),
-        ("mat2x3", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(2, 3)),
-        ("mat2x3", Some(t), _) => mat_ctor_ty_t(2, 3, MatTemplate::parse(t)?, &sig.args),
-        ("mat2x3", None, _) => mat_ctor_ty(2, 3, &sig.args),
-        ("mat2x4", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(2, 4)),
-        ("mat2x4", Some(t), _) => mat_ctor_ty_t(2, 4, MatTemplate::parse(t)?, &sig.args),
-        ("mat2x4", None, _) => mat_ctor_ty(2, 4, &sig.args),
-        ("mat3x2", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(3, 2)),
-        ("mat3x2", Some(t), _) => mat_ctor_ty_t(3, 2, MatTemplate::parse(t)?, &sig.args),
-        ("mat3x2", None, _) => mat_ctor_ty(3, 2, &sig.args),
-        ("mat3x3", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(3, 3)),
-        ("mat3x3", Some(t), _) => mat_ctor_ty_t(3, 3, MatTemplate::parse(t)?, &sig.args),
-        ("mat3x3", None, _) => mat_ctor_ty(3, 3, &sig.args),
-        ("mat3x4", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(3, 4)),
-        ("mat3x4", Some(t), _) => mat_ctor_ty_t(3, 4, MatTemplate::parse(t)?, &sig.args),
-        ("mat3x4", None, _) => mat_ctor_ty(3, 4, &sig.args),
-        ("mat4x2", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(4, 2)),
-        ("mat4x2", Some(t), _) => mat_ctor_ty_t(4, 2, MatTemplate::parse(t)?, &sig.args),
-        ("mat4x2", None, _) => mat_ctor_ty(4, 2, &sig.args),
-        ("mat4x3", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(4, 3)),
-        ("mat4x3", Some(t), _) => mat_ctor_ty_t(4, 3, MatTemplate::parse(t)?, &sig.args),
-        ("mat4x3", None, _) => mat_ctor_ty(4, 3, &sig.args),
-        ("mat4x4", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(4, 4)),
-        ("mat4x4", Some(t), _) => mat_ctor_ty_t(4, 4, MatTemplate::parse(t)?, &sig.args),
-        ("mat4x4", None, _) => mat_ctor_ty(4, 4, &sig.args),
-        ("vec2", Some(t), []) => Ok(VecTemplate::parse(t)?.ty(2)),
-        ("vec2", Some(t), _) => vec_ctor_ty_t(2, VecTemplate::parse(t)?, &sig.args),
-        ("vec2", None, _) => vec_ctor_ty(2, &sig.args),
-        ("vec3", Some(t), []) => Ok(VecTemplate::parse(t)?.ty(3)),
-        ("vec3", Some(t), _) => vec_ctor_ty_t(3, VecTemplate::parse(t)?, &sig.args),
-        ("vec3", None, _) => vec_ctor_ty(3, &sig.args),
-        ("vec4", Some(t), []) => Ok(VecTemplate::parse(t)?.ty(4)),
-        ("vec4", Some(t), _) => vec_ctor_ty_t(4, VecTemplate::parse(t)?, &sig.args),
-        ("vec4", None, _) => vec_ctor_ty(4, &sig.args),
-        _ => Err(E::Signature(sig.clone())),
-    }
-}
-
-// -----------------------
-// BUILT-IN FUNCTION TYPES
-// -----------------------
-
-/// Compute the return type of calling a built-in function.
-pub fn builtin_fn_type(sig: &CallSignature) -> Result<Option<Type>, E> {
-    fn is_float(ty: &Type) -> bool {
-        ty.is_float() || ty.is_vec() && ty.inner_ty().is_float()
-    }
-    fn is_numeric(ty: &Type) -> bool {
-        ty.is_numeric() || ty.is_vec() && ty.inner_ty().is_numeric()
-    }
-    fn is_integer(ty: &Type) -> bool {
-        ty.is_integer() || ty.is_vec() && ty.inner_ty().is_integer()
-    }
-    let err = || E::Signature(sig.clone());
-
-    match (sig.name.as_str(), &sig.tplt, sig.args.as_slice()) {
-        // bitcast
-        ("bitcast", Some(t), [_]) => Ok(Some(BitcastTemplate::parse(t)?.ty())),
-        // logical
-        ("all", None, [_]) | ("any", None, [_]) => Ok(Some(Type::Bool)),
-        ("select", None, [a1, a2, a3]) if (a1.is_scalar() || a1.is_vec()) && a3.is_bool() => {
-            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
-        }
-        ("select", None, [a1, a2, a3])
-            if (a1.is_vec()) && a3.is_vec() && a3.inner_ty().is_bool() =>
-        {
-            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
-        }
-        // array
-        ("arrayLength", None, [_]) => Ok(Some(Type::U32)),
-        // numeric
-        ("abs", None, [a]) if is_numeric(a) => Ok(Some(a.clone())),
-        ("acos", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("acosh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("asin", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("asinh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("atan", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("atanh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("atan2", None, [a1, a2]) if is_float(a1) => {
-            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
-        }
-        ("ceil", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("clamp", None, [a1, _, _]) if is_numeric(a1) => {
-            convert_all_ty(&sig.args).cloned().map(Some).ok_or_else(err)
-        }
-        ("cos", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("cosh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("countLeadingZeros", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
-        ("countOneBits", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
-        ("countTrailingZeros", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
-        ("cross", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_float() => {
-            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
-        }
-        ("degrees", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("determinant", None, [a @ Type::Mat(c, r, _)]) if c == r => Ok(Some(a.clone())),
-        ("distance", None, [a1, a2]) if is_float(a1) => convert_ty(a1, a2)
-            .map(|ty| Some(ty.inner_ty()))
-            .ok_or_else(err),
-        ("dot", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_numeric() => convert_ty(a1, a2)
-            .map(|ty| Some(ty.inner_ty()))
-            .ok_or_else(err),
-        ("dot4U8Packed", None, [a1, a2])
-            if a1.is_convertible_to(&Type::U32) && a2.is_convertible_to(&Type::U32) =>
-        {
-            Ok(Some(Type::U32))
-        }
-        ("dot4I8Packed", None, [a1, a2])
-            if a1.is_convertible_to(&Type::U32) && a2.is_convertible_to(&Type::U32) =>
-        {
-            Ok(Some(Type::I32))
-        }
-        ("exp", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("exp2", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("extractBits", None, [a1, a2, a3])
-            if is_integer(a1)
-                && a2.is_convertible_to(&Type::U32)
-                && a3.is_convertible_to(&Type::U32) =>
-        {
-            Ok(Some(a1.concretize()))
-        }
-        ("faceForward", None, [a1, _, _]) if a1.is_vec() && a1.inner_ty().is_float() => {
-            convert_all_ty(&sig.args).cloned().map(Some).ok_or_else(err)
-        }
-        ("firstLeadingBit", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
-        ("firstTrailingBit", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
-        ("floor", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("fma", None, [a1, _, _]) if is_float(a1) => {
-            convert_all_ty(&sig.args).cloned().map(Some).ok_or_else(err)
-        }
-        ("fract", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("frexp", None, [a]) if is_float(a) => Ok(Some(frexp_struct_type(a).unwrap().into())),
-        ("insertBits", None, [a1, a2, a3, a4])
-            if is_integer(a1)
-                && a3.is_convertible_to(&Type::U32)
-                && a4.is_convertible_to(&Type::U32) =>
-        {
-            convert_ty(a1, a2)
-                .map(|ty| Some(ty.concretize()))
-                .ok_or_else(err)
-        }
-        ("inverseSqrt", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("ldexp", None, [a1, a2])
-            if (a1.is_vec()
-                && a1.inner_ty().is_float()
-                && a2.is_vec()
-                && a2.inner_ty().concretize().is_i_32()
-                || a1.is_float() && a2.concretize().is_i_32())
-                && (a1.is_concrete() && a2.is_concrete()
-                    || a1.is_abstract() && a2.is_abstract()) =>
-        {
-            Ok(Some(a1.clone()))
-        }
-        ("length", None, [a]) if is_float(a) => Ok(Some(a.inner_ty())),
-        ("log", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("log2", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("max", None, [a1, a2]) if is_numeric(a1) => {
-            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
-        }
-        ("min", None, [a1, a2]) if is_numeric(a1) => {
-            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
-        }
-        ("mix", None, [Type::Vec(n1, ty1), Type::Vec(n2, ty2), a3])
-            if n1 == n2 && a3.is_float() =>
-        {
-            convert_all_ty([ty1, ty2, a3])
-                .map(|inner| Some(Type::Vec(*n1, inner.clone().into())))
-                .ok_or_else(err)
-        }
-        ("mix", None, [a1, _, _]) if is_float(a1) => {
-            convert_all_ty(&sig.args).cloned().map(Some).ok_or_else(err)
-        }
-        ("modf", None, [a]) if is_float(a) => Ok(Some(modf_struct_type(a).unwrap().into())),
-        ("normalize", None, [a @ Type::Vec(_, ty)]) if ty.is_float() => Ok(Some(a.clone())),
-        ("pow", None, [a1, a2]) => convert_ty(a1, a2).cloned().map(Some).ok_or_else(err),
-        ("quantizeToF16", None, [a])
-            if a.concretize().is_f_32() || a.is_vec() && a.inner_ty().concretize().is_f_32() =>
-        {
-            Ok(Some(a.clone()))
-        }
-        ("radians", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("reflect", None, [a1, a2]) if a1.is_vec() && a1.inner_ty().is_float() => {
-            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
-        }
-        ("refract", None, [Type::Vec(n1, ty1), Type::Vec(n2, ty2), a3])
-            if n1 == n2 && a3.is_float() =>
-        {
-            convert_all_ty([ty1, ty2, a3])
-                .map(|inner| Some(Type::Vec(*n1, inner.clone().into())))
-                .ok_or_else(err)
-        }
-        ("reverseBits", None, [a]) if is_integer(a) => Ok(Some(a.clone())),
-        ("round", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("saturate", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("sign", None, [a]) if is_numeric(a) && !a.inner_ty().is_u_32() => Ok(Some(a.clone())),
-        ("sin", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("sinh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("smoothstep", None, [a1, _, _]) if is_float(a1) => {
-            convert_all_ty(&sig.args).cloned().map(Some).ok_or_else(err)
-        }
-        ("sqrt", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("step", None, [a1, a2]) if is_float(a1) => {
-            convert_ty(a1, a2).cloned().map(Some).ok_or_else(err)
-        }
-        ("tan", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("tanh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("transpose", None, [Type::Mat(c, r, ty)]) => Ok(Some(Type::Mat(*r, *c, ty.clone()))),
-        ("trunc", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        // derivative
-        ("dpdx", None, [a]) if is_float(a) => Ok(Some(a.convert_inner_to(&Type::F32).unwrap())),
-        ("dpdxCoarse", None, [a]) if is_float(a) => {
-            Ok(Some(a.convert_inner_to(&Type::F32).unwrap()))
-        }
-        ("dpdxFine", None, [a]) if is_float(a) => Ok(Some(a.convert_inner_to(&Type::F32).unwrap())),
-        ("dpdy", None, [a]) if is_float(a) => Ok(Some(a.convert_inner_to(&Type::F32).unwrap())),
-        ("dpdyCoarse", None, [a]) if is_float(a) => {
-            Ok(Some(a.convert_inner_to(&Type::F32).unwrap()))
-        }
-        ("dpdyFine", None, [a]) if is_float(a) => Ok(Some(a.convert_inner_to(&Type::F32).unwrap())),
-        ("fwidth", None, [a]) if is_float(a) => Ok(Some(a.convert_inner_to(&Type::F32).unwrap())),
-        ("fwidthCoarse", None, [a]) if is_float(a) => {
-            Ok(Some(a.convert_inner_to(&Type::F32).unwrap()))
-        }
-        ("fwidthFine", None, [a]) if is_float(a) => {
-            Ok(Some(a.convert_inner_to(&Type::F32).unwrap()))
-        }
-        // texture
-        // TODO check arguments for texture functions
-        // some of these are a bit more lenient. The goal here is just to get the
-        // valid return type which is needed for type inference.
-        ("textureDimensions", None, [Type::Texture(t)] | [Type::Texture(t), _])
-            if t.dimensions().is_d_1() =>
-        {
-            Ok(Some(Type::U32))
-        }
-        ("textureDimensions", None, [Type::Texture(t)] | [Type::Texture(t), _])
-            if t.dimensions().is_d_2() =>
-        {
-            Ok(Some(Type::Vec(2, Type::U32.into())))
-        }
-        ("textureDimensions", None, [Type::Texture(t)] | [Type::Texture(t), _])
-            if t.dimensions().is_d_3() =>
-        {
-            Ok(Some(Type::Vec(3, Type::U32.into())))
-        }
-        ("textureGather", None, [_, Type::Texture(t), ..]) if t.is_sampled() => Ok(Some(
-            Type::Vec(4, Box::new(t.sampled_type().unwrap().into())),
-        )),
-        ("textureGather", None, [Type::Texture(t), ..]) if t.is_depth() => {
-            Ok(Some(Type::Vec(4, Type::F32.into())))
-        }
-        ("textureGatherCompare", None, [Type::Texture(t), ..]) if t.is_depth() => {
-            Ok(Some(Type::Vec(4, Type::F32.into())))
-        }
-        ("textureLoad", None, [Type::Texture(TextureType::DepthMultisampled2D), ..]) => {
-            Ok(Some(Type::F32))
-        }
-        ("textureLoad", None, [Type::Texture(t), ..]) if t.is_depth() => Ok(Some(Type::F32)),
-        ("textureLoad", None, [Type::Texture(t), ..]) => {
-            Ok(Some(Type::Vec(4, Box::new(t.channel_type().into()))))
-        }
-        ("textureNumLayers", None, [Type::Texture(t)])
-            if t.is_sampled() || t.is_depth() || t.is_storage() =>
-        {
-            Ok(Some(Type::U32))
-        }
-        ("textureNumLevels", None, [Type::Texture(t)]) if t.is_sampled() || t.is_depth() => {
-            Ok(Some(Type::U32))
-        }
-        ("textureNumSamples", None, [Type::Texture(t)]) if t.is_multisampled() => {
-            Ok(Some(Type::U32))
-        }
-        ("textureSample", None, [Type::Texture(t), ..]) if t.is_sampled() => {
-            Ok(Some(Type::Vec(4, Box::new(Type::F32))))
-        }
-        ("textureSample", None, [Type::Texture(t), ..]) if t.is_depth() => Ok(Some(Type::F32)),
-        ("textureSampleBias", None, [Type::Texture(t), ..]) if t.is_sampled() => {
-            Ok(Some(Type::Vec(4, Box::new(Type::F32))))
-        }
-        ("textureSampleCompare", None, [Type::Texture(t), ..]) if t.is_depth() => {
-            Ok(Some(Type::F32))
-        }
-        ("textureSampleCompareLevel", None, [Type::Texture(t), ..]) if t.is_depth() => {
-            Ok(Some(Type::F32))
-        }
-        ("textureSampleGrad", None, [Type::Texture(t), ..]) if t.is_sampled() => {
-            Ok(Some(Type::Vec(4, Box::new(Type::F32))))
-        }
-        ("textureSampleLevel", None, [Type::Texture(t), ..]) if t.is_sampled() => {
-            Ok(Some(Type::Vec(4, Box::new(Type::F32))))
-        }
-        ("textureSampleLevel", None, [Type::Texture(t), ..]) if t.is_depth() => Ok(Some(Type::F32)),
-        ("textureSampleBaseClampToEdge", None, [Type::Texture(t), ..])
-            if t.is_sampled_2_d() || t.is_external() =>
-        {
-            Ok(Some(Type::Vec(4, Box::new(Type::F32))))
-        }
-        ("textureStore", None, [Type::Texture(t), ..]) if t.is_storage() => Ok(None),
-        // atomic
-        // TODO check arguments for atomic functions
-        ("atomicLoad", None, [Type::Ptr(_, t)]) if matches!(**t, Type::Atomic(_)) => {
-            Ok(Some(*t.clone().unwrap_atomic()))
-        }
-        ("atomicStore", None, [Type::Ptr(_, t)]) if matches!(**t, Type::Atomic(_)) => Ok(None),
-        ("atomicAdd", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
-            Ok(Some(*t.clone().unwrap_atomic()))
-        }
-        ("atomicSub", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
-            Ok(Some(*t.clone().unwrap_atomic()))
-        }
-        ("atomicMax", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
-            Ok(Some(*t.clone().unwrap_atomic()))
-        }
-        ("atomicMin", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
-            Ok(Some(*t.clone().unwrap_atomic()))
-        }
-        ("atomicAnd", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
-            Ok(Some(*t.clone().unwrap_atomic()))
-        }
-        ("atomicOr", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
-            Ok(Some(*t.clone().unwrap_atomic()))
-        }
-        ("atomicXor", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
-            Ok(Some(*t.clone().unwrap_atomic()))
-        }
-        ("atomicExchange", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
-            Ok(Some(*t.clone().unwrap_atomic()))
-        }
-        ("atomicCompareExchangeWeak", None, [Type::Ptr(_, t), _, _])
-            if matches!(**t, Type::Atomic(_)) =>
-        {
-            let ty = match &**t {
-                Type::Atomic(ty) => &**ty,
-                _ => unreachable!("type atomic matched above"),
-            };
-            Ok(Some(atomic_compare_exchange_struct_type(ty).into()))
-        }
-        // packing
-        ("pack4x8snorm", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::F32.into())) => {
-            Ok(Some(Type::U32))
-        }
-        ("pack4x8unorm", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::F32.into())) => {
-            Ok(Some(Type::U32))
-        }
-        ("pack4xI8", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::I32.into())) => {
-            Ok(Some(Type::U32))
-        }
-        ("pack4xU8", None, [a]) if a.is_convertible_to(&Type::Vec(4, Type::U32.into())) => {
-            Ok(Some(Type::U32))
-        }
-        ("pack4xI8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
-            Ok(Some(Type::U32))
-        }
-        ("pack4xU8Clamp", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
-            Ok(Some(Type::U32))
-        }
-        ("pack2x16snorm", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
-            Ok(Some(Type::U32))
-        }
-        ("pack2x16unorm", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
-            Ok(Some(Type::U32))
-        }
-        ("pack2x16float", None, [a]) if a.is_convertible_to(&Type::Vec(2, Type::F32.into())) => {
-            Ok(Some(Type::U32))
-        }
-        ("unpack4x8snorm", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Some(Type::Vec(4, Type::F32.into())))
-        }
-        ("unpack4x8unorm", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Some(Type::Vec(4, Type::F32.into())))
-        }
-        ("unpack4xI8", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Some(Type::Vec(4, Type::I32.into())))
-        }
-        ("unpack4xU8", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Some(Type::Vec(4, Type::U32.into())))
-        }
-        ("unpack2x16snorm", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Some(Type::Vec(2, Type::F32.into())))
-        }
-        ("unpack2x16unorm", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Some(Type::Vec(2, Type::F32.into())))
-        }
-        ("unpack2x16float", None, [a]) if a.is_convertible_to(&Type::U32) => {
-            Ok(Some(Type::Vec(2, Type::F32.into())))
-        }
-        // synchronization
-        ("storageBarrier", None, []) => Ok(None),
-        ("textureBarrier", None, []) => Ok(None),
-        ("workgroupBarrier", None, []) => Ok(None),
-        ("workgroupUniformLoad", None, [Type::Ptr(AddressSpace::Workgroup, t)]) => {
-            Ok(Some(*t.clone()))
-        }
-        // subgroup
-        ("subgroupAdd", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
-        ("subgroupExclusiveAdd", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
-        ("subgroupInclusiveAdd", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
-        ("subgroupAll", None, [Type::Bool]) => Ok(Some(Type::Bool)),
-        ("subgroupAnd", None, [Type::Bool]) => Ok(Some(Type::Bool)),
-        ("subgroupAny", None, [Type::Bool]) => Ok(Some(Type::Bool)),
-        ("subgroupBallot", None, [Type::Bool]) => Ok(Some(Type::Vec(4, Type::U32.into()))),
-        ("subgroupBroadcast", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
-            Ok(Some(a1.concretize()))
-        }
-        ("subgroupBroadcastFirst", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
-        ("subgroupElect", None, []) => Ok(Some(Type::Bool)),
-        ("subgroupMax", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
-        ("subgroupMin", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
-        ("subgroupMul", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
-        ("subgroupExclusiveMul", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
-        ("subgroupInclusiveMul", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
-        ("subgroupOr", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
-        ("subgroupShuffle", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
-            Ok(Some(a1.concretize()))
-        }
-        ("subgroupShuffleDown", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
-            Ok(Some(a1.concretize()))
-        }
-        ("subgroupShuffleUp", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
-            Ok(Some(a1.concretize()))
-        }
-        ("subgroupShuffleXor", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
-            Ok(Some(a1.concretize()))
-        }
-        ("subgroupXor", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
-        // quad
-        ("quadBroadcast", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
-            Ok(Some(a1.concretize()))
-        }
-        ("quadSwapDiagonal", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
-        ("quadSwapX", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
-        ("quadSwapY", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
-        _ => Err(err()),
-    }
-}
-
-pub fn is_constructor_fn(name: &str) -> bool {
-    matches!(
-        name,
-        "array"
-            | "bool"
-            | "i32"
-            | "u32"
-            | "f32"
-            | "f16"
-            | "mat2x2"
-            | "mat2x3"
-            | "mat2x4"
-            | "mat3x2"
-            | "mat3x3"
-            | "mat3x4"
-            | "mat4x2"
-            | "mat4x3"
-            | "mat4x4"
-            | "vec2"
-            | "vec3"
-            | "vec4"
-    )
-}
-
-// -----------
-// ZERO VALUES
-// -----------
-// reference: <https://www.w3.org/TR/WGSL/#zero-value>
-
-impl LiteralInstance {
-    /// The zero-value constructor.
-    pub fn zero_value(ty: &Type) -> Result<Self, E> {
-        match ty {
-            Type::Bool => Ok(LiteralInstance::Bool(false)),
-            Type::AbstractInt => Ok(LiteralInstance::AbstractInt(0)),
-            Type::AbstractFloat => Ok(LiteralInstance::AbstractFloat(0.0)),
-            Type::I32 => Ok(LiteralInstance::I32(0)),
-            Type::U32 => Ok(LiteralInstance::U32(0)),
-            Type::F32 => Ok(LiteralInstance::F32(0.0)),
-            Type::F16 => Ok(LiteralInstance::F16(f16::zero())),
-            #[cfg(feature = "naga_ext")]
-            Type::I64 => Ok(LiteralInstance::I64(0)),
-            #[cfg(feature = "naga_ext")]
-            Type::U64 => Ok(LiteralInstance::U64(0)),
-            #[cfg(feature = "naga_ext")]
-            Type::F64 => Ok(LiteralInstance::F64(0.0)),
-            _ => Err(E::NotScalar(ty.clone())),
-        }
-    }
-}
-
-impl VecInstance {
-    /// Zero-value initialize a `vec` instance.
-    pub fn zero_value(n: u8, ty: &Type) -> Result<Self, E> {
-        let zero = Instance::Literal(LiteralInstance::zero_value(ty)?);
-        let comps = (0..n).map(|_| zero.clone()).collect_vec();
-        Ok(VecInstance::new(comps))
-    }
-}
-
-impl MatInstance {
-    /// Zero-value initialize a `mat` instance.
-    pub fn zero_value(c: u8, r: u8, ty: &Type) -> Result<Self, E> {
-        let zero = Instance::Literal(LiteralInstance::zero_value(ty)?);
-        let zero_col = Instance::Vec(VecInstance::new((0..r).map(|_| zero.clone()).collect_vec()));
-        let comps = (0..c).map(|_| zero_col.clone()).collect_vec();
-        Ok(MatInstance::from_cols(comps))
-    }
-}
-
-// ------------------------
-// TYPE-GENERATOR TEMPLATES
-// ------------------------
-
-pub struct ArrayTemplate {
-    n: Option<usize>,
-    ty: Type,
-}
-
-impl ArrayTemplate {
-    pub fn parse(tplt: &[TpltParam]) -> Result<ArrayTemplate, E> {
-        let (ty, n) = match tplt {
-            [TpltParam::Type(ty)] => Ok((ty.clone(), None)),
-            [TpltParam::Type(ty), TpltParam::Instance(n)] => Ok((ty.clone(), Some(n.clone()))),
-            _ => Err(E::TemplateArgs("array")),
-        }?;
-        if let Some(n) = n {
-            let n = match n {
-                Instance::Literal(LiteralInstance::AbstractInt(n)) => (n > 0).then_some(n as usize),
-                Instance::Literal(LiteralInstance::I32(n)) => (n > 0).then_some(n as usize),
-                Instance::Literal(LiteralInstance::U32(n)) => (n > 0).then_some(n as usize),
-                #[cfg(feature = "naga_ext")]
-                Instance::Literal(LiteralInstance::I64(n)) => (n > 0).then_some(n as usize),
-                #[cfg(feature = "naga_ext")]
-                Instance::Literal(LiteralInstance::U64(n)) => (n > 0).then_some(n as usize),
-                _ => None,
-            }
-            .ok_or(E::Builtin(
-                "the array element count must evaluate to a `u32` or a `i32` greater than `0`",
-            ))?;
-            Ok(ArrayTemplate { n: Some(n), ty })
-        } else {
-            Ok(ArrayTemplate { n: None, ty })
-        }
-    }
-    pub fn ty(&self) -> Type {
-        Type::Array(Box::new(self.ty.clone()), self.n)
-    }
-    pub fn inner_ty(&self) -> Type {
-        self.ty.clone()
-    }
-    pub fn n(&self) -> Option<usize> {
-        self.n
-    }
-}
-
-#[cfg(feature = "naga_ext")]
-pub struct BindingArrayTemplate {
-    n: Option<usize>,
-    ty: Type,
-}
-
-#[cfg(feature = "naga_ext")]
-impl BindingArrayTemplate {
-    pub fn parse(tplt: &[TpltParam]) -> Result<BindingArrayTemplate, E> {
-        let (ty, n) = match tplt {
-            [TpltParam::Type(ty)] => Ok((ty.clone(), None)),
-            [TpltParam::Type(ty), TpltParam::Instance(n)] => Ok((ty.clone(), Some(n.clone()))),
-            _ => Err(E::TemplateArgs("binding_array")),
-        }?;
-        if let Some(n) = n {
-            let n = match n {
-                Instance::Literal(LiteralInstance::AbstractInt(n)) => (n > 0).then_some(n as usize),
-                Instance::Literal(LiteralInstance::I32(n)) => (n > 0).then_some(n as usize),
-                Instance::Literal(LiteralInstance::U32(n)) => (n > 0).then_some(n as usize),
-                #[cfg(feature = "naga_ext")]
-                Instance::Literal(LiteralInstance::I64(n)) => (n > 0).then_some(n as usize),
-                #[cfg(feature = "naga_ext")]
-                Instance::Literal(LiteralInstance::U64(n)) => (n > 0).then_some(n as usize),
-                _ => None,
-            }
-            .ok_or(E::Builtin(
-                "the binding_array element count must evaluate to a `u32` or a `i32` greater than `0`",
-            ))?;
-            Ok(BindingArrayTemplate { n: Some(n), ty })
-        } else {
-            Ok(BindingArrayTemplate { n: None, ty })
-        }
-    }
-    pub fn ty(&self) -> Type {
-        Type::BindingArray(Box::new(self.ty.clone()), self.n)
-    }
-    pub fn inner_ty(&self) -> Type {
-        self.ty.clone()
-    }
-    pub fn n(&self) -> Option<usize> {
-        self.n
-    }
-}
-
-pub struct VecTemplate {
-    ty: Type,
-}
-
-impl VecTemplate {
-    pub fn parse(tplt: &[TpltParam]) -> Result<VecTemplate, E> {
-        let ty = match tplt {
-            [TpltParam::Type(ty)] => Ok(ty.clone()),
-            _ => Err(E::TemplateArgs("vector")),
-        }?;
-        if ty.is_scalar() && ty.is_concrete() {
-            Ok(VecTemplate { ty })
-        } else {
-            Err(EvalError::Builtin("vector template type must be a scalar"))
-        }
-    }
-    pub fn ty(&self, n: u8) -> Type {
-        Type::Vec(n, self.ty.clone().into())
-    }
-    pub fn inner_ty(&self) -> &Type {
-        &self.ty
-    }
-}
-
-pub struct MatTemplate {
-    ty: Type,
-}
-
-impl MatTemplate {
-    pub fn parse(tplt: &[TpltParam]) -> Result<MatTemplate, E> {
-        let ty = match tplt {
-            [TpltParam::Type(ty)] => Ok(ty.clone()),
-            _ => Err(E::TemplateArgs("matrix")),
-        }?;
-        if ty.is_f_32() || ty.is_f_16() {
-            Ok(MatTemplate { ty })
-        } else {
-            Err(EvalError::Builtin(
-                "matrix template type must be f32 or f16",
-            ))
-        }
-    }
-    pub fn ty(&self, c: u8, r: u8) -> Type {
-        Type::Mat(c, r, self.ty.clone().into())
-    }
-
-    pub fn inner_ty(&self) -> &Type {
-        &self.ty
-    }
-}
-
-pub struct PtrTemplate {
-    pub space: AddressSpace,
-    pub ty: Type,
-    pub access: AccessMode,
-}
-
-impl PtrTemplate {
-    pub fn parse(tplt: &[TpltParam]) -> Result<PtrTemplate, E> {
-        let mut it = tplt.iter();
-        match (it.next(), it.next(), it.next(), it.next()) {
-            (Some(TpltParam::Enumerant(space)), Some(TpltParam::Type(ty)), access, None) => {
-                let mut space = space
-                    .parse()
-                    .map_err(|()| EvalError::Builtin("invalid pointer storage space"))?;
-                if !ty.is_storable() {
-                    return Err(EvalError::Builtin("pointer type must be storable"));
-                }
-                let access = if let Some(TpltParam::Enumerant(access)) = access {
-                    Some(
-                        access
-                            .parse()
-                            .map_err(|()| EvalError::Builtin("invalid pointer access mode"))?,
-                    )
-                } else {
-                    None
-                };
-                // selecting the default access mode per address space.
-                // reference: <https://www.w3.org/TR/WGSL/#address-space>
-                let access = match (&mut space, access) {
-                    (AddressSpace::Function, Some(access))
-                    | (AddressSpace::Private, Some(access))
-                    | (AddressSpace::Workgroup, Some(access)) => access,
-                    (AddressSpace::Function, None)
-                    | (AddressSpace::Private, None)
-                    | (AddressSpace::Workgroup, None) => AccessMode::ReadWrite,
-                    (AddressSpace::Uniform, Some(AccessMode::Read) | None) => AccessMode::Read,
-                    (AddressSpace::Uniform, _) => {
-                        return Err(EvalError::Builtin(
-                            "pointer in uniform address space must have a `read` access mode",
-                        ));
-                    }
-                    (AddressSpace::Storage(a1), Some(a2)) => {
-                        *a1 = Some(a2);
-                        a2
-                    }
-                    (AddressSpace::Storage(None), None) => AccessMode::Read,
-                    (AddressSpace::Storage(_), _) => unreachable!(),
-                    (AddressSpace::Handle, _) => {
-                        unreachable!("handle address space cannot be spelled")
-                    }
-                    #[cfg(feature = "naga_ext")]
-                    (AddressSpace::PushConstant, _) => {
-                        todo!("push_constant")
-                    }
-                };
-                Ok(PtrTemplate {
-                    space,
-                    ty: ty.clone(),
-                    access,
-                })
-            }
-            _ => Err(E::TemplateArgs("pointer")),
-        }
-    }
-
-    pub fn ty(&self) -> Type {
-        Type::Ptr(self.space, self.ty.clone().into())
-    }
-}
-
-pub struct AtomicTemplate {
-    pub ty: Type,
-}
-
-impl AtomicTemplate {
-    pub fn parse(tplt: &[TpltParam]) -> Result<AtomicTemplate, E> {
-        let ty = match tplt {
-            [TpltParam::Type(ty)] => Ok(ty.clone()),
-            _ => Err(E::TemplateArgs("atomic")),
-        }?;
-        if ty.is_i_32() || ty.is_u_32() {
-            Ok(AtomicTemplate { ty })
-        } else {
-            Err(EvalError::Builtin(
-                "atomic template type must be i32 or u32",
-            ))
-        }
-    }
-    pub fn ty(&self) -> Type {
-        Type::Atomic(self.ty.clone().into())
-    }
-    pub fn inner_ty(&self) -> Type {
-        self.ty.clone()
-    }
-}
-
-pub struct TextureTemplate {
-    ty: TextureType,
-}
-
-impl TextureTemplate {
-    pub fn parse(name: &str, tplt: &[TpltParam]) -> Result<TextureTemplate, E> {
-        let ty = match name {
-            "texture_1d" => TextureType::Sampled1D(Self::sampled_type(tplt)?),
-            "texture_2d" => TextureType::Sampled2D(Self::sampled_type(tplt)?),
-            "texture_2d_array" => TextureType::Sampled2DArray(Self::sampled_type(tplt)?),
-            "texture_3d" => TextureType::Sampled3D(Self::sampled_type(tplt)?),
-            "texture_cube" => TextureType::SampledCube(Self::sampled_type(tplt)?),
-            "texture_cube_array" => TextureType::SampledCubeArray(Self::sampled_type(tplt)?),
-            "texture_multisampled_2d" => TextureType::Multisampled2D(Self::sampled_type(tplt)?),
-            "texture_storage_1d" => {
-                let (tex, acc) = Self::texel_access(tplt)?;
-                TextureType::Storage1D(tex, acc)
-            }
-            "texture_storage_2d" => {
-                let (tex, acc) = Self::texel_access(tplt)?;
-                TextureType::Storage2D(tex, acc)
-            }
-            "texture_storage_2d_array" => {
-                let (tex, acc) = Self::texel_access(tplt)?;
-                TextureType::Storage2DArray(tex, acc)
-            }
-            "texture_storage_3d" => {
-                let (tex, acc) = Self::texel_access(tplt)?;
-                TextureType::Storage3D(tex, acc)
-            }
-            _ => return Err(E::Builtin("not a templated texture type")),
-        };
-        Ok(Self { ty })
-    }
-    fn sampled_type(tplt: &[TpltParam]) -> Result<SampledType, E> {
-        match tplt {
-            [TpltParam::Type(ty)] => ty.try_into(),
-            [_] => Err(EvalError::Builtin(
-                "invalid sampled type, expected `i32`, `u32` of `f32`",
-            )),
-            _ => Err(EvalError::Builtin(
-                "sampled texture types take a single template parameter",
-            )),
-        }
-    }
-    fn texel_access(tplt: &[TpltParam]) -> Result<(TexelFormat, AccessMode), E> {
-        match tplt {
-            [TpltParam::Enumerant(t1), TpltParam::Enumerant(t2)] => {
-                let texel = t1
-                    .parse()
-                    .map_err(|()| EvalError::Builtin("invalid texel format"))?;
-                let access = t2
-                    .parse()
-                    .map_err(|()| EvalError::Builtin("invalid access mode"))?;
-                Ok((texel, access))
-            }
-            _ => Err(EvalError::Builtin(
-                "storage texture types take two template parameters",
-            )),
-        }
-    }
-    pub fn ty(&self) -> TextureType {
-        self.ty.clone()
-    }
-}
-
-pub struct BitcastTemplate {
-    ty: Type,
-}
-
-impl BitcastTemplate {
-    pub fn parse(tplt: &[TpltParam]) -> Result<BitcastTemplate, E> {
-        let ty = match tplt {
-            [TpltParam::Type(ty)] => Ok(ty.clone()),
-            _ => Err(E::TemplateArgs("bitcast")),
-        }?;
-        if ty.is_numeric() || ty.is_vec() && ty.inner_ty().is_numeric() {
-            Ok(BitcastTemplate { ty })
-        } else {
-            Err(EvalError::Builtin(
-                "bitcast template type must be a numeric scalar or numeric vector",
-            ))
-        }
-    }
-    pub fn ty(&self) -> Type {
-        self.ty.clone()
-    }
-    pub fn inner_ty(&self) -> Type {
-        self.ty.inner_ty()
-    }
-}
 
 // ------------
 // CONSTRUCTORS
 // ------------
 // reference: <https://www.w3.org/TR/WGSL/#constructor-builtin-function>
 
-pub fn call_array_t(tplt: ArrayTemplate, args: &[Instance]) -> Result<Instance, E> {
+pub fn array_t(tplt: ArrayTemplate, args: &[Instance]) -> Result<Instance, E> {
     let args = args
         .iter()
         .map(|a| {
-            a.convert_to(&tplt.ty)
-                .ok_or_else(|| E::ParamType(tplt.ty.clone(), a.ty()))
+            a.convert_to(&tplt.ty())
+                .ok_or_else(|| E::ParamType(tplt.ty(), a.ty()))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    if Some(args.len()) != tplt.n {
+    if Some(args.len()) != tplt.n() {
         return Err(E::ParamCount(
             "array".to_string(),
-            tplt.n.unwrap_or_default(),
+            tplt.n().unwrap_or_default(),
             args.len(),
         ));
     }
 
     Ok(ArrayInstance::new(args, false).into())
 }
-pub fn call_array(args: &[Instance]) -> Result<Instance, E> {
+pub fn array(args: &[Instance]) -> Result<Instance, E> {
     let args = convert_all(args).ok_or(E::Builtin("array elements are incompatible"))?;
 
     if args.is_empty() {
@@ -1090,7 +62,7 @@ pub fn call_array(args: &[Instance]) -> Result<Instance, E> {
     Ok(ArrayInstance::new(args, false).into())
 }
 
-pub fn call_bool_1(a1: &Instance) -> Result<Instance, E> {
+pub fn bool(a1: &Instance) -> Result<Instance, E> {
     match a1 {
         Instance::Literal(l) => {
             let zero = LiteralInstance::zero_value(&l.ty())?;
@@ -1101,7 +73,7 @@ pub fn call_bool_1(a1: &Instance) -> Result<Instance, E> {
 }
 
 // TODO: check that "If T is a floating point type, e is converted to i32, rounding towards zero."
-pub fn call_i32_1(a1: &Instance) -> Result<Instance, E> {
+pub fn i32(a1: &Instance) -> Result<Instance, E> {
     match a1 {
         Instance::Literal(l) => {
             let val = match l {
@@ -1126,7 +98,7 @@ pub fn call_i32_1(a1: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_u32_1(a1: &Instance) -> Result<Instance, E> {
+pub fn u32(a1: &Instance) -> Result<Instance, E> {
     match a1 {
         Instance::Literal(l) => {
             let val = match l {
@@ -1154,7 +126,7 @@ pub fn call_u32_1(a1: &Instance) -> Result<Instance, E> {
 /// see [`LiteralInstance::convert_to`]
 /// "If T is a numeric scalar (other than f32), e is converted to f32 (including invalid conversions)."
 /// TODO: implicit conversions are incorrect, I think. I'm not sure if f32(too_big) is correct.
-pub fn call_f32_1(a1: &Instance, _stage: ShaderStage) -> Result<Instance, E> {
+pub fn f32(a1: &Instance, _stage: ShaderStage) -> Result<Instance, E> {
     match a1 {
         Instance::Literal(l) => {
             let val = match l {
@@ -1181,7 +153,7 @@ pub fn call_f32_1(a1: &Instance, _stage: ShaderStage) -> Result<Instance, E> {
 
 /// see [`LiteralInstance::convert_to`]
 /// "If T is a numeric scalar (other than f16), e is converted to f16 (including invalid conversions)."
-pub fn call_f16_1(a1: &Instance, stage: ShaderStage) -> Result<Instance, E> {
+pub fn f16(a1: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     match a1 {
         Instance::Literal(l) => {
             let val = match l {
@@ -1267,7 +239,7 @@ pub fn call_f16_1(a1: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     }
 }
 
-pub fn call_mat_t(
+pub fn mat_t(
     c: usize,
     r: usize,
     tplt: MatTemplate,
@@ -1281,8 +253,8 @@ pub fn call_mat_t(
         }
 
         let conv_fn = match tplt.inner_ty() {
-            Type::F32 => call_f32_1,
-            Type::F16 => call_f16_1,
+            Type::F32 => f32,
+            Type::F16 => f16,
             _ => return Err(E::Builtin("matrix type must be a f32 or f16")),
         };
 
@@ -1337,7 +309,7 @@ pub fn call_mat_t(
     }
 }
 
-pub fn call_mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
+pub fn mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
     // overload 1: mat conversion constructor
     if let [Instance::Mat(m)] = args {
         if m.c() != c || m.r() != r {
@@ -1390,7 +362,7 @@ pub fn call_mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
     }
 }
 
-pub fn call_vec_t(
+pub fn vec_t(
     n: usize,
     tplt: VecTemplate,
     args: &[Instance],
@@ -1413,11 +385,11 @@ pub fn call_vec_t(
         }
 
         let conv_fn = match ty.inner_ty() {
-            Type::Bool => |n, _| call_bool_1(n),
-            Type::I32 => |n, _| call_i32_1(n),
-            Type::U32 => |n, _| call_u32_1(n),
-            Type::F32 => |n, stage| call_f32_1(n, stage),
-            Type::F16 => |n, stage| call_f16_1(n, stage),
+            Type::Bool => |n, _| bool(n),
+            Type::I32 => |n, _| i32(n),
+            Type::U32 => |n, _| u32(n),
+            Type::F32 => |n, stage| f32(n, stage),
+            Type::F16 => |n, stage| f16(n, stage),
             _ => return Err(E::Builtin("vector type must be a scalar")),
         };
 
@@ -1456,7 +428,7 @@ pub fn call_vec_t(
     }
 }
 
-pub fn call_vec(n: usize, args: &[Instance]) -> Result<Instance, E> {
+pub fn vec(n: usize, args: &[Instance]) -> Result<Instance, E> {
     // overload 1: vec init from single scalar value
     if let [Instance::Literal(l)] = args {
         let val = Instance::Literal(*l);
@@ -1508,7 +480,7 @@ pub fn call_vec(n: usize, args: &[Instance]) -> Result<Instance, E> {
 // -------
 // reference: <https://www.w3.org/TR/WGSL/#bit-reinterp-builtin-functions>
 
-pub fn call_bitcast_t(tplt: BitcastTemplate, e: &Instance) -> Result<Instance, E> {
+pub fn bitcast_t(tplt: BitcastTemplate, e: &Instance) -> Result<Instance, E> {
     fn lit_bytes(l: &LiteralInstance, ty: &Type) -> Result<Vec<u8>, E> {
         match l {
             LiteralInstance::Bool(_) => Err(E::Builtin("bitcast argument cannot be bool")),
@@ -1619,7 +591,7 @@ pub fn call_bitcast_t(tplt: BitcastTemplate, e: &Instance) -> Result<Instance, E
 // -------
 // reference: <https://www.w3.org/TR/WGSL/#logical-builtin-functions>
 
-pub fn call_all(e: &Instance) -> Result<Instance, E> {
+pub fn all(e: &Instance) -> Result<Instance, E> {
     match e {
         Instance::Literal(LiteralInstance::Bool(_)) => Ok(e.clone()),
         Instance::Vec(v) if v.inner_ty() == Type::Bool => {
@@ -1632,7 +604,7 @@ pub fn call_all(e: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_any(e: &Instance) -> Result<Instance, E> {
+pub fn any(e: &Instance) -> Result<Instance, E> {
     match e {
         Instance::Literal(LiteralInstance::Bool(_)) => Ok(e.clone()),
         Instance::Vec(v) if v.inner_ty() == Type::Bool => {
@@ -1645,7 +617,7 @@ pub fn call_any(e: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_select(f: &Instance, t: &Instance, cond: &Instance) -> Result<Instance, E> {
+pub fn select(f: &Instance, t: &Instance, cond: &Instance) -> Result<Instance, E> {
     let (f, t) = convert(f, t).ok_or(E::Builtin(
         "`select` 1st and 2nd arguments are incompatible",
     ))?;
@@ -1686,7 +658,7 @@ pub fn call_select(f: &Instance, t: &Instance, cond: &Instance) -> Result<Instan
 // -----
 // reference: <https://www.w3.org/TR/WGSL/#array-builtin-functions>
 
-pub fn call_arraylength(p: &Instance) -> Result<Instance, E> {
+pub fn arrayLength(p: &Instance) -> Result<Instance, E> {
     let err = E::Builtin("`arrayLength` expects a pointer to array argument");
     let r = match p {
         Instance::Ptr(p) => RefInstance::from(p.clone()),
@@ -1743,7 +715,7 @@ macro_rules! impl_call_float_unary {
 }
 
 // TODO: checked_abs
-pub fn call_abs(e: &Instance) -> Result<Instance, E> {
+pub fn abs(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`abs` expects a scalar or vector of scalar argument");
     fn lit_abs(l: &LiteralInstance) -> Result<LiteralInstance, E> {
         match l {
@@ -1770,34 +742,34 @@ pub fn call_abs(e: &Instance) -> Result<Instance, E> {
 }
 
 // NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
-pub fn call_acos(e: &Instance) -> Result<Instance, E> {
+pub fn acos(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("acos", e, n => n.acos())
 }
 
 // NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
-pub fn call_acosh(e: &Instance) -> Result<Instance, E> {
+pub fn acosh(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("acosh", e, n => n.acosh())
 }
 
 // NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
-pub fn call_asin(e: &Instance) -> Result<Instance, E> {
+pub fn asin(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("asin", e, n => n.asin())
 }
 
-pub fn call_asinh(e: &Instance) -> Result<Instance, E> {
+pub fn asinh(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("asinh", e, n => n.asinh())
 }
 
-pub fn call_atan(e: &Instance) -> Result<Instance, E> {
+pub fn atan(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("atan", e, n => n.atan())
 }
 
 // NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
-pub fn call_atanh(e: &Instance) -> Result<Instance, E> {
+pub fn atanh(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("atanh", e, n => n.atanh())
 }
 
-pub fn call_atan2(y: &Instance, x: &Instance) -> Result<Instance, E> {
+pub fn atan2(y: &Instance, x: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`atan2` expects a float or vector of float argument");
     fn lit_atan2(y: &LiteralInstance, x: &LiteralInstance) -> Result<LiteralInstance, E> {
         match y {
@@ -1836,30 +808,30 @@ pub fn call_atan2(y: &Instance, x: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_ceil(e: &Instance) -> Result<Instance, E> {
+pub fn ceil(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("ceil", e, n => n.ceil())
 }
 
-pub fn call_clamp(e: &Instance, low: &Instance, high: &Instance) -> Result<Instance, E> {
+pub fn clamp(e: &Instance, low: &Instance, high: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`clamp` arguments are incompatible");
     let tys = [e.ty(), low.ty(), high.ty()];
     let ty = convert_all_ty(&tys).ok_or(ERR)?;
     let e = e.convert_to(ty).ok_or(ERR)?;
     let low = low.convert_to(ty).ok_or(ERR)?;
     let high = high.convert_to(ty).ok_or(ERR)?;
-    call_min(&call_max(&e, &low)?, &high)
+    min(&max(&e, &low)?, &high)
 }
 
 // NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
-pub fn call_cos(e: &Instance) -> Result<Instance, E> {
+pub fn cos(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("cos", e, n => n.cos())
 }
 
-pub fn call_cosh(e: &Instance) -> Result<Instance, E> {
+pub fn cosh(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("cosh", e, n => n.cosh())
 }
 
-pub fn call_countleadingzeros(e: &Instance) -> Result<Instance, E> {
+pub fn countLeadingZeros(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`countLeadingZeros` expects a float or vector of float argument");
     fn lit_leading_zeros(l: &LiteralInstance) -> Result<LiteralInstance, E> {
         match l {
@@ -1887,7 +859,7 @@ pub fn call_countleadingzeros(e: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_countonebits(e: &Instance) -> Result<Instance, E> {
+pub fn countOneBits(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`countOneBits` expects a float or vector of float argument");
     fn lit_count_ones(l: &LiteralInstance) -> Result<LiteralInstance, E> {
         match l {
@@ -1915,7 +887,7 @@ pub fn call_countonebits(e: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_counttrailingzeros(e: &Instance) -> Result<Instance, E> {
+pub fn countTrailingZeros(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`countTrailingZeros` expects a float or vector of float argument");
     fn lit_trailing_zeros(l: &LiteralInstance) -> Result<LiteralInstance, E> {
         match l {
@@ -1943,7 +915,7 @@ pub fn call_counttrailingzeros(e: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_cross(a: &Instance, b: &Instance, stage: ShaderStage) -> Result<Instance, E> {
+pub fn cross(a: &Instance, b: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     let (a, b) = convert(a, b).ok_or(E::Builtin("`cross` arguments are incompatible"))?;
     match (a, b) {
         (Instance::Vec(a), Instance::Vec(b)) if a.n() == 3 => {
@@ -1964,21 +936,21 @@ pub fn call_cross(a: &Instance, b: &Instance, stage: ShaderStage) -> Result<Inst
     }
 }
 
-pub fn call_degrees(e: &Instance) -> Result<Instance, E> {
+pub fn degrees(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("degrees", e, n => n.to_degrees())
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_determinant(_a1: &Instance) -> Result<Instance, E> {
+pub fn determinant(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("determinant".to_string()))
 }
 
 // NOTE: the function returns an error if computed out of domain
-pub fn call_distance(e1: &Instance, e2: &Instance, stage: ShaderStage) -> Result<Instance, E> {
-    call_length(&e1.op_sub(e2, stage)?)
+pub fn distance(e1: &Instance, e2: &Instance, stage: ShaderStage) -> Result<Instance, E> {
+    length(&e1.op_sub(e2, stage)?)
 }
 
-pub fn call_dot(e1: &Instance, e2: &Instance, stage: ShaderStage) -> Result<Instance, E> {
+pub fn dot(e1: &Instance, e2: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     let (e1, e2) = convert(e1, e2).ok_or(E::Builtin("`dot` arguments are incompatible"))?;
     match (e1, e2) {
         (Instance::Vec(e1), Instance::Vec(e2)) => e1.dot(&e2, stage).map(Into::into),
@@ -1987,97 +959,59 @@ pub fn call_dot(e1: &Instance, e2: &Instance, stage: ShaderStage) -> Result<Inst
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_dot4u8packed(_a1: &Instance, _a2: &Instance) -> Result<Instance, E> {
+pub fn dot4U8Packed(_a1: &Instance, _a2: &Instance) -> Result<Instance, E> {
     Err(E::Todo("dot4U8Packed".to_string()))
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_dot4i8packed(_a1: &Instance, _a2: &Instance) -> Result<Instance, E> {
+pub fn dot4I8Packed(_a1: &Instance, _a2: &Instance) -> Result<Instance, E> {
     Err(E::Todo("dot4I8Packed".to_string()))
 }
 
-pub fn call_exp(e: &Instance) -> Result<Instance, E> {
+pub fn exp(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("exp", e, n => n.exp())
 }
 
-pub fn call_exp2(e: &Instance) -> Result<Instance, E> {
+pub fn exp2(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("exp2", e, n => n.exp2())
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_extractbits(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
+pub fn extractBits(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
     Err(E::Todo("extractBits".to_string()))
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_faceforward(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
+pub fn faceForward(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
     Err(E::Todo("faceForward".to_string()))
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_firstleadingbit(_a1: &Instance) -> Result<Instance, E> {
+pub fn firstLeadingBit(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("firstLeadingBit".to_string()))
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_firsttrailingbit(_a1: &Instance) -> Result<Instance, E> {
+pub fn firstTrailingBit(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("firstTrailingBit".to_string()))
 }
 
-pub fn call_floor(e: &Instance) -> Result<Instance, E> {
+pub fn floor(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("floor", e, n => n.floor())
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_fma(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
+pub fn fma(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
     Err(E::Todo("fma".to_string()))
 }
 
-pub fn call_fract(e: &Instance, stage: ShaderStage) -> Result<Instance, E> {
-    e.op_sub(&call_floor(e)?, stage)
+pub fn fract(e: &Instance, stage: ShaderStage) -> Result<Instance, E> {
+    e.op_sub(&floor(e)?, stage)
     // impl_call_float_unary!("fract", e, n => n.fract())
 }
 
-fn frexp_struct_name(ty: &Type) -> Option<&'static str> {
-    match ty {
-        Type::AbstractFloat => Some("__frexp_result_abstract"),
-        Type::F32 => Some("__frexp_result_f32"),
-        Type::F16 => Some("__frexp_result_f16"),
-        Type::Vec(n, ty) => match (n, &**ty) {
-            (2, Type::AbstractFloat) => Some("__frexp_result_vec2_abstract"),
-            (2, Type::F32) => Some("__frexp_result_vec2_f32"),
-            (2, Type::F16) => Some("__frexp_result_vec2_f16"),
-            (3, Type::AbstractFloat) => Some("__frexp_result_vec3_abstract"),
-            (3, Type::F32) => Some("__frexp_result_vec3_f32"),
-            (3, Type::F16) => Some("__frexp_result_vec3_f16"),
-            (4, Type::AbstractFloat) => Some("__frexp_result_vec4_abstract"),
-            (4, Type::F32) => Some("__frexp_result_vec4_f32"),
-            (4, Type::F16) => Some("__frexp_result_vec4_f16"),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-fn frexp_struct_type(ty: &Type) -> Option<StructType> {
-    frexp_struct_name(ty).map(|name| {
-        let exp_ty = if ty.is_abstract() {
-            Type::AbstractInt
-        } else {
-            Type::I32
-        };
-        StructType {
-            name: name.to_string(),
-            members: vec![
-                ("fract".to_string(), ty.clone()),
-                ("exp".to_string(), exp_ty),
-            ],
-        }
-    })
-}
-
 /// TODO: This built-in is only partially implemented.
-pub fn call_frexp(e: &Instance) -> Result<Instance, E> {
+pub fn frexp(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`frexp` expects a float or vector of float argument");
     fn make_frexp_inst(name: &'static str, fract: Instance, exp: Instance) -> Instance {
         Instance::Struct(StructInstance::new(
@@ -2194,7 +1128,7 @@ pub fn call_frexp(e: &Instance) -> Result<Instance, E> {
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_insertbits(
+pub fn insertBits(
     _a1: &Instance,
     _a2: &Instance,
     _a3: &Instance,
@@ -2204,7 +1138,7 @@ pub fn call_insertbits(
 }
 
 // NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
-pub fn call_inversesqrt(e: &Instance) -> Result<Instance, E> {
+pub fn inverseSqrt(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`inverseSqrt` expects a float or vector of float argument");
     fn lit_isqrt(l: &LiteralInstance) -> Result<LiteralInstance, E> {
         match l {
@@ -2233,7 +1167,7 @@ pub fn call_inversesqrt(e: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_ldexp(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+pub fn ldexp(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     // from: https://docs.rs/libm/latest/src/libm/math/scalbn.rs.html#3-34
     fn scalbn(x: f64, mut n: i32) -> f64 {
         let x1p1023 = f64::from_bits(0x7fe0000000000000); // 0x1p1023 === 2 ^ 1023
@@ -2312,11 +1246,11 @@ pub fn call_ldexp(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_length(e: &Instance) -> Result<Instance, E> {
+pub fn length(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`length` expects a float or vector of float argument");
     match e {
-        Instance::Literal(_) => call_abs(e),
-        Instance::Vec(v) => call_sqrt(
+        Instance::Literal(_) => abs(e),
+        Instance::Vec(v) => sqrt(
             &v.op_mul(v, ShaderStage::Exec)?
                 .into_iter()
                 .map(Ok)
@@ -2327,15 +1261,15 @@ pub fn call_length(e: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_log(e: &Instance) -> Result<Instance, E> {
+pub fn log(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("log", e, n => n.ln())
 }
 
-pub fn call_log2(e: &Instance) -> Result<Instance, E> {
+pub fn log2(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("log2", e, n => n.log2())
 }
 
-pub fn call_max(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+pub fn max(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`max` expects a scalar or vector of scalar argument");
     fn lit_max(e1: &LiteralInstance, e2: &LiteralInstance) -> Result<LiteralInstance, E> {
         match e1 {
@@ -2366,7 +1300,7 @@ pub fn call_max(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+pub fn min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`min` expects a scalar or vector of scalar argument");
     fn lit_min(e1: &LiteralInstance, e2: &LiteralInstance) -> Result<LiteralInstance, E> {
         match e1 {
@@ -2397,12 +1331,7 @@ pub fn call_min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_mix(
-    e1: &Instance,
-    e2: &Instance,
-    e3: &Instance,
-    stage: ShaderStage,
-) -> Result<Instance, E> {
+pub fn mix(e1: &Instance, e2: &Instance, e3: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     let tys = [e1.inner_ty(), e2.inner_ty(), e3.inner_ty()];
     let inner_ty = convert_all_ty(&tys).ok_or(E::Builtin("`mix` arguments are incompatible"))?;
     let e1 = e1.convert_inner_to(inner_ty).unwrap();
@@ -2417,47 +1346,16 @@ pub fn call_mix(
         .op_add(&e2.op_mul(&e3, stage)?, stage)
 }
 
-fn modf_struct_name(ty: &Type) -> Option<&'static str> {
-    match ty {
-        Type::AbstractFloat => Some("__modf_result_abstract"),
-        Type::F32 => Some("__modf_result_f32"),
-        Type::F16 => Some("__modf_result_f16"),
-        Type::Vec(n, ty) => match (n, &**ty) {
-            (2, Type::AbstractFloat) => Some("__modf_result_vec2_abstract"),
-            (2, Type::F32) => Some("__modf_result_vec2_f32"),
-            (2, Type::F16) => Some("__modf_result_vec2_f16"),
-            (3, Type::AbstractFloat) => Some("__modf_result_vec3_abstract"),
-            (3, Type::F32) => Some("__modf_result_vec3_f32"),
-            (3, Type::F16) => Some("__modf_result_vec3_f16"),
-            (4, Type::AbstractFloat) => Some("__modf_result_vec4_abstract"),
-            (4, Type::F32) => Some("__modf_result_vec4_f32"),
-            (4, Type::F16) => Some("__modf_result_vec4_f16"),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
-fn modf_struct_type(ty: &Type) -> Option<StructType> {
-    modf_struct_name(ty).map(|name| StructType {
-        name: name.to_string(),
-        members: vec![
-            ("fract".to_string(), ty.clone()),
-            ("whole".to_string(), ty.clone()),
-        ],
-    })
-}
-
 /// TODO: This built-in is not implemented!
-pub fn call_modf(_a1: &Instance) -> Result<Instance, E> {
+pub fn modf(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("modf".to_string()))
 }
 
-pub fn call_normalize(e: &Instance, stage: ShaderStage) -> Result<Instance, E> {
-    e.op_div(&call_length(e)?, stage)
+pub fn normalize(e: &Instance, stage: ShaderStage) -> Result<Instance, E> {
+    e.op_div(&length(e)?, stage)
 }
 
-pub fn call_pow(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+pub fn pow(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`pow` expects a scalar or vector of scalar argument");
     fn lit_powf(e1: &LiteralInstance, e2: &LiteralInstance) -> Result<LiteralInstance, E> {
         match e1 {
@@ -2497,30 +1395,30 @@ pub fn call_pow(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_quantizetof16(_a1: &Instance) -> Result<Instance, E> {
+pub fn quantizeToF16(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("quantizeToF16".to_string()))
 }
 
-pub fn call_radians(e: &Instance) -> Result<Instance, E> {
+pub fn radians(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("radians", e, n => n.to_radians())
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_reflect(_a1: &Instance, _a2: &Instance) -> Result<Instance, E> {
+pub fn reflect(_a1: &Instance, _a2: &Instance) -> Result<Instance, E> {
     Err(E::Todo("reflect".to_string()))
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_refract(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
+pub fn refract(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E> {
     Err(E::Todo("refract".to_string()))
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_reversebits(_a1: &Instance) -> Result<Instance, E> {
+pub fn reverseBits(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("reverseBits".to_string()))
 }
 
-pub fn call_round(e: &Instance) -> Result<Instance, E> {
+pub fn round(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`round` expects a float or vector of float argument");
     fn lit_fn(l: &LiteralInstance) -> Result<LiteralInstance, E> {
         match l {
@@ -2554,12 +1452,12 @@ pub fn call_round(e: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_saturate(e: &Instance) -> Result<Instance, E> {
+pub fn saturate(e: &Instance) -> Result<Instance, E> {
     match e {
         Instance::Literal(_) => {
             let zero = LiteralInstance::AbstractFloat(0.0);
             let one = LiteralInstance::AbstractFloat(1.0);
-            call_clamp(e, &zero.into(), &one.into())
+            clamp(e, &zero.into(), &one.into())
         }
         Instance::Vec(v) => {
             let n = v.n();
@@ -2567,7 +1465,7 @@ pub fn call_saturate(e: &Instance) -> Result<Instance, E> {
             let one = Instance::from(LiteralInstance::AbstractFloat(1.0));
             let zero = VecInstance::new((0..n).map(|_| zero.clone()).collect_vec());
             let one = VecInstance::new((0..n).map(|_| one.clone()).collect_vec());
-            call_clamp(e, &zero.into(), &one.into())
+            clamp(e, &zero.into(), &one.into())
         }
         _ => Err(E::Builtin(
             "`saturate` expects a float or vector of float argument",
@@ -2575,7 +1473,7 @@ pub fn call_saturate(e: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_sign(e: &Instance) -> Result<Instance, E> {
+pub fn sign(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin(concat!(
         "`",
         "sign",
@@ -2629,24 +1527,24 @@ pub fn call_sign(e: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_sin(e: &Instance) -> Result<Instance, E> {
+pub fn sin(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("sin", e, n => n.sin())
 }
 
-pub fn call_sinh(e: &Instance) -> Result<Instance, E> {
+pub fn sinh(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("sinh", e, n => n.sinh())
 }
 
 /// TODO: This built-in is not implemented!
-pub fn call_smoothstep(_low: &Instance, _high: &Instance, _x: &Instance) -> Result<Instance, E> {
+pub fn smoothstep(_low: &Instance, _high: &Instance, _x: &Instance) -> Result<Instance, E> {
     Err(E::Todo("smoothstep".to_string()))
 }
 
-pub fn call_sqrt(e: &Instance) -> Result<Instance, E> {
+pub fn sqrt(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("sqrt", e, n => n.sqrt())
 }
 
-pub fn call_step(edge: &Instance, x: &Instance) -> Result<Instance, E> {
+pub fn step(edge: &Instance, x: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`step` expects a float or vector of float argument");
     fn lit_step(edge: &LiteralInstance, x: &LiteralInstance) -> Result<LiteralInstance, E> {
         match edge {
@@ -2707,22 +1605,22 @@ pub fn call_step(edge: &Instance, x: &Instance) -> Result<Instance, E> {
     }
 }
 
-pub fn call_tan(e: &Instance) -> Result<Instance, E> {
+pub fn tan(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("tan", e, n => n.tan())
 }
 
-pub fn call_tanh(e: &Instance) -> Result<Instance, E> {
+pub fn tanh(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("tanh", e, n => n.tanh())
 }
 
-pub fn call_transpose(e: &Instance) -> Result<Instance, E> {
+pub fn transpose(e: &Instance) -> Result<Instance, E> {
     match e {
         Instance::Mat(e) => Ok(e.transpose().into()),
         _ => Err(E::Builtin("`transpose` expects a matrix argument")),
     }
 }
 
-pub fn call_trunc(e: &Instance) -> Result<Instance, E> {
+pub fn trunc(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("trunc", e, n => n.trunc())
 }
 
@@ -2731,7 +1629,7 @@ pub fn call_trunc(e: &Instance) -> Result<Instance, E> {
 // ------
 // reference: <https://www.w3.org/TR/WGSL/#atomic-builtin-functions>
 
-pub fn call_atomic_load(e: &Instance) -> Result<Instance, E> {
+pub fn atomicLoad(e: &Instance) -> Result<Instance, E> {
     let err = E::Builtin("`atomicLoad` expects a pointer to atomic argument");
     if let Instance::Ptr(ptr) = e {
         // TODO: there is a ptr.ptr.ptr chain here. Rename it.
@@ -2745,7 +1643,7 @@ pub fn call_atomic_load(e: &Instance) -> Result<Instance, E> {
         Err(err)
     }
 }
-pub fn call_atomic_store(e1: &Instance, e2: &Instance) -> Result<(), E> {
+pub fn atomicStore(e1: &Instance, e2: &Instance) -> Result<(), E> {
     let err = E::Builtin("`atomicStore` expects a pointer to atomic argument");
     if let Instance::Ptr(ptr) = e1 {
         let mut inst = ptr.ptr.read_write()?;
@@ -2763,58 +1661,48 @@ pub fn call_atomic_store(e1: &Instance, e2: &Instance) -> Result<(), E> {
         Err(err)
     }
 }
-pub fn call_atomic_sub(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
-    let initial = call_atomic_load(e1)?;
-    call_atomic_store(e1, &initial.op_sub(e2, ShaderStage::Exec)?)?;
+pub fn atomicSub(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = atomicLoad(e1)?;
+    atomicStore(e1, &initial.op_sub(e2, ShaderStage::Exec)?)?;
     Ok(initial)
 }
-pub fn call_atomic_max(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
-    let initial = call_atomic_load(e1)?;
-    call_atomic_store(e1, &call_max(&initial, e2)?)?;
+pub fn atomicMax(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = atomicLoad(e1)?;
+    atomicStore(e1, &max(&initial, e2)?)?;
     Ok(initial)
 }
-pub fn call_atomic_min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
-    let initial = call_atomic_load(e1)?;
-    call_atomic_store(e1, &call_max(&initial, e2)?)?;
+pub fn atomicMin(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = atomicLoad(e1)?;
+    atomicStore(e1, &max(&initial, e2)?)?;
     Ok(initial)
 }
-pub fn call_atomic_and(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
-    let initial = call_atomic_load(e1)?;
-    call_atomic_store(e1, &initial.op_bitand(e2)?)?;
+pub fn atomicAnd(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = atomicLoad(e1)?;
+    atomicStore(e1, &initial.op_bitand(e2)?)?;
     Ok(initial)
 }
-pub fn call_atomic_or(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
-    let initial = call_atomic_load(e1)?;
-    call_atomic_store(e1, &initial.op_bitor(e2)?)?;
+pub fn atomicOr(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = atomicLoad(e1)?;
+    atomicStore(e1, &initial.op_bitor(e2)?)?;
     Ok(initial)
 }
-pub fn call_atomic_xor(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
-    let initial = call_atomic_load(e1)?;
-    call_atomic_store(e1, &initial.op_bitxor(e2)?)?;
+pub fn atomicXor(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = atomicLoad(e1)?;
+    atomicStore(e1, &initial.op_bitxor(e2)?)?;
     Ok(initial)
 }
-pub fn call_atomic_exchange(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
-    let initial = call_atomic_load(e1)?;
-    call_atomic_store(e1, e2)?;
+pub fn atomicExchange(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = atomicLoad(e1)?;
+    atomicStore(e1, e2)?;
     Ok(initial)
 }
 
-fn atomic_compare_exchange_struct_type(ty: &Type) -> StructType {
-    StructType {
-        name: "__atomic_compare_exchange_result".to_string(),
-        members: vec![
-            ("old_value".to_string(), ty.clone()),
-            ("exchanged".to_string(), Type::Bool),
-        ],
-    }
-}
-
-pub fn call_atomic_compare_exchange_weak(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
-    let initial = call_atomic_load(e1)?;
+pub fn atomicCompareExchangeWeak(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
+    let initial = atomicLoad(e1)?;
     let exchanged = if initial == *e2 {
         false
     } else {
-        call_atomic_store(e1, e2)?;
+        atomicStore(e1, e2)?;
         true
     };
     Ok(Instance::Struct(StructInstance::new(
@@ -2834,94 +1722,66 @@ pub fn call_atomic_compare_exchange_weak(e1: &Instance, e2: &Instance) -> Result
 // ------------
 // reference: <https://www.w3.org/TR/WGSL/#pack-builtin-functions>
 
-pub fn call_pack4x8snorm(_a1: &Instance) -> Result<Instance, E> {
+pub fn pack4x8snorm(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("pack4x8snorm".to_string()))
 }
 
-pub fn call_pack4x8unorm(_a1: &Instance) -> Result<Instance, E> {
+pub fn pack4x8unorm(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("pack4x8unorm".to_string()))
 }
 
-pub fn call_pack4xi8(_a1: &Instance) -> Result<Instance, E> {
+pub fn pack4xI8(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("pack4xI8".to_string()))
 }
 
-pub fn call_pack4xu8(_a1: &Instance) -> Result<Instance, E> {
+pub fn pack4xU8(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("pack4xU8".to_string()))
 }
 
-pub fn call_pack4xi8clamp(_a1: &Instance) -> Result<Instance, E> {
+pub fn pack4xI8Clamp(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("pack4xI8Clamp".to_string()))
 }
 
-pub fn call_pack4xu8clamp(_a1: &Instance) -> Result<Instance, E> {
+pub fn pack4xU8Clamp(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("pack4xU8Clamp".to_string()))
 }
 
-pub fn call_pack2x16snorm(_a1: &Instance) -> Result<Instance, E> {
+pub fn pack2x16snorm(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("pack2x16snorm".to_string()))
 }
 
-pub fn call_pack2x16unorm(_a1: &Instance) -> Result<Instance, E> {
+pub fn pack2x16unorm(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("pack2x16unorm".to_string()))
 }
 
-pub fn call_pack2x16float(_a1: &Instance) -> Result<Instance, E> {
+pub fn pack2x16float(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("pack2x16float".to_string()))
 }
 
-pub fn call_unpack4x8snorm(_a1: &Instance) -> Result<Instance, E> {
+pub fn unpack4x8snorm(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("unpack4x8snorm".to_string()))
 }
 
-pub fn call_unpack4x8unorm(_a1: &Instance) -> Result<Instance, E> {
+pub fn unpack4x8unorm(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("unpack4x8unorm".to_string()))
 }
 
-pub fn call_unpack4xi8(_a1: &Instance) -> Result<Instance, E> {
+pub fn unpack4xI8(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("unpack4xI8".to_string()))
 }
 
-pub fn call_unpack4xu8(_a1: &Instance) -> Result<Instance, E> {
+pub fn unpack4xU8(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("unpack4xU8".to_string()))
 }
 
-pub fn call_unpack2x16snorm(_a1: &Instance) -> Result<Instance, E> {
+pub fn unpack2x16snorm(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("unpack2x16snorm".to_string()))
 }
 
-pub fn call_unpack2x16unorm(_a1: &Instance) -> Result<Instance, E> {
+pub fn unpack2x16unorm(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("unpack2x16unorm".to_string()))
 }
 
-pub fn call_unpack2x16float(_a1: &Instance) -> Result<Instance, E> {
+pub fn unpack2x16float(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("unpack2x16float".to_string()))
-}
-
-impl VecInstance {
-    /// Warning, this function does not check operand types
-    pub fn dot(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<LiteralInstance, E> {
-        self.compwise_binary(rhs, |a, b| a.op_mul(b, stage))?
-            .into_iter()
-            .map(|c| Ok(c.unwrap_literal()))
-            .reduce(|a, b| a?.op_add(&b?, stage))
-            .unwrap()
-    }
-}
-
-impl MatInstance {
-    /// Warning, this function does not check operand types
-    pub fn transpose(&self) -> MatInstance {
-        let components = (0..self.r())
-            .map(|j| {
-                VecInstance::new(
-                    (0..self.c())
-                        .map(|i| self.get(i, j).unwrap().clone())
-                        .collect_vec(),
-                )
-                .into()
-            })
-            .collect_vec();
-        MatInstance::from_cols(components)
-    }
 }
