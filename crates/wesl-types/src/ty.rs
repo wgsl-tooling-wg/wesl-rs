@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use crate::{
-    EvalError, Instance,
+    Error, Instance,
     enums::{AddressSpace, TextureType},
     inst::{
         ArrayInstance, AtomicInstance, LiteralInstance, MatInstance, PtrInstance, RefInstance,
@@ -53,14 +53,14 @@ pub enum SampledType {
 }
 
 impl TryFrom<&Type> for SampledType {
-    type Error = EvalError;
+    type Error = Error;
 
     fn try_from(value: &Type) -> Result<Self, Self::Error> {
         match value {
             Type::I32 => Ok(SampledType::I32),
             Type::U32 => Ok(SampledType::U32),
             Type::F32 => Ok(SampledType::F32),
-            _ => Err(EvalError::SampledType(value.clone())),
+            _ => Err(Error::SampledType(value.clone())),
         }
     }
 }

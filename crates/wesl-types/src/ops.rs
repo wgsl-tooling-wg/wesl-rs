@@ -1,7 +1,7 @@
 use std::iter::zip;
 
 use crate::{
-    EvalError, Instance, ShaderStage,
+    Error, Instance, ShaderStage,
     conv::{Convert, convert, convert_inner},
     inst::{LiteralInstance, MatInstance, VecInstance},
     ty::{Ty, Type},
@@ -9,7 +9,7 @@ use crate::{
 
 use num_traits::{WrappingNeg, WrappingShl};
 
-type E = EvalError;
+type E = Error;
 
 pub trait Compwise: Clone + Sized {
     fn compwise_unary_mut<F>(&mut self, f: F) -> Result<(), E>

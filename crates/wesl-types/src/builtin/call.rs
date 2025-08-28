@@ -16,7 +16,7 @@ use itertools::{Itertools, chain, izip};
 use crate::builtin::frexp_struct_name;
 use crate::tplt::{ArrayTemplate, BitcastTemplate, MatTemplate, VecTemplate};
 use crate::{
-    EvalError, Instance, ShaderStage,
+    Error, Instance, ShaderStage,
     conv::{Convert, convert, convert_all, convert_all_inner_to, convert_all_to, convert_all_ty},
     inst::{
         ArrayInstance, AtomicInstance, LiteralInstance, MatInstance, RefInstance, StructInstance,
@@ -26,7 +26,7 @@ use crate::{
     ty::{Ty, Type},
 };
 
-type E = EvalError;
+type E = Error;
 
 // ------------
 // CONSTRUCTORS

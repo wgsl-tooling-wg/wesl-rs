@@ -12,7 +12,7 @@ use num_traits::Zero;
 use itertools::Itertools;
 
 use crate::{
-    CallSignature, EvalError, Instance, ShaderStage,
+    CallSignature, Error, Instance, ShaderStage,
     conv::{Convert, convert_all_ty, convert_ty},
     enums::{AddressSpace, TextureType},
     inst::{ArrayInstance, LiteralInstance, MatInstance, StructInstance, VecInstance},
@@ -21,7 +21,7 @@ use crate::{
     ty::{StructType, Ty, Type},
 };
 
-type E = EvalError;
+type E = Error;
 
 // -----------------
 // CONSTRUCTOR TYPES

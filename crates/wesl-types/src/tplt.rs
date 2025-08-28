@@ -1,7 +1,7 @@
 //! Built-in type-generator and function templates.
 
 use crate::{
-    EvalError,
+    Error,
     enums::{AccessMode, AddressSpace, Enumerant, TexelFormat, TextureType},
     inst::{Instance, LiteralInstance},
     ty::{SampledType, Ty, Type},
@@ -15,7 +15,7 @@ pub enum TpltParam {
     Enumerant(Enumerant),
 }
 
-type E = EvalError;
+type E = Error;
 
 // ------------------------
 // TYPE-GENERATOR TEMPLATES
@@ -120,7 +120,7 @@ impl VecTemplate {
         if ty.is_scalar() && ty.is_concrete() {
             Ok(VecTemplate { ty })
         } else {
-            Err(EvalError::Builtin("vector template type must be a scalar"))
+            Err(Error::Builtin("vector template type must be a scalar"))
         }
     }
     pub fn ty(&self, n: u8) -> Type {
@@ -144,9 +144,7 @@ impl MatTemplate {
         if ty.is_f_32() || ty.is_f_16() {
             Ok(MatTemplate { ty })
         } else {
-            Err(EvalError::Builtin(
-                "matrix template type must be f32 or f16",
-            ))
+            Err(Error::Builtin("matrix template type must be f32 or f16"))
         }
     }
     pub fn ty(&self, c: u8, r: u8) -> Type {
@@ -180,7 +178,7 @@ impl PtrTemplate {
                 None,
             ) => {
                 if !ty.is_storable() {
-                    return Err(EvalError::Builtin("pointer type must be storable"));
+                    return Err(Error::Builtin("pointer type must be storable"));
                 }
                 let access = match access {
                     Some(TpltParam::Enumerant(Enumerant::AccessMode(access))) => Some(access),
@@ -197,7 +195,7 @@ impl PtrTemplate {
                     | (AddressSpace::Workgroup, None) => AccessMode::ReadWrite,
                     (AddressSpace::Uniform, Some(AccessMode::Read) | None) => AccessMode::Read,
                     (AddressSpace::Uniform, _) => {
-                        return Err(EvalError::Builtin(
+                        return Err(Error::Builtin(
                             "pointer in uniform address space must have a `read` access mode",
                         ));
                     }
@@ -239,9 +237,7 @@ impl AtomicTemplate {
         if ty.is_i_32() || ty.is_u_32() {
             Ok(AtomicTemplate { ty })
         } else {
-            Err(EvalError::Builtin(
-                "atomic template type must be i32 or u32",
-            ))
+            Err(Error::Builtin("atomic template type must be i32 or u32"))
         }
     }
     pub fn ty(&self) -> Type {
@@ -289,10 +285,10 @@ impl TextureTemplate {
     fn sampled_type(tplt: &[TpltParam]) -> Result<SampledType, E> {
         match tplt {
             [TpltParam::Type(ty)] => ty.try_into(),
-            [_] => Err(EvalError::Builtin(
+            [_] => Err(Error::Builtin(
                 "invalid sampled type, expected `i32`, `u32` of `f32`",
             )),
-            _ => Err(EvalError::Builtin(
+            _ => Err(Error::Builtin(
                 "sampled texture types take a single template parameter",
             )),
         }
@@ -303,7 +299,7 @@ impl TextureTemplate {
                 TpltParam::Enumerant(Enumerant::TexelFormat(texel)),
                 TpltParam::Enumerant(Enumerant::AccessMode(access)),
             ] => Ok((*texel, *access)),
-            _ => Err(EvalError::Builtin(
+            _ => Err(Error::Builtin(
                 "storage texture types take two template parameters",
             )),
         }
@@ -326,7 +322,7 @@ impl BitcastTemplate {
         if ty.is_numeric() || ty.is_vec() && ty.inner_ty().is_numeric() {
             Ok(BitcastTemplate { ty })
         } else {
-            Err(EvalError::Builtin(
+            Err(Error::Builtin(
                 "bitcast template type must be a numeric scalar or numeric vector",
             ))
         }

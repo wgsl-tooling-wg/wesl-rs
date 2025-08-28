@@ -11,12 +11,12 @@ use half::f16;
 use itertools::Itertools;
 
 use crate::{
-    EvalError,
+    Error,
     enums::{AccessMode, AddressSpace},
     ty::{Ty, Type},
 };
 
-type E = EvalError;
+type E = Error;
 
 /// Path to a memory view of an instance.
 ///

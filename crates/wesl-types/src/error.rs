@@ -2,9 +2,9 @@ use thiserror::Error;
 
 use crate::{CallSignature, Type, inst::LiteralInstance};
 
-/// Evaluation and Execution errors.
+/// The global error struct.
 #[derive(Clone, Debug, Error)]
-pub enum EvalError {
+pub enum Error {
     #[error("not implemented: `{0}`")]
     Todo(String),
 
