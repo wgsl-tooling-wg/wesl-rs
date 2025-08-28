@@ -2,7 +2,7 @@
 
 use crate::{
     EvalError,
-    enums::{AccessMode, AddressSpace, TexelFormat, TextureType},
+    enums::{AccessMode, AddressSpace, Enumerant, TexelFormat, TextureType},
     inst::{Instance, LiteralInstance},
     ty::{SampledType, Ty, Type},
 };
@@ -12,7 +12,7 @@ use crate::{
 pub enum TpltParam {
     Type(Type),
     Instance(Instance),
-    Enumerant(String),
+    Enumerant(Enumerant),
 }
 
 type E = EvalError;
@@ -167,22 +167,24 @@ pub struct PtrTemplate {
 impl PtrTemplate {
     pub fn parse(tplt: &[TpltParam]) -> Result<PtrTemplate, E> {
         let mut it = tplt.iter();
-        match (it.next(), it.next(), it.next(), it.next()) {
-            (Some(TpltParam::Enumerant(space)), Some(TpltParam::Type(ty)), access, None) => {
-                let mut space = space
-                    .parse()
-                    .map_err(|()| EvalError::Builtin("invalid pointer storage space"))?;
+        match (
+            it.next().cloned(),
+            it.next().cloned(),
+            it.next().cloned(),
+            it.next(),
+        ) {
+            (
+                Some(TpltParam::Enumerant(Enumerant::AddressSpace(mut space))),
+                Some(TpltParam::Type(ty)),
+                access,
+                None,
+            ) => {
                 if !ty.is_storable() {
                     return Err(EvalError::Builtin("pointer type must be storable"));
                 }
-                let access = if let Some(TpltParam::Enumerant(access)) = access {
-                    Some(
-                        access
-                            .parse()
-                            .map_err(|()| EvalError::Builtin("invalid pointer access mode"))?,
-                    )
-                } else {
-                    None
+                let access = match access {
+                    Some(TpltParam::Enumerant(Enumerant::AccessMode(access))) => Some(access),
+                    _ => None,
                 };
                 // selecting the default access mode per address space.
                 // reference: <https://www.w3.org/TR/WGSL/#address-space>
@@ -213,11 +215,7 @@ impl PtrTemplate {
                         todo!("push_constant")
                     }
                 };
-                Ok(PtrTemplate {
-                    space,
-                    ty: ty.clone(),
-                    access,
-                })
+                Ok(PtrTemplate { space, ty, access })
             }
             _ => Err(E::TemplateArgs("pointer")),
         }
@@ -301,15 +299,10 @@ impl TextureTemplate {
     }
     fn texel_access(tplt: &[TpltParam]) -> Result<(TexelFormat, AccessMode), E> {
         match tplt {
-            [TpltParam::Enumerant(t1), TpltParam::Enumerant(t2)] => {
-                let texel = t1
-                    .parse()
-                    .map_err(|()| EvalError::Builtin("invalid texel format"))?;
-                let access = t2
-                    .parse()
-                    .map_err(|()| EvalError::Builtin("invalid access mode"))?;
-                Ok((texel, access))
-            }
+            [
+                TpltParam::Enumerant(Enumerant::TexelFormat(texel)),
+                TpltParam::Enumerant(Enumerant::AccessMode(access)),
+            ] => Ok((*texel, *access)),
             _ => Err(EvalError::Builtin(
                 "storage texture types take two template parameters",
             )),

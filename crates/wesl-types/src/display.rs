@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use crate::{
     CallSignature,
-    enums::{AccessMode, AddressSpace, TexelFormat, TextureType},
+    enums::{AccessMode, AddressSpace, Enumerant, TexelFormat, TextureType},
     inst::{
         ArrayInstance, AtomicInstance, Instance, LiteralInstance, MatInstance, MemView,
         PtrInstance, RefInstance, StructInstance, VecInstance,
@@ -146,6 +146,16 @@ fn addr_space(space: AddressSpace) -> &'static str {
         AddressSpace::Handle => "handle",
         #[cfg(feature = "naga_ext")]
         AddressSpace::PushConstant => "push_constant",
+    }
+}
+
+impl Display for Enumerant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Enumerant::AccessMode(access_mode) => write!(f, "{access_mode}"),
+            Enumerant::AddressSpace(address_space) => write!(f, "{address_space}"),
+            Enumerant::TexelFormat(texel_format) => write!(f, "{texel_format}"),
+        }
     }
 }
 
