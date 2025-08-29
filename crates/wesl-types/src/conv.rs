@@ -57,7 +57,7 @@ impl Convert for Type {
                 .convert_to(ty)
                 .map(|inner| Type::Mat(*c, *r, inner.into())),
             Type::Atomic(_) => (self == ty).then_some(ty.clone()),
-            Type::Ptr(_, _) => (self == ty).then_some(ty.clone()),
+            Type::Ptr(_, _, _) => (self == ty).then_some(ty.clone()),
             _ => self.convert_to(ty), // for types that don't have an inner ty
         }
     }
@@ -83,7 +83,7 @@ impl Type {
 }
 
 impl LiteralInstance {
-    fn is_infinite(&self) -> bool {
+    pub fn is_infinite(&self) -> bool {
         match self {
             LiteralInstance::Bool(_) => false,
             LiteralInstance::AbstractInt(_) => false,
@@ -100,7 +100,7 @@ impl LiteralInstance {
             LiteralInstance::F64(n) => n.is_infinite(),
         }
     }
-    fn is_finite(&self) -> bool {
+    pub fn is_finite(&self) -> bool {
         !self.is_infinite()
     }
 }
@@ -199,24 +199,26 @@ impl Convert for StructInstance {
         if &self.ty() == ty {
             Some(self.clone())
         } else if let Type::Struct(s2) = ty {
-            let s1 = self.name();
+            let s1 = &self.name;
             if s1.starts_with("__") && s1.ends_with("abstract") {
-                if s2.name().ends_with("f32") {
+                if s2.name.ends_with("f32") {
                     let members = self
-                        .iter_members()
+                        .members
+                        .iter()
                         .map(|(name, inst)| {
                             Some((name.clone(), inst.convert_inner_to(&Type::F32)?))
                         })
                         .collect::<Option<Vec<_>>>()?;
-                    Some(StructInstance::new(s2.name().to_string(), members))
-                } else if s2.name().ends_with("f16") {
+                    Some(StructInstance::new(s2.name.to_string(), members))
+                } else if s2.name.ends_with("f16") {
                     let members = self
-                        .iter_members()
+                        .members
+                        .iter()
                         .map(|(name, inst)| {
                             Some((name.clone(), inst.convert_inner_to(&Type::F16)?))
                         })
                         .collect::<Option<Vec<_>>>()?;
-                    Some(StructInstance::new(s2.name().to_string(), members))
+                    Some(StructInstance::new(s2.name.to_string(), members))
                 } else {
                     None
                 }
@@ -276,10 +278,10 @@ pub fn conversion_rank(ty1: &Type, ty2: &Type) -> Option<u32> {
         (Type::AbstractFloat, Type::F16) => Some(2),
         // frexp and modf
         (Type::Struct(s1), Type::Struct(s2)) => {
-            if s1.name().starts_with("__") && s1.name().ends_with("abstract") {
-                if s2.name().ends_with("f32") {
+            if s1.name.starts_with("__") && s1.name.ends_with("abstract") {
+                if s2.name.ends_with("f32") {
                     Some(1)
-                } else if s2.name().ends_with("f16") {
+                } else if s2.name.ends_with("f16") {
                     Some(2)
                 } else {
                     None

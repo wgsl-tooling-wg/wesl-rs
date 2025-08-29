@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use crate::{
     Error, Instance,
-    enums::{AddressSpace, TextureType},
+    enums::{AccessMode, AddressSpace, TexelFormat},
     inst::{
         ArrayInstance, AtomicInstance, LiteralInstance, MatInstance, PtrInstance, RefInstance,
         StructInstance, VecInstance,
@@ -14,29 +14,12 @@ use crate::{
 use derive_more::derive::{IsVariant, Unwrap};
 use itertools::Itertools;
 
+pub use wgsl_syntax::SampledType;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StructType {
     pub name: String,
     pub members: Vec<(String, Type)>,
-}
-
-impl StructType {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-    pub fn member(&self, name: &str) -> Option<&Type> {
-        self.members
-            .iter()
-            .find_map(|(n, inst)| (n == name).then_some(inst))
-    }
-    pub fn member_mut(&mut self, name: &str) -> Option<&mut Type> {
-        self.members
-            .iter_mut()
-            .find_map(|(n, inst)| (n == name).then_some(inst))
-    }
-    pub fn iter_members(&self) -> impl Iterator<Item = &(String, Type)> {
-        self.members.iter()
-    }
 }
 
 impl From<StructType> for Type {
@@ -45,11 +28,136 @@ impl From<StructType> for Type {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant, Unwrap)]
-pub enum SampledType {
-    I32,
-    U32,
-    F32,
+#[derive(Clone, Debug, PartialEq, Eq, IsVariant, Unwrap)]
+pub enum TextureType {
+    // sampled
+    Sampled1D(SampledType),
+    Sampled2D(SampledType),
+    Sampled2DArray(SampledType),
+    Sampled3D(SampledType),
+    SampledCube(SampledType),
+    SampledCubeArray(SampledType),
+    // multisampled
+    Multisampled2D(SampledType),
+    DepthMultisampled2D,
+    // external
+    External,
+    // storage
+    Storage1D(TexelFormat, AccessMode),
+    Storage2D(TexelFormat, AccessMode),
+    Storage2DArray(TexelFormat, AccessMode),
+    Storage3D(TexelFormat, AccessMode),
+    // depth
+    Depth2D,
+    Depth2DArray,
+    DepthCube,
+    DepthCubeArray,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, IsVariant)]
+pub enum TextureDimensions {
+    D1,
+    D2,
+    D3,
+}
+
+impl TextureType {
+    pub fn dimensions(&self) -> TextureDimensions {
+        match self {
+            Self::Sampled1D(_) | Self::Storage1D(_, _) => TextureDimensions::D1,
+            Self::Sampled2D(_)
+            | Self::Sampled2DArray(_)
+            | Self::SampledCube(_)
+            | Self::SampledCubeArray(_)
+            | Self::Multisampled2D(_)
+            | Self::Depth2D
+            | Self::Depth2DArray
+            | Self::DepthCube
+            | Self::DepthCubeArray
+            | Self::DepthMultisampled2D
+            | Self::Storage2D(_, _)
+            | Self::Storage2DArray(_, _)
+            | Self::External => TextureDimensions::D2,
+            Self::Sampled3D(_) | Self::Storage3D(_, _) => TextureDimensions::D3,
+        }
+    }
+    pub fn sampled_type(&self) -> Option<SampledType> {
+        match self {
+            TextureType::Sampled1D(st) => Some(*st),
+            TextureType::Sampled2D(st) => Some(*st),
+            TextureType::Sampled2DArray(st) => Some(*st),
+            TextureType::Sampled3D(st) => Some(*st),
+            TextureType::SampledCube(st) => Some(*st),
+            TextureType::SampledCubeArray(st) => Some(*st),
+            TextureType::Multisampled2D(_) => None,
+            TextureType::DepthMultisampled2D => None,
+            TextureType::External => None,
+            TextureType::Storage1D(_, _) => None,
+            TextureType::Storage2D(_, _) => None,
+            TextureType::Storage2DArray(_, _) => None,
+            TextureType::Storage3D(_, _) => None,
+            TextureType::Depth2D => None,
+            TextureType::Depth2DArray => None,
+            TextureType::DepthCube => None,
+            TextureType::DepthCubeArray => None,
+        }
+    }
+    pub fn channel_type(&self) -> SampledType {
+        match self {
+            TextureType::Sampled1D(st) => *st,
+            TextureType::Sampled2D(st) => *st,
+            TextureType::Sampled2DArray(st) => *st,
+            TextureType::Sampled3D(st) => *st,
+            TextureType::SampledCube(st) => *st,
+            TextureType::SampledCubeArray(st) => *st,
+            TextureType::Multisampled2D(st) => *st,
+            TextureType::DepthMultisampled2D => SampledType::F32,
+            TextureType::External => SampledType::F32,
+            TextureType::Storage1D(f, _) => f.channel_type(),
+            TextureType::Storage2D(f, _) => f.channel_type(),
+            TextureType::Storage2DArray(f, _) => f.channel_type(),
+            TextureType::Storage3D(f, _) => f.channel_type(),
+            TextureType::Depth2D => SampledType::F32,
+            TextureType::Depth2DArray => SampledType::F32,
+            TextureType::DepthCube => SampledType::F32,
+            TextureType::DepthCubeArray => SampledType::F32,
+        }
+    }
+    pub fn is_depth(&self) -> bool {
+        matches!(
+            self,
+            TextureType::Depth2D
+                | TextureType::Depth2DArray
+                | TextureType::DepthCube
+                | TextureType::DepthCubeArray
+        )
+    }
+    pub fn is_storage(&self) -> bool {
+        matches!(
+            self,
+            TextureType::Storage1D(_, _)
+                | TextureType::Storage2D(_, _)
+                | TextureType::Storage2DArray(_, _)
+                | TextureType::Storage3D(_, _)
+        )
+    }
+    pub fn is_sampled(&self) -> bool {
+        matches!(
+            self,
+            TextureType::Sampled1D(_)
+                | TextureType::Sampled2D(_)
+                | TextureType::Sampled2DArray(_)
+                | TextureType::Sampled3D(_)
+                | TextureType::SampledCube(_)
+                | TextureType::SampledCubeArray(_)
+        )
+    }
+    pub fn is_multisampled(&self) -> bool {
+        matches!(
+            self,
+            TextureType::Multisampled2D(_) | TextureType::DepthMultisampled2D
+        )
+    }
 }
 
 impl TryFrom<&Type> for SampledType {
@@ -71,19 +179,6 @@ impl From<SampledType> for Type {
             SampledType::I32 => Type::I32,
             SampledType::U32 => Type::U32,
             SampledType::F32 => Type::F32,
-        }
-    }
-}
-
-impl FromStr for SampledType {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "i32" => Ok(Self::I32),
-            "u32" => Ok(Self::U32),
-            "f32" => Ok(Self::F32),
-            _ => Err(()),
         }
     }
 }
@@ -128,7 +223,7 @@ pub enum Type {
     Vec(u8, Box<Type>),
     Mat(u8, u8, Box<Type>),
     Atomic(Box<Type>),
-    Ptr(AddressSpace, Box<Type>),
+    Ptr(AddressSpace, Box<Type>, AccessMode),
     Texture(TextureType),
     Sampler(SamplerType),
 }
@@ -238,7 +333,7 @@ impl Ty for Type {
             Type::Vec(_, ty) => ty.ty(),
             Type::Mat(_, _, ty) => ty.ty(),
             Type::Atomic(ty) => ty.ty(),
-            Type::Ptr(_, ty) => ty.ty(),
+            Type::Ptr(_, ty, _) => ty.ty(),
             Type::Texture(_) => self.clone(),
             Type::Sampler(_) => self.clone(),
         }
@@ -297,9 +392,10 @@ impl Ty for LiteralInstance {
 impl Ty for StructInstance {
     fn ty(&self) -> Type {
         Type::Struct(Box::new(StructType {
-            name: self.name().to_string(),
+            name: self.name.to_string(),
             members: self
-                .iter_members()
+                .members
+                .iter()
                 .map(|(name, inst)| (name.to_string(), inst.ty()))
                 .collect_vec(),
         }))
@@ -338,7 +434,11 @@ impl Ty for MatInstance {
 
 impl Ty for PtrInstance {
     fn ty(&self) -> Type {
-        Type::Ptr(self.ptr.space, Box::new(self.ptr.ty.clone()))
+        Type::Ptr(
+            self.ptr.space,
+            Box::new(self.ptr.ty.clone()),
+            self.ptr.access,
+        )
     }
 }
 

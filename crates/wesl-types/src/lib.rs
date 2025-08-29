@@ -1,17 +1,17 @@
 mod display;
 mod error;
-mod mem;
-mod ops;
 
 pub mod builtin;
 pub mod conv;
 pub mod enums;
 pub mod idents;
 pub mod inst;
+pub mod mem;
+pub mod ops;
 pub mod tplt;
 pub mod ty;
 
-pub use error::*;
+pub use error::Error;
 
 use inst::Instance;
 use tplt::TpltParam;
@@ -20,9 +20,9 @@ use ty::Type;
 /// Function call signature.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CallSignature {
-    name: String,
-    tplt: Option<Vec<TpltParam>>,
-    args: Vec<Type>,
+    pub name: String,
+    pub tplt: Option<Vec<TpltParam>>,
+    pub args: Vec<Type>,
 }
 
 /// Shader compilation stage.

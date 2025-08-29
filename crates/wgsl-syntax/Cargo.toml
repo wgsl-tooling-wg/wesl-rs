@@ -1,0 +1,34 @@
+[package]
+name = "wgsl-syntax"
+description = "Basic representations of WGSL syntactic elements"
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+version.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+derive_more = { version = "2.0.1", features = [
+    "as_ref",
+    "constructor",
+    "deref",
+    "deref_mut",
+    "from",
+    "is_variant",
+    "try_unwrap",
+    "unwrap",
+] }
+serde = { version = "1.0.215", optional = true, features = ["derive", "rc"] }
+tokrepr = { workspace = true, optional = true }
+
+[features]
+default = []
+
+wesl = []
+naga_ext = []
+serde = ["dep:serde"]
+tokrepr = ["dep:tokrepr"]
+
+[lints]
+workspace = true

@@ -478,14 +478,8 @@ fn parse_binding(
     })?;
     let (storage, access) = match b.kind {
         BindingType::Uniform => (AddressSpace::Uniform, AccessMode::Read),
-        BindingType::Storage => (
-            AddressSpace::Storage(Some(AccessMode::ReadWrite)),
-            AccessMode::ReadWrite,
-        ),
-        BindingType::ReadOnlyStorage => (
-            AddressSpace::Storage(Some(AccessMode::Read)),
-            AccessMode::Read,
-        ),
+        BindingType::Storage => (AddressSpace::Storage, AccessMode::ReadWrite),
+        BindingType::ReadOnlyStorage => (AddressSpace::Storage, AccessMode::Read),
         BindingType::Filtering => todo!(),
         BindingType::NonFiltering => todo!(),
         BindingType::Comparison => todo!(),
@@ -498,13 +492,13 @@ fn parse_binding(
         BindingType::ReadWrite => todo!(),
         BindingType::ReadOnly => todo!(),
     };
-    let inst = Instance::from_buffer(&b.data, &ty, &mut ctx).ok_or_else(|| {
+    let inst = Instance::from_buffer(&b.data, &ty).ok_or_else(|| {
         CliError::ResourceIncompatible(
             b.group,
             b.binding,
             b.data.len() as u32,
             ty.clone(),
-            ty.size_of(&mut ctx).unwrap_or_default(),
+            ty.size_of().unwrap_or_default(),
         )
     })?;
     Ok((
@@ -612,11 +606,11 @@ fn run(cli: Cli) -> Result<(), CliError> {
             let comp = file_or_source(args.file)
                 .map(|input| run_compile(&args.options, input))
                 .unwrap_or_else(|| Ok(CompileResult::default()))?;
-            let mut eval = comp.eval(&args.expr)?;
+            let eval = comp.eval(&args.expr)?;
             if args.binary {
                 let buf = eval
                     .inst
-                    .to_buffer(&mut eval.ctx)
+                    .to_buffer()
                     .ok_or_else(|| CliError::NotStorable(eval.inst.ty()))?;
                 std::io::stdout().write_all(buf.as_slice()).unwrap();
             } else {
@@ -644,12 +638,12 @@ fn run(cli: Cli) -> Result<(), CliError> {
                 })
                 .collect::<Result<_, _>>()?;
 
-            let mut exec = comp.exec(&args.entrypoint, inputs, resources, overrides)?;
+            let exec = comp.exec(&args.entrypoint, inputs, resources, overrides)?;
 
             if let Some(inst) = &exec.inst {
                 if args.binary {
                     let buf = inst
-                        .to_buffer(&mut exec.ctx)
+                        .to_buffer()
                         .ok_or_else(|| CliError::NotStorable(inst.ty()))?;
                     std::io::stdout().write_all(buf.as_slice()).unwrap();
                 } else {
@@ -672,7 +666,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
             for (group, binding, inst) in resources {
                 if args.binary {
                     let buf = inst
-                        .to_buffer(&mut exec.ctx)
+                        .to_buffer()
                         .ok_or_else(|| CliError::NotStorable(inst.ty()))?;
                     std::io::stdout().write_all(buf.as_slice()).unwrap();
                 } else {

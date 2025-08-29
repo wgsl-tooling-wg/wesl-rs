@@ -150,16 +150,6 @@ pub enum ScopeKind {
     Function,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EvalStage {
-    /// Shader module creation
-    Const,
-    /// Pipeline creation
-    Override,
-    /// Shader execution
-    Exec,
-}
-
 #[derive(Clone, Copy, Debug)]
 pub enum ResourceKind {
     UniformBuffer,
@@ -171,12 +161,12 @@ pub enum ResourceKind {
 // TODO: should we remove the source from the Context struct?
 pub struct Context<'s> {
     pub(crate) source: &'s TranslationUnit,
-    // the instance is None if not accessible in the EvalStage
+    // the instance is None if not accessible in the ShaderStage
     pub(crate) scope: Scope<Instance>,
     pub(crate) resources: HashMap<(u32, u32), RefInstance>,
     pub(crate) overrides: HashMap<String, Instance>,
     pub(crate) kind: ScopeKind,
-    pub(crate) stage: EvalStage,
+    pub(crate) stage: ShaderStage,
     pub(crate) err_decl: Option<String>,
     pub(crate) err_span: Option<Span>,
 }
@@ -189,7 +179,7 @@ impl<'s> Context<'s> {
             resources: Default::default(),
             overrides: Default::default(),
             kind: ScopeKind::Function,
-            stage: EvalStage::Const,
+            stage: ShaderStage::Const,
             err_span: None,
             err_decl: None,
         }
@@ -214,7 +204,7 @@ impl<'s> Context<'s> {
         (self.err_decl.clone(), self.err_span)
     }
 
-    pub fn set_stage(&mut self, stage: EvalStage) {
+    pub fn set_stage(&mut self, stage: ShaderStage) {
         self.stage = stage;
     }
 

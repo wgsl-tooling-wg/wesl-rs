@@ -171,7 +171,7 @@ impl Instance {
                 };
                 Some(AtomicInstance::new(inst).into())
             }
-            Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => None,
+            Type::Ptr(_, _, _) | Type::Texture(_) | Type::Sampler(_) => None,
         }
     }
 }
@@ -200,7 +200,7 @@ impl HostShareable for LiteralInstance {
 impl HostShareable for StructInstance {
     fn to_buffer(&self) -> Option<Vec<u8>> {
         let mut buf = Vec::new();
-        for (i, (_, inst)) in self.iter_members().enumerate() {
+        for (i, (_, inst)) in self.members.iter().enumerate() {
             let ty = inst.ty();
             let len = buf.len() as u32;
             // TODO: since refactor, Type::Struct doesn't know about size/align attrs
@@ -210,7 +210,7 @@ impl HostShareable for StructInstance {
             // handle runtime-size arrays as last struct member
             let size = match inst {
                 Instance::Array(a) if a.runtime_sized => {
-                    (i == self.iter_members().count() - 1).then(|| a.n() as u32 * size)
+                    (i == self.members.iter().count() - 1).then(|| a.n() as u32 * size)
                 }
                 _ => Some(size),
             }?;
@@ -333,7 +333,7 @@ impl Type {
                 Some(*c as u32 * align)
             }
             Type::Atomic(_) => Some(4),
-            Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => None,
+            Type::Ptr(_, _, _) | Type::Texture(_) | Type::Sampler(_) => None,
         }
     }
 
@@ -382,7 +382,7 @@ impl Type {
             }
             Type::Mat(_, r, ty) => Type::Vec(*r, ty.clone()).align_of(),
             Type::Atomic(_) => Some(4),
-            Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => None,
+            Type::Ptr(_, _, _) | Type::Texture(_) | Type::Sampler(_) => None,
         }
     }
 }

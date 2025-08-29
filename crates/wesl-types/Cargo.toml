@@ -8,6 +8,7 @@ version.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+wgsl-syntax = { workspace = true }
 derive_more = { version = "2.0.1", features = [
     "as_ref",
     "deref",

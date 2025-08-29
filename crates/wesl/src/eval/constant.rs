@@ -1,5 +1,6 @@
-use super::{Scope, SyntaxUtil, is_constructor_fn};
+use super::{Scope, SyntaxUtil};
 use itertools::Itertools;
+use wesl_types::builtin::is_constructor_fn;
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
 macro_rules! with_scope {

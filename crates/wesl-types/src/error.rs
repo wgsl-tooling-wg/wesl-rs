@@ -1,4 +1,5 @@
 use thiserror::Error;
+use wgsl_syntax::{BinaryOperator, UnaryOperator};
 
 use crate::{CallSignature, Type, inst::LiteralInstance};
 
@@ -42,9 +43,9 @@ pub enum Error {
 
     // arithmetic
     #[error("cannot use unary operator `{0}` on type `{1}`")]
-    Unary(&'static str, Type),
+    Unary(UnaryOperator, Type),
     #[error("cannot use binary operator `{0}` with operands `{1}` and `{2}`")]
-    Binary(&'static str, Type, Type),
+    Binary(BinaryOperator, Type, Type),
     #[error("cannot apply component-wise binary operation on operands `{0}` and `{1}`")]
     CompwiseBinary(Type, Type),
     #[error("attempt to add with overflow")]

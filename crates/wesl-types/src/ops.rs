@@ -8,6 +8,7 @@ use crate::{
 };
 
 use num_traits::{WrappingNeg, WrappingShl};
+use wgsl_syntax::{BinaryOperator, UnaryOperator};
 
 type E = Error;
 
@@ -127,7 +128,7 @@ impl LiteralInstance {
     pub fn op_not(&self) -> Result<Self, E> {
         match self {
             Self::Bool(b) => Ok(Self::Bool(!b)),
-            _ => Err(E::Unary("-", self.ty())),
+            _ => Err(E::Unary(UnaryOperator::Negation, self.ty())),
         }
     }
 }
@@ -143,7 +144,7 @@ impl Instance {
         match self {
             Self::Literal(lit) => lit.op_not().map(Into::into),
             Self::Vec(v) => v.op_not().map(Into::into),
-            _ => Err(E::Unary("-", self.ty())),
+            _ => Err(E::Unary(UnaryOperator::Negation, self.ty())),
         }
     }
 }
@@ -161,11 +162,11 @@ impl LiteralInstance {
             Self::I32(lhs) => Ok(lhs.wrapping_neg().into()),
             Self::F32(lhs) => Ok((-lhs).into()),
             Self::F16(lhs) => Ok((-lhs).into()),
-            _ => Err(E::Unary("-", self.ty())),
+            _ => Err(E::Unary(UnaryOperator::Negation, self.ty())),
         }
     }
     pub fn op_add(&self, rhs: &Self, stage: ShaderStage) -> Result<LiteralInstance, E> {
-        let err = || E::Binary("+", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::Addition, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::AbstractInt, lhs, rhs) => {
                 lhs.checked_add(rhs).ok_or(E::AddOverflow).map(Into::into)
@@ -205,7 +206,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_sub(&self, rhs: &Self, stage: ShaderStage) -> Result<LiteralInstance, E> {
-        let err = || E::Binary("-", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::Subtraction, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::AbstractInt, lhs, rhs) => {
                 lhs.checked_sub(rhs).ok_or(E::SubOverflow).map(Into::into)
@@ -245,7 +246,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_mul(&self, rhs: &Self, stage: ShaderStage) -> Result<LiteralInstance, E> {
-        let err = || E::Binary("*", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::Multiplication, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::AbstractInt, lhs, rhs) => {
                 lhs.checked_mul(rhs).ok_or(E::MulOverflow).map(Into::into)
@@ -285,7 +286,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_div(&self, rhs: &Self, stage: ShaderStage) -> Result<LiteralInstance, E> {
-        let err = || E::Binary("/", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::Division, self.ty(), rhs.ty());
         let res = match convert(self, rhs).ok_or_else(err)? {
             both!(Self::AbstractInt, lhs, rhs) => {
                 lhs.checked_div(rhs).ok_or(E::DivByZero).map(Into::into)
@@ -323,7 +324,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_rem(&self, rhs: &Self, stage: ShaderStage) -> Result<LiteralInstance, E> {
-        let err = || E::Binary("%", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::Remainder, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::AbstractInt, lhs, rhs) => {
                 if stage == ShaderStage::Const {
@@ -382,21 +383,21 @@ impl LiteralInstance {
         rhs.op_add_sca(self, stage)
     }
     pub fn op_sub_vec(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<VecInstance, E> {
-        let (lhs, rhs) =
-            convert_inner(self, rhs).ok_or_else(|| E::Binary("-", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert_inner(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Subtraction, self.ty(), rhs.ty()))?;
         rhs.compwise_unary(|r| lhs.op_sub(r, stage))
     }
     pub fn op_mul_vec(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<VecInstance, E> {
         rhs.op_mul_sca(self, stage)
     }
     pub fn op_div_vec(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<VecInstance, E> {
-        let (lhs, rhs) =
-            convert_inner(self, rhs).ok_or_else(|| E::Binary("/", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert_inner(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Division, self.ty(), rhs.ty()))?;
         rhs.compwise_unary(|r| lhs.op_div(r, stage))
     }
     pub fn op_rem_vec(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<VecInstance, E> {
-        let (lhs, rhs) =
-            convert_inner(self, rhs).ok_or_else(|| E::Binary("%", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert_inner(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Remainder, self.ty(), rhs.ty()))?;
         rhs.compwise_unary(|r| lhs.op_rem(r, stage))
     }
     pub fn op_mul_mat(&self, rhs: &MatInstance, stage: ShaderStage) -> Result<MatInstance, E> {
@@ -409,53 +410,58 @@ impl VecInstance {
         self.compwise_unary(|c| c.op_neg())
     }
     pub fn op_add(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("+", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Addition, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_add(r, stage))
     }
     pub fn op_sub(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("-", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Subtraction, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_sub(r, stage))
     }
     pub fn op_mul(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("*", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Multiplication, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_mul(r, stage))
     }
     pub fn op_div(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("/", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Division, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_div(r, stage))
     }
     pub fn op_rem(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("%", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Remainder, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_rem(r, stage))
     }
     pub fn op_add_sca(&self, rhs: &LiteralInstance, stage: ShaderStage) -> Result<Self, E> {
-        let (lhs, rhs) =
-            convert_inner(self, rhs).ok_or_else(|| E::Binary("+", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert_inner(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Addition, self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_add(&rhs, stage))
     }
     pub fn op_sub_sca(&self, rhs: &LiteralInstance, stage: ShaderStage) -> Result<Self, E> {
-        let (lhs, rhs) =
-            convert_inner(self, rhs).ok_or_else(|| E::Binary("-", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert_inner(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Subtraction, self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_sub(&rhs, stage))
     }
     pub fn op_mul_sca(&self, rhs: &LiteralInstance, stage: ShaderStage) -> Result<Self, E> {
-        let (lhs, rhs) =
-            convert_inner(self, rhs).ok_or_else(|| E::Binary("*", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert_inner(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Multiplication, self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_mul(&rhs, stage))
     }
     pub fn op_div_sca(&self, rhs: &LiteralInstance, stage: ShaderStage) -> Result<Self, E> {
-        let (lhs, rhs) =
-            convert_inner(self, rhs).ok_or_else(|| E::Binary("/", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert_inner(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Division, self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_div(&rhs, stage))
     }
     pub fn op_rem_sca(&self, rhs: &LiteralInstance, stage: ShaderStage) -> Result<Self, E> {
-        let (lhs, rhs) =
-            convert_inner(self, rhs).ok_or_else(|| E::Binary("%", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert_inner(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Remainder, self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_rem(&rhs, stage))
     }
     pub fn op_mul_mat(&self, rhs: &MatInstance, stage: ShaderStage) -> Result<Self, E> {
-        let (vec, mat) =
-            convert_inner(self, rhs).ok_or_else(|| E::Binary("*", self.ty(), rhs.ty()))?;
+        let (vec, mat) = convert_inner(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Multiplication, self.ty(), rhs.ty()))?;
         let mat = mat.transpose();
 
         zip(vec.iter(), mat.iter_cols())
@@ -467,24 +473,26 @@ impl VecInstance {
 
 impl MatInstance {
     pub fn op_add(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("+", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Addition, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_add(r, stage))
     }
 
     pub fn op_sub(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("-", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Subtraction, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_sub(r, stage))
     }
 
     pub fn op_mul_sca(&self, rhs: &LiteralInstance, stage: ShaderStage) -> Result<MatInstance, E> {
-        let (lhs, rhs) =
-            convert_inner(self, rhs).ok_or_else(|| E::Binary("*", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert_inner(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Multiplication, self.ty(), rhs.ty()))?;
         lhs.compwise_unary(|l| l.op_mul(&rhs, stage))
     }
 
     pub fn op_mul_vec(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<VecInstance, E> {
-        let (lhs, rhs) =
-            convert_inner(self, rhs).ok_or_else(|| E::Binary("*", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert_inner(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Multiplication, self.ty(), rhs.ty()))?;
 
         zip(lhs.iter_cols(), rhs.iter())
             .map(|(l, r)| l.unwrap_vec_ref().op_mul_sca(r.unwrap_literal_ref(), stage))
@@ -493,8 +501,8 @@ impl MatInstance {
     }
 
     pub fn op_mul(&self, rhs: &Self, stage: ShaderStage) -> Result<MatInstance, E> {
-        let (lhs, rhs) =
-            convert_inner(self, rhs).ok_or_else(|| E::Binary("*", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert_inner(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Multiplication, self.ty(), rhs.ty()))?;
         let lhs = lhs.transpose();
 
         Ok(MatInstance::from_cols(
@@ -521,7 +529,7 @@ impl Instance {
         match self {
             Self::Literal(lhs) => lhs.op_neg().map(Into::into),
             Self::Vec(lhs) => lhs.op_neg().map(Into::into),
-            _ => Err(E::Unary("!", self.ty())),
+            _ => Err(E::Unary(UnaryOperator::LogicalNegation, self.ty())),
         }
     }
     pub fn op_add(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
@@ -531,7 +539,7 @@ impl Instance {
             (Self::Literal(lhs), Self::Vec(rhs)) => lhs.op_add_vec(rhs, stage).map(Into::into),
             both!(Self::Vec, lhs, rhs) => lhs.op_add(rhs, stage).map(Into::into),
             both!(Self::Mat, lhs, rhs) => lhs.op_add(rhs, stage).map(Into::into),
-            _ => Err(E::Binary("+", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::Addition, self.ty(), rhs.ty())),
         }
     }
     pub fn op_sub(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
@@ -541,7 +549,7 @@ impl Instance {
             (Self::Literal(lhs), Self::Vec(rhs)) => lhs.op_sub_vec(rhs, stage).map(Into::into),
             both!(Self::Vec, lhs, rhs) => lhs.op_sub(rhs, stage).map(Into::into),
             both!(Self::Mat, lhs, rhs) => lhs.op_sub(rhs, stage).map(Into::into),
-            _ => Err(E::Binary("-", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::Subtraction, self.ty(), rhs.ty())),
         }
     }
     pub fn op_mul(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
@@ -555,7 +563,11 @@ impl Instance {
             (Self::Mat(lhs), Self::Vec(rhs)) => lhs.op_mul_vec(rhs, stage).map(Into::into),
             (Self::Vec(lhs), Self::Mat(rhs)) => lhs.op_mul_mat(rhs, stage).map(Into::into),
             both!(Self::Mat, lhs, rhs) => lhs.op_mul(rhs, stage).map(Into::into),
-            _ => Err(E::Binary("*", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(
+                BinaryOperator::Multiplication,
+                self.ty(),
+                rhs.ty(),
+            )),
         }
     }
     pub fn op_div(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
@@ -568,7 +580,7 @@ impl Instance {
                 v.compwise_unary(|k| k.op_div(s, stage)).map(Into::into)
             }
             both!(Self::Vec, lhs, rhs) => lhs.op_div(rhs, stage).map(Into::into),
-            _ => Err(E::Binary("/", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::Division, self.ty(), rhs.ty())),
         }
     }
     pub fn op_rem(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
@@ -581,7 +593,7 @@ impl Instance {
                 v.compwise_unary(|k| k.op_rem(s, stage)).map(Into::into)
             }
             both!(Self::Vec, lhs, rhs) => lhs.op_rem(rhs, stage).map(Into::into),
-            _ => Err(E::Binary("%", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::Remainder, self.ty(), rhs.ty())),
         }
     }
 }
@@ -593,7 +605,7 @@ impl Instance {
 
 impl LiteralInstance {
     pub fn op_eq(&self, rhs: &Self) -> Result<bool, E> {
-        let err = || E::Binary("==", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::Equality, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::Bool, lhs, rhs) => Ok(lhs == rhs),
             both!(Self::AbstractInt, lhs, rhs) => Ok(lhs == rhs),
@@ -606,7 +618,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_ne(&self, rhs: &Self) -> Result<bool, E> {
-        let err = || E::Binary("!=", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::Inequality, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::Bool, lhs, rhs) => Ok(lhs != rhs),
             both!(Self::AbstractInt, lhs, rhs) => Ok(lhs != rhs),
@@ -619,7 +631,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_lt(&self, rhs: &Self) -> Result<bool, E> {
-        let err = || E::Binary("<", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::LessThan, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::Bool, lhs, rhs) => Ok(!lhs & rhs),
             both!(Self::AbstractInt, lhs, rhs) => Ok(lhs < rhs),
@@ -632,7 +644,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_le(&self, rhs: &Self) -> Result<bool, E> {
-        let err = || E::Binary("<=", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::LessThanEqual, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::Bool, lhs, rhs) => Ok(lhs <= rhs),
             both!(Self::AbstractInt, lhs, rhs) => Ok(lhs <= rhs),
@@ -645,7 +657,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_gt(&self, rhs: &Self) -> Result<bool, E> {
-        let err = || E::Binary(">", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::GreaterThan, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::Bool, lhs, rhs) => Ok(lhs & !rhs),
             both!(Self::AbstractInt, lhs, rhs) => Ok(lhs > rhs),
@@ -658,7 +670,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_ge(&self, rhs: &Self) -> Result<bool, E> {
-        let err = || E::Binary(">=", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::GreaterThanEqual, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::Bool, lhs, rhs) => Ok(lhs >= rhs),
             both!(Self::AbstractInt, lhs, rhs) => Ok(lhs >= rhs),
@@ -674,27 +686,33 @@ impl LiteralInstance {
 
 impl VecInstance {
     pub fn op_eq(&self, rhs: &Self) -> Result<VecInstance, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("==", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Equality, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_eq(r).map(Into::into))
     }
     pub fn op_ne(&self, rhs: &Self) -> Result<VecInstance, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("!=", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::Inequality, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_ne(r).map(Into::into))
     }
     pub fn op_lt(&self, rhs: &Self) -> Result<VecInstance, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("<", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::LessThan, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_lt(r).map(Into::into))
     }
     pub fn op_le(&self, rhs: &Self) -> Result<VecInstance, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary("<=", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::LessThanEqual, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_le(r).map(Into::into))
     }
     pub fn op_gt(&self, rhs: &Self) -> Result<VecInstance, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary(">", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::GreaterThan, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_gt(r).map(Into::into))
     }
     pub fn op_ge(&self, rhs: &Self) -> Result<VecInstance, E> {
-        let (lhs, rhs) = convert(self, rhs).ok_or_else(|| E::Binary(">=", self.ty(), rhs.ty()))?;
+        let (lhs, rhs) = convert(self, rhs)
+            .ok_or_else(|| E::Binary(BinaryOperator::GreaterThanEqual, self.ty(), rhs.ty()))?;
         lhs.compwise_binary(&rhs, |l, r| l.op_ge(r).map(Into::into))
     }
 }
@@ -706,7 +724,7 @@ impl Instance {
                 .op_eq(rhs)
                 .map(|b| Self::Literal(LiteralInstance::Bool(b))),
             both!(Self::Vec, lhs, rhs) => lhs.op_eq(rhs).map(Into::into),
-            _ => Err(E::Binary("==", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::Equality, self.ty(), rhs.ty())),
         }
     }
     pub fn op_ne(&self, rhs: &Self) -> Result<Instance, E> {
@@ -715,7 +733,7 @@ impl Instance {
                 .op_ne(rhs)
                 .map(|b| Self::Literal(LiteralInstance::Bool(b))),
             both!(Self::Vec, lhs, rhs) => lhs.op_ne(rhs).map(Into::into),
-            _ => Err(E::Binary("!=", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::Inequality, self.ty(), rhs.ty())),
         }
     }
     pub fn op_lt(&self, rhs: &Self) -> Result<Instance, E> {
@@ -724,7 +742,7 @@ impl Instance {
                 .op_lt(rhs)
                 .map(|b| Self::Literal(LiteralInstance::Bool(b))),
             both!(Self::Vec, lhs, rhs) => lhs.op_lt(rhs).map(Into::into),
-            _ => Err(E::Binary("<", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::LessThan, self.ty(), rhs.ty())),
         }
     }
     pub fn op_le(&self, rhs: &Self) -> Result<Instance, E> {
@@ -733,7 +751,11 @@ impl Instance {
                 .op_le(rhs)
                 .map(|b| Self::Literal(LiteralInstance::Bool(b))),
             both!(Self::Vec, lhs, rhs) => lhs.op_le(rhs).map(Into::into),
-            _ => Err(E::Binary("<=", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(
+                BinaryOperator::LessThanEqual,
+                self.ty(),
+                rhs.ty(),
+            )),
         }
     }
     pub fn op_gt(&self, rhs: &Self) -> Result<Instance, E> {
@@ -742,7 +764,7 @@ impl Instance {
                 .op_gt(rhs)
                 .map(|b| Self::Literal(LiteralInstance::Bool(b))),
             both!(Self::Vec, lhs, rhs) => lhs.op_gt(rhs).map(Into::into),
-            _ => Err(E::Binary(">", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::GreaterThan, self.ty(), rhs.ty())),
         }
     }
     pub fn op_ge(&self, rhs: &Self) -> Result<Instance, E> {
@@ -751,7 +773,11 @@ impl Instance {
                 .op_ge(rhs)
                 .map(|b| Self::Literal(LiteralInstance::Bool(b))),
             both!(Self::Vec, lhs, rhs) => lhs.op_ge(rhs).map(Into::into),
-            _ => Err(E::Binary(">=", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(
+                BinaryOperator::GreaterThanEqual,
+                self.ty(),
+                rhs.ty(),
+            )),
         }
     }
 }
@@ -767,11 +793,11 @@ impl LiteralInstance {
             Self::AbstractInt(n) => Ok(Self::AbstractInt(!n)),
             Self::I32(n) => Ok(Self::I32(!n)),
             Self::U32(n) => Ok(Self::U32(!n)),
-            _ => Err(E::Unary("~", self.ty())),
+            _ => Err(E::Unary(UnaryOperator::BitwiseComplement, self.ty())),
         }
     }
     pub fn op_bitor(&self, rhs: &Self) -> Result<Self, E> {
-        let err = || E::Binary("|", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::BitwiseOr, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::Bool, rhs, lhs) => Ok(Self::Bool(lhs | rhs)),
             both!(Self::AbstractInt, rhs, lhs) => Ok(Self::AbstractInt(lhs | rhs)),
@@ -781,7 +807,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_bitand(&self, rhs: &Self) -> Result<Self, E> {
-        let err = || E::Binary("&", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::BitwiseAnd, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::Bool, rhs, lhs) => Ok(Self::Bool(lhs & rhs)),
             both!(Self::AbstractInt, rhs, lhs) => Ok(Self::AbstractInt(lhs & rhs)),
@@ -791,7 +817,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_bitxor(&self, rhs: &Self) -> Result<Self, E> {
-        let err = || E::Binary("^", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::BitwiseXor, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
             both!(Self::AbstractInt, rhs, lhs) => Ok(Self::AbstractInt(lhs ^ rhs)),
             both!(Self::I32, rhs, lhs) => Ok(Self::I32(lhs ^ rhs)),
@@ -800,7 +826,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_shl(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
-        let err = || E::Binary("<<", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::ShiftLeft, self.ty(), rhs.ty());
         let r = rhs.convert_to(&Type::U32).ok_or_else(err)?.unwrap_u_32();
         let stage = stage == ShaderStage::Const || stage == ShaderStage::Override;
 
@@ -860,7 +886,7 @@ impl LiteralInstance {
         }
     }
     pub fn op_shr(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
-        let err = || E::Binary(">>", self.ty(), rhs.ty());
+        let err = || E::Binary(BinaryOperator::ShiftRight, self.ty(), rhs.ty());
         let r = rhs.convert_to(&Type::U32).ok_or_else(err)?.unwrap_u_32();
         let stage = stage == ShaderStage::Const || stage == ShaderStage::Override;
 
@@ -886,7 +912,7 @@ impl LiteralInstance {
                 // we shr twice because x >> 64 is panic(overflow) and wrapping_shr only allow x >> 63.
                 Ok((l >> 1).wrapping_shr(r - 1).into())
             }
-            _ => Err(E::Binary(">>", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::ShiftRight, self.ty(), rhs.ty())),
         }
     }
 }
@@ -917,42 +943,42 @@ impl Instance {
         match self {
             Instance::Literal(l) => l.op_bitnot().map(Into::into),
             Instance::Vec(v) => v.op_bitnot().map(Into::into),
-            _ => Err(E::Unary("~", self.ty())),
+            _ => Err(E::Unary(UnaryOperator::BitwiseComplement, self.ty())),
         }
     }
     pub fn op_bitor(&self, rhs: &Self) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_bitor(rhs).map(Into::into),
             both!(Self::Vec, lhs, rhs) => lhs.op_bitor(rhs).map(Into::into),
-            _ => Err(E::Binary("|", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::BitwiseOr, self.ty(), rhs.ty())),
         }
     }
     pub fn op_bitand(&self, rhs: &Self) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_bitand(rhs).map(Into::into),
             both!(Self::Vec, lhs, rhs) => lhs.op_bitand(rhs).map(Into::into),
-            _ => Err(E::Binary("&", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::BitwiseAnd, self.ty(), rhs.ty())),
         }
     }
     pub fn op_bitxor(&self, rhs: &Self) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_bitxor(rhs).map(Into::into),
             both!(Self::Vec, lhs, rhs) => lhs.op_bitxor(rhs).map(Into::into),
-            _ => Err(E::Binary("^", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::BitwiseXor, self.ty(), rhs.ty())),
         }
     }
     pub fn op_shl(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_shl(rhs, stage).map(Into::into),
             both!(Self::Vec, lhs, rhs) => lhs.op_shl(rhs, stage).map(Into::into),
-            _ => Err(E::Binary("<<", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::ShiftLeft, self.ty(), rhs.ty())),
         }
     }
     pub fn op_shr(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_shr(rhs, stage).map(Into::into),
             both!(Self::Vec, lhs, rhs) => lhs.op_shr(rhs, stage).map(Into::into),
-            _ => Err(E::Binary(">>", self.ty(), rhs.ty())),
+            _ => Err(E::Binary(BinaryOperator::ShiftRight, self.ty(), rhs.ty())),
         }
     }
 }

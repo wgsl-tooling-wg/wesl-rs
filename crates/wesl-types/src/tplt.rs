@@ -2,9 +2,9 @@
 
 use crate::{
     Error,
-    enums::{AccessMode, AddressSpace, Enumerant, TexelFormat, TextureType},
+    enums::{AccessMode, AddressSpace, Enumerant, TexelFormat},
     inst::{Instance, LiteralInstance},
-    ty::{SampledType, Ty, Type},
+    ty::{SampledType, TextureType, Ty, Type},
 };
 
 /// A single tempate parameter.
@@ -172,7 +172,7 @@ impl PtrTemplate {
             it.next(),
         ) {
             (
-                Some(TpltParam::Enumerant(Enumerant::AddressSpace(mut space))),
+                Some(TpltParam::Enumerant(Enumerant::AddressSpace(space))),
                 Some(TpltParam::Type(ty)),
                 access,
                 None,
@@ -186,10 +186,11 @@ impl PtrTemplate {
                 };
                 // selecting the default access mode per address space.
                 // reference: <https://www.w3.org/TR/WGSL/#address-space>
-                let access = match (&mut space, access) {
+                let access = match (space, access) {
                     (AddressSpace::Function, Some(access))
                     | (AddressSpace::Private, Some(access))
-                    | (AddressSpace::Workgroup, Some(access)) => access,
+                    | (AddressSpace::Workgroup, Some(access))
+                    | (AddressSpace::Storage, Some(access)) => access,
                     (AddressSpace::Function, None)
                     | (AddressSpace::Private, None)
                     | (AddressSpace::Workgroup, None) => AccessMode::ReadWrite,
@@ -199,12 +200,7 @@ impl PtrTemplate {
                             "pointer in uniform address space must have a `read` access mode",
                         ));
                     }
-                    (AddressSpace::Storage(a1), Some(a2)) => {
-                        *a1 = Some(a2);
-                        a2
-                    }
-                    (AddressSpace::Storage(None), None) => AccessMode::Read,
-                    (AddressSpace::Storage(_), _) => unreachable!(),
+                    (AddressSpace::Storage, None) => AccessMode::Read,
                     (AddressSpace::Handle, _) => {
                         unreachable!("handle address space cannot be spelled")
                     }
@@ -220,7 +216,7 @@ impl PtrTemplate {
     }
 
     pub fn ty(&self) -> Type {
-        Type::Ptr(self.space, self.ty.clone().into())
+        Type::Ptr(self.space, self.ty.clone().into(), self.access)
     }
 }
 

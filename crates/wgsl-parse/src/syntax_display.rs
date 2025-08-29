@@ -140,17 +140,6 @@ impl Display for DiagnosticDirective {
     }
 }
 
-impl Display for DiagnosticSeverity {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Error => write!(f, "error"),
-            Self::Warning => write!(f, "warning"),
-            Self::Info => write!(f, "info"),
-            Self::Off => write!(f, "off"),
-        }
-    }
-}
-
 impl Display for EnableDirective {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         #[cfg(feature = "attributes")]
@@ -205,38 +194,9 @@ impl Display for DeclarationKind {
             Self::Const => write!(f, "const"),
             Self::Override => write!(f, "override"),
             Self::Let => write!(f, "let"),
-            Self::Var(addr_space) => match addr_space {
-                Some(addr_space) => write!(f, "var<{addr_space}>"),
-                None => write!(f, "var"),
-            },
-        }
-    }
-}
-
-impl Display for AddressSpace {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Function => write!(f, "function"),
-            Self::Private => write!(f, "private"),
-            Self::Workgroup => write!(f, "workgroup"),
-            Self::Uniform => write!(f, "uniform"),
-            Self::Storage(access_mode) => match access_mode {
-                Some(access_mode) => write!(f, "storage, {access_mode}"),
-                None => write!(f, "storage"),
-            },
-            Self::Handle => write!(f, "handle"),
-            #[cfg(feature = "push_constant")]
-            Self::PushConstant => write!(f, "push_constant"),
-        }
-    }
-}
-
-impl Display for AccessMode {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Read => write!(f, "read"),
-            Self::Write => write!(f, "write"),
-            Self::ReadWrite => write!(f, "read_write"),
+            Self::Var(None) => write!(f, "var"),
+            Self::Var(Some((a_s, None))) => write!(f, "var<{a_s}>"),
+            Self::Var(Some((a_s, Some(a_m)))) => write!(f, "var<{a_s}, {a_m}>"),
         }
     }
 }
@@ -303,65 +263,6 @@ impl Display for ConstAssert {
         write!(f, "{}", fmt_attrs(&self.attributes, false))?;
         let expr = &self.expression;
         write!(f, "const_assert {expr};",)
-    }
-}
-
-impl Display for BuiltinValue {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::VertexIndex => write!(f, "vertex_index"),
-            Self::InstanceIndex => write!(f, "instance_index"),
-            Self::ClipDistances => write!(f, "clip_distances"),
-            Self::Position => write!(f, "position"),
-            Self::FrontFacing => write!(f, "front_facing"),
-            Self::FragDepth => write!(f, "frag_depth"),
-            Self::SampleIndex => write!(f, "sample_index"),
-            Self::SampleMask => write!(f, "sample_mask"),
-            Self::LocalInvocationId => write!(f, "local_invocation_id"),
-            Self::LocalInvocationIndex => write!(f, "local_invocation_index"),
-            Self::GlobalInvocationId => write!(f, "global_invocation_id"),
-            Self::WorkgroupId => write!(f, "workgroup_id"),
-            Self::NumWorkgroups => write!(f, "num_workgroups"),
-            Self::SubgroupInvocationId => write!(f, "subgroup_invocation_id"),
-            Self::SubgroupSize => write!(f, "subgroup_size"),
-            #[cfg(feature = "naga_ext")]
-            Self::PrimitiveIndex => write!(f, "primitive_index"),
-            #[cfg(feature = "naga_ext")]
-            Self::ViewIndex => write!(f, "view_index"),
-        }
-    }
-}
-
-impl Display for InterpolationType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            InterpolationType::Perspective => write!(f, "perspective"),
-            InterpolationType::Linear => write!(f, "linear"),
-            InterpolationType::Flat => write!(f, "flat"),
-        }
-    }
-}
-
-impl Display for InterpolationSampling {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Center => write!(f, "center"),
-            Self::Centroid => write!(f, "centroid"),
-            Self::Sample => write!(f, "sample"),
-            Self::First => write!(f, "first"),
-            Self::Either => write!(f, "either"),
-        }
-    }
-}
-
-#[cfg(feature = "naga_ext")]
-impl Display for ConservativeDepth {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::GreaterEqual => write!(f, "Greater_equal"),
-            Self::LessEqual => write!(f, "less_equal"),
-            Self::Unchanged => write!(f, "unchanged"),
-        }
     }
 }
 
@@ -513,49 +414,12 @@ impl Display for UnaryExpression {
     }
 }
 
-impl Display for UnaryOperator {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            UnaryOperator::LogicalNegation => write!(f, "!"),
-            UnaryOperator::Negation => write!(f, "-"),
-            UnaryOperator::BitwiseComplement => write!(f, "~"),
-            UnaryOperator::AddressOf => write!(f, "&"),
-            UnaryOperator::Indirection => write!(f, "*"),
-        }
-    }
-}
-
 impl Display for BinaryExpression {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let operator = &self.operator;
         let left = &self.left;
         let right = &self.right;
         write!(f, "{left} {operator} {right}")
-    }
-}
-
-impl Display for BinaryOperator {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            BinaryOperator::ShortCircuitOr => write!(f, "||"),
-            BinaryOperator::ShortCircuitAnd => write!(f, "&&"),
-            BinaryOperator::Addition => write!(f, "+"),
-            BinaryOperator::Subtraction => write!(f, "-"),
-            BinaryOperator::Multiplication => write!(f, "*"),
-            BinaryOperator::Division => write!(f, "/"),
-            BinaryOperator::Remainder => write!(f, "%"),
-            BinaryOperator::Equality => write!(f, "=="),
-            BinaryOperator::Inequality => write!(f, "!="),
-            BinaryOperator::LessThan => write!(f, "<"),
-            BinaryOperator::LessThanEqual => write!(f, "<="),
-            BinaryOperator::GreaterThan => write!(f, ">"),
-            BinaryOperator::GreaterThanEqual => write!(f, ">="),
-            BinaryOperator::BitwiseOr => write!(f, "|"),
-            BinaryOperator::BitwiseAnd => write!(f, "&"),
-            BinaryOperator::BitwiseXor => write!(f, "^"),
-            BinaryOperator::ShiftLeft => write!(f, "<<"),
-            BinaryOperator::ShiftRight => write!(f, ">>"),
-        }
     }
 }
 
@@ -633,24 +497,6 @@ impl Display for AssignmentStatement {
         let lhs = &self.lhs;
         let rhs = &self.rhs;
         write!(f, "{lhs} {operator} {rhs};")
-    }
-}
-
-impl Display for AssignmentOperator {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        match self {
-            AssignmentOperator::Equal => write!(f, "="),
-            AssignmentOperator::PlusEqual => write!(f, "+="),
-            AssignmentOperator::MinusEqual => write!(f, "-="),
-            AssignmentOperator::TimesEqual => write!(f, "*="),
-            AssignmentOperator::DivisionEqual => write!(f, "/="),
-            AssignmentOperator::ModuloEqual => write!(f, "%="),
-            AssignmentOperator::AndEqual => write!(f, "&="),
-            AssignmentOperator::OrEqual => write!(f, "|="),
-            AssignmentOperator::XorEqual => write!(f, "^="),
-            AssignmentOperator::ShiftRightAssign => write!(f, ">>="),
-            AssignmentOperator::ShiftLeftAssign => write!(f, "<<="),
-        }
     }
 }
 

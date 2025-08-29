@@ -4,13 +4,13 @@ use itertools::Itertools;
 
 use crate::{
     CallSignature,
-    enums::{AccessMode, AddressSpace, Enumerant, TexelFormat, TextureType},
+    enums::Enumerant,
     inst::{
         ArrayInstance, AtomicInstance, Instance, LiteralInstance, MatInstance, MemView,
         PtrInstance, RefInstance, StructInstance, VecInstance,
     },
     tplt::TpltParam,
-    ty::{SampledType, SamplerType, Ty, Type},
+    ty::{SamplerType, TextureType, Ty, Type},
 };
 
 impl Display for TpltParam {
@@ -75,9 +75,10 @@ impl Display for LiteralInstance {
 
 impl Display for StructInstance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = self.name();
+        let name = &self.name;
         let comps = self
-            .iter_members()
+            .members
+            .iter()
             .map(|(_, v)| format!("{v}"))
             .format(", ");
         write!(f, "{name}({comps})")
@@ -108,46 +109,36 @@ impl Display for MatInstance {
     }
 }
 
-impl Display for AccessMode {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Read => write!(f, "read"),
-            Self::Write => write!(f, "write"),
-            Self::ReadWrite => write!(f, "read_write"),
-        }
-    }
-}
+// impl Display for AddressSpace {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             Self::Function => write!(f, "function"),
+//             Self::Private => write!(f, "private"),
+//             Self::Workgroup => write!(f, "workgroup"),
+//             Self::Uniform => write!(f, "uniform"),
+//             Self::Storage(access_mode) => match access_mode {
+//                 Some(access_mode) => write!(f, "storage, {access_mode}"),
+//                 None => write!(f, "storage"),
+//             },
+//             Self::Handle => write!(f, "handle"),
+//             #[cfg(feature = "naga_ext")]
+//             Self::PushConstant => write!(f, "push_constant"),
+//         }
+//     }
+// }
 
-impl Display for AddressSpace {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Function => write!(f, "function"),
-            Self::Private => write!(f, "private"),
-            Self::Workgroup => write!(f, "workgroup"),
-            Self::Uniform => write!(f, "uniform"),
-            Self::Storage(access_mode) => match access_mode {
-                Some(access_mode) => write!(f, "storage, {access_mode}"),
-                None => write!(f, "storage"),
-            },
-            Self::Handle => write!(f, "handle"),
-            #[cfg(feature = "naga_ext")]
-            Self::PushConstant => write!(f, "push_constant"),
-        }
-    }
-}
-
-fn addr_space(space: AddressSpace) -> &'static str {
-    match space {
-        AddressSpace::Function => "function",
-        AddressSpace::Private => "private",
-        AddressSpace::Workgroup => "workgroup",
-        AddressSpace::Uniform => "uniform",
-        AddressSpace::Storage(_) => "storage",
-        AddressSpace::Handle => "handle",
-        #[cfg(feature = "naga_ext")]
-        AddressSpace::PushConstant => "push_constant",
-    }
-}
+// fn addr_space(space: AddressSpace) -> &'static str {
+//     match space {
+//         AddressSpace::Function => "function",
+//         AddressSpace::Private => "private",
+//         AddressSpace::Workgroup => "workgroup",
+//         AddressSpace::Uniform => "uniform",
+//         AddressSpace::Storage(_) => "storage",
+//         AddressSpace::Handle => "handle",
+//         #[cfg(feature = "naga_ext")]
+//         AddressSpace::PushConstant => "push_constant",
+//     }
+// }
 
 impl Display for Enumerant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -161,7 +152,7 @@ impl Display for Enumerant {
 
 impl Display for PtrInstance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let space = addr_space(self.ptr.space);
+        let space = &self.ptr.space;
         let ty = &self.ptr.ty;
         let access = &self.ptr.access;
         let val = self.ptr.read().expect("invalid reference");
@@ -171,7 +162,7 @@ impl Display for PtrInstance {
 
 impl Display for RefInstance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let space = addr_space(self.space);
+        let space = &self.space;
         let ty = &self.ty;
         let access = &self.access;
         let val = self.read().expect("invalid reference");
@@ -223,7 +214,7 @@ impl Display for Type {
             Type::U64 => write!(f, "u64"),
             #[cfg(feature = "naga_ext")]
             Type::F64 => write!(f, "f64"),
-            Type::Struct(s) => write!(f, "{}", s.name()),
+            Type::Struct(s) => write!(f, "{}", s.name),
             Type::Array(ty, Some(n)) => write!(f, "array<{ty}, {n}>"),
             Type::Array(ty, None) => write!(f, "array<{ty}>"),
             #[cfg(feature = "naga_ext")]
@@ -233,7 +224,7 @@ impl Display for Type {
             Type::Vec(n, ty) => write!(f, "vec{n}<{ty}>"),
             Type::Mat(m, n, ty) => write!(f, "mat{m}x{n}<{ty}>"),
             Type::Atomic(ty) => write!(f, "atomic<{ty}>"),
-            Type::Ptr(a_s, ty) => write!(f, "ptr<{a_s}, {ty}>"),
+            Type::Ptr(a_s, ty, a_m) => write!(f, "ptr<{a_s}, {ty}, {a_m}>"),
             Type::Texture(texture_type) => texture_type.fmt(f),
             Type::Sampler(sampler_type) => sampler_type.fmt(f),
         }
@@ -277,88 +268,6 @@ impl Display for SamplerType {
         match self {
             SamplerType::Sampler => write!(f, "sampler"),
             SamplerType::SamplerComparison => write!(f, "sampler_comparison"),
-        }
-    }
-}
-
-impl Display for SampledType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SampledType::I32 => write!(f, "i32"),
-            SampledType::U32 => write!(f, "u32"),
-            SampledType::F32 => write!(f, "f32"),
-        }
-    }
-}
-
-impl Display for TexelFormat {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TexelFormat::Rgba8Unorm => write!(f, "rgba8unorm"),
-            TexelFormat::Rgba8Snorm => write!(f, "rgba8snorm"),
-            TexelFormat::Rgba8Uint => write!(f, "rgba8uint"),
-            TexelFormat::Rgba8Sint => write!(f, "rgba8sint"),
-            TexelFormat::Rgba16Uint => write!(f, "rgba16uint"),
-            TexelFormat::Rgba16Sint => write!(f, "rgba16sint"),
-            TexelFormat::Rgba16Float => write!(f, "rgba16float"),
-            TexelFormat::R32Uint => write!(f, "r32uint"),
-            TexelFormat::R32Sint => write!(f, "r32sint"),
-            TexelFormat::R32Float => write!(f, "r32float"),
-            TexelFormat::Rg32Uint => write!(f, "rg32uint"),
-            TexelFormat::Rg32Sint => write!(f, "rg32sint"),
-            TexelFormat::Rg32Float => write!(f, "rg32float"),
-            TexelFormat::Rgba32Uint => write!(f, "rgba32uint"),
-            TexelFormat::Rgba32Sint => write!(f, "rgba32sint"),
-            TexelFormat::Rgba32Float => write!(f, "rgba32float"),
-            TexelFormat::Bgra8Unorm => write!(f, "bgra8unorm"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::R8Unorm => write!(f, "r8unorm"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::R8Snorm => write!(f, "r8snorm"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::R8Uint => write!(f, "r8uint"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::R8Sint => write!(f, "r8sint"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::R16Unorm => write!(f, "r16unorm"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::R16Snorm => write!(f, "r16snorm"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::R16Uint => write!(f, "r16uint"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::R16Sint => write!(f, "r16sint"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::R16Float => write!(f, "r16float"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rg8Unorm => write!(f, "rg8unorm"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rg8Snorm => write!(f, "rg8snorm"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rg8Uint => write!(f, "rg8uint"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rg8Sint => write!(f, "rg8sint"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rg16Unorm => write!(f, "rg16unorm"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rg16Snorm => write!(f, "rg16snorm"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rg16Uint => write!(f, "rg16uint"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rg16Sint => write!(f, "rg16sint"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rg16Float => write!(f, "rg16float"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rgb10a2Uint => write!(f, "rgb10a2uint"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rgb10a2Unorm => write!(f, "rgb10a2unorm"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rg11b10Float => write!(f, "rg11b10float"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::R64Uint => write!(f, "r64uint"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rgba16Unorm => write!(f, "rgba16unorm"),
-            #[cfg(feature = "naga_ext")]
-            TexelFormat::Rgba16Snorm => write!(f, "rgba16snorm"),
         }
     }
 }

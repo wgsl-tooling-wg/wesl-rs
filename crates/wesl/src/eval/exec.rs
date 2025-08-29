@@ -1,11 +1,16 @@
 use std::{collections::HashMap, fmt::Display, iter::zip};
-
-use crate::eval::{VecInstance, conv::Convert};
+use wesl_types::{
+    ShaderStage,
+    builtin::{call_builtin, is_constructor_fn},
+    conv::Convert,
+    enums::{AccessMode, AddressSpace},
+    inst::{Instance, LiteralInstance, RefInstance, StructInstance, VecInstance},
+    ty::{StructType, Ty, Type},
+};
 
 use super::{
-    ATTR_INTRINSIC, AccessMode, Context, Eval, EvalError, EvalStage, EvalTy, Instance,
-    LiteralInstance, RefInstance, ScopeKind, StructInstance, SyntaxUtil, Ty, Type,
-    attrs::EvalAttrs, call_builtin, is_constructor_fn, ty_eval_ty,
+    ATTR_INTRINSIC, Context, Eval, EvalError, EvalTy, ScopeKind, SyntaxUtil, attrs::EvalAttrs,
+    eval_tplt_arg, ty_eval_ty,
 };
 
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
@@ -359,7 +364,7 @@ impl Exec for SwitchStatement {
                         }
                     }
                     CaseSelector::Expression(e) => {
-                        let e = with_stage!(ctx, EvalStage::Const, { e.eval_value(ctx) })?;
+                        let e = with_stage!(ctx, ShaderStage::Const, { e.eval_value(ctx) })?;
                         let e = e
                             .convert_to(&ty)
                             .ok_or_else(|| E::Conversion(e.ty(), ty.clone()))?;
@@ -572,6 +577,16 @@ impl Exec for FunctionCall {
         let ty = ctx.source.resolve_ty(&self.ty);
         let fn_name = ty.ident.to_string();
 
+        let tplt = ty
+            .template_args
+            .as_ref()
+            .map(|t| {
+                t.iter()
+                    .map(|arg| eval_tplt_arg(arg, ctx))
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()?;
+
         let args = self
             .arguments
             .iter()
@@ -581,12 +596,13 @@ impl Exec for FunctionCall {
         if let Some(decl) = ctx.source.decl(&fn_name) {
             // function call
             if let GlobalDeclaration::Function(decl) = decl {
-                if ctx.stage == EvalStage::Const && !decl.contains_attribute(&Attribute::Const) {
+                if ctx.stage == ShaderStage::Const && !decl.contains_attribute(&Attribute::Const) {
                     return Err(E::NotConst(decl.ident.to_string()));
                 }
 
                 if decl.body.contains_attribute(&ATTR_INTRINSIC) {
-                    return call_builtin(ty, args, ctx);
+                    let call_res = call_builtin(&fn_name, tplt.as_deref(), &args, ctx.stage)?;
+                    return Ok(Flow::Return(call_res));
                 }
 
                 if self.arguments.len() != decl.parameters.len() {
@@ -658,10 +674,22 @@ impl Exec for FunctionCall {
                                 .ok_or_else(|| E::ParamType(ty, inst.ty()))?;
                             Ok((member.ident.to_string(), inst))
                         })
-                        .collect::<Result<Vec<_>, _>>()?;
+                        .collect::<Result<Vec<_>, E>>()?;
                     Ok(Instance::Struct(StructInstance::new(fn_name, members)).into())
                 } else if args.is_empty() {
-                    Ok(Instance::Struct(StructInstance::zero_value(&fn_name, ctx)?).into())
+                    let members = decl
+                        .members
+                        .iter()
+                        .map(|member| {
+                            let ty = ty_eval_ty(&member.ty, ctx)?;
+                            Ok((member.ident.to_string(), ty))
+                        })
+                        .collect::<Result<Vec<_>, E>>()?;
+                    let struct_ty = StructType {
+                        name: decl.ident.to_string(),
+                        members,
+                    };
+                    Ok(Instance::Struct(StructInstance::zero_value(&struct_ty)?).into())
                 } else {
                     Err(E::ParamCount(fn_name, decl.members.len(), args.len()))
                 }
@@ -669,7 +697,8 @@ impl Exec for FunctionCall {
                 Err(E::NotCallable(fn_name))
             }
         } else if is_constructor_fn(&fn_name) {
-            call_builtin(ty, args, ctx)
+            let call_res = call_builtin(&fn_name, tplt.as_deref(), &args, ctx.stage)?;
+            Ok(Flow::Return(call_res))
         } else {
             Err(E::UnknownFunction(fn_name))
         }
@@ -846,7 +875,7 @@ pub fn exec_entrypoint(
 
 impl Exec for ConstAssertStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        with_stage!(ctx, EvalStage::Const, {
+        with_stage!(ctx, ShaderStage::Const, {
             let expr = self.expression.eval_value(ctx)?;
             let cond = match expr {
                 Instance::Literal(LiteralInstance::Bool(b)) => Ok(b),
@@ -882,7 +911,7 @@ impl Exec for Declaration {
             (Some(ty), _) => ty_eval_ty(ty, ctx)?,
         };
 
-        let init = |ctx: &mut Context, stage: EvalStage| {
+        let init = |ctx: &mut Context, stage: ShaderStage| {
             self.initializer
                 .as_ref()
                 .map(|init| {
@@ -894,51 +923,51 @@ impl Exec for Declaration {
         };
 
         let inst = match (self.kind, ctx.kind) {
-            (DeclarationKind::Const, _) => init(ctx, EvalStage::Const)?
+            (DeclarationKind::Const, _) => init(ctx, ShaderStage::Const)?
                 .ok_or_else(|| E::UninitConst(self.ident.to_string()))?,
             (DeclarationKind::Override, ScopeKind::Function) => return Err(E::OverrideInFn),
             (DeclarationKind::Let, ScopeKind::Function) => {
                 init(ctx, ctx.stage)?.ok_or_else(|| E::UninitLet(self.ident.to_string()))?
             }
-            (DeclarationKind::Var(space), ScopeKind::Function) => {
-                if !matches!(space, Some(AddressSpace::Function) | None) {
+            (DeclarationKind::Var(a_s), ScopeKind::Function) => {
+                if !matches!(a_s, Some((AddressSpace::Function, None)) | None) {
                     return Err(E::ForbiddenDecl(self.kind, ctx.kind));
                 }
                 let inst = init(ctx, ctx.stage)?
                     .map(Ok)
-                    .unwrap_or_else(|| Instance::zero_value(&ty, ctx))?;
+                    .unwrap_or_else(|| Instance::zero_value(&ty))?;
 
                 RefInstance::new(inst, AddressSpace::Function, AccessMode::ReadWrite).into()
             }
             (DeclarationKind::Override, ScopeKind::Module) => {
-                if ctx.stage == EvalStage::Const {
+                if ctx.stage == ShaderStage::Const {
                     Instance::Deferred(ty)
                 } else if let Some(inst) = ctx.overridable(&self.ident.name()) {
                     inst.convert_to(&ty)
                         .ok_or_else(|| E::Conversion(inst.ty(), ty))?
-                } else if let Some(inst) = init(ctx, EvalStage::Override)? {
+                } else if let Some(inst) = init(ctx, ShaderStage::Override)? {
                     inst
                 } else {
                     return Err(E::UninitOverride(self.ident.to_string()));
                 }
             }
             (DeclarationKind::Let, ScopeKind::Module) => return Err(E::LetInMod),
-            (DeclarationKind::Var(addr_space), ScopeKind::Module) => {
-                if ctx.stage == EvalStage::Const {
+            (DeclarationKind::Var(a_s), ScopeKind::Module) => {
+                if ctx.stage == ShaderStage::Const {
                     Instance::Deferred(ty)
                 } else {
-                    let addr_space = addr_space.unwrap_or(AddressSpace::Handle);
+                    let (a_s, a_m) = a_s.unwrap_or((AddressSpace::Handle, None));
 
-                    match addr_space {
+                    match a_s {
                         AddressSpace::Function => {
                             return Err(E::ForbiddenDecl(self.kind, ctx.kind));
                         }
                         AddressSpace::Private => {
                             // the initializer for a private variable must be a const- or override-expression
-                            let inst = if let Some(inst) = init(ctx, EvalStage::Override)? {
+                            let inst = if let Some(inst) = init(ctx, ShaderStage::Override)? {
                                 inst
                             } else {
-                                Instance::zero_value(&ty, ctx)?
+                                Instance::zero_value(&ty)?
                             };
 
                             RefInstance::new(inst, AddressSpace::Private, AccessMode::ReadWrite)
@@ -946,7 +975,7 @@ impl Exec for Declaration {
                         }
                         AddressSpace::Uniform => {
                             if self.initializer.is_some() {
-                                return Err(E::ForbiddenInitializer(addr_space));
+                                return Err(E::ForbiddenInitializer(a_s));
                             }
                             let (group, binding) = self.attr_group_binding(ctx)?;
                             let inst = ctx
@@ -956,16 +985,16 @@ impl Exec for Declaration {
                                 return Err(E::Type(ty, inst.ty()));
                             }
                             if !inst.space.is_uniform() {
-                                return Err(E::AddressSpace(addr_space, inst.space));
+                                return Err(E::AddressSpace(a_s, inst.space));
                             }
                             if inst.access != AccessMode::Read {
                                 return Err(E::AccessMode(AccessMode::Read, inst.access));
                             }
                             inst.clone().into()
                         }
-                        AddressSpace::Storage(access_mode) => {
+                        AddressSpace::Storage => {
                             if self.initializer.is_some() {
-                                return Err(E::ForbiddenInitializer(addr_space));
+                                return Err(E::ForbiddenInitializer(a_s));
                             }
                             let Some(ty) = &self.ty else {
                                 return Err(E::UntypedDecl);
@@ -979,22 +1008,22 @@ impl Exec for Declaration {
                                 return Err(E::Type(ty, inst.ty()));
                             }
                             if !inst.space.is_storage() {
-                                return Err(E::AddressSpace(addr_space, inst.space));
+                                return Err(E::AddressSpace(a_s, inst.space));
                             }
-                            let access_mode = access_mode.unwrap_or(AccessMode::Read);
-                            if inst.access != access_mode {
-                                return Err(E::AccessMode(access_mode, inst.access));
+                            let a_m = a_m.unwrap_or(AccessMode::Read);
+                            if inst.access != a_m {
+                                return Err(E::AccessMode(a_m, inst.access));
                             }
                             inst.clone().into()
                         }
                         AddressSpace::Workgroup => {
                             if self.initializer.is_some() {
-                                return Err(E::ForbiddenInitializer(addr_space));
+                                return Err(E::ForbiddenInitializer(a_s));
                             }
 
                             // the initial value for a workgroup variable is the zero-value
                             // TODO: there is a special case with atomics to handle.
-                            let inst = Instance::zero_value(&ty, ctx)?;
+                            let inst = Instance::zero_value(&ty)?;
 
                             RefInstance::new(inst, AddressSpace::Workgroup, AccessMode::ReadWrite)
                                 .into()

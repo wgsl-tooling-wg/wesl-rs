@@ -1,11 +1,12 @@
-use super::{
-    Context, EvalError, Exec, Flow, Instance, LiteralInstance, PtrInstance, RefInstance, ScopeKind,
-    SyntaxUtil, Ty, Type, VecInstance,
-};
-
 use half::f16;
 use itertools::Itertools;
+use wesl_types::{
+    inst::{Instance, LiteralInstance, PtrInstance, RefInstance, VecInstance},
+    ty::{Ty, Type},
+};
 use wgsl_parse::{span::Spanned, syntax::*};
+
+use super::{Context, EvalError, Exec, Flow, ScopeKind, SyntaxUtil};
 
 type E = EvalError;
 
@@ -108,7 +109,7 @@ impl Eval for NamedComponentExpression {
                 .collect_vec();
             if let [i] = indices.as_slice() {
                 if let Some(r) = r {
-                    r.view_index(*i).map(Instance::Ref)
+                    Ok(Instance::Ref(r.view_index(*i)?))
                 } else {
                     v.get(*i)
                         .cloned()
@@ -130,14 +131,14 @@ impl Eval for NamedComponentExpression {
         fn inst_comp(base: Instance, comp: &str) -> Result<Instance, E> {
             match &base {
                 Instance::Struct(s) => {
-                    let val = s.member(comp).ok_or_else(|| {
-                        E::Component(Type::Struct(s.name().to_string()), comp.to_string())
-                    })?;
+                    let val = s
+                        .member(comp)
+                        .ok_or_else(|| E::Component(s.ty(), comp.to_string()))?;
                     Ok(val.clone())
                 }
                 Instance::Vec(v) => vec_comp(v, comp, None),
                 Instance::Ref(r) => match &*r.read()? {
-                    Instance::Struct(_) => r.view_member(comp.to_string()).map(Into::into),
+                    Instance::Struct(_) => Ok(r.view_member(comp.to_string())?.into()),
                     Instance::Vec(v) => vec_comp(v, comp, Some(r)),
                     _ => Err(E::Component(base.ty(), comp.to_string())),
                 },
@@ -166,7 +167,7 @@ impl Eval for IndexingExpression {
                     .get(index)
                     .cloned()
                     .ok_or_else(|| E::OutOfBounds(index, a.ty(), a.n())),
-                Instance::Ref(r) => r.view_index(index).map(Instance::Ref),
+                Instance::Ref(r) => Ok(r.view_index(index)?.into()),
                 _ => Err(E::NotIndexable(base.ty())),
             }
         }
@@ -201,9 +202,10 @@ impl Eval for UnaryExpression {
                 UnaryOperator::AddressOf => unreachable!("handled above"),
                 UnaryOperator::Indirection => match operand {
                     Instance::Ptr(p) => Ok(RefInstance::from(p).into()),
-                    operand => Err(E::Unary(self.operator, operand.ty())),
+                    operand => Err(wesl_types::Error::Unary(self.operator, operand.ty())),
                 },
             }
+            .map_err(Into::into)
         }
     }
 }
@@ -259,6 +261,7 @@ impl Eval for BinaryExpression {
                 BinaryOperator::ShiftLeft => lhs.op_shl(&rhs, ctx.stage),
                 BinaryOperator::ShiftRight => lhs.op_shr(&rhs, ctx.stage),
             }
+            .map_err(Into::into)
         }
     }
 }

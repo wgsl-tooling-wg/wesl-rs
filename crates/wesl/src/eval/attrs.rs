@@ -1,9 +1,14 @@
+use wesl_types::{
+    ShaderStage,
+    inst::{Instance, LiteralInstance},
+    ty::{Ty, Type},
+};
 use wgsl_parse::{
     Decorated,
     syntax::{Attribute, AttributeNode, BuiltinValue, Expression},
 };
 
-use super::{Context, Eval, EvalError, EvalStage, Instance, LiteralInstance, Ty, Type, with_stage};
+use super::{Context, Eval, EvalError, with_stage};
 
 type E = EvalError;
 
@@ -39,7 +44,7 @@ pub trait EvalAttrs: Decorated {
 
 impl<T: Decorated> EvalAttrs for T {}
 fn eval_positive_integer(expr: &Expression, ctx: &mut Context) -> Result<u32, E> {
-    let expr = with_stage!(ctx, EvalStage::Const, { expr.eval_value(ctx) })?;
+    let expr = with_stage!(ctx, ShaderStage::Const, { expr.eval_value(ctx) })?;
     let expr = match expr {
         Instance::Literal(g) => match g {
             LiteralInstance::AbstractInt(g) => Ok(g),

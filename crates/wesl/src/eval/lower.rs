@@ -1,10 +1,11 @@
 use std::iter::zip;
-
-use crate::eval::{ATTR_INTRINSIC, Context, Eval, EvalError, Exec, Ty, ty_eval_ty};
+use wesl_types::ty::Ty;
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
+use crate::eval::{ATTR_INTRINSIC, Context, Eval, EvalError, Exec, ty_eval_ty};
+
 use super::{
-    EXPR_FALSE, EXPR_TRUE, EvalStage, EvalTy, Instance, SyntaxUtil, to_expr::ToExpr, with_scope,
+    EXPR_FALSE, EXPR_TRUE, EvalTy, Instance, ShaderStage, SyntaxUtil, to_expr::ToExpr, with_scope,
 };
 
 type E = EvalError;
@@ -102,7 +103,7 @@ impl Lower for Expression {
         match self.eval_value(ctx) {
             Ok(inst) => *self = inst.to_expr(ctx)?,
             // `NotAccessible` is supposed to be the only possible error when evaluating valid code.
-            Err(E::NotAccessible(_, EvalStage::Const) | E::NotConst(_)) => {
+            Err(E::NotAccessible(_, ShaderStage::Const) | E::NotConst(_)) => {
                 ctx.err_span = None;
                 match self {
                     Expression::Literal(_) => (),
@@ -396,7 +397,7 @@ fn compound_lower(
         for stmt in &mut stmt.statements {
             stmt.lower(ctx)?;
         }
-        Ok(())
+        Result::<(), E>::Ok(())
     })?;
     stmt.statements.retain(|stmt| match stmt.node() {
         Statement::Void => false,

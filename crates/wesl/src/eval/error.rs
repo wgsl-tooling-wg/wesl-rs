@@ -1,8 +1,12 @@
-use itertools::Itertools;
 use thiserror::Error;
+use wesl_types::{
+    CallSignature, ShaderStage,
+    inst::{Instance, LiteralInstance, MemView},
+    ty::Type,
+};
 use wgsl_parse::syntax::*;
 
-use super::{EvalStage, Flow, Instance, LiteralInstance, MemView, ScopeKind, Type};
+use super::{Flow, ScopeKind};
 
 /// Evaluation and Execution errors.
 #[derive(Clone, Debug, Error)]
@@ -17,6 +21,8 @@ pub enum EvalError {
     NotConstructible(Type),
     #[error("expected type `{0}`, got `{1}`")]
     Type(Type, Type),
+    #[error("invalid sampled type, expected `i32`, `u32` of `f32`, got `{0}`")]
+    SampledType(Type),
     #[error("expected a type, got declaration `{0}`")]
     NotType(String),
     #[error("unknown type `{0}`")]
@@ -24,11 +30,11 @@ pub enum EvalError {
     #[error("unknown struct `{0}`")]
     UnknownStruct(String),
     #[error("declaration `{0}` is not accessible at {stage} time", stage = match .1 {
-        EvalStage::Const => "shader-module-creation",
-        EvalStage::Override => "pipeline-creation",
-        EvalStage::Exec => "shader-execution"
+        ShaderStage::Const => "shader-module-creation",
+        ShaderStage::Override => "pipeline-creation",
+        ShaderStage::Exec => "shader-execution"
     })]
-    NotAccessible(String, EvalStage),
+    NotAccessible(String, ShaderStage),
     #[error("type `{0}` does not take any template arguments")]
     UnexpectedTemplate(String),
     #[error("missing template arguments for type `{0}`")]
@@ -95,8 +101,8 @@ pub enum EvalError {
     UnknownFunction(String),
     #[error("declaration `{0}` is not callable")]
     NotCallable(String),
-    #[error("invalid function call signature: `{0}({args})`", args = (.1).iter().format(", "))]
-    Signature(TypeExpression, Vec<Type>),
+    #[error("invalid function call signature: `{0}`")]
+    Signature(CallSignature),
     #[error("{0}")]
     Builtin(&'static str),
     #[error("invalid template arguments to `{0}`")]
@@ -193,4 +199,39 @@ pub enum EvalError {
     FlowInFunction(Flow),
     #[error("a global declaration cannot contain a `{0}` statement")]
     FlowInModule(Flow),
+}
+
+impl From<wesl_types::Error> for EvalError {
+    fn from(value: wesl_types::Error) -> Self {
+        match value {
+            wesl_types::Error::Todo(a) => Self::Todo(a),
+            wesl_types::Error::NotScalar(a) => Self::NotScalar(a),
+            wesl_types::Error::NotConstructible(a) => Self::NotConstructible(a),
+            wesl_types::Error::SampledType(a) => Self::SampledType(a),
+            wesl_types::Error::WriteRefType(a, b) => Self::WriteRefType(a, b),
+            wesl_types::Error::NotWrite => Self::NotWrite,
+            wesl_types::Error::NotRead => Self::NotRead,
+            wesl_types::Error::NotReadWrite => Self::NotReadWrite,
+            wesl_types::Error::Conversion(a, b) => Self::Conversion(a, b),
+            wesl_types::Error::ConvOverflow(a, b) => Self::ConvOverflow(a, b),
+            wesl_types::Error::Component(a, b) => Self::Component(a, b),
+            wesl_types::Error::NotIndexable(a) => Self::NotIndexable(a),
+            wesl_types::Error::OutOfBounds(a, b, c) => Self::OutOfBounds(a, b, c),
+            wesl_types::Error::Unary(a, b) => Self::Unary(a, b),
+            wesl_types::Error::Binary(a, b, c) => Self::Binary(a, b, c),
+            wesl_types::Error::CompwiseBinary(a, b) => Self::CompwiseBinary(a, b),
+            wesl_types::Error::AddOverflow => Self::AddOverflow,
+            wesl_types::Error::SubOverflow => Self::SubOverflow,
+            wesl_types::Error::MulOverflow => Self::MulOverflow,
+            wesl_types::Error::DivByZero => Self::DivByZero,
+            wesl_types::Error::RemZeroDiv => Self::RemZeroDiv,
+            wesl_types::Error::ShlOverflow(a, b) => Self::ShlOverflow(a, b),
+            wesl_types::Error::ShrOverflow(a, b) => Self::ShrOverflow(a, b),
+            wesl_types::Error::Signature(a) => Self::Signature(a),
+            wesl_types::Error::Builtin(a) => Self::Builtin(a),
+            wesl_types::Error::TemplateArgs(a) => Self::TemplateArgs(a),
+            wesl_types::Error::ParamCount(a, b, c) => Self::ParamCount(a, b, c),
+            wesl_types::Error::ParamType(a, b) => Self::ParamType(a, b),
+        }
+    }
 }

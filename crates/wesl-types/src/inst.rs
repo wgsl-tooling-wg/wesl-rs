@@ -203,16 +203,13 @@ pub enum LiteralInstance {
 /// Reference: <https://www.w3.org/TR/WGSL/#struct-types>
 #[derive(Clone, Debug, PartialEq)]
 pub struct StructInstance {
-    name: String,
-    members: Vec<(String, Instance)>,
+    pub name: String,
+    pub members: Vec<(String, Instance)>,
 }
 
 impl StructInstance {
     pub fn new(name: String, members: Vec<(String, Instance)>) -> Self {
         Self { name, members }
-    }
-    pub fn name(&self) -> &str {
-        &self.name
     }
     /// Get a `struct` member value by name.
     pub fn member(&self, name: &str) -> Option<&Instance> {
@@ -226,9 +223,9 @@ impl StructInstance {
             .iter_mut()
             .find_map(|(n, inst)| (n == name).then_some(inst))
     }
-    pub fn iter_members(&self) -> impl Iterator<Item = &(String, Instance)> {
-        self.members.iter()
-    }
+    // pub fn iter_members(&self) -> impl Iterator<Item = &(String, Instance)> {
+    //     self.members.iter()
+    // }
 }
 
 /// Instance of an `array<T, N>` type.
@@ -246,7 +243,7 @@ impl ArrayInstance {
     /// # Panics
     /// * if the components is empty
     /// * if the components are not all the same type
-    pub(crate) fn new(components: Vec<Instance>, runtime_sized: bool) -> Self {
+    pub fn new(components: Vec<Instance>, runtime_sized: bool) -> Self {
         assert!(!components.is_empty());
         assert!(components.iter().map(|c| c.ty()).all_equal());
         Self {
@@ -301,7 +298,7 @@ impl VecInstance {
     /// * if the components length is not [2, 3, 4]
     /// * if the components are not all the same type
     /// * if the type is not a scalar
-    pub(crate) fn new(components: Vec<Instance>) -> Self {
+    pub fn new(components: Vec<Instance>) -> Self {
         assert!((2..=4).contains(&components.len()));
         let components = ArrayInstance::new(components, false);
         assert!(components.inner_ty().is_scalar());
@@ -578,5 +575,9 @@ impl AtomicInstance {
 
     pub fn inner(&self) -> &Instance {
         &self.content
+    }
+
+    pub fn inner_mut(&mut self) -> &mut Instance {
+        &mut self.content
     }
 }

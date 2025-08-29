@@ -237,14 +237,8 @@ fn parse_binding(
     })?;
     let (storage, access) = match b.kind {
         BindingType::Uniform => (AddressSpace::Uniform, AccessMode::Read),
-        BindingType::Storage => (
-            AddressSpace::Storage(Some(AccessMode::ReadWrite)),
-            AccessMode::ReadWrite,
-        ),
-        BindingType::ReadOnlyStorage => (
-            AddressSpace::Storage(Some(AccessMode::Read)),
-            AccessMode::Read,
-        ),
+        BindingType::Storage => (AddressSpace::Storage, AccessMode::ReadWrite),
+        BindingType::ReadOnlyStorage => (AddressSpace::Storage, AccessMode::Read),
         BindingType::Filtering => todo!(),
         BindingType::NonFiltering => todo!(),
         BindingType::Comparison => todo!(),
@@ -257,13 +251,13 @@ fn parse_binding(
         BindingType::ReadWrite => todo!(),
         BindingType::ReadOnly => todo!(),
     };
-    let inst = Instance::from_buffer(&b.data, &ty, &mut ctx).ok_or_else(|| {
+    let inst = Instance::from_buffer(&b.data, &ty).ok_or_else(|| {
         CliError::ResourceIncompatible(
             b.group,
             b.binding,
             b.data.len() as u32,
             ty.clone(),
-            ty.size_of(&mut ctx).unwrap_or_default(),
+            ty.size_of().unwrap_or_default(),
         )
     })?;
     Ok((
@@ -411,7 +405,7 @@ fn run_impl(args: Command) -> Result<RunResult, Error> {
                     })
                     .collect::<Result<_, _>>()?;
 
-                let mut exec = comp.exec(&args.entrypoint, inputs, resources, overrides)?;
+                let exec = comp.exec(&args.entrypoint, inputs, resources, overrides)?;
 
                 let resources = args
                     .resources
@@ -421,10 +415,13 @@ fn run_impl(args: Command) -> Result<RunResult, Error> {
                             .resource(r.group, r.binding)
                             .ok_or(CliError::ResourceNotFound(r.group, r.binding))?
                             .clone();
-                        let inst = inst.read().map_err(wesl::Error::from)?.to_owned();
+                        let inst = inst
+                            .read()
+                            .map_err(|e| wesl::Error::EvalError(e.into()))?
+                            .to_owned();
                         let mut res = r.clone();
                         res.data = inst
-                            .to_buffer(&mut exec.ctx)
+                            .to_buffer()
                             .ok_or_else(|| CliError::NotStorable(inst.ty()))?
                             .into_boxed_slice();
                         Ok(res)

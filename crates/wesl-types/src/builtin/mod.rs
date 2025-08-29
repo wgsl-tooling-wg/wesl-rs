@@ -14,11 +14,11 @@ use itertools::Itertools;
 use crate::{
     CallSignature, Error, Instance, ShaderStage,
     conv::{Convert, convert_all_ty, convert_ty},
-    enums::{AddressSpace, TextureType},
+    enums::AddressSpace,
     inst::{ArrayInstance, LiteralInstance, MatInstance, StructInstance, VecInstance},
     ops::Compwise,
     tplt::{ArrayTemplate, BitcastTemplate, MatTemplate, TpltParam, VecTemplate},
-    ty::{StructType, Ty, Type},
+    ty::{StructType, TextureType, Ty, Type},
 };
 
 type E = Error;
@@ -201,11 +201,11 @@ fn vec_ctor_ty(n: u8, args: &[Type]) -> Result<Type, E> {
 }
 
 /// Compute the return type of calling a built-in constructor function.
-pub fn constructor_type(sig: &CallSignature) -> Result<Type, E> {
-    match (sig.name.as_str(), &sig.tplt, sig.args.as_slice()) {
+pub fn constructor_type(name: &str, tplt: Option<&[TpltParam]>, args: &[Type]) -> Result<Type, E> {
+    match (name, tplt, args) {
         ("array", Some(t), []) => Ok(ArrayTemplate::parse(t)?.ty()),
-        ("array", Some(t), _) => array_ctor_ty_t(ArrayTemplate::parse(t)?, &sig.args),
-        ("array", None, _) => array_ctor_ty(&sig.args),
+        ("array", Some(t), _) => array_ctor_ty_t(ArrayTemplate::parse(t)?, args),
+        ("array", None, _) => array_ctor_ty(args),
         ("bool", None, []) => Ok(Type::Bool),
         ("bool", None, [a]) if a.is_scalar() => Ok(Type::Bool),
         ("i32", None, []) => Ok(Type::I32),
@@ -217,42 +217,46 @@ pub fn constructor_type(sig: &CallSignature) -> Result<Type, E> {
         ("f16", None, []) => Ok(Type::F16),
         ("f16", None, [a]) if a.is_scalar() => Ok(Type::F16),
         ("mat2x2", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(2, 2)),
-        ("mat2x2", Some(t), _) => mat_ctor_ty_t(2, 2, MatTemplate::parse(t)?, &sig.args),
-        ("mat2x2", None, _) => mat_ctor_ty(2, 2, &sig.args),
+        ("mat2x2", Some(t), _) => mat_ctor_ty_t(2, 2, MatTemplate::parse(t)?, args),
+        ("mat2x2", None, _) => mat_ctor_ty(2, 2, args),
         ("mat2x3", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(2, 3)),
-        ("mat2x3", Some(t), _) => mat_ctor_ty_t(2, 3, MatTemplate::parse(t)?, &sig.args),
-        ("mat2x3", None, _) => mat_ctor_ty(2, 3, &sig.args),
+        ("mat2x3", Some(t), _) => mat_ctor_ty_t(2, 3, MatTemplate::parse(t)?, args),
+        ("mat2x3", None, _) => mat_ctor_ty(2, 3, args),
         ("mat2x4", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(2, 4)),
-        ("mat2x4", Some(t), _) => mat_ctor_ty_t(2, 4, MatTemplate::parse(t)?, &sig.args),
-        ("mat2x4", None, _) => mat_ctor_ty(2, 4, &sig.args),
+        ("mat2x4", Some(t), _) => mat_ctor_ty_t(2, 4, MatTemplate::parse(t)?, args),
+        ("mat2x4", None, _) => mat_ctor_ty(2, 4, args),
         ("mat3x2", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(3, 2)),
-        ("mat3x2", Some(t), _) => mat_ctor_ty_t(3, 2, MatTemplate::parse(t)?, &sig.args),
-        ("mat3x2", None, _) => mat_ctor_ty(3, 2, &sig.args),
+        ("mat3x2", Some(t), _) => mat_ctor_ty_t(3, 2, MatTemplate::parse(t)?, args),
+        ("mat3x2", None, _) => mat_ctor_ty(3, 2, args),
         ("mat3x3", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(3, 3)),
-        ("mat3x3", Some(t), _) => mat_ctor_ty_t(3, 3, MatTemplate::parse(t)?, &sig.args),
-        ("mat3x3", None, _) => mat_ctor_ty(3, 3, &sig.args),
+        ("mat3x3", Some(t), _) => mat_ctor_ty_t(3, 3, MatTemplate::parse(t)?, args),
+        ("mat3x3", None, _) => mat_ctor_ty(3, 3, args),
         ("mat3x4", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(3, 4)),
-        ("mat3x4", Some(t), _) => mat_ctor_ty_t(3, 4, MatTemplate::parse(t)?, &sig.args),
-        ("mat3x4", None, _) => mat_ctor_ty(3, 4, &sig.args),
+        ("mat3x4", Some(t), _) => mat_ctor_ty_t(3, 4, MatTemplate::parse(t)?, args),
+        ("mat3x4", None, _) => mat_ctor_ty(3, 4, args),
         ("mat4x2", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(4, 2)),
-        ("mat4x2", Some(t), _) => mat_ctor_ty_t(4, 2, MatTemplate::parse(t)?, &sig.args),
-        ("mat4x2", None, _) => mat_ctor_ty(4, 2, &sig.args),
+        ("mat4x2", Some(t), _) => mat_ctor_ty_t(4, 2, MatTemplate::parse(t)?, args),
+        ("mat4x2", None, _) => mat_ctor_ty(4, 2, args),
         ("mat4x3", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(4, 3)),
-        ("mat4x3", Some(t), _) => mat_ctor_ty_t(4, 3, MatTemplate::parse(t)?, &sig.args),
-        ("mat4x3", None, _) => mat_ctor_ty(4, 3, &sig.args),
+        ("mat4x3", Some(t), _) => mat_ctor_ty_t(4, 3, MatTemplate::parse(t)?, args),
+        ("mat4x3", None, _) => mat_ctor_ty(4, 3, args),
         ("mat4x4", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(4, 4)),
-        ("mat4x4", Some(t), _) => mat_ctor_ty_t(4, 4, MatTemplate::parse(t)?, &sig.args),
-        ("mat4x4", None, _) => mat_ctor_ty(4, 4, &sig.args),
+        ("mat4x4", Some(t), _) => mat_ctor_ty_t(4, 4, MatTemplate::parse(t)?, args),
+        ("mat4x4", None, _) => mat_ctor_ty(4, 4, args),
         ("vec2", Some(t), []) => Ok(VecTemplate::parse(t)?.ty(2)),
-        ("vec2", Some(t), _) => vec_ctor_ty_t(2, VecTemplate::parse(t)?, &sig.args),
-        ("vec2", None, _) => vec_ctor_ty(2, &sig.args),
+        ("vec2", Some(t), _) => vec_ctor_ty_t(2, VecTemplate::parse(t)?, args),
+        ("vec2", None, _) => vec_ctor_ty(2, args),
         ("vec3", Some(t), []) => Ok(VecTemplate::parse(t)?.ty(3)),
-        ("vec3", Some(t), _) => vec_ctor_ty_t(3, VecTemplate::parse(t)?, &sig.args),
-        ("vec3", None, _) => vec_ctor_ty(3, &sig.args),
+        ("vec3", Some(t), _) => vec_ctor_ty_t(3, VecTemplate::parse(t)?, args),
+        ("vec3", None, _) => vec_ctor_ty(3, args),
         ("vec4", Some(t), []) => Ok(VecTemplate::parse(t)?.ty(4)),
-        ("vec4", Some(t), _) => vec_ctor_ty_t(4, VecTemplate::parse(t)?, &sig.args),
-        ("vec4", None, _) => vec_ctor_ty(4, &sig.args),
-        _ => Err(E::Signature(sig.clone())),
+        ("vec4", Some(t), _) => vec_ctor_ty_t(4, VecTemplate::parse(t)?, args),
+        ("vec4", None, _) => vec_ctor_ty(4, args),
+        _ => Err(E::Signature(CallSignature {
+            name: name.to_string(),
+            tplt: tplt.map(|t| t.to_vec()),
+            args: args.to_vec(),
+        })),
     }
 }
 
@@ -343,7 +347,11 @@ fn modf_struct_type(ty: &Type) -> Option<StructType> {
 ///
 /// Does not include constructor built-ins, see [`constructor_type`].
 /// Some functions are still TODO, see [`call`] for the list of functions and statuses.
-pub fn builtin_fn_type(sig: &CallSignature) -> Result<Option<Type>, E> {
+pub fn builtin_fn_type(
+    name: &str,
+    tplt: Option<&[TpltParam]>,
+    args: &[Type],
+) -> Result<Option<Type>, E> {
     fn is_float(ty: &Type) -> bool {
         ty.is_float() || ty.is_vec() && ty.inner_ty().is_float()
     }
@@ -353,9 +361,15 @@ pub fn builtin_fn_type(sig: &CallSignature) -> Result<Option<Type>, E> {
     fn is_integer(ty: &Type) -> bool {
         ty.is_integer() || ty.is_vec() && ty.inner_ty().is_integer()
     }
-    let err = || E::Signature(sig.clone());
+    let err = || {
+        E::Signature(CallSignature {
+            name: name.to_string(),
+            tplt: tplt.map(|t| t.to_vec()),
+            args: args.to_vec(),
+        })
+    };
 
-    match (sig.name.as_str(), &sig.tplt, sig.args.as_slice()) {
+    match (name, tplt, args) {
         // bitcast
         ("bitcast", Some(t), [_]) => Ok(Some(BitcastTemplate::parse(t)?.ty())),
         // logical
@@ -383,7 +397,7 @@ pub fn builtin_fn_type(sig: &CallSignature) -> Result<Option<Type>, E> {
         }
         ("ceil", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("clamp", None, [a1, _, _]) if is_numeric(a1) => {
-            convert_all_ty(&sig.args).cloned().map(Some).ok_or_else(err)
+            convert_all_ty(args).cloned().map(Some).ok_or_else(err)
         }
         ("cos", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("cosh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
@@ -421,13 +435,13 @@ pub fn builtin_fn_type(sig: &CallSignature) -> Result<Option<Type>, E> {
             Ok(Some(a1.concretize()))
         }
         ("faceForward", None, [a1, _, _]) if a1.is_vec() && a1.inner_ty().is_float() => {
-            convert_all_ty(&sig.args).cloned().map(Some).ok_or_else(err)
+            convert_all_ty(args).cloned().map(Some).ok_or_else(err)
         }
         ("firstLeadingBit", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
         ("firstTrailingBit", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
         ("floor", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("fma", None, [a1, _, _]) if is_float(a1) => {
-            convert_all_ty(&sig.args).cloned().map(Some).ok_or_else(err)
+            convert_all_ty(args).cloned().map(Some).ok_or_else(err)
         }
         ("fract", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("frexp", None, [a]) if is_float(a) => Ok(Some(frexp_struct_type(a).unwrap().into())),
@@ -469,7 +483,7 @@ pub fn builtin_fn_type(sig: &CallSignature) -> Result<Option<Type>, E> {
                 .ok_or_else(err)
         }
         ("mix", None, [a1, _, _]) if is_float(a1) => {
-            convert_all_ty(&sig.args).cloned().map(Some).ok_or_else(err)
+            convert_all_ty(args).cloned().map(Some).ok_or_else(err)
         }
         ("modf", None, [a]) if is_float(a) => Ok(Some(modf_struct_type(a).unwrap().into())),
         ("normalize", None, [a @ Type::Vec(_, ty)]) if ty.is_float() => Ok(Some(a.clone())),
@@ -497,7 +511,7 @@ pub fn builtin_fn_type(sig: &CallSignature) -> Result<Option<Type>, E> {
         ("sin", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("sinh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("smoothstep", None, [a1, _, _]) if is_float(a1) => {
-            convert_all_ty(&sig.args).cloned().map(Some).ok_or_else(err)
+            convert_all_ty(args).cloned().map(Some).ok_or_else(err)
         }
         ("sqrt", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("step", None, [a1, a2]) if is_float(a1) => {
@@ -599,35 +613,35 @@ pub fn builtin_fn_type(sig: &CallSignature) -> Result<Option<Type>, E> {
         ("textureStore", None, [Type::Texture(t), ..]) if t.is_storage() => Ok(None),
         // atomic
         // TODO check arguments for atomic functions
-        ("atomicLoad", None, [Type::Ptr(_, t)]) if matches!(**t, Type::Atomic(_)) => {
+        ("atomicLoad", None, [Type::Ptr(_, t, _)]) if matches!(**t, Type::Atomic(_)) => {
             Ok(Some(*t.clone().unwrap_atomic()))
         }
-        ("atomicStore", None, [Type::Ptr(_, t)]) if matches!(**t, Type::Atomic(_)) => Ok(None),
-        ("atomicAdd", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+        ("atomicStore", None, [Type::Ptr(_, t, _)]) if matches!(**t, Type::Atomic(_)) => Ok(None),
+        ("atomicAdd", None, [Type::Ptr(_, t, _), _]) if matches!(**t, Type::Atomic(_)) => {
             Ok(Some(*t.clone().unwrap_atomic()))
         }
-        ("atomicSub", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+        ("atomicSub", None, [Type::Ptr(_, t, _), _]) if matches!(**t, Type::Atomic(_)) => {
             Ok(Some(*t.clone().unwrap_atomic()))
         }
-        ("atomicMax", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+        ("atomicMax", None, [Type::Ptr(_, t, _), _]) if matches!(**t, Type::Atomic(_)) => {
             Ok(Some(*t.clone().unwrap_atomic()))
         }
-        ("atomicMin", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+        ("atomicMin", None, [Type::Ptr(_, t, _), _]) if matches!(**t, Type::Atomic(_)) => {
             Ok(Some(*t.clone().unwrap_atomic()))
         }
-        ("atomicAnd", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+        ("atomicAnd", None, [Type::Ptr(_, t, _), _]) if matches!(**t, Type::Atomic(_)) => {
             Ok(Some(*t.clone().unwrap_atomic()))
         }
-        ("atomicOr", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+        ("atomicOr", None, [Type::Ptr(_, t, _), _]) if matches!(**t, Type::Atomic(_)) => {
             Ok(Some(*t.clone().unwrap_atomic()))
         }
-        ("atomicXor", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+        ("atomicXor", None, [Type::Ptr(_, t, _), _]) if matches!(**t, Type::Atomic(_)) => {
             Ok(Some(*t.clone().unwrap_atomic()))
         }
-        ("atomicExchange", None, [Type::Ptr(_, t), _]) if matches!(**t, Type::Atomic(_)) => {
+        ("atomicExchange", None, [Type::Ptr(_, t, _), _]) if matches!(**t, Type::Atomic(_)) => {
             Ok(Some(*t.clone().unwrap_atomic()))
         }
-        ("atomicCompareExchangeWeak", None, [Type::Ptr(_, t), _, _])
+        ("atomicCompareExchangeWeak", None, [Type::Ptr(_, t, _), _, _])
             if matches!(**t, Type::Atomic(_)) =>
         {
             let ty = match &**t {
@@ -689,7 +703,7 @@ pub fn builtin_fn_type(sig: &CallSignature) -> Result<Option<Type>, E> {
         ("storageBarrier", None, []) => Ok(None),
         ("textureBarrier", None, []) => Ok(None),
         ("workgroupBarrier", None, []) => Ok(None),
-        ("workgroupUniformLoad", None, [Type::Ptr(AddressSpace::Workgroup, t)]) => {
+        ("workgroupUniformLoad", None, [Type::Ptr(AddressSpace::Workgroup, t, _)]) => {
             Ok(Some(*t.clone()))
         }
         // subgroup
@@ -788,7 +802,7 @@ impl Instance {
             Type::BindingArray(_, _) => Err(E::NotConstructible(ty.clone())),
             Type::Vec(n, v_ty) => VecInstance::zero_value(*n, v_ty).map(Into::into),
             Type::Mat(c, r, m_ty) => MatInstance::zero_value(*c, *r, m_ty).map(Into::into),
-            Type::Atomic(_) | Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => {
+            Type::Atomic(_) | Type::Ptr(_, _, _) | Type::Texture(_) | Type::Sampler(_) => {
                 Err(E::NotConstructible(ty.clone()))
             }
         }
