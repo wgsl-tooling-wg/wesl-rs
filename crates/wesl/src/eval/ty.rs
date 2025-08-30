@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use crate::Eval;
 
 use super::{
@@ -9,7 +11,7 @@ use super::{
 
 type E = EvalError;
 
-use wesl_types::{ShaderStage, tplt::TpltParam, ty::StructMemberType};
+use wesl_types::{ShaderStage, enums::Enumerant, tplt::TpltParam, ty::StructMemberType};
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
 pub fn eval_tplt_arg(tplt: &TemplateArg, ctx: &mut Context) -> Result<TpltParam, E> {
@@ -26,15 +28,17 @@ pub fn eval_tplt_arg(tplt: &TemplateArg, ctx: &mut Context) -> Result<TpltParam,
                         // because of module-scope hoisting, declarations may be executed out-of-order.
                         if let Some(decl) = ctx.source.decl(&ty.ident.name()) {
                             decl.exec(ctx)?;
-                            return if let Some(inst) = ctx.scope.get(&ty.ident.name()) {
-                                Ok(TpltParam::Instance(inst.clone()))
-                            } else {
-                                Err(E::UnknownDecl(ty.ident.to_string()))
-                            };
+                            if let Some(inst) = ctx.scope.get(&ty.ident.name()) {
+                                return Ok(TpltParam::Instance(inst.clone()));
+                            }
                         }
                     }
 
-                    ty_eval_ty(ty, ctx).map(TpltParam::Type)
+                    ty_eval_ty(ty, ctx).map(TpltParam::Type).or_else(|e| {
+                        Enumerant::from_str(&ty.ident.name())
+                            .map(TpltParam::Enumerant)
+                            .map_err(|()| e)
+                    })
                 }
             }
             e => e.eval_value(ctx).map(TpltParam::Instance),

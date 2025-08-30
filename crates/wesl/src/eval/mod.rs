@@ -29,6 +29,8 @@ use wgsl_parse::{
     syntax::*,
 };
 
+use crate::syntax_util::IteratorExt;
+
 #[derive(Debug)]
 struct ScopeInner<T> {
     local: HashMap<String, T>,
@@ -65,6 +67,15 @@ impl<T> ScopeInner<T> {
                 .parent
                 .as_ref()
                 .is_some_and(|parent| parent.contains(name))
+    }
+    pub fn iter_keys(&self) -> impl Iterator<Item = &str> {
+        self.local.keys().map(|k| k.as_str()).chain(
+            self.parent
+                .iter()
+                .map(|parent| parent.iter_keys())
+                .flatten()
+                .boxed(),
+        )
     }
 }
 
@@ -134,6 +145,9 @@ impl<T> Scope<T> {
     }
     pub fn contains(&self, name: &str) -> bool {
         self.inner.contains(name)
+    }
+    pub fn iter_keys(&self) -> impl Iterator<Item = &str> {
+        self.inner.iter_keys()
     }
 }
 

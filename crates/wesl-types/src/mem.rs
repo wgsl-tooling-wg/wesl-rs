@@ -93,7 +93,7 @@ impl Instance {
                             offset = round_up(align, offset);
                             let buf = buf.get(offset as usize..(offset + size) as usize)?;
                             offset += size;
-                            Instance::from_buffer(buf, ty)?
+                            Instance::from_buffer(buf, &m.ty)?
                         };
                         Some(inst)
                     })
@@ -197,12 +197,9 @@ impl HostShareable for LiteralInstance {
 impl HostShareable for StructInstance {
     fn to_buffer(&self) -> Option<Vec<u8>> {
         let mut buf = Vec::new();
-        for (i, inst) in self.members.iter().enumerate() {
-            let ty = inst.ty();
+        for (i, (inst, m)) in self.members.iter().zip(&self.ty.members).enumerate() {
             let len = buf.len() as u32;
-            // TODO: since refactor, Type::Struct doesn't know about size/align attrs
-            // let size = m.attr_size().ok().flatten().or_else(|| ty.min_size_of())?;
-            let size = ty.min_size_of()?;
+            let size = m.size.or_else(|| m.ty.min_size_of())?;
 
             // handle runtime-size arrays as last struct member
             let size = match inst {
@@ -212,9 +209,7 @@ impl HostShareable for StructInstance {
                 _ => Some(size),
             }?;
 
-            // TODO: since refactor, Type::Struct doesn't know about size/align attrs
-            // let align = m.attr_align().ok().flatten().or_else(|| ty.align_of())?;
-            let align = ty.align_of()?;
+            let align = m.align.or_else(|| m.ty.align_of())?;
             let off = round_up(align, len);
             if off > len {
                 buf.extend((len..off).map(|_| 0));

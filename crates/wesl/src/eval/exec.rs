@@ -681,9 +681,13 @@ impl Exec for FunctionCall {
                     let members = decl
                         .members
                         .iter()
-                        .map(|member| {
-                            let ty = ty_eval_ty(&member.ty, ctx)?;
-                            Ok(StructMemberType::new(member.ident.to_string(), ty))
+                        .map(|m| {
+                            Ok(StructMemberType {
+                                name: m.ident.to_string(),
+                                ty: ty_eval_ty(&m.ty, ctx)?,
+                                size: m.attr_size(ctx)?,
+                                align: m.attr_align(ctx)?,
+                            })
                         })
                         .collect::<Result<Vec<_>, E>>()?;
                     let struct_ty = StructType {

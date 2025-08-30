@@ -39,7 +39,7 @@ pub fn array_t(tplt: ArrayTemplate, args: &[Instance]) -> Result<Instance, E> {
     let args = args
         .iter()
         .map(|a| {
-            a.convert_to(&tplt.ty())
+            a.convert_to(&tplt.inner_ty())
                 .ok_or_else(|| E::ParamType(tplt.ty(), a.ty()))
         })
         .collect::<Result<Vec<_>, _>>()?;
