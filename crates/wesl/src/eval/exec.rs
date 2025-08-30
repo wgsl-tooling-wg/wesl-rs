@@ -5,7 +5,7 @@ use wesl_types::{
     conv::Convert,
     enums::{AccessMode, AddressSpace},
     inst::{Instance, LiteralInstance, RefInstance, StructInstance, VecInstance},
-    ty::{StructType, Ty, Type},
+    ty::{StructMemberType, StructType, Ty, Type},
 };
 
 use super::{
@@ -662,6 +662,7 @@ impl Exec for FunctionCall {
             }
             // struct constructor
             else if let GlobalDeclaration::Struct(decl) = decl {
+                let struct_ty = *decl.eval_ty(ctx)?.unwrap_struct();
                 if args.len() == decl.members.len() {
                     let members = decl
                         .members
@@ -672,17 +673,17 @@ impl Exec for FunctionCall {
                             let inst = inst
                                 .convert_to(&ty)
                                 .ok_or_else(|| E::ParamType(ty, inst.ty()))?;
-                            Ok((member.ident.to_string(), inst))
+                            Ok(inst)
                         })
                         .collect::<Result<Vec<_>, E>>()?;
-                    Ok(Instance::Struct(StructInstance::new(fn_name, members)).into())
+                    Ok(Instance::Struct(StructInstance::new(struct_ty, members)).into())
                 } else if args.is_empty() {
                     let members = decl
                         .members
                         .iter()
                         .map(|member| {
                             let ty = ty_eval_ty(&member.ty, ctx)?;
-                            Ok((member.ident.to_string(), ty))
+                            Ok(StructMemberType::new(member.ident.to_string(), ty))
                         })
                         .collect::<Result<Vec<_>, E>>()?;
                     let struct_ty = StructType {

@@ -13,7 +13,7 @@ use itertools::Itertools;
 use crate::{
     Error,
     enums::{AccessMode, AddressSpace},
-    ty::{Ty, Type},
+    ty::{StructType, Ty, Type},
 };
 
 type E = Error;
@@ -203,25 +203,38 @@ pub enum LiteralInstance {
 /// Reference: <https://www.w3.org/TR/WGSL/#struct-types>
 #[derive(Clone, Debug, PartialEq)]
 pub struct StructInstance {
-    pub name: String,
-    pub members: Vec<(String, Instance)>,
+    pub ty: StructType,
+    pub members: Vec<Instance>,
 }
 
 impl StructInstance {
-    pub fn new(name: String, members: Vec<(String, Instance)>) -> Self {
-        Self { name, members }
+    /// Create a `struct` instance.
+    ///
+    /// # Panics
+    /// * if there is not the right number of members
+    /// * if the members are not of the right type
+    /// * if
+    pub fn new(ty: StructType, members: Vec<Instance>) -> Self {
+        assert_eq!(ty.members.len(), members.len());
+        for (m, m_ty) in members.iter().zip(&ty.members) {
+            assert_eq!(m_ty.ty, m.ty());
+        }
+
+        Self { ty, members }
     }
     /// Get a `struct` member value by name.
     pub fn member(&self, name: &str) -> Option<&Instance> {
         self.members
             .iter()
-            .find_map(|(n, inst)| (n == name).then_some(inst))
+            .zip(&self.ty.members)
+            .find_map(|(inst, m_ty)| (m_ty.name == name).then_some(inst))
     }
     /// Get a `struct` member value by name.
     pub fn member_mut(&mut self, name: &str) -> Option<&mut Instance> {
         self.members
             .iter_mut()
-            .find_map(|(n, inst)| (n == name).then_some(inst))
+            .zip(&self.ty.members)
+            .find_map(|(inst, m_ty)| (m_ty.name == name).then_some(inst))
     }
     // pub fn iter_members(&self) -> impl Iterator<Item = &(String, Instance)> {
     //     self.members.iter()

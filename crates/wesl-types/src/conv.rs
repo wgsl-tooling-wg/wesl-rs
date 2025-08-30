@@ -199,26 +199,26 @@ impl Convert for StructInstance {
         if &self.ty() == ty {
             Some(self.clone())
         } else if let Type::Struct(s2) = ty {
-            let s1 = &self.name;
-            if s1.starts_with("__") && s1.ends_with("abstract") {
+            let s1 = &self.ty;
+            if s1.name.starts_with("__") && s2.name.starts_with("__") {
+                // this is a struct type conversion of built-in types.
+                // __frexp_result_* or __modf_result_*
+                // TODO: here we just assume that s2 is a variant of s1. We should
+                // check.
                 if s2.name.ends_with("f32") {
                     let members = self
                         .members
                         .iter()
-                        .map(|(name, inst)| {
-                            Some((name.clone(), inst.convert_inner_to(&Type::F32)?))
-                        })
+                        .map(|inst| Some(inst.convert_inner_to(&Type::F32)?))
                         .collect::<Option<Vec<_>>>()?;
-                    Some(StructInstance::new(s2.name.to_string(), members))
+                    Some(StructInstance::new((**s2).clone(), members))
                 } else if s2.name.ends_with("f16") {
                     let members = self
                         .members
                         .iter()
-                        .map(|(name, inst)| {
-                            Some((name.clone(), inst.convert_inner_to(&Type::F16)?))
-                        })
+                        .map(|inst| Some(inst.convert_inner_to(&Type::F16)?))
                         .collect::<Option<Vec<_>>>()?;
-                    Some(StructInstance::new(s2.name.to_string(), members))
+                    Some(StructInstance::new((**s2).clone(), members))
                 } else {
                     None
                 }

@@ -323,8 +323,8 @@ impl Diagnostic<Error> {
                 // TODO unmangle components!
                 wesl_types::ty::Type::Struct(s) => {
                     unmangle_name(&mut s.name, sourcemap, mangler);
-                    for (_, ty) in s.members.iter_mut() {
-                        unmangle_ty(ty, sourcemap, mangler);
+                    for m in s.members.iter_mut() {
+                        unmangle_ty(&mut m.ty, sourcemap, mangler);
                     }
                 }
                 wesl_types::ty::Type::Array(ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
@@ -342,8 +342,8 @@ impl Diagnostic<Error> {
         ) {
             match mangled {
                 wesl_types::inst::Instance::Struct(inst) => {
-                    unmangle_name(&mut inst.name, sourcemap, mangler);
-                    for (_, inst) in inst.members.iter_mut() {
+                    unmangle_name(&mut inst.ty.name, sourcemap, mangler);
+                    for inst in inst.members.iter_mut() {
                         unmangle_inst(inst, sourcemap, mangler);
                     }
                 }

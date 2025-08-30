@@ -75,11 +75,11 @@ impl Display for LiteralInstance {
 
 impl Display for StructInstance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = &self.name;
+        let name = &self.ty.name;
         let comps = self
             .members
             .iter()
-            .map(|(_, v)| format!("{v}"))
+            .map(|inst| format!("{inst}"))
             .format(", ");
         write!(f, "{name}({comps})")
     }

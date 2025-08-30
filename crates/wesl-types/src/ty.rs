@@ -12,14 +12,32 @@ use crate::{
 };
 
 use derive_more::derive::{IsVariant, Unwrap};
-use itertools::Itertools;
 
 pub use wgsl_syntax::SampledType;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StructMemberType {
+    pub name: String,
+    pub ty: Type,
+    pub size: Option<u32>,
+    pub align: Option<u32>,
+}
+
+impl StructMemberType {
+    pub fn new(name: String, ty: Type) -> Self {
+        Self {
+            name,
+            ty,
+            size: None,
+            align: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StructType {
     pub name: String,
-    pub members: Vec<(String, Type)>,
+    pub members: Vec<StructMemberType>,
 }
 
 impl From<StructType> for Type {
@@ -391,14 +409,7 @@ impl Ty for LiteralInstance {
 
 impl Ty for StructInstance {
     fn ty(&self) -> Type {
-        Type::Struct(Box::new(StructType {
-            name: self.name.to_string(),
-            members: self
-                .members
-                .iter()
-                .map(|(name, inst)| (name.to_string(), inst.ty()))
-                .collect_vec(),
-        }))
+        self.ty.clone().into()
     }
 }
 

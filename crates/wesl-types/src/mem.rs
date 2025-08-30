@@ -80,28 +80,25 @@ impl Instance {
                 let members = s
                     .members
                     .iter()
-                    .map(|(name, ty)| {
+                    .map(|m| {
                         // handle the specific case of runtime-sized arrays.
                         // they can only be the last member of a struct.
-                        let inst = if let Type::Array(_, None) = ty {
+                        let inst = if let Type::Array(_, None) = &m.ty {
                             let buf = buf.get(offset as usize..)?;
-                            Instance::from_buffer(buf, ty)?
+                            Instance::from_buffer(buf, &m.ty)?
                         } else {
                             // TODO: handle errors, check valid size...
-                            // TODO: since refactor, Type::Struct doesn't know about size/align attrs
-                            // let size = m.attr_size().ok().flatten().or_else(|| ty.size_of())?;
-                            // let align = m.attr_align().ok().flatten().or_else(|| ty.align_of())?;
-                            let size = ty.size_of()?;
-                            let align = ty.align_of()?;
+                            let size = m.size.or_else(|| m.ty.size_of())?;
+                            let align = m.align.or_else(|| m.ty.align_of())?;
                             offset = round_up(align, offset);
                             let buf = buf.get(offset as usize..(offset + size) as usize)?;
                             offset += size;
                             Instance::from_buffer(buf, ty)?
                         };
-                        Some((name.to_string(), inst))
+                        Some(inst)
                     })
                     .collect::<Option<Vec<_>>>()?;
-                Some(StructInstance::new(s.name.clone(), members).into())
+                Some(StructInstance::new((**s).clone(), members).into())
             }
             Type::Array(ty, Some(n)) => {
                 let mut offset = 0;
@@ -200,7 +197,7 @@ impl HostShareable for LiteralInstance {
 impl HostShareable for StructInstance {
     fn to_buffer(&self) -> Option<Vec<u8>> {
         let mut buf = Vec::new();
-        for (i, (_, inst)) in self.members.iter().enumerate() {
+        for (i, inst) in self.members.iter().enumerate() {
             let ty = inst.ty();
             let len = buf.len() as u32;
             // TODO: since refactor, Type::Struct doesn't know about size/align attrs
@@ -302,13 +299,10 @@ impl Type {
                 let past_last_mem = s
                     .members
                     .iter()
-                    .map(|(_, ty)| {
+                    .map(|m| {
                         // TODO: handle errors, check valid size...
-                        // TODO: since refactor, Type::Struct doesn't know about size/align attrs
-                        // let size = m.attr_size().ok().flatten().or_else(|| ty.size_of())?;
-                        // let align = m.attr_align().ok().flatten().or_else(|| ty.align_of())?;
-                        let size = ty.size_of()?;
-                        let align = ty.align_of()?;
+                        let size = m.size.or_else(|| m.ty.size_of())?;
+                        let align = m.align.or_else(|| m.ty.align_of())?;
                         Some((size, align))
                     })
                     .try_fold(0, |offset, mem| {
@@ -362,9 +356,8 @@ impl Type {
             Type::Struct(s) => s
                 .members
                 .iter()
-                // TODO: since refactor, Type::Struct doesn't know about size/align attrs
-                // .map(|(name, ty)| m.attr_align().ok().flatten().or_else(|| ty.align_of()))
-                .map(|(_, ty)| ty.align_of())
+                // TODO: check valid align attr
+                .map(|m| m.align.or_else(|| m.ty.align_of()))
                 .try_fold(0, |a, b| Some(a.max(b?))),
             Type::Array(ty, _) => ty.align_of(),
             #[cfg(feature = "naga_ext")]

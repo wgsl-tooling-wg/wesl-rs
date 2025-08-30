@@ -18,7 +18,7 @@ use crate::{
     inst::{ArrayInstance, LiteralInstance, MatInstance, StructInstance, VecInstance},
     ops::Compwise,
     tplt::{ArrayTemplate, BitcastTemplate, MatTemplate, TpltParam, VecTemplate},
-    ty::{StructType, TextureType, Ty, Type},
+    ty::{StructMemberType, StructType, TextureType, Ty, Type},
 };
 
 type E = Error;
@@ -295,8 +295,8 @@ fn frexp_struct_type(ty: &Type) -> Option<StructType> {
         StructType {
             name: name.to_string(),
             members: vec![
-                ("fract".to_string(), ty.clone()),
-                ("exp".to_string(), exp_ty),
+                StructMemberType::new("fract".to_string(), ty.clone()),
+                StructMemberType::new("exp".to_string(), exp_ty),
             ],
         }
     })
@@ -327,8 +327,8 @@ fn atomic_compare_exchange_struct_type(ty: &Type) -> StructType {
     StructType {
         name: "__atomic_compare_exchange_result".to_string(),
         members: vec![
-            ("old_value".to_string(), ty.clone()),
-            ("exchanged".to_string(), Type::Bool),
+            StructMemberType::new("old_value".to_string(), ty.clone()),
+            StructMemberType::new("exchanged".to_string(), Type::Bool),
         ],
     }
 }
@@ -337,8 +337,8 @@ fn modf_struct_type(ty: &Type) -> Option<StructType> {
     modf_struct_name(ty).map(|name| StructType {
         name: name.to_string(),
         members: vec![
-            ("fract".to_string(), ty.clone()),
-            ("whole".to_string(), ty.clone()),
+            StructMemberType::new("fract".to_string(), ty.clone()),
+            StructMemberType::new("whole".to_string(), ty.clone()),
         ],
     })
 }
@@ -837,13 +837,13 @@ impl StructInstance {
         let members = s
             .members
             .iter()
-            .map(|(name, ty)| {
-                let val = Instance::zero_value(ty)?;
-                Ok((name.to_string(), val))
+            .map(|mem| {
+                let val = Instance::zero_value(&mem.ty)?;
+                Ok(val)
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(StructInstance::new(s.name.to_string(), members))
+        Ok(StructInstance::new(s.clone(), members))
     }
 }
 

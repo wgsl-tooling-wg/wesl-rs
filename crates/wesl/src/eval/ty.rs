@@ -1,15 +1,15 @@
 use crate::Eval;
 
 use super::{
-    ATTR_INTRINSIC, ArrayTemplate, AtomicTemplate, Context, Convert, EvalError, Exec, MatTemplate,
-    PtrTemplate, SamplerType, ScopeKind, StructType, SyntaxUtil, TextureTemplate, TextureType, Ty,
-    Type, VecTemplate, builtin_fn_type, check_swizzle, constructor_type, convert_ty,
-    is_constructor_fn, with_stage,
+    ATTR_INTRINSIC, ArrayTemplate, AtomicTemplate, Context, Convert, EvalAttrs, EvalError, Exec,
+    MatTemplate, PtrTemplate, SamplerType, ScopeKind, StructType, SyntaxUtil, TextureTemplate,
+    TextureType, Ty, Type, VecTemplate, builtin_fn_type, check_swizzle, constructor_type,
+    convert_ty, is_constructor_fn, with_stage,
 };
 
 type E = EvalError;
 
-use wesl_types::{ShaderStage, tplt::TpltParam};
+use wesl_types::{ShaderStage, tplt::TpltParam, ty::StructMemberType};
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
 pub fn eval_tplt_arg(tplt: &TemplateArg, ctx: &mut Context) -> Result<TpltParam, E> {
@@ -408,8 +408,12 @@ impl EvalTy for Struct {
             .members
             .iter()
             .map(|m| {
-                let ty = ty_eval_ty(&m.ty, ctx)?;
-                Ok((m.ident.to_string(), ty))
+                Ok(StructMemberType {
+                    name: m.ident.to_string(),
+                    ty: ty_eval_ty(&m.ty, ctx)?,
+                    size: m.attr_size(ctx)?,
+                    align: m.attr_align(ctx)?,
+                })
             })
             .collect::<Result<_, E>>()?;
 

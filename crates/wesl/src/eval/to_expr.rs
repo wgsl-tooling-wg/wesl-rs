@@ -58,7 +58,7 @@ impl ToExpr for StructInstance {
     fn to_expr(&self, ctx: &Context) -> Result<Expression, E> {
         let decl = ctx
             .source
-            .decl_struct(&self.name)
+            .decl_struct(&self.ty.name)
             .expect("struct declaration not found");
         Ok(Expression::FunctionCall(FunctionCall {
             ty: TypeExpression::new(decl.ident.clone()),

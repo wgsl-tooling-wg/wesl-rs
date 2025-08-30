@@ -13,7 +13,7 @@ use num_traits::{FromPrimitive, One, ToBytes, ToPrimitive, Zero, real::Real};
 
 use itertools::{Itertools, chain, izip};
 
-use crate::builtin::frexp_struct_name;
+use crate::builtin::frexp_struct_type;
 use crate::tplt::{ArrayTemplate, BitcastTemplate, MatTemplate, VecTemplate};
 use crate::{
     Error, Instance, ShaderStage,
@@ -25,6 +25,8 @@ use crate::{
     ops::Compwise,
     ty::{Ty, Type},
 };
+
+use super::atomic_compare_exchange_struct_type;
 
 type E = Error;
 
@@ -1012,10 +1014,10 @@ pub fn fract(e: &Instance, stage: ShaderStage) -> Result<Instance, E> {
 /// TODO: This built-in is only partially implemented.
 pub fn frexp(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`frexp` expects a float or vector of float argument");
-    fn make_frexp_inst(name: &'static str, fract: Instance, exp: Instance) -> Instance {
+    fn make_frexp_inst(fract: Instance, exp: Instance) -> Instance {
         Instance::Struct(StructInstance::new(
-            name.to_string(),
-            vec![("fract".to_string(), fract), ("exp".to_string(), exp)],
+            frexp_struct_type(&fract.ty()).unwrap(),
+            vec![fract, exp],
         ))
     }
     // from: https://docs.rs/libm/latest/src/libm/math/frexp.rs.html#1-20
@@ -1046,7 +1048,6 @@ pub fn frexp(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::AbstractFloat(n) => {
                 let (fract, exp) = frexp(*n);
                 Ok(make_frexp_inst(
-                    "__frexp_result_abstract",
                     LiteralInstance::AbstractFloat(fract).into(),
                     LiteralInstance::AbstractInt(exp as i64).into(),
                 ))
@@ -1056,7 +1057,6 @@ pub fn frexp(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::F32(n) => {
                 let (fract, exp) = frexp(*n as f64);
                 Ok(make_frexp_inst(
-                    "__frexp_result_f32",
                     LiteralInstance::F32(fract as f32).into(),
                     LiteralInstance::I32(exp).into(),
                 ))
@@ -1064,7 +1064,6 @@ pub fn frexp(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::F16(n) => {
                 let (fract, exp) = frexp(n.to_f64().unwrap(/* SAFETY: f16 to f64 is lossless */));
                 Ok(make_frexp_inst(
-                    "__frexp_result_f16",
                     LiteralInstance::F16(f16::from_f64(fract)).into(),
                     LiteralInstance::I32(exp).into(),
                 ))
@@ -1077,7 +1076,6 @@ pub fn frexp(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::F64(n) => {
                 let (fract, exp) = frexp(*n);
                 Ok(make_frexp_inst(
-                    "__frexp_result_f64",
                     LiteralInstance::F64(fract).into(),
                     LiteralInstance::I64(exp as i64).into(),
                 ))
@@ -1119,8 +1117,7 @@ pub fn frexp(e: &Instance) -> Result<Instance, E> {
                 .collect_vec();
             let fract = VecInstance::new(fracts).into();
             let exp = VecInstance::new(exps).into();
-            let name = frexp_struct_name(&v.ty()).ok_or(ERR)?;
-            Ok(make_frexp_inst(name, fract, exp))
+            Ok(make_frexp_inst(fract, exp))
         }
         _ => Err(ERR),
     }
@@ -1705,14 +1702,8 @@ pub fn atomicCompareExchangeWeak(e1: &Instance, e2: &Instance) -> Result<Instanc
         true
     };
     Ok(Instance::Struct(StructInstance::new(
-        "__atomic_compare_exchange_result".to_string(),
-        vec![
-            ("old_value".to_string(), initial),
-            (
-                "exchanged".to_string(),
-                LiteralInstance::Bool(exchanged).into(),
-            ),
-        ],
+        atomic_compare_exchange_struct_type(&initial.ty()),
+        vec![initial, LiteralInstance::Bool(exchanged).into()],
     )))
 }
 
