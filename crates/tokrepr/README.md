@@ -2,7 +2,7 @@
 
 Turn an instance into a Rust [`TokenStream`] that represents the instance.
 
-This crate provides the [`TokRepr`] trait which turns an instance into rust code that
+This crate provides the [`TokRepr`] trait which turns an instance into Rust code that
 when called, produce an expression that evaluates to the same instance. This can be
 useful for code generation in procedural macros.
 
@@ -35,4 +35,3 @@ The [`uneval`](https://docs.rs/uneval) crate provides a similar feature
 but leverages `serde` for serialization, which has the advantage of being widely
 implemented for data structure types. It does not provide a way to customize the
 codegen of a type.
-

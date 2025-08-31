@@ -1,6 +1,6 @@
 //! Turn an instance into a Rust [`TokenStream`] that represents the instance.
 //!
-//! This crate provides the [`TokRepr`] trait which turns an instance into rust code that
+//! This crate provides the [`TokRepr`] trait which turns an instance into Rust code that
 //! when called, produce an expression that evaluates to the same instance. This can be
 //! useful for code generation in procedural macros.
 //!
