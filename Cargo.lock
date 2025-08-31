@@ -1101,22 +1101,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "tsify-next"
+name = "tsify"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a8bf7232b89b86f63b5f0ef22c64960f9cf4fb52c6698f1e7f60de93bc3292f"
+checksum = "b2ec91b85e6c6592ed28636cb1dd1fac377ecbbeb170ff1d79f97aac5e38926d"
 dependencies = [
  "serde",
  "serde-wasm-bindgen",
- "tsify-next-macros",
+ "tsify-macros",
  "wasm-bindgen",
 ]
 
 [[package]]
-name = "tsify-next-macros"
+name = "tsify-macros"
 version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab2d85ebe93eedca20d3fe6d65814c856467a649674aa7763ebd42e3bb815fec"
+checksum = "9a324606929ad11628a19206d7853807481dcaecd6c08be70a235930b8241955"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1325,7 +1325,7 @@ dependencies = [
  "serde-wasm-bindgen",
  "serde_bytes",
  "thiserror 2.0.12",
- "tsify-next",
+ "tsify",
  "wasm-bindgen",
  "wesl",
 ]
