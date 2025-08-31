@@ -1,5 +1,5 @@
 [package]
-name = "wesl-types"
+name = "wgsl-types"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

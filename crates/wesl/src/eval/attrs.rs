@@ -1,4 +1,4 @@
-use wesl_types::{
+use wgsl_types::{
     ShaderStage,
     inst::{Instance, LiteralInstance},
     ty::{Ty, Type},

@@ -1,4 +1,4 @@
-use wesl_types::{
+use wgsl_types::{
     inst::{ArrayInstance, Instance, LiteralInstance, MatInstance, StructInstance, VecInstance},
     ty::{TextureType, Ty, Type},
 };

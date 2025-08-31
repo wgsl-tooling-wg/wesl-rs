@@ -1,6 +1,6 @@
 use half::f16;
 use itertools::Itertools;
-use wesl_types::{
+use wgsl_types::{
     inst::{Instance, LiteralInstance, PtrInstance, RefInstance, VecInstance},
     ty::{Ty, Type},
 };
@@ -202,7 +202,7 @@ impl Eval for UnaryExpression {
                 UnaryOperator::AddressOf => unreachable!("handled above"),
                 UnaryOperator::Indirection => match operand {
                     Instance::Ptr(p) => Ok(RefInstance::from(p).into()),
-                    operand => Err(wesl_types::Error::Unary(self.operator, operand.ty())),
+                    operand => Err(wgsl_types::Error::Unary(self.operator, operand.ty())),
                 },
             }
             .map_err(Into::into)

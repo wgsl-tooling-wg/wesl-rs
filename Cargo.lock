@@ -1257,8 +1257,8 @@ dependencies = [
  "quote",
  "thiserror 2.0.12",
  "wesl-macros",
- "wesl-types",
  "wgsl-parse",
+ "wgsl-types",
 ]
 
 [[package]]
@@ -1314,18 +1314,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wesl-types"
-version = "0.2.0"
-dependencies = [
- "derive_more",
- "half",
- "itertools",
- "num-traits",
- "thiserror 2.0.12",
- "wgsl-syntax",
-]
-
-[[package]]
 name = "wesl-web"
 version = "0.2.0"
 dependencies = [
@@ -1367,6 +1355,18 @@ dependencies = [
  "derive_more",
  "serde",
  "tokrepr",
+]
+
+[[package]]
+name = "wgsl-types"
+version = "0.2.0"
+dependencies = [
+ "derive_more",
+ "half",
+ "itertools",
+ "num-traits",
+ "thiserror 2.0.12",
+ "wgsl-syntax",
 ]
 
 [[package]]

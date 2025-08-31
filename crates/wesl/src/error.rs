@@ -315,56 +315,56 @@ impl Diagnostic<Error> {
 
         #[cfg(feature = "eval")]
         fn unmangle_ty(
-            mangled: &mut wesl_types::ty::Type,
+            mangled: &mut wgsl_types::ty::Type,
             sourcemap: Option<&impl SourceMap>,
             mangler: Option<&impl Mangler>,
         ) {
+            use wgsl_types::ty::Type;
             match mangled {
                 // TODO unmangle components!
-                wesl_types::ty::Type::Struct(s) => {
+                Type::Struct(s) => {
                     unmangle_name(&mut s.name, sourcemap, mangler);
                     for m in s.members.iter_mut() {
                         unmangle_ty(&mut m.ty, sourcemap, mangler);
                     }
                 }
-                wesl_types::ty::Type::Array(ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
-                wesl_types::ty::Type::Atomic(ty) => unmangle_ty(&mut *ty, sourcemap, mangler),
-                wesl_types::ty::Type::Ptr(_, ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
+                Type::Array(ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
+                Type::Atomic(ty) => unmangle_ty(&mut *ty, sourcemap, mangler),
+                Type::Ptr(_, ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
                 _ => (),
             }
         }
 
         #[cfg(feature = "eval")]
         fn unmangle_inst(
-            mangled: &mut wesl_types::inst::Instance,
+            mangled: &mut wgsl_types::inst::Instance,
             sourcemap: Option<&impl SourceMap>,
             mangler: Option<&impl Mangler>,
         ) {
+            use wgsl_types::inst::Instance;
             match mangled {
-                wesl_types::inst::Instance::Struct(inst) => {
+                Instance::Struct(inst) => {
                     unmangle_name(&mut inst.ty.name, sourcemap, mangler);
                     for inst in inst.members.iter_mut() {
                         unmangle_inst(inst, sourcemap, mangler);
                     }
                 }
-                wesl_types::inst::Instance::Array(inst) => {
+                Instance::Array(inst) => {
                     for c in inst.iter_mut() {
                         unmangle_inst(c, sourcemap, mangler);
                     }
                 }
-                wesl_types::inst::Instance::Ptr(inst) => {
+                Instance::Ptr(inst) => {
                     unmangle_ty(&mut inst.ptr.ty, sourcemap, mangler);
                 }
-                wesl_types::inst::Instance::Ref(inst) => {
+                Instance::Ref(inst) => {
                     unmangle_ty(&mut inst.ty, sourcemap, mangler);
                 }
-                wesl_types::inst::Instance::Atomic(inst) => {
+                Instance::Atomic(inst) => {
                     unmangle_inst(inst.inner_mut(), sourcemap, mangler);
                 }
-                wesl_types::inst::Instance::Deferred(ty) => unmangle_ty(ty, sourcemap, mangler),
-                wesl_types::inst::Instance::Literal(_)
-                | wesl_types::inst::Instance::Vec(_)
-                | wesl_types::inst::Instance::Mat(_) => {}
+                Instance::Deferred(ty) => unmangle_ty(ty, sourcemap, mangler),
+                Instance::Literal(_) | Instance::Vec(_) | Instance::Mat(_) => {}
             }
         }
 
@@ -440,13 +440,13 @@ impl Diagnostic<Error> {
                     unmangle_name(&mut sig.name, sourcemap, mangler);
                     for tplt in sig.tplt.iter_mut().flatten() {
                         match tplt {
-                            wesl_types::tplt::TpltParam::Type(ty) => {
+                            wgsl_types::tplt::TpltParam::Type(ty) => {
                                 unmangle_ty(ty, sourcemap, mangler)
                             }
-                            wesl_types::tplt::TpltParam::Instance(inst) => {
+                            wgsl_types::tplt::TpltParam::Instance(inst) => {
                                 unmangle_inst(inst, sourcemap, mangler)
                             }
-                            wesl_types::tplt::TpltParam::Enumerant(_) => {}
+                            wgsl_types::tplt::TpltParam::Enumerant(_) => {}
                         }
                     }
                     for arg in &mut sig.args {

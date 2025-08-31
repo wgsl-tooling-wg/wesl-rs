@@ -1,5 +1,5 @@
 use std::iter::zip;
-use wesl_types::ty::Ty;
+use wgsl_types::ty::Ty;
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
 use crate::eval::{ATTR_INTRINSIC, Context, Eval, EvalError, Exec, ty_eval_ty};

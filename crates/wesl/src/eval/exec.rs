@@ -1,19 +1,19 @@
 use std::{collections::HashMap, fmt::Display, iter::zip};
-use wesl_types::{
-    ShaderStage,
+use wgsl_types::{
     builtin::{call_builtin, is_constructor_fn},
     conv::Convert,
     enums::{AccessMode, AddressSpace},
     inst::{Instance, LiteralInstance, RefInstance, StructInstance, VecInstance},
     ty::{StructMemberType, StructType, Ty, Type},
+    ShaderStage,
 };
 
 use super::{
-    ATTR_INTRINSIC, Context, Eval, EvalError, EvalTy, ScopeKind, SyntaxUtil, attrs::EvalAttrs,
-    eval_tplt_arg, ty_eval_ty,
+    attrs::EvalAttrs, eval_tplt_arg, ty_eval_ty, Context, Eval, EvalError, EvalTy, ScopeKind,
+    SyntaxUtil, ATTR_INTRINSIC,
 };
 
-use wgsl_parse::{Decorated, span::Spanned, syntax::*};
+use wgsl_parse::{span::Spanned, syntax::*, Decorated};
 
 type E = EvalError;
 

@@ -4,7 +4,7 @@ members = [
     "crates/wgsl-parse",
     "crates/wesl-macros",
     "crates/wesl",
-    "crates/wesl-types",
+    "crates/wgsl-types",
     "crates/wesl-test",
     "crates/wesl-cli",
     "crates/wesl-web",
@@ -28,7 +28,7 @@ rust-version = "1.87.0"
 [workspace.dependencies]
 wgsl-syntax = { path = "crates/wgsl-syntax", version = "0.2.0" }
 wgsl-parse = { path = "crates/wgsl-parse", version = "0.2.0" }
-wesl-types = { path = "crates/wesl-types", version = "0.2.0" }
+wgsl-types = { path = "crates/wgsl-types", version = "0.2.0" }
 wesl = { path = "crates/wesl", version = "0.2.0" }
 wesl-macros = { path = "crates/wesl-macros", version = "0.2.0" }
 tokrepr = { path = "crates/tokrepr", version = "0.1.0" }

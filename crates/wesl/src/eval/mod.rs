@@ -18,7 +18,7 @@ pub use exec::*;
 pub use lower::*;
 pub use to_expr::*;
 pub use ty::*;
-pub use wesl_types::{
+pub use wgsl_types::{
     ShaderStage, builtin::*, conv::*, inst::*, mem::HostShareable, tplt::*, ty::*,
 };
 

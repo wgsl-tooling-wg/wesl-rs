@@ -1,10 +1,10 @@
 use thiserror::Error;
-use wesl_types::{
+use wgsl_parse::syntax::*;
+use wgsl_types::{
     CallSignature, ShaderStage,
     inst::{Instance, LiteralInstance, MemView},
     ty::Type,
 };
-use wgsl_parse::syntax::*;
 
 use super::{Flow, ScopeKind};
 
@@ -201,37 +201,37 @@ pub enum EvalError {
     FlowInModule(Flow),
 }
 
-impl From<wesl_types::Error> for EvalError {
-    fn from(value: wesl_types::Error) -> Self {
+impl From<wgsl_types::Error> for EvalError {
+    fn from(value: wgsl_types::Error) -> Self {
         match value {
-            wesl_types::Error::Todo(a) => Self::Todo(a),
-            wesl_types::Error::NotScalar(a) => Self::NotScalar(a),
-            wesl_types::Error::NotConstructible(a) => Self::NotConstructible(a),
-            wesl_types::Error::SampledType(a) => Self::SampledType(a),
-            wesl_types::Error::WriteRefType(a, b) => Self::WriteRefType(a, b),
-            wesl_types::Error::NotWrite => Self::NotWrite,
-            wesl_types::Error::NotRead => Self::NotRead,
-            wesl_types::Error::NotReadWrite => Self::NotReadWrite,
-            wesl_types::Error::Conversion(a, b) => Self::Conversion(a, b),
-            wesl_types::Error::ConvOverflow(a, b) => Self::ConvOverflow(a, b),
-            wesl_types::Error::Component(a, b) => Self::Component(a, b),
-            wesl_types::Error::NotIndexable(a) => Self::NotIndexable(a),
-            wesl_types::Error::OutOfBounds(a, b, c) => Self::OutOfBounds(a, b, c),
-            wesl_types::Error::Unary(a, b) => Self::Unary(a, b),
-            wesl_types::Error::Binary(a, b, c) => Self::Binary(a, b, c),
-            wesl_types::Error::CompwiseBinary(a, b) => Self::CompwiseBinary(a, b),
-            wesl_types::Error::AddOverflow => Self::AddOverflow,
-            wesl_types::Error::SubOverflow => Self::SubOverflow,
-            wesl_types::Error::MulOverflow => Self::MulOverflow,
-            wesl_types::Error::DivByZero => Self::DivByZero,
-            wesl_types::Error::RemZeroDiv => Self::RemZeroDiv,
-            wesl_types::Error::ShlOverflow(a, b) => Self::ShlOverflow(a, b),
-            wesl_types::Error::ShrOverflow(a, b) => Self::ShrOverflow(a, b),
-            wesl_types::Error::Signature(a) => Self::Signature(a),
-            wesl_types::Error::Builtin(a) => Self::Builtin(a),
-            wesl_types::Error::TemplateArgs(a) => Self::TemplateArgs(a),
-            wesl_types::Error::ParamCount(a, b, c) => Self::ParamCount(a, b, c),
-            wesl_types::Error::ParamType(a, b) => Self::ParamType(a, b),
+            wgsl_types::Error::Todo(a) => Self::Todo(a),
+            wgsl_types::Error::NotScalar(a) => Self::NotScalar(a),
+            wgsl_types::Error::NotConstructible(a) => Self::NotConstructible(a),
+            wgsl_types::Error::SampledType(a) => Self::SampledType(a),
+            wgsl_types::Error::WriteRefType(a, b) => Self::WriteRefType(a, b),
+            wgsl_types::Error::NotWrite => Self::NotWrite,
+            wgsl_types::Error::NotRead => Self::NotRead,
+            wgsl_types::Error::NotReadWrite => Self::NotReadWrite,
+            wgsl_types::Error::Conversion(a, b) => Self::Conversion(a, b),
+            wgsl_types::Error::ConvOverflow(a, b) => Self::ConvOverflow(a, b),
+            wgsl_types::Error::Component(a, b) => Self::Component(a, b),
+            wgsl_types::Error::NotIndexable(a) => Self::NotIndexable(a),
+            wgsl_types::Error::OutOfBounds(a, b, c) => Self::OutOfBounds(a, b, c),
+            wgsl_types::Error::Unary(a, b) => Self::Unary(a, b),
+            wgsl_types::Error::Binary(a, b, c) => Self::Binary(a, b, c),
+            wgsl_types::Error::CompwiseBinary(a, b) => Self::CompwiseBinary(a, b),
+            wgsl_types::Error::AddOverflow => Self::AddOverflow,
+            wgsl_types::Error::SubOverflow => Self::SubOverflow,
+            wgsl_types::Error::MulOverflow => Self::MulOverflow,
+            wgsl_types::Error::DivByZero => Self::DivByZero,
+            wgsl_types::Error::RemZeroDiv => Self::RemZeroDiv,
+            wgsl_types::Error::ShlOverflow(a, b) => Self::ShlOverflow(a, b),
+            wgsl_types::Error::ShrOverflow(a, b) => Self::ShrOverflow(a, b),
+            wgsl_types::Error::Signature(a) => Self::Signature(a),
+            wgsl_types::Error::Builtin(a) => Self::Builtin(a),
+            wgsl_types::Error::TemplateArgs(a) => Self::TemplateArgs(a),
+            wgsl_types::Error::ParamCount(a, b, c) => Self::ParamCount(a, b, c),
+            wgsl_types::Error::ParamType(a, b) => Self::ParamType(a, b),
         }
     }
 }
