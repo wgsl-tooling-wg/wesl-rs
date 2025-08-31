@@ -204,7 +204,7 @@ impl HostShareable for StructInstance {
             // handle runtime-size arrays as last struct member
             let size = match inst {
                 Instance::Array(a) if a.runtime_sized => {
-                    (i == self.members.iter().count() - 1).then(|| a.n() as u32 * size)
+                    (i == self.members.len() - 1).then(|| a.n() as u32 * size)
                 }
                 _ => Some(size),
             }?;

@@ -72,8 +72,7 @@ impl<T> ScopeInner<T> {
         self.local.keys().map(|k| k.as_str()).chain(
             self.parent
                 .iter()
-                .map(|parent| parent.iter_keys())
-                .flatten()
+                .flat_map(|parent| parent.iter_keys())
                 .boxed(),
         )
     }

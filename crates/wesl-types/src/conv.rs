@@ -209,14 +209,14 @@ impl Convert for StructInstance {
                     let members = self
                         .members
                         .iter()
-                        .map(|inst| Some(inst.convert_inner_to(&Type::F32)?))
+                        .map(|inst| inst.convert_inner_to(&Type::F32))
                         .collect::<Option<Vec<_>>>()?;
                     Some(StructInstance::new((**s2).clone(), members))
                 } else if s2.name.ends_with("f16") {
                     let members = self
                         .members
                         .iter()
-                        .map(|inst| Some(inst.convert_inner_to(&Type::F16)?))
+                        .map(|inst| inst.convert_inner_to(&Type::F16))
                         .collect::<Option<Vec<_>>>()?;
                     Some(StructInstance::new((**s2).clone(), members))
                 } else {

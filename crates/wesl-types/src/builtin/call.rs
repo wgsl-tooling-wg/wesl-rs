@@ -1890,7 +1890,7 @@ pub fn unpack4x8unorm(e: &Instance) -> Result<Instance, E> {
 
     let comps = e
         .to_le_bytes()
-        .map(|c| (c as u8 as f32) / 255.0)
+        .map(|c| (c as f32) / 255.0)
         .map(Instance::from)
         .to_vec();
 
