@@ -34,6 +34,10 @@
 //! implemented for data structure types. It does not provide a way to customize the
 //! codegen of a type.
 
+// `rustdoc_internals` is needed for `#[doc(fake_variadics)]`
+#![allow(internal_features)]
+#![cfg_attr(docsrs, feature(doc_cfg, rustdoc_internals))]
+
 use std::{
     borrow::Cow,
     cell::{Cell, LazyCell, OnceCell, RefCell},
