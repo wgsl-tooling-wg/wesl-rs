@@ -224,43 +224,45 @@ impl EvalTy for ParenthesizedExpression {
 
 impl EvalTy for NamedComponentExpression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
-        match self.base.eval_ty(ctx)? {
-            Type::Struct(s) => {
-                let m = s
-                    .members
-                    .iter()
-                    .find(|m| m.name == *self.component.name())
-                    .ok_or_else(|| {
-                        E::Component(Type::Struct(s.clone()), self.component.to_string())
-                    })?;
-                Ok(m.ty.clone())
-            }
-            Type::Vec(_, ty) => {
-                let m = self.component.name().len();
-                if !check_swizzle(&self.component.name()) {
-                    Err(E::Swizzle(self.component.to_string()))
-                } else if m == 1 {
-                    Ok(*ty)
-                } else {
-                    Ok(Type::Vec(m as u8, ty))
+        fn eval_mem_ty(mem_ty: Type, mem_name: &str) -> Result<Type, E> {
+            match mem_ty {
+                Type::Struct(s) => {
+                    let m = s
+                        .members
+                        .iter()
+                        .find(|m| m.name == *mem_name)
+                        .ok_or_else(|| {
+                            E::Component(Type::Struct(s.clone()), mem_name.to_string())
+                        })?;
+                    Ok(m.ty.clone())
                 }
-            }
-            Type::Ref(address_mode, ty, access_mode) | Type::Ptr(address_mode, ty, access_mode) => {
-                match *ty {
-                    Type::Struct(s) => {
-                        let m = s
-                            .members
-                            .iter()
-                            .find(|m| m.name == *self.component.name())
-                            .ok_or_else(|| {
-                                E::Component(Type::Struct(s.clone()), self.component.to_string())
-                            })?;
-                        Ok(Type::Ref(address_mode, Box::new(m.ty.clone()), access_mode))
+                Type::Vec(_, ty) => {
+                    let m = mem_name.len();
+                    if !check_swizzle(mem_name) {
+                        Err(E::Swizzle(mem_name.to_string()))
+                    } else if m == 1 {
+                        Ok(*ty)
+                    } else {
+                        Ok(Type::Vec(m as u8, ty))
                     }
-                    ty => Err(E::Component(ty, self.component.to_string())),
+                }
+                ty => Err(E::Component(ty, mem_name.to_string())),
+            }
+        }
+
+        let mem_name = self.component.name();
+        match self.base.eval_ty(ctx)? {
+            Type::Ref(a_s, ty, a_m) | Type::Ptr(a_s, ty, a_m) => {
+                // struct and vec member access from references yield references,
+                // *except* for vec swizzles which load the value.
+                if ty.is_vec() && mem_name.len() > 1 {
+                    eval_mem_ty(*ty, &mem_name)
+                } else {
+                    let mem_ty = eval_mem_ty(*ty, &mem_name)?;
+                    Ok(Type::Ref(a_s, Box::new(mem_ty), a_m))
                 }
             }
-            ty => Err(E::Component(ty, self.component.to_string())),
+            ty => eval_mem_ty(ty, &mem_name),
         }
     }
 }
@@ -281,9 +283,8 @@ impl EvalTy for IndexingExpression {
         let index_ty = self.index.eval_ty(ctx)?;
         if index_ty.is_integer() {
             match self.base.eval_ty(ctx)? {
-                Type::Ref(address_mode, ty, access_mode)
-                | Type::Ptr(address_mode, ty, access_mode) => {
-                    eval_inner_ty(*ty).map(|ty| Type::Ref(address_mode, Box::new(ty), access_mode))
+                Type::Ref(a_s, ty, a_m) | Type::Ptr(a_s, ty, a_m) => {
+                    eval_inner_ty(*ty).map(|ty| Type::Ref(a_s, Box::new(ty), a_m))
                 }
                 ty => eval_inner_ty(ty),
             }
