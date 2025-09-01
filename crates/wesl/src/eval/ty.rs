@@ -226,16 +226,14 @@ impl EvalTy for NamedComponentExpression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
         match self.base.eval_ty(ctx)? {
             Type::Struct(s) => {
-                let decl = ctx
-                    .source
-                    .decl_struct(&s.name)
-                    .ok_or_else(|| E::UnknownStruct(s.name.clone()))?;
-                let m = decl
+                let m = s
                     .members
                     .iter()
-                    .find(|m| *m.ident.name() == *self.component.name())
-                    .ok_or_else(|| E::Component(Type::Struct(s), self.component.to_string()))?;
-                ty_eval_ty(&m.ty, ctx)
+                    .find(|m| m.name == *self.component.name())
+                    .ok_or_else(|| {
+                        E::Component(Type::Struct(s.clone()), self.component.to_string())
+                    })?;
+                Ok(m.ty.clone())
             }
             Type::Vec(_, ty) => {
                 let m = self.component.name().len();
@@ -250,19 +248,14 @@ impl EvalTy for NamedComponentExpression {
             Type::Ref(address_mode, ty, access_mode) | Type::Ptr(address_mode, ty, access_mode) => {
                 match *ty {
                     Type::Struct(s) => {
-                        let decl = ctx
-                            .source
-                            .decl_struct(&s.name)
-                            .ok_or_else(|| E::UnknownStruct(s.name.clone()))?;
-                        let m = decl
+                        let m = s
                             .members
                             .iter()
-                            .find(|m| *m.ident.name() == *self.component.name())
+                            .find(|m| m.name == *self.component.name())
                             .ok_or_else(|| {
-                                E::Component(Type::Struct(s), self.component.to_string())
+                                E::Component(Type::Struct(s.clone()), self.component.to_string())
                             })?;
-                        ty_eval_ty(&m.ty, ctx)
-                            .map(|ty| Type::Ref(address_mode, Box::new(ty), access_mode))
+                        Ok(Type::Ref(address_mode, Box::new(m.ty.clone()), access_mode))
                     }
                     ty => Err(E::Component(ty, self.component.to_string())),
                 }
