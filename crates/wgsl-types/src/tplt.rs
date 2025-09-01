@@ -7,7 +7,7 @@ use crate::{
     ty::{SampledType, TextureType, Ty, Type},
 };
 
-/// A single tempate parameter.
+/// A single template parameter.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TpltParam {
     Type(Type),
@@ -141,7 +141,7 @@ impl MatTemplate {
             [TpltParam::Type(ty)] => Ok(ty.clone()),
             _ => Err(E::TemplateArgs("matrix")),
         }?;
-        if ty.is_f_32() || ty.is_f_16() {
+        if ty.is_float() {
             Ok(MatTemplate { ty })
         } else {
             Err(Error::Builtin("matrix template type must be f32 or f16"))
@@ -230,7 +230,7 @@ impl AtomicTemplate {
             [TpltParam::Type(ty)] => Ok(ty.clone()),
             _ => Err(E::TemplateArgs("atomic")),
         }?;
-        if ty.is_i_32() || ty.is_u_32() {
+        if ty.is_i32() || ty.is_u32() {
             Ok(AtomicTemplate { ty })
         } else {
             Err(Error::Builtin("atomic template type must be i32 or u32"))

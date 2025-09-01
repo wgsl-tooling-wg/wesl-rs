@@ -1,19 +1,19 @@
 use std::{collections::HashMap, fmt::Display, iter::zip};
 use wgsl_types::{
+    ShaderStage,
     builtin::{call_builtin, is_constructor_fn},
     conv::Convert,
     enums::{AccessMode, AddressSpace},
     inst::{Instance, LiteralInstance, RefInstance, StructInstance, VecInstance},
     ty::{StructMemberType, StructType, Ty, Type},
-    ShaderStage,
 };
 
 use super::{
-    attrs::EvalAttrs, eval_tplt_arg, ty_eval_ty, Context, Eval, EvalError, EvalTy, ScopeKind,
-    SyntaxUtil, ATTR_INTRINSIC,
+    ATTR_INTRINSIC, Context, Eval, EvalError, EvalTy, ScopeKind, SyntaxUtil, attrs::EvalAttrs,
+    eval_tplt_arg, ty_eval_ty,
 };
 
-use wgsl_parse::{span::Spanned, syntax::*, Decorated};
+use wgsl_parse::{Decorated, span::Spanned, syntax::*};
 
 type E = EvalError;
 
@@ -198,7 +198,7 @@ pub(crate) fn compound_exec_no_scope(
 impl Exec for AssignmentStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         let is_phony = matches!(self.lhs.node(), Expression::TypeOrIdentifier(TypeExpression { path: None, ident, template_args: None }) if *ident.name() == "_");
-        if self.operator.is_equal() && is_phony {
+        if self.operator == AssignmentOperator::Equal && is_phony {
             let _ = self.rhs.eval(ctx)?;
             return Ok(Flow::Next);
         }
@@ -989,7 +989,7 @@ impl Exec for Declaration {
                             if inst.ty() != ty {
                                 return Err(E::Type(ty, inst.ty()));
                             }
-                            if !inst.space.is_uniform() {
+                            if inst.space != AddressSpace::Uniform {
                                 return Err(E::AddressSpace(a_s, inst.space));
                             }
                             if inst.access != AccessMode::Read {
@@ -1012,7 +1012,7 @@ impl Exec for Declaration {
                             if ty != inst.ty() {
                                 return Err(E::Type(ty, inst.ty()));
                             }
-                            if !inst.space.is_storage() {
+                            if inst.space != AddressSpace::Storage {
                                 return Err(E::AddressSpace(a_s, inst.space));
                             }
                             let a_m = a_m.unwrap_or(AccessMode::Read);

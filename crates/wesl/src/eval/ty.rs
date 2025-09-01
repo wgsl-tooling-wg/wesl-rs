@@ -3,16 +3,16 @@ use std::str::FromStr;
 use crate::Eval;
 
 use super::{
-    builtin_fn_type, check_swizzle, constructor_type, convert_ty, is_constructor_fn, with_stage,
-    ArrayTemplate, AtomicTemplate, Context, Convert, EvalAttrs, EvalError, Exec, MatTemplate,
-    PtrTemplate, SamplerType, ScopeKind, StructType, SyntaxUtil, TextureTemplate, TextureType, Ty,
-    Type, VecTemplate, ATTR_INTRINSIC,
+    ATTR_INTRINSIC, ArrayTemplate, AtomicTemplate, Context, Convert, EvalAttrs, EvalError, Exec,
+    MatTemplate, PtrTemplate, SamplerType, ScopeKind, StructType, SyntaxUtil, TextureTemplate,
+    TextureType, Ty, Type, VecTemplate, builtin_fn_type, check_swizzle, constructor_type,
+    convert_ty, is_constructor_fn, with_stage,
 };
 
 type E = EvalError;
 
-use wgsl_parse::{span::Spanned, syntax::*, Decorated};
-use wgsl_types::{enums::Enumerant, tplt::TpltParam, ty::StructMemberType, ShaderStage};
+use wgsl_parse::{Decorated, span::Spanned, syntax::*};
+use wgsl_types::{ShaderStage, enums::Enumerant, tplt::TpltParam, ty::StructMemberType};
 
 pub fn eval_tplt_arg(tplt: &TemplateArg, ctx: &mut Context) -> Result<TpltParam, E> {
     with_stage!(ctx, ShaderStage::Const, {
@@ -276,21 +276,21 @@ impl EvalTy for UnaryExpression {
         let inner = ty.inner_ty();
         if ty != inner
             && !ty.is_vec()
-            && !self.operator.is_address_of()
-            && !self.operator.is_indirection()
+            && self.operator != UnaryOperator::AddressOf
+            && self.operator != UnaryOperator::Indirection
         {
             return Err(E::Unary(self.operator, ty));
         }
         match self.operator {
             UnaryOperator::LogicalNegation if inner == Type::Bool => Ok(ty),
-            UnaryOperator::Negation if inner.is_scalar() && !inner.is_u_32() => Ok(ty),
+            UnaryOperator::Negation if inner.is_scalar() && !inner.is_u32() => Ok(ty),
             UnaryOperator::BitwiseComplement if inner.is_integer() => Ok(ty),
             UnaryOperator::AddressOf => Ok(Type::Ptr(
                 AddressSpace::Function,
                 Box::new(ty),
                 AccessMode::ReadWrite,
             )), // TODO: we don't know the address space and access mode
-            UnaryOperator::Indirection if ty.is_ptr() => Ok(*ty.unwrap_ptr().1),
+            UnaryOperator::Indirection if ty.is_ptr() => Ok(inner),
             _ => Err(E::Unary(self.operator, ty)),
         }
     }

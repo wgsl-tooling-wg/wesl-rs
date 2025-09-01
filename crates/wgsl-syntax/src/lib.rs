@@ -1,4 +1,3 @@
-use derive_more::IsVariant;
 use std::{fmt::Display, str::FromStr};
 
 #[cfg(feature = "serde")]
@@ -11,7 +10,7 @@ use tokrepr::TokRepr;
 /// Reference: <https://www.w3.org/TR/WGSL/#address-spaces>
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AddressSpace {
     Function,
     Private,
@@ -40,7 +39,7 @@ pub enum AccessMode {
 /// Reference: <https://www.w3.org/TR/WGSL/#texel-format>
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TexelFormat {
     Rgba8Unorm,
     Rgba8Snorm,
@@ -111,7 +110,7 @@ pub enum TexelFormat {
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, PartialEq, Eq, IsVariant)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DiagnosticSeverity {
     Error,
     Warning,
@@ -121,7 +120,7 @@ pub enum DiagnosticSeverity {
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BuiltinValue {
     VertexIndex,
     InstanceIndex,
@@ -146,7 +145,7 @@ pub enum BuiltinValue {
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InterpolationType {
     Perspective,
     Linear,
@@ -155,7 +154,7 @@ pub enum InterpolationType {
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InterpolationSampling {
     Center,
     Centroid,
@@ -166,7 +165,7 @@ pub enum InterpolationSampling {
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnaryOperator {
     LogicalNegation,
     Negation,
@@ -177,7 +176,7 @@ pub enum UnaryOperator {
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BinaryOperator {
     ShortCircuitOr,
     ShortCircuitAnd,
@@ -201,7 +200,7 @@ pub enum BinaryOperator {
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AssignmentOperator {
     Equal,
     PlusEqual,
@@ -219,7 +218,7 @@ pub enum AssignmentOperator {
 #[cfg(feature = "naga_ext")]
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConservativeDepth {
     GreaterEqual,
     LessEqual,
@@ -243,7 +242,7 @@ impl AccessMode {
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SampledType {
     I32,
     U32,
