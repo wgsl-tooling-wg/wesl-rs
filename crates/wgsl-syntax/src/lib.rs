@@ -168,8 +168,11 @@ pub enum InterpolationSampling {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
 pub enum UnaryOperator {
+    /// `!`
     LogicalNegation,
+    /// `-`
     Negation,
+    /// `~`
     BitwiseComplement,
     /// `&`
     AddressOf,
@@ -181,23 +184,41 @@ pub enum UnaryOperator {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
 pub enum BinaryOperator {
+    /// `||`
     ShortCircuitOr,
+    /// `&&`
     ShortCircuitAnd,
+    /// `+`
     Addition,
+    /// `-`
     Subtraction,
+    /// `*`
     Multiplication,
+    /// `/`
     Division,
+    /// `%`
     Remainder,
+    /// `==`
     Equality,
+    /// `!=`
     Inequality,
+    /// `<`
     LessThan,
+    /// `<=`
     LessThanEqual,
+    /// `>`
     GreaterThan,
+    /// `>=`
     GreaterThanEqual,
+    /// `|`
     BitwiseOr,
+    /// `&`
     BitwiseAnd,
+    /// `^`
     BitwiseXor,
+    /// `<<`
     ShiftLeft,
+    /// `>>`
     ShiftRight,
 }
 
@@ -205,16 +226,27 @@ pub enum BinaryOperator {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
 pub enum AssignmentOperator {
+    /// `=`
     Equal,
+    /// `+=`
     PlusEqual,
+    /// `-=`
     MinusEqual,
+    /// `*=`
     TimesEqual,
+    /// `/=`
     DivisionEqual,
+    /// `%=`
     ModuloEqual,
+    /// `&=`
     AndEqual,
+    /// `|=`
     OrEqual,
+    /// `^=`
     XorEqual,
+    /// `>>=`
     ShiftRightAssign,
+    /// `<<=`
     ShiftLeftAssign,
 }
 
