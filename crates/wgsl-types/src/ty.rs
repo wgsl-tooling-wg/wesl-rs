@@ -313,13 +313,13 @@ impl Type {
         matches!(self, Type::Vec(_, _))
     }
     pub fn is_i32(&self) -> bool {
-        matches!(self, Type::U32)
+        matches!(self, Type::I32)
     }
     pub fn is_u32(&self) -> bool {
         matches!(self, Type::U32)
     }
     pub fn is_f32(&self) -> bool {
-        matches!(self, Type::U32)
+        matches!(self, Type::F32)
     }
     pub fn is_ptr(&self) -> bool {
         matches!(self, Type::Ptr(_, _, _))
@@ -337,21 +337,21 @@ impl Type {
     pub fn unwrap_atomic(self) -> Box<Type> {
         match self {
             Type::Atomic(ty) => ty,
-            val => panic!("called `Type::unwrap_atomic()` on a `{}` value", val),
+            val => panic!("called `Type::unwrap_atomic()` on a `{val}` value"),
         }
     }
 
     pub fn unwrap_struct(self) -> Box<StructType> {
         match self {
             Type::Struct(ty) => ty,
-            val => panic!("called `Type::unwrap_struct()` on a `{}` value", val),
+            val => panic!("called `Type::unwrap_struct()` on a `{val}` value"),
         }
     }
 
     pub fn unwrap_vec(self) -> (u8, Box<Type>) {
         match self {
             Type::Vec(size, ty) => (size, ty),
-            val => panic!("called `Type::unwrap_vec()` on a `{}` value", val),
+            val => panic!("called `Type::unwrap_vec()` on a `{val}` value"),
         }
     }
 }
