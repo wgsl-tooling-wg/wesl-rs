@@ -779,7 +779,7 @@ pub fn is_constructor_fn(name: &str) -> bool {
 // reference: <https://www.w3.org/TR/WGSL/#zero-value>
 
 impl Instance {
-    /// zero-value initialize an instance of a given type.
+    /// Zero-value initialize an instance of a given type.
     pub fn zero_value(ty: &Type) -> Result<Self, E> {
         match ty {
             Type::Bool => Ok(LiteralInstance::Bool(false).into()),
@@ -802,10 +802,22 @@ impl Instance {
             Type::BindingArray(_, _) => Err(E::NotConstructible(ty.clone())),
             Type::Vec(n, v_ty) => VecInstance::zero_value(*n, v_ty).map(Into::into),
             Type::Mat(c, r, m_ty) => MatInstance::zero_value(*c, *r, m_ty).map(Into::into),
-            Type::Atomic(_) | Type::Ptr(_, _, _) | Type::Ref(_, _, _) | Type::Texture(_) | Type::Sampler(_) => {
-                Err(E::NotConstructible(ty.clone()))
-            }
+            Type::Atomic(_)
+            | Type::Ptr(_, _, _)
+            | Type::Ref(_, _, _)
+            | Type::Texture(_)
+            | Type::Sampler(_) => Err(E::NotConstructible(ty.clone())),
         }
+    }
+
+    /// Apply the load rule.
+    ///
+    /// Reference: <https://www.w3.org/TR/WGSL/#load-rule>
+    pub fn loaded(mut self) -> Result<Self, E> {
+        while let Instance::Ref(r) = self {
+            self = r.read()?.to_owned();
+        }
+        Ok(self)
     }
 }
 

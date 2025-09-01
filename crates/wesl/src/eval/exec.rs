@@ -206,15 +206,12 @@ impl Exec for AssignmentStatement {
         let lhs = self.lhs.eval(ctx)?;
 
         if let Instance::Ref(r) = lhs {
-            // TODO: ty must be concrete, so this should just be a is_concrete check https://www.w3.org/TR/WGSL/#simple-assignment-section
-            let ty = r.ty.concretize();
-
             let rhs = self.rhs.eval_value(ctx)?;
             match self.operator {
                 AssignmentOperator::Equal => {
                     let rhs = rhs
-                        .convert_to(&ty)
-                        .ok_or_else(|| E::AssignType(rhs.ty(), ty))?;
+                        .convert_to(&r.ty)
+                        .ok_or_else(|| E::AssignType(rhs.ty(), r.ty.clone()))?;
                     r.write(rhs)?;
                 }
                 AssignmentOperator::PlusEqual => {

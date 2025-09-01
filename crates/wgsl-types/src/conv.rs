@@ -81,6 +81,17 @@ impl Type {
             _ => self.clone(),
         }
     }
+
+    /// Apply the load rule.
+    ///
+    /// Reference: <https://www.w3.org/TR/WGSL/#load-rule>
+    pub fn loaded(self) -> Self {
+        if let Type::Ref(_, ty, _) = self {
+            ty.loaded()
+        } else {
+            self
+        }
+    }
 }
 
 impl LiteralInstance {
