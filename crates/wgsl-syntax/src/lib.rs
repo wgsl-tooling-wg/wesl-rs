@@ -171,7 +171,9 @@ pub enum UnaryOperator {
     LogicalNegation,
     Negation,
     BitwiseComplement,
+    /// `&`
     AddressOf,
+    /// `*`
     Indirection,
 }
 

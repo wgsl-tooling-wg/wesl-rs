@@ -247,6 +247,26 @@ impl EvalTy for NamedComponentExpression {
                     Ok(Type::Vec(m as u8, ty))
                 }
             }
+            Type::Ref(address_mode, ty, access_mode) | Type::Ptr(address_mode, ty, access_mode) => {
+                match *ty {
+                    Type::Struct(s) => {
+                        let decl = ctx
+                            .source
+                            .decl_struct(&s.name)
+                            .ok_or_else(|| E::UnknownStruct(s.name.clone()))?;
+                        let m = decl
+                            .members
+                            .iter()
+                            .find(|m| *m.ident.name() == *self.component.name())
+                            .ok_or_else(|| {
+                                E::Component(Type::Struct(s), self.component.to_string())
+                            })?;
+                        ty_eval_ty(&m.ty, ctx)
+                            .map(|ty| Type::Ref(address_mode, Box::new(ty), access_mode))
+                    }
+                    ty => Err(E::Component(ty, self.component.to_string())),
+                }
+            }
             ty => Err(E::Component(ty, self.component.to_string())),
         }
     }
@@ -254,15 +274,25 @@ impl EvalTy for NamedComponentExpression {
 
 impl EvalTy for IndexingExpression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
-        let index_ty = self.index.eval_ty(ctx)?;
-        if index_ty.is_integer() {
-            match self.base.eval_ty(ctx)? {
+        fn eval_inner_ty(base_ty: Type) -> Result<Type, E> {
+            match base_ty {
                 Type::Array(ty, _) => Ok(*ty),
                 #[cfg(feature = "naga_ext")]
                 Type::BindingArray(ty, _) => Ok(*ty),
                 Type::Vec(_, ty) => Ok(*ty),
                 Type::Mat(_, r, ty) => Ok(Type::Vec(r, ty)),
-                ty => Err(E::NotIndexable(ty)),
+                _ => Err(E::NotIndexable(base_ty)),
+            }
+        }
+
+        let index_ty = self.index.eval_ty(ctx)?;
+        if index_ty.is_integer() {
+            match self.base.eval_ty(ctx)? {
+                Type::Ref(address_mode, ty, access_mode)
+                | Type::Ptr(address_mode, ty, access_mode) => {
+                    eval_inner_ty(*ty).map(|ty| Type::Ref(address_mode, Box::new(ty), access_mode))
+                }
+                ty => eval_inner_ty(ty),
             }
         } else {
             Err(E::Index(index_ty))
@@ -285,12 +315,14 @@ impl EvalTy for UnaryExpression {
             UnaryOperator::LogicalNegation if inner == Type::Bool => Ok(ty),
             UnaryOperator::Negation if inner.is_scalar() && !inner.is_u_32() => Ok(ty),
             UnaryOperator::BitwiseComplement if inner.is_integer() => Ok(ty),
-            UnaryOperator::AddressOf => Ok(Type::Ptr(
-                AddressSpace::Function,
-                Box::new(ty),
-                AccessMode::ReadWrite,
-            )), // TODO: we don't know the address space and access mode
-            UnaryOperator::Indirection if ty.is_ptr() => Ok(*ty.unwrap_ptr().1),
+            UnaryOperator::AddressOf if ty.is_ref() => {
+                let (address_space, inner, access_mode) = ty.unwrap_ref();
+                Ok(Type::Ptr(address_space, inner, access_mode))
+            }
+            UnaryOperator::Indirection if ty.is_ptr() => {
+                let (address_space, inner, access_mode) = ty.unwrap_ptr();
+                Ok(Type::Ref(address_space, inner, access_mode))
+            }
             _ => Err(E::Unary(self.operator, ty)),
         }
     }

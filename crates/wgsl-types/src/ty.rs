@@ -457,7 +457,7 @@ impl Ty for PtrInstance {
 
 impl Ty for RefInstance {
     fn ty(&self) -> Type {
-        self.ty.clone()
+        Type::Ref(self.space, Box::new(self.ty.clone()), self.access)
     }
 }
 

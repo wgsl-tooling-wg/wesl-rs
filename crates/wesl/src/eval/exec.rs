@@ -204,9 +204,11 @@ impl Exec for AssignmentStatement {
         }
 
         let lhs = self.lhs.eval(ctx)?;
-        let ty = lhs.ty().concretize();
 
         if let Instance::Ref(r) = lhs {
+            // TODO: ty must be concrete, so this should just be a is_concrete check https://www.w3.org/TR/WGSL/#simple-assignment-section
+            let ty = r.ty.concretize();
+
             let rhs = self.rhs.eval_value(ctx)?;
             match self.operator {
                 AssignmentOperator::Equal => {
@@ -986,8 +988,8 @@ impl Exec for Declaration {
                             let inst = ctx
                                 .resource(group, binding)
                                 .ok_or(E::MissingResource(group, binding))?;
-                            if inst.ty() != ty {
-                                return Err(E::Type(ty, inst.ty()));
+                            if inst.ty != ty {
+                                return Err(E::Type(ty, inst.ty.clone()));
                             }
                             if !inst.space.is_uniform() {
                                 return Err(E::AddressSpace(a_s, inst.space));
@@ -1009,8 +1011,8 @@ impl Exec for Declaration {
                             let inst = ctx
                                 .resource(group, binding)
                                 .ok_or(E::MissingResource(group, binding))?;
-                            if ty != inst.ty() {
-                                return Err(E::Type(ty, inst.ty()));
+                            if ty != inst.ty {
+                                return Err(E::Type(ty, inst.ty.clone()));
                             }
                             if !inst.space.is_storage() {
                                 return Err(E::AddressSpace(a_s, inst.space));
