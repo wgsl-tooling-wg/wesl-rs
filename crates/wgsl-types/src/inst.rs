@@ -6,7 +6,6 @@ use std::{
     rc::Rc,
 };
 
-use derive_more::derive::{From, IsVariant, Unwrap};
 use half::f16;
 use itertools::Itertools;
 
@@ -49,7 +48,7 @@ impl MemView {
 /// Instance of a plain type.
 ///
 /// Reference: <https://www.w3.org/TR/WGSL/#plain-types-section>
-#[derive(Clone, Debug, From, PartialEq, IsVariant, Unwrap)]
+#[derive(Clone, Debug, derive_more::From, PartialEq, derive_more::Unwrap)]
 #[unwrap(ref, ref_mut)]
 pub enum Instance {
     Literal(LiteralInstance),
@@ -178,7 +177,7 @@ impl Instance {
 }
 
 /// Instance of a numeric literal type.
-#[derive(Clone, Copy, Debug, PartialEq, From, Unwrap)]
+#[derive(Clone, Copy, Debug, PartialEq, derive_more::From, derive_more::Unwrap)]
 pub enum LiteralInstance {
     Bool(bool),
     AbstractInt(i64),

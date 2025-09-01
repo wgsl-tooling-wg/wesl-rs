@@ -1352,7 +1352,6 @@ dependencies = [
 name = "wgsl-syntax"
 version = "0.2.0"
 dependencies = [
- "derive_more",
  "serde",
  "tokrepr",
 ]

@@ -11,8 +11,6 @@ use crate::{
     },
 };
 
-use derive_more::derive::{IsVariant, Unwrap};
-
 pub use wgsl_syntax::SampledType;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,7 +44,7 @@ impl From<StructType> for Type {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, IsVariant, Unwrap)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TextureType {
     // sampled
     Sampled1D(SampledType),
@@ -72,7 +70,7 @@ pub enum TextureType {
     DepthCubeArray,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, IsVariant)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TextureDimensions {
     D1,
     D2,
@@ -201,7 +199,7 @@ impl From<SampledType> for Type {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, IsVariant, Unwrap)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SamplerType {
     Sampler,
     SamplerComparison,
@@ -219,7 +217,7 @@ impl FromStr for SamplerType {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, IsVariant, Unwrap)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
     Bool,
     AbstractInt,
@@ -309,6 +307,52 @@ impl Type {
                     | Type::Mat(_, _, _)
                     | Type::Atomic(_)
             )
+    }
+
+    pub fn is_vec(&self) -> bool {
+        matches!(self, Type::Vec(_, _))
+    }
+    pub fn is_i32(&self) -> bool {
+        matches!(self, Type::U32)
+    }
+    pub fn is_u32(&self) -> bool {
+        matches!(self, Type::U32)
+    }
+    pub fn is_f32(&self) -> bool {
+        matches!(self, Type::U32)
+    }
+    pub fn is_ptr(&self) -> bool {
+        matches!(self, Type::Ptr(_, _, _))
+    }
+    pub fn is_bool(&self) -> bool {
+        matches!(self, Type::Bool)
+    }
+    pub fn is_mat(&self) -> bool {
+        matches!(self, Type::Mat(_, _, _))
+    }
+    pub fn is_abstract_int(&self) -> bool {
+        matches!(self, Type::AbstractInt)
+    }
+
+    pub fn unwrap_atomic(self) -> Box<Type> {
+        match self {
+            Type::Atomic(ty) => ty,
+            val => panic!("called `Type::unwrap_atomic()` on a `{}` value", val),
+        }
+    }
+
+    pub fn unwrap_struct(self) -> Box<StructType> {
+        match self {
+            Type::Struct(ty) => ty,
+            val => panic!("called `Type::unwrap_struct()` on a `{}` value", val),
+        }
+    }
+
+    pub fn unwrap_vec(self) -> (u8, Box<Type>) {
+        match self {
+            Type::Vec(size, ty) => (size, ty),
+            val => panic!("called `Type::unwrap_vec()` on a `{}` value", val),
+        }
     }
 }
 

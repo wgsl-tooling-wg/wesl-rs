@@ -10,13 +10,8 @@ rust-version.workspace = true
 [dependencies]
 wgsl-syntax = { workspace = true }
 derive_more = { version = "2.0.1", features = [
-    "as_ref",
-    "deref",
-    "deref_mut",
-    "display",
     "from",
     "unwrap",
-    "is_variant"
 ] }
 half = { version = "2.4.1", features = ["num-traits"] }
 itertools = "0.14.0"
