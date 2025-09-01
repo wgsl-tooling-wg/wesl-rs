@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use tsify_next::Tsify;
+use tsify::Tsify;
 use wasm_bindgen::prelude::*;
 use wesl::{
     CompileResult, Eval, Inputs, VirtualResolver, Wesl,
