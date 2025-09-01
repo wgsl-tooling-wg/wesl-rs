@@ -331,6 +331,7 @@ impl Diagnostic<Error> {
                 Type::Array(ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
                 Type::Atomic(ty) => unmangle_ty(&mut *ty, sourcemap, mangler),
                 Type::Ptr(_, ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
+                Type::Ref(_, ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
                 _ => (),
             }
         }

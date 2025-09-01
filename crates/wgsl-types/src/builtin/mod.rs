@@ -802,7 +802,7 @@ impl Instance {
             Type::BindingArray(_, _) => Err(E::NotConstructible(ty.clone())),
             Type::Vec(n, v_ty) => VecInstance::zero_value(*n, v_ty).map(Into::into),
             Type::Mat(c, r, m_ty) => MatInstance::zero_value(*c, *r, m_ty).map(Into::into),
-            Type::Atomic(_) | Type::Ptr(_, _, _) | Type::Texture(_) | Type::Sampler(_) => {
+            Type::Atomic(_) | Type::Ptr(_, _, _) | Type::Ref(_, _, _) | Type::Texture(_) | Type::Sampler(_) => {
                 Err(E::NotConstructible(ty.clone()))
             }
         }

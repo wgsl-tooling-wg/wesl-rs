@@ -1,8 +1,8 @@
 use std::sync::LazyLock;
 
 use wesl_macros::{quote_expression, quote_module};
-use wgsl_types::ty::{SampledType, SamplerType, TextureType, Type};
 use wgsl_parse::syntax::*;
+use wgsl_types::ty::{SampledType, SamplerType, TextureType, Type};
 
 use crate::builtin::builtin_ident;
 
@@ -59,6 +59,7 @@ impl BuiltinIdent for Type {
             },
             Type::Atomic(_) => builtin_ident("atomic"),
             Type::Ptr(_, _, _) => builtin_ident("ptr"),
+            Type::Ref(_, _, _) => builtin_ident("__ref"),
             Type::Texture(texture_type) => texture_type.builtin_ident(),
             Type::Sampler(sampler_type) => sampler_type.builtin_ident(),
         }

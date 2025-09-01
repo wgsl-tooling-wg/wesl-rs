@@ -8,6 +8,7 @@
 use half::f16;
 use itertools::Itertools;
 use num_traits::{FromPrimitive, ToPrimitive};
+use wgsl_syntax::AccessMode;
 
 use crate::{
     Instance,
@@ -269,6 +270,9 @@ pub fn conversion_rank(ty1: &Type, ty2: &Type) -> Option<u32> {
     // reference: <https://www.w3.org/TR/WGSL/#conversion-rank>
     match (ty1, ty2) {
         (_, _) if ty1 == ty2 => Some(0),
+        (Type::Ref(_, ty1, AccessMode::Read | AccessMode::ReadWrite), ty2) if &**ty1 == ty2 => {
+            Some(0)
+        }
         (Type::AbstractInt, Type::AbstractFloat) => Some(5),
         (Type::AbstractInt, Type::I32) => Some(3),
         (Type::AbstractInt, Type::U32) => Some(4),

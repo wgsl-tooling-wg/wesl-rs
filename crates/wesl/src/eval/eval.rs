@@ -1,10 +1,10 @@
 use half::f16;
 use itertools::Itertools;
+use wgsl_parse::{span::Spanned, syntax::*};
 use wgsl_types::{
     inst::{Instance, LiteralInstance, PtrInstance, RefInstance, VecInstance},
     ty::{Ty, Type},
 };
-use wgsl_parse::{span::Spanned, syntax::*};
 
 use super::{Context, EvalError, Exec, Flow, ScopeKind, SyntaxUtil};
 

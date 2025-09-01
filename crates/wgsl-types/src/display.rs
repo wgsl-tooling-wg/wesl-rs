@@ -225,6 +225,7 @@ impl Display for Type {
             Type::Mat(m, n, ty) => write!(f, "mat{m}x{n}<{ty}>"),
             Type::Atomic(ty) => write!(f, "atomic<{ty}>"),
             Type::Ptr(a_s, ty, a_m) => write!(f, "ptr<{a_s}, {ty}, {a_m}>"),
+            Type::Ref(a_s, ty, a_m) => write!(f, "ref<{a_s}, {ty}, {a_m}>"),
             Type::Texture(texture_type) => texture_type.fmt(f),
             Type::Sampler(sampler_type) => sampler_type.fmt(f),
         }

@@ -242,6 +242,7 @@ pub enum Type {
     Mat(u8, u8, Box<Type>),
     Atomic(Box<Type>),
     Ptr(AddressSpace, Box<Type>, AccessMode),
+    Ref(AddressSpace, Box<Type>, AccessMode),
     Texture(TextureType),
     Sampler(SamplerType),
 }
@@ -352,6 +353,7 @@ impl Ty for Type {
             Type::Mat(_, _, ty) => ty.ty(),
             Type::Atomic(ty) => ty.ty(),
             Type::Ptr(_, ty, _) => ty.ty(),
+            Type::Ref(_, ty, _) => ty.ty(),
             Type::Texture(_) => self.clone(),
             Type::Sampler(_) => self.clone(),
         }

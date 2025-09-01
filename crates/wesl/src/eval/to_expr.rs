@@ -13,7 +13,7 @@ use wgsl_parse::{span::Spanned, syntax::*};
 
 type E = EvalError;
 
-/// Convert and instance to an Expression.
+/// Convert an instance to an Expression.
 pub trait ToExpr {
     fn to_expr(&self, ctx: &Context) -> Result<Expression, E>;
 }
@@ -218,6 +218,7 @@ impl ToExpr for Type {
                 ty.template_args = Some(args);
                 Ok(ty)
             }
+            Type::Ref(_, _, _) => Err(E::NotConstructible(self.ty())),
             Type::Texture(tex) => {
                 let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = match tex {
