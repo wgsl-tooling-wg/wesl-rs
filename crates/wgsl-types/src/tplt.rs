@@ -7,7 +7,7 @@ use crate::{
     ty::{SampledType, TextureType, Ty, Type},
 };
 
-/// A single tempate parameter.
+/// A single template parameter.
 #[derive(Clone, Debug, PartialEq)]
 pub enum TpltParam {
     Type(Type),

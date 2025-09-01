@@ -1,11 +1,11 @@
+use wgsl_parse::{
+    Decorated,
+    syntax::{Attribute, AttributeNode, BuiltinValue, Expression},
+};
 use wgsl_types::{
     ShaderStage,
     inst::{Instance, LiteralInstance},
     ty::{Ty, Type},
-};
-use wgsl_parse::{
-    Decorated,
-    syntax::{Attribute, AttributeNode, BuiltinValue, Expression},
 };
 
 use super::{Context, Eval, EvalError, with_stage};

@@ -1,7 +1,7 @@
 use super::{Scope, SyntaxUtil};
 use itertools::Itertools;
-use wgsl_types::builtin::is_constructor_fn;
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
+use wgsl_types::builtin::is_constructor_fn;
 
 macro_rules! with_scope {
     ($scope:expr, $body:tt) => {{
