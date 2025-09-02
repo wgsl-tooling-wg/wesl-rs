@@ -280,7 +280,7 @@ impl EvalTy for IndexingExpression {
             }
         }
 
-        let index_ty = self.index.eval_ty(ctx)?;
+        let index_ty = self.index.eval_ty(ctx)?.loaded();
         if index_ty.is_integer() {
             match self.base.eval_ty(ctx)? {
                 Type::Ref(a_s, ty, a_m) | Type::Ptr(a_s, ty, a_m) => {
@@ -297,6 +297,16 @@ impl EvalTy for IndexingExpression {
 impl EvalTy for UnaryExpression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
         let ty = self.operand.eval_ty(ctx)?;
+
+        // special case: only the `&` operator operates on refs before load rule
+        if self.operator == UnaryOperator::AddressOf {
+            return match ty {
+                Type::Ref(a_s, ty, a_m) => Ok(Type::Ptr(a_s, ty, a_m)),
+                operand => Err(E::Unary(self.operator, operand)),
+            };
+        }
+
+        let ty = ty.loaded();
         let inner = ty.inner_ty();
         if ty != inner
             && !ty.is_vec()
@@ -309,10 +319,7 @@ impl EvalTy for UnaryExpression {
             UnaryOperator::LogicalNegation if inner == Type::Bool => Ok(ty),
             UnaryOperator::Negation if inner.is_scalar() && !inner.is_u_32() => Ok(ty),
             UnaryOperator::BitwiseComplement if inner.is_integer() => Ok(ty),
-            UnaryOperator::AddressOf if ty.is_ref() => {
-                let (address_space, inner, access_mode) = ty.unwrap_ref();
-                Ok(Type::Ptr(address_space, inner, access_mode))
-            }
+            UnaryOperator::AddressOf => unreachable!("handled above"),
             UnaryOperator::Indirection if ty.is_ptr() => {
                 let (address_space, inner, access_mode) = ty.unwrap_ptr();
                 Ok(Type::Ref(address_space, inner, access_mode))
@@ -325,8 +332,8 @@ impl EvalTy for UnaryExpression {
 impl EvalTy for BinaryExpression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
         type BinOp = BinaryOperator;
-        let ty1 = self.left.eval_ty(ctx)?;
-        let ty2 = self.right.eval_ty(ctx)?;
+        let ty1 = self.left.eval_ty(ctx)?.loaded();
+        let ty2 = self.right.eval_ty(ctx)?.loaded();
 
         // ty1 and ty2 must always have the same inner type, except for << and >> operators.
         let (inner, ty1, ty2) = if matches!(self.operator, BinOp::ShiftLeft | BinOp::ShiftRight) {
@@ -470,7 +477,7 @@ impl EvalTy for FunctionCallExpression {
         let args = self
             .arguments
             .iter()
-            .map(|arg| arg.eval_ty(ctx))
+            .map(|arg| arg.eval_ty(ctx).map(|ty| ty.loaded()))
             .collect::<Result<Vec<_>, _>>()?;
 
         if let Some(decl) = ctx.source.decl(&ty.ident.name()) {

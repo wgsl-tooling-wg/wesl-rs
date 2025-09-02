@@ -1,6 +1,6 @@
 use std::iter::zip;
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
-use wgsl_types::ty::Ty;
+use wgsl_types::ty::{Ty, Type};
 
 use crate::eval::{ATTR_INTRINSIC, Context, Eval, EvalError, Exec, ty_eval_ty};
 
@@ -20,7 +20,7 @@ fn make_explicit_call(call: &mut FunctionCall, ctx: &mut Context) -> Result<(), 
         }
 
         for (arg, param) in zip(&mut call.arguments, &decl.parameters) {
-            let arg_ty = arg.eval_ty(ctx)?;
+            let arg_ty = arg.eval_ty(ctx)?.loaded();
             let param_ty = ty_eval_ty(&param.ty, ctx)?;
             if arg_ty != param_ty {
                 if arg_ty.is_convertible_to(&param_ty) {
@@ -59,7 +59,7 @@ fn make_explicit_return(stmt: &mut ReturnStatement, ctx: &mut Context) -> Result
         }
         (Some(expr), Some(ret_expr)) => {
             let ret_ty = ty_eval_ty(ret_expr, ctx)?;
-            let expr_ty = expr.eval_ty(ctx)?;
+            let expr_ty = expr.eval_ty(ctx)?.loaded();
             if expr_ty != ret_ty {
                 if expr_ty.is_convertible_to(&ret_ty) {
                     let ty = ret_ty.to_expr(ctx)?.unwrap_type_or_identifier();
@@ -207,7 +207,7 @@ impl Lower for Declaration {
         let ty = match (&self.ty, &self.initializer) {
             (None, None) => return Err(E::UntypedDecl),
             (None, Some(init)) => {
-                let ty = init.eval_ty(ctx)?;
+                let ty = init.eval_ty(ctx)?.loaded();
                 if self.kind.is_const() {
                     ty // only const declarations can be of abstract type.
                 } else {
@@ -221,9 +221,20 @@ impl Lower for Declaration {
             self.ty = Some(ty.to_expr(ctx)?.unwrap_type_or_identifier());
         }
 
+        let inst_ty = if let DeclarationKind::Var(as_am) = self.kind {
+            let (a_s, a_m) = match as_am {
+                Some((a_s, Some(a_m))) => (a_s, a_m),
+                Some((a_s, None)) => (a_s, a_s.default_access_mode()),
+                None => (AddressSpace::Function, AccessMode::ReadWrite),
+            };
+            Type::Ref(a_s, Box::new(ty), a_m)
+        } else {
+            ty
+        };
+
         if ctx
             .scope
-            .add(self.ident.to_string(), Instance::Deferred(ty))
+            .add(self.ident.to_string(), Instance::Deferred(inst_ty))
         {
             Ok(())
         } else {
@@ -550,7 +561,7 @@ impl Lower for TranslationUnit {
                         .scope
                         .get(&decl.ident.name())
                         .expect("module-scope declaration not present in scope");
-                    let ty = inst.ty();
+                    let ty = inst.ty().loaded();
 
                     if ty.is_concrete() {
                         decl.ty = Some(ty.to_expr(ctx)?.unwrap_type_or_identifier());

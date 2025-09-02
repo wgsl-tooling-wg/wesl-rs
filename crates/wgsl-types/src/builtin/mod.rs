@@ -201,6 +201,8 @@ fn vec_ctor_ty(n: u8, args: &[Type]) -> Result<Type, E> {
 }
 
 /// Compute the return type of calling a built-in constructor function.
+///
+/// The arguments must be [loaded][Type::loaded].
 pub fn constructor_type(name: &str, tplt: Option<&[TpltParam]>, args: &[Type]) -> Result<Type, E> {
     match (name, tplt, args) {
         ("array", Some(t), []) => Ok(ArrayTemplate::parse(t)?.ty()),
@@ -344,6 +346,8 @@ fn modf_struct_type(ty: &Type) -> Option<StructType> {
 }
 
 /// Compute the return type of calling a built-in function.
+///
+/// The arguments must be [loaded][Type::loaded].
 ///
 /// Does not include constructor built-ins, see [`constructor_type`].
 /// Some functions are still TODO, see [`call`] for the list of functions and statuses.
@@ -916,6 +920,8 @@ impl MatInstance {
 }
 
 /// Call a built-in function.
+///
+/// The arguments must be [loaded][Type::loaded].
 ///
 /// Includes constructor built-ins.
 /// Some functions are still TODO, see [`call`] for the list of functions and statuses.

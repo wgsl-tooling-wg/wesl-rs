@@ -23,6 +23,21 @@ pub enum AddressSpace {
     PushConstant,
 }
 
+impl AddressSpace {
+    pub fn default_access_mode(&self) -> AccessMode {
+        match self {
+            AddressSpace::Function => AccessMode::ReadWrite,
+            AddressSpace::Private => AccessMode::ReadWrite,
+            AddressSpace::Workgroup => AccessMode::ReadWrite,
+            AddressSpace::Uniform => AccessMode::Read,
+            AddressSpace::Storage => AccessMode::Read,
+            AddressSpace::Handle => AccessMode::Read,
+            #[cfg(feature = "naga_ext")]
+            AddressSpace::PushConstant => AccessMode::Read,
+        }
+    }
+}
+
 /// Memory access mode enumeration.
 ///
 /// Reference: <https://www.w3.org/TR/WGSL/#access-mode>
