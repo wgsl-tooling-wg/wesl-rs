@@ -320,10 +320,10 @@ impl EvalTy for UnaryExpression {
             UnaryOperator::Negation if inner.is_scalar() && !inner.is_u32() => Ok(ty),
             UnaryOperator::BitwiseComplement if inner.is_integer() => Ok(ty),
             UnaryOperator::AddressOf => unreachable!("handled above"),
-            UnaryOperator::Indirection if ty.is_ptr() => {
-                let (address_space, inner, access_mode) = ty.unwrap_ptr();
-                Ok(Type::Ref(address_space, inner, access_mode))
-            }
+            UnaryOperator::Indirection => match ty {
+                Type::Ptr(a_s, ty, a_m) => Ok(Type::Ref(a_s, ty, a_m)),
+                _ => Err(E::Unary(self.operator, ty)),
+            },
             _ => Err(E::Unary(self.operator, ty)),
         }
     }

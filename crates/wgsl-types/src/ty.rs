@@ -322,9 +322,6 @@ impl Type {
     pub fn is_f32(&self) -> bool {
         matches!(self, Type::F32)
     }
-    pub fn is_ptr(&self) -> bool {
-        matches!(self, Type::Ptr(_, _, _))
-    }
     pub fn is_bool(&self) -> bool {
         matches!(self, Type::Bool)
     }
