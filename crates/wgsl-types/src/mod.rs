@@ -27,7 +27,6 @@ pub use mem::*;
 pub use to_expr::*;
 pub use ty::*;
 
-use derive_more::Display;
 use std::{collections::HashMap, rc::Rc};
 use wgsl_parse::{
     span::{Span, Spanned},

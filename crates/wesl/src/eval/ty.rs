@@ -310,14 +310,14 @@ impl EvalTy for UnaryExpression {
         let inner = ty.inner_ty();
         if ty != inner
             && !ty.is_vec()
-            && !self.operator.is_address_of()
-            && !self.operator.is_indirection()
+            && self.operator != UnaryOperator::AddressOf
+            && self.operator != UnaryOperator::Indirection
         {
             return Err(E::Unary(self.operator, ty));
         }
         match self.operator {
             UnaryOperator::LogicalNegation if inner == Type::Bool => Ok(ty),
-            UnaryOperator::Negation if inner.is_scalar() && !inner.is_u_32() => Ok(ty),
+            UnaryOperator::Negation if inner.is_scalar() && !inner.is_u32() => Ok(ty),
             UnaryOperator::BitwiseComplement if inner.is_integer() => Ok(ty),
             UnaryOperator::AddressOf => unreachable!("handled above"),
             UnaryOperator::Indirection if ty.is_ptr() => {

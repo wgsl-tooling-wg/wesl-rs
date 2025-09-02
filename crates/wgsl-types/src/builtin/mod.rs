@@ -18,7 +18,7 @@ use crate::{
     inst::{ArrayInstance, LiteralInstance, MatInstance, StructInstance, VecInstance},
     ops::Compwise,
     tplt::{ArrayTemplate, BitcastTemplate, MatTemplate, TpltParam, VecTemplate},
-    ty::{StructMemberType, StructType, TextureType, Ty, Type},
+    ty::{StructMemberType, StructType, TextureDimensions, TextureType, Ty, Type},
 };
 
 type E = Error;
@@ -463,8 +463,8 @@ pub fn builtin_fn_type(
             if (a1.is_vec()
                 && a1.inner_ty().is_float()
                 && a2.is_vec()
-                && a2.inner_ty().concretize().is_i_32()
-                || a1.is_float() && a2.concretize().is_i_32())
+                && a2.inner_ty().concretize().is_i32()
+                || a1.is_float() && a2.concretize().is_i32())
                 && (a1.is_concrete() && a2.is_concrete()
                     || a1.is_abstract() && a2.is_abstract()) =>
         {
@@ -493,7 +493,7 @@ pub fn builtin_fn_type(
         ("normalize", None, [a @ Type::Vec(_, ty)]) if ty.is_float() => Ok(Some(a.clone())),
         ("pow", None, [a1, a2]) => convert_ty(a1, a2).cloned().map(Some).ok_or_else(err),
         ("quantizeToF16", None, [a])
-            if a.concretize().is_f_32() || a.is_vec() && a.inner_ty().concretize().is_f_32() =>
+            if a.concretize().is_f32() || a.is_vec() && a.inner_ty().concretize().is_f32() =>
         {
             Ok(Some(a.clone()))
         }
@@ -511,7 +511,7 @@ pub fn builtin_fn_type(
         ("reverseBits", None, [a]) if is_integer(a) => Ok(Some(a.clone())),
         ("round", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("saturate", None, [a]) if is_float(a) => Ok(Some(a.clone())),
-        ("sign", None, [a]) if is_numeric(a) && !a.inner_ty().is_u_32() => Ok(Some(a.clone())),
+        ("sign", None, [a]) if is_numeric(a) && !a.inner_ty().is_u32() => Ok(Some(a.clone())),
         ("sin", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("sinh", None, [a]) if is_float(a) => Ok(Some(a.clone())),
         ("smoothstep", None, [a1, _, _]) if is_float(a1) => {
@@ -548,17 +548,17 @@ pub fn builtin_fn_type(
         // some of these are a bit more lenient. The goal here is just to get the
         // valid return type which is needed for type inference.
         ("textureDimensions", None, [Type::Texture(t)] | [Type::Texture(t), _])
-            if t.dimensions().is_d_1() =>
+            if t.dimensions() == TextureDimensions::D1 =>
         {
             Ok(Some(Type::U32))
         }
         ("textureDimensions", None, [Type::Texture(t)] | [Type::Texture(t), _])
-            if t.dimensions().is_d_2() =>
+            if t.dimensions() == TextureDimensions::D2 =>
         {
             Ok(Some(Type::Vec(2, Type::U32.into())))
         }
         ("textureDimensions", None, [Type::Texture(t)] | [Type::Texture(t), _])
-            if t.dimensions().is_d_3() =>
+            if t.dimensions() == TextureDimensions::D3 =>
         {
             Ok(Some(Type::Vec(3, Type::U32.into())))
         }
@@ -609,11 +609,14 @@ pub fn builtin_fn_type(
             Ok(Some(Type::Vec(4, Box::new(Type::F32))))
         }
         ("textureSampleLevel", None, [Type::Texture(t), ..]) if t.is_depth() => Ok(Some(Type::F32)),
-        ("textureSampleBaseClampToEdge", None, [Type::Texture(t), ..])
-            if t.is_sampled_2_d() || t.is_external() =>
-        {
-            Ok(Some(Type::Vec(4, Box::new(Type::F32))))
-        }
+        (
+            "textureSampleBaseClampToEdge",
+            None,
+            [
+                Type::Texture(TextureType::Sampled2D(_) | TextureType::External),
+                ..,
+            ],
+        ) => Ok(Some(Type::Vec(4, Box::new(Type::F32)))),
         ("textureStore", None, [Type::Texture(t), ..]) if t.is_storage() => Ok(None),
         // atomic
         // TODO check arguments for atomic functions

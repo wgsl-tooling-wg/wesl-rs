@@ -276,7 +276,7 @@ impl Eval for TypeExpression {
         if self.template_args.is_some() {
             Err(E::UnexpectedTemplate(self.ident.to_string()))
         } else if let Some(inst) = ctx.scope.get(&self.ident.name()) {
-            if inst.is_deferred() {
+            if matches!(inst, Instance::Deferred(_)) {
                 Err(E::NotAccessible(self.ident.to_string(), ctx.stage))
             } else {
                 Ok(inst.clone())
@@ -287,7 +287,7 @@ impl Eval for TypeExpression {
                 if let Some(decl) = ctx.source.decl(&self.ident.name()) {
                     decl.exec(ctx)?;
                     if let Some(inst) = ctx.scope.get(&self.ident.name()) {
-                        return if inst.is_deferred() {
+                        return if matches!(inst, Instance::Deferred(_)) {
                             Err(E::NotAccessible(self.ident.to_string(), ctx.stage))
                         } else {
                             Ok(inst.clone())

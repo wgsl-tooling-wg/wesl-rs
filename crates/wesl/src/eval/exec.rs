@@ -198,7 +198,7 @@ pub(crate) fn compound_exec_no_scope(
 impl Exec for AssignmentStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         let is_phony = matches!(self.lhs.node(), Expression::TypeOrIdentifier(TypeExpression { path: None, ident, template_args: None }) if *ident.name() == "_");
-        if self.operator.is_equal() && is_phony {
+        if self.operator == AssignmentOperator::Equal && is_phony {
             let _ = self.rhs.eval(ctx)?;
             return Ok(Flow::Next);
         }
@@ -990,7 +990,7 @@ impl Exec for Declaration {
                             if inst.ty != ty {
                                 return Err(E::Type(ty, inst.ty.clone()));
                             }
-                            if !inst.space.is_uniform() {
+                            if inst.space != AddressSpace::Uniform {
                                 return Err(E::AddressSpace(a_s, inst.space));
                             }
                             if inst.access != AccessMode::Read {
@@ -1013,7 +1013,7 @@ impl Exec for Declaration {
                             if ty != inst.ty {
                                 return Err(E::Type(ty, inst.ty.clone()));
                             }
-                            if !inst.space.is_storage() {
+                            if inst.space != AddressSpace::Storage {
                                 return Err(E::AddressSpace(a_s, inst.space));
                             }
                             if inst.access != a_m {
