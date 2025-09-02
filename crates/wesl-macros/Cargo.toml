@@ -1,29 +1,29 @@
 [package]
 name = "wesl-macros"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "Macros for the WESL rust compiler"
 documentation = "https://docs.rs/wesl-macros"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
 repository.workspace = true
 license.workspace = true
-rust-version.workspace = true
+
+[lib]
+proc-macro = true
 
 [dependencies]
-wgsl-parse = { workspace = true, features = ["wesl", "tokrepr"] }
 itertools = "0.14.0"
 proc-macro2 = "1.0.86"
+proc-macro-error2 = { version = "2.0.1", optional = true }
 quote = "1.0.37"
 syn = "2.0.77"
-proc-macro-error2 = { version = "2.0.1", optional = true }
 token_stream_flatten = { version = "0.1.0", optional = true }
+wgsl-parse = { workspace = true, features = ["tokrepr", "wesl"] }
 
 [features]
 query = []
 quote = ["dep:proc-macro-error2", "dep:token_stream_flatten"]
-
-[lib]
-proc-macro = true
 
 [lints]
 workspace = true

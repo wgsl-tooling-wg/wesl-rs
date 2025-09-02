@@ -1,50 +1,49 @@
 [package]
 name = "wesl"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "The WESL rust compiler"
 documentation = "https://docs.rs/wesl"
-version.workspace = true
-edition.workspace = true
-authors.workspace = true
 repository.workspace = true
 license.workspace = true
-rust-version.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 [dependencies]
 annotate-snippets = "0.11.5"
 derive_more = { version = "2.0.1", features = [
-    "as_ref",
-    "deref",
-    "deref_mut",
-    "display",
-    "from",
-    "unwrap",
+  "as_ref",
+  "deref",
+  "deref_mut",
+  "display",
+  "from",
+  "unwrap",
 ] }
 half = { version = "2.4.1", features = ["num-traits"] }
 itertools = "0.14.0"
 num-traits = "0.2.19"
+proc-macro2 = { version = "1.0.93", optional = true }  # dep for feature 'package'
+quote = { version = "1.0.38", optional = true }  # dep for feature 'package'
 thiserror = "2.0.11"
-wgsl-parse = { workspace = true, features = ["wesl"] }
 wesl-macros = { workspace = true, features = ["query"] }
-# deps for feature 'package'
-proc-macro2 = { version = "1.0.93", optional = true }
-quote = { version = "1.0.38", optional = true }
+wgsl-parse = { workspace = true, features = ["wesl"] }
 
 [features]
-quote = ["wesl-macros/quote"]
 eval = ["quote"]
 generics = ["wgsl-parse/generics"]
-serde = ["wgsl-parse/serde"]
-package = ["dep:proc-macro2", "dep:quote"]
 # allow naga/wgpu extensions.
 # They are not well-documented, the best I could find is this:
 # * https://github.com/gfx-rs/wgpu/issues/4410
 # * https://github.com/gfx-rs/wgpu/blob/trunk/docs/api-specs/ray_tracing.md
 # * https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
 naga_ext = ["wgsl-parse/naga_ext"]
-
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]
+package = ["dep:proc-macro2", "dep:quote"]
+quote = ["wesl-macros/quote"]
+serde = ["wgsl-parse/serde"]
 
 [lints]
 workspace = true

@@ -1,42 +1,40 @@
 [package]
 name = "wesl-web"
-description = "WESL compiler in WebAssembly"
 version.workspace = true
-edition.workspace = true
 authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "WESL compiler in WebAssembly"
 repository.workspace = true
 license.workspace = true
-rust-version.workspace = true
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[features]
-default = ["ansi-to-html", "naga"]
-debug = ["console_log", "console_error_panic_hook"]
-
 [dependencies]
-log = "0.4.22"
-serde = { version = "1.0.215", features = ["derive"] }
-serde-wasm-bindgen = "0.6.5"
-serde_bytes = "0.11.15"
-tsify = { version = "0.5.5", features = ["js"], default-features = false }
 ansi-to-html = { version = "0.2.2", optional = true }
-naga = { version = "25.0.1", features = [
-    "wgsl-in",
-    "wgsl-out",
-], optional = true }
-thiserror = "2.0.11"
-wasm-bindgen = "0.2.95"
-
-wesl = { workspace = true, features = ["eval", "serde"] }
-
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
 # all the `std::fmt` and `std::panicking` infrastructure, so isn't great for
 # code size when deploying.
 console_error_panic_hook = { version = "0.1.7", optional = true }
 console_log = { version = "1.0.0", features = ["color"], optional = true }
+log = "0.4.22"
+naga = { version = "25.0.1", features = [
+  "wgsl-in",
+  "wgsl-out",
+], optional = true }
+serde = { version = "1.0.215", features = ["derive"] }
+serde_bytes = "0.11.15"
+serde-wasm-bindgen = "0.6.5"
+thiserror = "2.0.11"
+tsify = { version = "0.5.5", default-features = false, features = ["js"] }
+wasm-bindgen = "0.2.95"
+wesl = { workspace = true, features = ["eval", "serde"] }
+
+[features]
+debug = ["console_error_panic_hook", "console_log"]
+default = ["ansi-to-html", "naga"]
 
 [lints]
 workspace = true
