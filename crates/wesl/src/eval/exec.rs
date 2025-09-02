@@ -209,7 +209,6 @@ impl Exec for AssignmentStatement {
             let rhs = self.rhs.eval_value(ctx)?;
             match self.operator {
                 AssignmentOperator::Equal => {
-                    // Assumption: rhs type is concrete
                     let rhs = rhs
                         .convert_to(&r.ty)
                         .ok_or_else(|| E::AssignType(rhs.ty(), r.ty.clone()))?;
