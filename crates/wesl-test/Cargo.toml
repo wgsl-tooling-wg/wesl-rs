@@ -1,26 +1,26 @@
 [package]
 name = "wesl-test"
 version.workspace = true
-edition.workspace = true
 authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 repository.workspace = true
 license.workspace = true
-rust-version.workspace = true
+
+[[test]]
+harness = false
+name = "testsuite"
 
 [dependencies]
-serde = { version = "1.0.210", features = ["derive"] }
 regex = "1.11.1"
+serde = { version = "1.0.210", features = ["derive"] }
 
 [dev-dependencies]
+bevy-wgsl = { git = "https://github.com/wgsl-tooling-wg/bevy-wgsl", rev = "575208586e6fcbd9df21c3b8d90669e67045b3e0" }
 libtest-mimic = "0.8.1"
 serde_json = "1.0.140"
-wgsl-parse = { workspace = true }
 wesl = { workspace = true, features = ["eval", "naga_ext"] }
-bevy-wgsl = { git = "https://github.com/wgsl-tooling-wg/bevy-wgsl", rev = "575208586e6fcbd9df21c3b8d90669e67045b3e0" }
+wgsl-parse = { workspace = true }
 
 [lints]
 workspace = true
-
-[[test]]
-name = "testsuite"
-harness = false

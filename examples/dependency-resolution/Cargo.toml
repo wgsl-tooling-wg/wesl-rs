@@ -1,18 +1,18 @@
+[package]
+name = "dependency-resolution"
+version = "0.1.0"
+edition = "2024"
+
 [workspace]
 # members = ["a", "b", "c1", "c2", "d2", "d2"]
 
 # [workspace.dependencies]
 # wesl = { path = "../../crates/wesl" }
 
-[package]
-name = "dependency-resolution"
-version = "0.1.0"
-edition = "2024"
-
 [dependencies]
-wesl = { path = "../../crates/wesl", features = ["package", "eval"] }
 a = { path = "./a" }
 b = { path = "./b" }
+wesl = { features = ["eval", "package"], path = "../../crates/wesl" }
 
 [patch.crates-io]
 c1 = { package = "c", path = "./c1" }

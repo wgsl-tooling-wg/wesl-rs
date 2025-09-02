@@ -1,8 +1,8 @@
 [files]
 extend-exclude = [
-    ".git/",
-    "crates/wesl-test/webgpu-samples/LICENSE.txt",
-    "crates/wesl-test/",
+  ".git/",
+  "crates/wesl-test/webgpu-samples/LICENSE.txt",
+  "crates/wesl-test/",
 ]
 ignore-hidden = false
 
@@ -11,20 +11,20 @@ ignore-hidden = false
 # If the key and value are the same, the word is treated as always correct.
 # If the value is an empty string, the word is treated as always incorrect.
 
+[default]
+locale = "en-us"
+extend-ignore-re = [
+  "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",
+  "(?Rm)^.*<!--\\s*spellchecker:disable-line\\s*-->$",
+  # consider raw strings to have correct contents
+  "r\"[^\"]*\"",
+  # consider naga_oil function names to be correct
+  "_mod_[\\dA-Z]+\\b",
+]
+extend-ignore-identifiers-re = []
+
 # Match Whole Word - Case Sensitive
 [default.extend-identifiers]
 
 # Match Inside a Word - Case Insensitive
 [default.extend-words]
-
-[default]
-locale = "en-us"
-extend-ignore-re = [
-    "(?Rm)^.*(#|//)\\s*spellchecker:disable-line$",
-    "(?Rm)^.*<!--\\s*spellchecker:disable-line\\s*-->$",
-    # consider raw strings to have correct contents
-    "r\"[^\"]*\"",
-    # consider naga_oil function names to be correct
-    "_mod_[\\dA-Z]+\\b",
-]
-extend-ignore-identifiers-re = []
