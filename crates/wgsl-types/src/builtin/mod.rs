@@ -201,6 +201,8 @@ fn vec_ctor_ty(n: u8, args: &[Type]) -> Result<Type, E> {
 }
 
 /// Compute the return type of calling a built-in constructor function.
+///
+/// The arguments must be [loaded][Type::loaded].
 pub fn constructor_type(name: &str, tplt: Option<&[TpltParam]>, args: &[Type]) -> Result<Type, E> {
     match (name, tplt, args) {
         ("array", Some(t), []) => Ok(ArrayTemplate::parse(t)?.ty()),
@@ -344,6 +346,8 @@ fn modf_struct_type(ty: &Type) -> Option<StructType> {
 }
 
 /// Compute the return type of calling a built-in function.
+///
+/// The arguments must be [loaded][Type::loaded].
 ///
 /// Does not include constructor built-ins, see [`constructor_type`].
 /// Some functions are still TODO, see [`call`] for the list of functions and statuses.
@@ -782,7 +786,7 @@ pub fn is_constructor_fn(name: &str) -> bool {
 // reference: <https://www.w3.org/TR/WGSL/#zero-value>
 
 impl Instance {
-    /// zero-value initialize an instance of a given type.
+    /// Zero-value initialize an instance of a given type.
     pub fn zero_value(ty: &Type) -> Result<Self, E> {
         match ty {
             Type::Bool => Ok(LiteralInstance::Bool(false).into()),
@@ -805,10 +809,22 @@ impl Instance {
             Type::BindingArray(_, _) => Err(E::NotConstructible(ty.clone())),
             Type::Vec(n, v_ty) => VecInstance::zero_value(*n, v_ty).map(Into::into),
             Type::Mat(c, r, m_ty) => MatInstance::zero_value(*c, *r, m_ty).map(Into::into),
-            Type::Atomic(_) | Type::Ptr(_, _, _) | Type::Texture(_) | Type::Sampler(_) => {
-                Err(E::NotConstructible(ty.clone()))
-            }
+            Type::Atomic(_)
+            | Type::Ptr(_, _, _)
+            | Type::Ref(_, _, _)
+            | Type::Texture(_)
+            | Type::Sampler(_) => Err(E::NotConstructible(ty.clone())),
         }
+    }
+
+    /// Apply the load rule.
+    ///
+    /// Reference: <https://www.w3.org/TR/WGSL/#load-rule>
+    pub fn loaded(mut self) -> Result<Self, E> {
+        while let Instance::Ref(r) = self {
+            self = r.read()?.to_owned();
+        }
+        Ok(self)
     }
 }
 
@@ -907,6 +923,8 @@ impl MatInstance {
 }
 
 /// Call a built-in function.
+///
+/// The arguments must be [loaded][Type::loaded].
 ///
 /// Includes constructor built-ins.
 /// Some functions are still TODO, see [`call`] for the list of functions and statuses.

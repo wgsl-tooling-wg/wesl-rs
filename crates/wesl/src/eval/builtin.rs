@@ -59,6 +59,7 @@ impl BuiltinIdent for Type {
             },
             Type::Atomic(_) => builtin_ident("atomic"),
             Type::Ptr(_, _, _) => builtin_ident("ptr"),
+            Type::Ref(_, _, _) => builtin_ident("__ref"),
             Type::Texture(texture_type) => texture_type.builtin_ident(),
             Type::Sampler(sampler_type) => sampler_type.builtin_ident(),
         }

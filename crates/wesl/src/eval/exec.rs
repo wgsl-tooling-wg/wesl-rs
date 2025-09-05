@@ -204,15 +204,14 @@ impl Exec for AssignmentStatement {
         }
 
         let lhs = self.lhs.eval(ctx)?;
-        let ty = lhs.ty().concretize();
 
         if let Instance::Ref(r) = lhs {
             let rhs = self.rhs.eval_value(ctx)?;
             match self.operator {
                 AssignmentOperator::Equal => {
                     let rhs = rhs
-                        .convert_to(&ty)
-                        .ok_or_else(|| E::AssignType(rhs.ty(), ty))?;
+                        .convert_to(&r.ty)
+                        .ok_or_else(|| E::AssignType(rhs.ty(), r.ty.clone()))?;
                     r.write(rhs)?;
                 }
                 AssignmentOperator::PlusEqual => {
@@ -896,7 +895,6 @@ impl Exec for ConstAssertStatement {
     }
 }
 
-// TODO: implement address space
 impl Exec for Declaration {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         if ctx.scope.local_contains(&self.ident.name()) {
@@ -906,7 +904,7 @@ impl Exec for Declaration {
         let ty = match (&self.ty, &self.initializer) {
             (None, None) => return Err(E::UntypedDecl),
             (None, Some(init)) => {
-                let ty = init.eval_ty(ctx)?;
+                let ty = init.eval_ty(ctx)?.loaded();
                 if self.kind.is_const() {
                     ty // only const declarations can be of abstract type.
                 } else {
@@ -957,12 +955,15 @@ impl Exec for Declaration {
                 }
             }
             (DeclarationKind::Let, ScopeKind::Module) => return Err(E::LetInMod),
-            (DeclarationKind::Var(a_s), ScopeKind::Module) => {
+            (DeclarationKind::Var(as_am), ScopeKind::Module) => {
+                let (a_s, a_m) = match as_am {
+                    Some((a_s, Some(a_m))) => (a_s, a_m),
+                    Some((a_s, None)) => (a_s, a_s.default_access_mode()),
+                    None => (AddressSpace::Handle, AccessMode::Read),
+                };
                 if ctx.stage == ShaderStage::Const {
-                    Instance::Deferred(ty)
+                    Instance::Deferred(Type::Ref(a_s, Box::new(ty), a_m))
                 } else {
-                    let (a_s, a_m) = a_s.unwrap_or((AddressSpace::Handle, None));
-
                     match a_s {
                         AddressSpace::Function => {
                             return Err(E::ForbiddenDecl(self.kind, ctx.kind));
@@ -975,8 +976,7 @@ impl Exec for Declaration {
                                 Instance::zero_value(&ty)?
                             };
 
-                            RefInstance::new(inst, AddressSpace::Private, AccessMode::ReadWrite)
-                                .into()
+                            RefInstance::new(inst, a_s, a_m).into()
                         }
                         AddressSpace::Uniform => {
                             if self.initializer.is_some() {
@@ -986,8 +986,8 @@ impl Exec for Declaration {
                             let inst = ctx
                                 .resource(group, binding)
                                 .ok_or(E::MissingResource(group, binding))?;
-                            if inst.ty() != ty {
-                                return Err(E::Type(ty, inst.ty()));
+                            if inst.ty != ty {
+                                return Err(E::Type(ty, inst.ty.clone()));
                             }
                             if inst.space != AddressSpace::Uniform {
                                 return Err(E::AddressSpace(a_s, inst.space));
@@ -1009,13 +1009,12 @@ impl Exec for Declaration {
                             let inst = ctx
                                 .resource(group, binding)
                                 .ok_or(E::MissingResource(group, binding))?;
-                            if ty != inst.ty() {
-                                return Err(E::Type(ty, inst.ty()));
+                            if ty != inst.ty {
+                                return Err(E::Type(ty, inst.ty.clone()));
                             }
                             if inst.space != AddressSpace::Storage {
                                 return Err(E::AddressSpace(a_s, inst.space));
                             }
-                            let a_m = a_m.unwrap_or(AccessMode::Read);
                             if inst.access != a_m {
                                 return Err(E::AccessMode(a_m, inst.access));
                             }
@@ -1030,8 +1029,7 @@ impl Exec for Declaration {
                             // TODO: there is a special case with atomics to handle.
                             let inst = Instance::zero_value(&ty)?;
 
-                            RefInstance::new(inst, AddressSpace::Workgroup, AccessMode::ReadWrite)
-                                .into()
+                            RefInstance::new(inst, a_s, a_m).into()
                         }
                         AddressSpace::Handle => todo!("handle address space"),
                         #[cfg(feature = "naga_ext")]

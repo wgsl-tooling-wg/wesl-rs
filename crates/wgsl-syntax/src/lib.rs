@@ -22,6 +22,21 @@ pub enum AddressSpace {
     PushConstant,
 }
 
+impl AddressSpace {
+    pub fn default_access_mode(&self) -> AccessMode {
+        match self {
+            AddressSpace::Function => AccessMode::ReadWrite,
+            AddressSpace::Private => AccessMode::ReadWrite,
+            AddressSpace::Workgroup => AccessMode::ReadWrite,
+            AddressSpace::Uniform => AccessMode::Read,
+            AddressSpace::Storage => AccessMode::Read,
+            AddressSpace::Handle => AccessMode::Read,
+            #[cfg(feature = "naga_ext")]
+            AddressSpace::PushConstant => AccessMode::Read,
+        }
+    }
+}
+
 /// Memory access mode enumeration.
 ///
 /// Reference: <https://www.w3.org/TR/WGSL/#access-mode>
@@ -167,10 +182,15 @@ pub enum InterpolationSampling {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum UnaryOperator {
+    /// `!`
     LogicalNegation,
+    /// `-`
     Negation,
+    /// `~`
     BitwiseComplement,
+    /// `&`
     AddressOf,
+    /// `*`
     Indirection,
 }
 
@@ -178,23 +198,41 @@ pub enum UnaryOperator {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BinaryOperator {
+    /// `||`
     ShortCircuitOr,
+    /// `&&`
     ShortCircuitAnd,
+    /// `+`
     Addition,
+    /// `-`
     Subtraction,
+    /// `*`
     Multiplication,
+    /// `/`
     Division,
+    /// `%`
     Remainder,
+    /// `==`
     Equality,
+    /// `!=`
     Inequality,
+    /// `<`
     LessThan,
+    /// `<=`
     LessThanEqual,
+    /// `>`
     GreaterThan,
+    /// `>=`
     GreaterThanEqual,
+    /// `|`
     BitwiseOr,
+    /// `&`
     BitwiseAnd,
+    /// `^`
     BitwiseXor,
+    /// `<<`
     ShiftLeft,
+    /// `>>`
     ShiftRight,
 }
 
@@ -202,16 +240,27 @@ pub enum BinaryOperator {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AssignmentOperator {
+    /// `=`
     Equal,
+    /// `+=`
     PlusEqual,
+    /// `-=`
     MinusEqual,
+    /// `*=`
     TimesEqual,
+    /// `/=`
     DivisionEqual,
+    /// `%=`
     ModuloEqual,
+    /// `&=`
     AndEqual,
+    /// `|=`
     OrEqual,
+    /// `^=`
     XorEqual,
+    /// `>>=`
     ShiftRightAssign,
+    /// `<<=`
     ShiftLeftAssign,
 }
 

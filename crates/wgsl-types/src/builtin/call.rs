@@ -1,5 +1,6 @@
 //! Built-in functions call implementations.
 //!
+//! The arguments must be [loaded][Type::loaded].
 //! Functions bear the same name as the WGSL counterpart.
 //! Functions that take template parameters are suffixed with `_t`.
 //!

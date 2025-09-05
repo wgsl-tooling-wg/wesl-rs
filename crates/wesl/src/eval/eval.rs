@@ -14,11 +14,7 @@ pub trait Eval {
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E>;
 
     fn eval_value(&self, ctx: &mut Context) -> Result<Instance, E> {
-        let mut inst = self.eval(ctx)?;
-        while let Instance::Ref(r) = inst {
-            inst = r.read()?.to_owned();
-        }
-        Ok(inst)
+        Ok(self.eval(ctx)?.loaded()?)
     }
 }
 
@@ -33,11 +29,6 @@ impl<T: Eval> Eval for Spanned<T> {
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E> {
         self.node()
             .eval(ctx)
-            .inspect_err(|_| ctx.set_err_span_ctx(self.span()))
-    }
-    fn eval_value(&self, ctx: &mut Context) -> Result<Instance, E> {
-        self.node()
-            .eval_value(ctx)
             .inspect_err(|_| ctx.set_err_span_ctx(self.span()))
     }
 }

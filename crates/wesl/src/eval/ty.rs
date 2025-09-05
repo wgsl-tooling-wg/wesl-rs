@@ -224,45 +224,69 @@ impl EvalTy for ParenthesizedExpression {
 
 impl EvalTy for NamedComponentExpression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
-        match self.base.eval_ty(ctx)? {
-            Type::Struct(s) => {
-                let decl = ctx
-                    .source
-                    .decl_struct(&s.name)
-                    .ok_or_else(|| E::UnknownStruct(s.name.clone()))?;
-                let m = decl
-                    .members
-                    .iter()
-                    .find(|m| *m.ident.name() == *self.component.name())
-                    .ok_or_else(|| E::Component(Type::Struct(s), self.component.to_string()))?;
-                ty_eval_ty(&m.ty, ctx)
+        fn eval_mem_ty(mem_ty: Type, mem_name: &str) -> Result<Type, E> {
+            match mem_ty {
+                Type::Struct(s) => {
+                    let m = s
+                        .members
+                        .iter()
+                        .find(|m| m.name == *mem_name)
+                        .ok_or_else(|| {
+                            E::Component(Type::Struct(s.clone()), mem_name.to_string())
+                        })?;
+                    Ok(m.ty.clone())
+                }
+                Type::Vec(_, ty) => {
+                    let m = mem_name.len();
+                    if !check_swizzle(mem_name) {
+                        Err(E::Swizzle(mem_name.to_string()))
+                    } else if m == 1 {
+                        Ok(*ty)
+                    } else {
+                        Ok(Type::Vec(m as u8, ty))
+                    }
+                }
+                ty => Err(E::Component(ty, mem_name.to_string())),
             }
-            Type::Vec(_, ty) => {
-                let m = self.component.name().len();
-                if !check_swizzle(&self.component.name()) {
-                    Err(E::Swizzle(self.component.to_string()))
-                } else if m == 1 {
-                    Ok(*ty)
+        }
+
+        let mem_name = self.component.name();
+        match self.base.eval_ty(ctx)? {
+            Type::Ref(a_s, ty, a_m) | Type::Ptr(a_s, ty, a_m) => {
+                // struct and vec member access from references yield references,
+                // *except* for vec swizzles which load the value.
+                if ty.is_vec() && mem_name.len() > 1 {
+                    eval_mem_ty(*ty, &mem_name)
                 } else {
-                    Ok(Type::Vec(m as u8, ty))
+                    let mem_ty = eval_mem_ty(*ty, &mem_name)?;
+                    Ok(Type::Ref(a_s, Box::new(mem_ty), a_m))
                 }
             }
-            ty => Err(E::Component(ty, self.component.to_string())),
+            ty => eval_mem_ty(ty, &mem_name),
         }
     }
 }
 
 impl EvalTy for IndexingExpression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
-        let index_ty = self.index.eval_ty(ctx)?;
-        if index_ty.is_integer() {
-            match self.base.eval_ty(ctx)? {
+        fn eval_inner_ty(base_ty: Type) -> Result<Type, E> {
+            match base_ty {
                 Type::Array(ty, _) => Ok(*ty),
                 #[cfg(feature = "naga_ext")]
                 Type::BindingArray(ty, _) => Ok(*ty),
                 Type::Vec(_, ty) => Ok(*ty),
                 Type::Mat(_, r, ty) => Ok(Type::Vec(r, ty)),
-                ty => Err(E::NotIndexable(ty)),
+                _ => Err(E::NotIndexable(base_ty)),
+            }
+        }
+
+        let index_ty = self.index.eval_ty(ctx)?.loaded();
+        if index_ty.is_integer() {
+            match self.base.eval_ty(ctx)? {
+                Type::Ref(a_s, ty, a_m) | Type::Ptr(a_s, ty, a_m) => {
+                    eval_inner_ty(*ty).map(|ty| Type::Ref(a_s, Box::new(ty), a_m))
+                }
+                ty => eval_inner_ty(ty),
             }
         } else {
             Err(E::Index(index_ty))
@@ -273,6 +297,16 @@ impl EvalTy for IndexingExpression {
 impl EvalTy for UnaryExpression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
         let ty = self.operand.eval_ty(ctx)?;
+
+        // special case: only the `&` operator operates on refs before load rule
+        if self.operator == UnaryOperator::AddressOf {
+            return match ty {
+                Type::Ref(a_s, ty, a_m) => Ok(Type::Ptr(a_s, ty, a_m)),
+                operand => Err(E::Unary(self.operator, operand)),
+            };
+        }
+
+        let ty = ty.loaded();
         let inner = ty.inner_ty();
         if ty != inner
             && !ty.is_vec()
@@ -285,12 +319,11 @@ impl EvalTy for UnaryExpression {
             UnaryOperator::LogicalNegation if inner == Type::Bool => Ok(ty),
             UnaryOperator::Negation if inner.is_scalar() && !inner.is_u32() => Ok(ty),
             UnaryOperator::BitwiseComplement if inner.is_integer() => Ok(ty),
-            UnaryOperator::AddressOf => Ok(Type::Ptr(
-                AddressSpace::Function,
-                Box::new(ty),
-                AccessMode::ReadWrite,
-            )), // TODO: we don't know the address space and access mode
-            UnaryOperator::Indirection if ty.is_ptr() => Ok(inner),
+            UnaryOperator::AddressOf => unreachable!("handled above"),
+            UnaryOperator::Indirection => match ty {
+                Type::Ptr(a_s, ty, a_m) => Ok(Type::Ref(a_s, ty, a_m)),
+                _ => Err(E::Unary(self.operator, ty)),
+            },
             _ => Err(E::Unary(self.operator, ty)),
         }
     }
@@ -299,8 +332,8 @@ impl EvalTy for UnaryExpression {
 impl EvalTy for BinaryExpression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
         type BinOp = BinaryOperator;
-        let ty1 = self.left.eval_ty(ctx)?;
-        let ty2 = self.right.eval_ty(ctx)?;
+        let ty1 = self.left.eval_ty(ctx)?.loaded();
+        let ty2 = self.right.eval_ty(ctx)?.loaded();
 
         // ty1 and ty2 must always have the same inner type, except for << and >> operators.
         let (inner, ty1, ty2) = if matches!(self.operator, BinOp::ShiftLeft | BinOp::ShiftRight) {
@@ -444,7 +477,7 @@ impl EvalTy for FunctionCallExpression {
         let args = self
             .arguments
             .iter()
-            .map(|arg| arg.eval_ty(ctx))
+            .map(|arg| arg.eval_ty(ctx).map(|ty| ty.loaded()))
             .collect::<Result<Vec<_>, _>>()?;
 
         if let Some(decl) = ctx.source.decl(&ty.ident.name()) {

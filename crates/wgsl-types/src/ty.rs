@@ -240,6 +240,7 @@ pub enum Type {
     Mat(u8, u8, Box<Type>),
     Atomic(Box<Type>),
     Ptr(AddressSpace, Box<Type>, AccessMode),
+    Ref(AddressSpace, Box<Type>, AccessMode),
     Texture(TextureType),
     Sampler(SamplerType),
 }
@@ -321,9 +322,6 @@ impl Type {
     pub fn is_f32(&self) -> bool {
         matches!(self, Type::F32)
     }
-    pub fn is_ptr(&self) -> bool {
-        matches!(self, Type::Ptr(_, _, _))
-    }
     pub fn is_bool(&self) -> bool {
         matches!(self, Type::Bool)
     }
@@ -396,6 +394,7 @@ impl Ty for Type {
             Type::Mat(_, _, ty) => ty.ty(),
             Type::Atomic(ty) => ty.ty(),
             Type::Ptr(_, ty, _) => ty.ty(),
+            Type::Ref(_, ty, _) => ty.ty(),
             Type::Texture(_) => self.clone(),
             Type::Sampler(_) => self.clone(),
         }
@@ -499,7 +498,7 @@ impl Ty for PtrInstance {
 
 impl Ty for RefInstance {
     fn ty(&self) -> Type {
-        self.ty.clone()
+        Type::Ref(self.space, Box::new(self.ty.clone()), self.access)
     }
 }
 

@@ -474,6 +474,7 @@ impl From<RefInstance> for PtrInstance {
 /// Reference: <https://www.w3.org/TR/WGSL/#ref-ptr-types>
 #[derive(Clone, Debug, PartialEq)]
 pub struct RefInstance {
+    /// Inner type
     pub ty: Type,
     pub space: AddressSpace,
     pub access: AccessMode,
@@ -547,8 +548,8 @@ impl RefInstance {
         if !self.access.is_write() {
             return Err(E::NotWrite);
         }
-        if value.ty() != self.ty() {
-            return Err(E::WriteRefType(value.ty(), self.ty()));
+        if value.ty() != self.ty {
+            return Err(E::WriteRefType(value.ty(), self.ty.clone()));
         }
         let mut r = self.ptr.borrow_mut();
         let view = r.view_mut(&self.view).expect("invalid reference");
