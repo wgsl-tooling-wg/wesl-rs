@@ -10,6 +10,7 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+wgsl-syntax = { workspace = true }
 annotate-snippets = "0.11.4"
 derive_more = { version = "2.0.1", features = [
     "as_ref",
@@ -62,11 +63,11 @@ imports = []
 # * https://github.com/gfx-rs/wgpu/issues/4410
 # * https://github.com/gfx-rs/wgpu/blob/trunk/docs/api-specs/ray_tracing.md
 # * https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
-naga_ext = ["push_constant"]
+naga_ext = ["push_constant", "wgsl-syntax/naga_ext"]
 push_constant = []
 
-serde = ["dep:serde"]
-tokrepr = ["dep:tokrepr"]
+serde = ["dep:serde", "wgsl-syntax/serde"]
+tokrepr = ["dep:tokrepr", "wgsl-syntax/tokrepr"]
 
 [lints]
 workspace = true

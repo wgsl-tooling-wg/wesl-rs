@@ -1,16 +1,19 @@
-use super::{
-    ArrayInstance, BuiltinIdent, LiteralInstance, MatInstance, StructInstance, SyntaxUtil,
-    TextureType, Ty, Type, VecInstance,
+use wgsl_types::{
+    inst::{ArrayInstance, Instance, LiteralInstance, MatInstance, StructInstance, VecInstance},
+    ty::{TextureType, Ty, Type},
 };
+
+use super::{BuiltinIdent, SyntaxUtil};
+
 use crate::{
     builtin::builtin_ident,
-    eval::{Context, EvalError, Instance},
+    eval::{Context, EvalError},
 };
 use wgsl_parse::{span::Spanned, syntax::*};
 
 type E = EvalError;
 
-/// Convert and instance to an Expression.
+/// Convert an instance to an Expression.
 pub trait ToExpr {
     fn to_expr(&self, ctx: &Context) -> Result<Expression, E>;
 }
@@ -55,7 +58,7 @@ impl ToExpr for StructInstance {
     fn to_expr(&self, ctx: &Context) -> Result<Expression, E> {
         let decl = ctx
             .source
-            .decl_struct(self.name())
+            .decl_struct(&self.ty.name)
             .expect("struct declaration not found");
         Ok(Expression::FunctionCall(FunctionCall {
             ty: TypeExpression::new(decl.ident.clone()),
@@ -129,7 +132,7 @@ impl ToExpr for Type {
             Type::Struct(s) => {
                 let decl = ctx
                     .source
-                    .decl_struct(s)
+                    .decl_struct(&s.name)
                     .expect("struct declaration not found");
                 Ok(TypeExpression::new(decl.ident.clone()))
             }
@@ -196,17 +199,17 @@ impl ToExpr for Type {
                 }]);
                 Ok(ty)
             }
-            Type::Ptr(space, inner_ty) => {
+            Type::Ptr(a_s, inner_ty, a_m) => {
                 let mut ty = TypeExpression::new(ident.unwrap());
                 let t1 = TemplateArg {
-                    expression: space.to_expr(ctx)?.into(),
+                    expression: a_s.to_expr(ctx)?.into(),
                 };
                 let t2 = TemplateArg {
                     expression: inner_ty.to_expr(ctx)?.into(),
                 };
-                let args = if let AddressSpace::Storage(Some(access)) = space {
+                let args = if let AddressSpace::Storage = a_s {
                     let t3 = TemplateArg {
-                        expression: access.to_expr(ctx)?.into(),
+                        expression: a_m.to_expr(ctx)?.into(),
                     };
                     vec![t1, t2, t3]
                 } else {
@@ -215,6 +218,7 @@ impl ToExpr for Type {
                 ty.template_args = Some(args);
                 Ok(ty)
             }
+            Type::Ref(_, _, _) => Err(E::NotConstructible(self.ty())),
             Type::Texture(tex) => {
                 let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = match tex {

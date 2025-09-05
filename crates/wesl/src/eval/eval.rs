@@ -1,11 +1,12 @@
-use super::{
-    Context, EvalError, Exec, Flow, Instance, LiteralInstance, PtrInstance, RefInstance, ScopeKind,
-    SyntaxUtil, Ty, Type, VecInstance,
-};
-
 use half::f16;
 use itertools::Itertools;
 use wgsl_parse::{span::Spanned, syntax::*};
+use wgsl_types::{
+    inst::{Instance, LiteralInstance, PtrInstance, RefInstance, VecInstance},
+    ty::{Ty, Type},
+};
+
+use super::{Context, EvalError, Exec, Flow, ScopeKind, SyntaxUtil};
 
 type E = EvalError;
 
@@ -13,11 +14,7 @@ pub trait Eval {
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E>;
 
     fn eval_value(&self, ctx: &mut Context) -> Result<Instance, E> {
-        let mut inst = self.eval(ctx)?;
-        while let Instance::Ref(r) = inst {
-            inst = r.read()?.to_owned();
-        }
-        Ok(inst)
+        Ok(self.eval(ctx)?.loaded()?)
     }
 }
 
@@ -32,11 +29,6 @@ impl<T: Eval> Eval for Spanned<T> {
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E> {
         self.node()
             .eval(ctx)
-            .inspect_err(|_| ctx.set_err_span_ctx(self.span()))
-    }
-    fn eval_value(&self, ctx: &mut Context) -> Result<Instance, E> {
-        self.node()
-            .eval_value(ctx)
             .inspect_err(|_| ctx.set_err_span_ctx(self.span()))
     }
 }
@@ -108,7 +100,7 @@ impl Eval for NamedComponentExpression {
                 .collect_vec();
             if let [i] = indices.as_slice() {
                 if let Some(r) = r {
-                    r.view_index(*i).map(Instance::Ref)
+                    Ok(Instance::Ref(r.view_index(*i)?))
                 } else {
                     v.get(*i)
                         .cloned()
@@ -130,14 +122,14 @@ impl Eval for NamedComponentExpression {
         fn inst_comp(base: Instance, comp: &str) -> Result<Instance, E> {
             match &base {
                 Instance::Struct(s) => {
-                    let val = s.member(comp).ok_or_else(|| {
-                        E::Component(Type::Struct(s.name().to_string()), comp.to_string())
-                    })?;
+                    let val = s
+                        .member(comp)
+                        .ok_or_else(|| E::Component(s.ty(), comp.to_string()))?;
                     Ok(val.clone())
                 }
                 Instance::Vec(v) => vec_comp(v, comp, None),
                 Instance::Ref(r) => match &*r.read()? {
-                    Instance::Struct(_) => r.view_member(comp.to_string()).map(Into::into),
+                    Instance::Struct(_) => Ok(r.view_member(comp.to_string())?.into()),
                     Instance::Vec(v) => vec_comp(v, comp, Some(r)),
                     _ => Err(E::Component(base.ty(), comp.to_string())),
                 },
@@ -166,7 +158,7 @@ impl Eval for IndexingExpression {
                     .get(index)
                     .cloned()
                     .ok_or_else(|| E::OutOfBounds(index, a.ty(), a.n())),
-                Instance::Ref(r) => r.view_index(index).map(Instance::Ref),
+                Instance::Ref(r) => Ok(r.view_index(index)?.into()),
                 _ => Err(E::NotIndexable(base.ty())),
             }
         }
@@ -201,9 +193,10 @@ impl Eval for UnaryExpression {
                 UnaryOperator::AddressOf => unreachable!("handled above"),
                 UnaryOperator::Indirection => match operand {
                     Instance::Ptr(p) => Ok(RefInstance::from(p).into()),
-                    operand => Err(E::Unary(self.operator, operand.ty())),
+                    operand => Err(wgsl_types::Error::Unary(self.operator, operand.ty())),
                 },
             }
+            .map_err(Into::into)
         }
     }
 }
@@ -259,6 +252,7 @@ impl Eval for BinaryExpression {
                 BinaryOperator::ShiftLeft => lhs.op_shl(&rhs, ctx.stage),
                 BinaryOperator::ShiftRight => lhs.op_shr(&rhs, ctx.stage),
             }
+            .map_err(Into::into)
         }
     }
 }
@@ -282,7 +276,7 @@ impl Eval for TypeExpression {
         if self.template_args.is_some() {
             Err(E::UnexpectedTemplate(self.ident.to_string()))
         } else if let Some(inst) = ctx.scope.get(&self.ident.name()) {
-            if inst.is_deferred() {
+            if matches!(inst, Instance::Deferred(_)) {
                 Err(E::NotAccessible(self.ident.to_string(), ctx.stage))
             } else {
                 Ok(inst.clone())
@@ -293,7 +287,7 @@ impl Eval for TypeExpression {
                 if let Some(decl) = ctx.source.decl(&self.ident.name()) {
                     decl.exec(ctx)?;
                     if let Some(inst) = ctx.scope.get(&self.ident.name()) {
-                        return if inst.is_deferred() {
+                        return if matches!(inst, Instance::Deferred(_)) {
                             Err(E::NotAccessible(self.ident.to_string(), ctx.stage))
                         } else {
                             Ok(inst.clone())

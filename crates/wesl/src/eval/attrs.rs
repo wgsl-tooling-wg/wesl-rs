@@ -2,8 +2,13 @@ use wgsl_parse::{
     Decorated,
     syntax::{Attribute, AttributeNode, BuiltinValue, Expression},
 };
+use wgsl_types::{
+    ShaderStage,
+    inst::{Instance, LiteralInstance},
+    ty::{Ty, Type},
+};
 
-use super::{Context, Eval, EvalError, EvalStage, Instance, LiteralInstance, Ty, Type, with_stage};
+use super::{Context, Eval, EvalError, with_stage};
 
 type E = EvalError;
 
@@ -39,20 +44,20 @@ pub trait EvalAttrs: Decorated {
 
 impl<T: Decorated> EvalAttrs for T {}
 fn eval_positive_integer(expr: &Expression, ctx: &mut Context) -> Result<u32, E> {
-    let expr = with_stage!(ctx, EvalStage::Const, { expr.eval_value(ctx) })?;
-    let expr = match expr {
+    let inst = with_stage!(ctx, ShaderStage::Const, { expr.eval_value(ctx) })?;
+    let integer = match inst {
         Instance::Literal(g) => match g {
             LiteralInstance::AbstractInt(g) => Ok(g),
             LiteralInstance::I32(g) => Ok(g as i64),
             LiteralInstance::U32(g) => Ok(g as i64),
             _ => Err(E::Type(Type::U32, g.ty())),
         },
-        _ => Err(E::Type(Type::U32, expr.ty())),
+        _ => Err(E::Type(Type::U32, inst.ty())),
     }?;
-    if expr < 0 {
-        Err(E::NegativeAttr(expr))
+    if integer < 0 {
+        Err(E::NegativeAttr(integer))
     } else {
-        Ok(expr as u32)
+        Ok(integer as u32)
     }
 }
 

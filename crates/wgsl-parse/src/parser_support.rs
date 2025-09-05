@@ -48,123 +48,6 @@ impl FromStr for DeclarationKind {
     }
 }
 
-impl FromStr for AddressSpace {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "function" => Ok(Self::Function),
-            "private" => Ok(Self::Private),
-            "workgroup" => Ok(Self::Workgroup),
-            "uniform" => Ok(Self::Uniform),
-            "storage" => Ok(Self::Storage(None)),
-            #[cfg(feature = "push_constant")]
-            "push_constant" => Ok(Self::PushConstant),
-            // "WGSL predeclares an enumerant for each address space, except for the handle address space."
-            // "handle" => Ok(Self::Handle),
-            _ => Err(()),
-        }
-    }
-}
-
-impl FromStr for AccessMode {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "read" => Ok(Self::Read),
-            "write" => Ok(Self::Write),
-            "read_write" => Ok(Self::ReadWrite),
-            _ => Err(()),
-        }
-    }
-}
-
-impl FromStr for DiagnosticSeverity {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "error" => Ok(Self::Error),
-            "warning" => Ok(Self::Warning),
-            "info" => Ok(Self::Info),
-            "off" => Ok(Self::Off),
-            _ => Err(()),
-        }
-    }
-}
-
-impl FromStr for BuiltinValue {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "vertex_index" => Ok(Self::VertexIndex),
-            "instance_index" => Ok(Self::InstanceIndex),
-            "clip_distances" => Ok(Self::ClipDistances),
-            "position" => Ok(Self::Position),
-            "front_facing" => Ok(Self::FrontFacing),
-            "frag_depth" => Ok(Self::FragDepth),
-            "sample_index" => Ok(Self::SampleIndex),
-            "sample_mask" => Ok(Self::SampleMask),
-            "local_invocation_id" => Ok(Self::LocalInvocationId),
-            "local_invocation_index" => Ok(Self::LocalInvocationIndex),
-            "global_invocation_id" => Ok(Self::GlobalInvocationId),
-            "workgroup_id" => Ok(Self::WorkgroupId),
-            "num_workgroups" => Ok(Self::NumWorkgroups),
-            "subgroup_invocation_id" => Ok(Self::SubgroupInvocationId),
-            "subgroup_size" => Ok(Self::SubgroupSize),
-            #[cfg(feature = "naga_ext")]
-            "primitive_index" => Ok(Self::PrimitiveIndex),
-            #[cfg(feature = "naga_ext")]
-            "view_index" => Ok(Self::ViewIndex),
-            _ => Err(()),
-        }
-    }
-}
-
-impl FromStr for InterpolationType {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "perspective" => Ok(Self::Perspective),
-            "linear" => Ok(Self::Linear),
-            "flat" => Ok(Self::Flat),
-            _ => Err(()),
-        }
-    }
-}
-
-impl FromStr for InterpolationSampling {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "center" => Ok(Self::Center),
-            "centroid" => Ok(Self::Centroid),
-            "sample" => Ok(Self::Sample),
-            "first" => Ok(Self::First),
-            "either" => Ok(Self::Either),
-            _ => Err(()),
-        }
-    }
-}
-
-#[cfg(feature = "naga_ext")]
-impl FromStr for ConservativeDepth {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "greater_equal" => Ok(Self::GreaterEqual),
-            "less_equal" => Ok(Self::LessEqual),
-            "unchanged" => Ok(Self::Unchanged),
-            _ => Err(()),
-        }
-    }
-}
-
 fn one_arg(arguments: Option<Vec<ExpressionNode>>) -> Option<ExpressionNode> {
     match arguments {
         Some(mut args) => (args.len() == 1).then(|| args.pop().unwrap()),
@@ -416,18 +299,21 @@ fn parse_attr_type(arguments: Option<Vec<ExpressionNode>>) -> Result<TypeConstra
     }
 }
 
-pub(crate) fn parse_var_template(template_args: TemplateArgs) -> Result<Option<AddressSpace>, E> {
+pub(crate) fn parse_var_template(
+    template_args: TemplateArgs,
+) -> Result<Option<(AddressSpace, Option<AccessMode>)>, E> {
     match template_args {
         Some(tplt) => {
             let mut it = tplt.into_iter();
             match (it.next(), it.next(), it.next()) {
                 (Some(e1), e2, None) => {
-                    let mut addr_space = ident(e1.expression)
+                    let addr_space = ident(e1.expression)
                         .and_then(|id| id.name().parse().ok())
                         .ok_or(E::VarTemplate("invalid address space"))?;
+                    let mut access_mode = None;
                     if let Some(e2) = e2 {
-                        if let AddressSpace::Storage(access_mode) = &mut addr_space {
-                            *access_mode = Some(
+                        if addr_space == AddressSpace::Storage {
+                            access_mode = Some(
                                 ident(e2.expression)
                                     .and_then(|id| id.name().parse().ok())
                                     .ok_or(E::VarTemplate("invalid access mode"))?,
@@ -438,7 +324,7 @@ pub(crate) fn parse_var_template(template_args: TemplateArgs) -> Result<Option<A
                             ));
                         }
                     }
-                    Ok(Some(addr_space))
+                    Ok(Some((addr_space, access_mode)))
                 }
                 _ => Err(E::VarTemplate("template is empty")),
             }

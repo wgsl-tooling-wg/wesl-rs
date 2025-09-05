@@ -24,6 +24,7 @@ itertools = "0.14.0"
 num-traits = "0.2.19"
 thiserror = "2.0.11"
 wgsl-parse = { workspace = true, features = ["wesl"] }
+wgsl-types = { workspace = true }
 wesl-macros = { workspace = true, features = ["query"] }
 # deps for feature 'package'
 proc-macro2 = { version = "1.0.93", optional = true }
@@ -40,7 +41,7 @@ package = ["dep:proc-macro2", "dep:quote"]
 # * https://github.com/gfx-rs/wgpu/issues/4410
 # * https://github.com/gfx-rs/wgpu/blob/trunk/docs/api-specs/ray_tracing.md
 # * https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
-naga_ext = ["wgsl-parse/naga_ext"]
+naga_ext = ["wgsl-parse/naga_ext", "wgsl-types/naga_ext"]
 
 [package.metadata.docs.rs]
 all-features = true
