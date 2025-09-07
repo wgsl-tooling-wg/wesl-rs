@@ -2,7 +2,7 @@
 //!
 //! The arguments must be [loaded][Type::loaded].
 //! Functions bear the same name as the WGSL counterpart.
-//! Functions that take template parameters are suffixed with `_t`.
+//! Functions that take template parameters are suffixed with `_t` and take `tplt_*` arguments.
 //!
 //! Some functions are still TODO and are documented as such.
 //! Derivatives and texture functions are also missing.
@@ -21,7 +21,6 @@ use crate::{
         ArrayInstance, AtomicInstance, LiteralInstance, MatInstance, RefInstance, StructInstance,
         VecInstance,
     },
-    tplt::{ArrayTemplate, BitcastTemplate, MatTemplate, VecTemplate},
     ty::{Ty, Type},
 };
 
@@ -34,21 +33,18 @@ type E = Error;
 // ------------
 // reference: <https://www.w3.org/TR/WGSL/#constructor-builtin-function>
 
-pub fn array_t(tplt: ArrayTemplate, args: &[Instance]) -> Result<Instance, E> {
+pub fn array_t(tplt_ty: &Type, tplt_n: usize, args: &[Instance]) -> Result<Instance, E> {
     let args = args
         .iter()
         .map(|a| {
-            a.convert_to(&tplt.inner_ty())
-                .ok_or_else(|| E::ParamType(tplt.ty(), a.ty()))
+            a.convert_to(tplt_ty).ok_or_else(|| {
+                E::ParamType(Type::Array(Box::new(tplt_ty.clone()), Some(tplt_n)), a.ty())
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    if Some(args.len()) != tplt.n() {
-        return Err(E::ParamCount(
-            "array".to_string(),
-            tplt.n().unwrap_or_default(),
-            args.len(),
-        ));
+    if args.len() != tplt_n {
+        return Err(E::ParamCount("array".to_string(), tplt_n, args.len()));
     }
 
     Ok(ArrayInstance::new(args, false).into())
@@ -238,17 +234,20 @@ pub fn f16(a1: &Instance, stage: ShaderStage) -> Result<Instance, E> {
 pub fn mat_t(
     c: usize,
     r: usize,
-    tplt: MatTemplate,
+    tplt_ty: &Type,
     args: &[Instance],
     stage: ShaderStage,
 ) -> Result<Instance, E> {
     // overload 1: mat conversion constructor
     if let [Instance::Mat(m)] = args {
         if m.c() != c || m.r() != r {
-            return Err(E::Conversion(m.ty(), tplt.ty(c as u8, r as u8)));
+            return Err(E::Conversion(
+                m.ty(),
+                Type::Mat(c as u8, r as u8, Box::new(tplt_ty.clone())),
+            ));
         }
 
-        let conv_fn = match tplt.inner_ty() {
+        let conv_fn = match tplt_ty {
             Type::F32 => f32,
             Type::F16 => f16,
             _ => return Err(E::Builtin("matrix type must be a f32 or f16")),
@@ -272,14 +271,14 @@ pub fn mat_t(
             .ok_or(E::Builtin("matrix constructor expects arguments"))?
             .ty();
         let ty = ty
-            .convert_inner_to(tplt.inner_ty())
-            .ok_or(E::Conversion(ty.inner_ty(), tplt.inner_ty().clone()))?;
+            .convert_inner_to(tplt_ty)
+            .ok_or(E::Conversion(ty.inner_ty(), tplt_ty.clone()))?;
         let args =
             convert_all_to(args, &ty).ok_or(E::Builtin("matrix components are incompatible"))?;
 
         // overload 2: mat from column vectors
         if ty.is_vec() {
-            if args.len() != c {
+            if args.len() != c as usize {
                 return Err(E::ParamCount(format!("mat{c}x{r}"), c, args.len()));
             }
 
@@ -360,22 +359,22 @@ pub fn mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
 
 pub fn vec_t(
     n: usize,
-    tplt: VecTemplate,
+    tplt_ty: &Type,
     args: &[Instance],
     stage: ShaderStage,
 ) -> Result<Instance, E> {
     // overload 1: vec init from single scalar value
     if let [Instance::Literal(l)] = args {
         let val = l
-            .convert_to(tplt.inner_ty())
+            .convert_to(tplt_ty)
             .map(Instance::Literal)
-            .ok_or_else(|| E::ParamType(tplt.inner_ty().clone(), l.ty()))?;
+            .ok_or_else(|| E::ParamType(tplt_ty.clone(), l.ty()))?;
         let comps = (0..n).map(|_| val.clone()).collect_vec();
         Ok(VecInstance::new(comps).into())
     }
     // overload 2: vec conversion constructor
     else if let [Instance::Vec(v)] = args {
-        let ty = tplt.ty(n as u8);
+        let ty = Type::Vec(n as u8, Box::new(tplt_ty.clone()));
         if v.n() != n {
             return Err(E::Conversion(v.ty(), ty));
         }
@@ -415,8 +414,8 @@ pub fn vec_t(
         let comps = args
             .iter()
             .map(|a| {
-                a.convert_inner_to(tplt.inner_ty())
-                    .ok_or_else(|| E::ParamType(tplt.inner_ty().clone(), a.ty()))
+                a.convert_inner_to(tplt_ty)
+                    .ok_or_else(|| E::ParamType(tplt_ty.clone(), a.ty()))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -476,7 +475,7 @@ pub fn vec(n: usize, args: &[Instance]) -> Result<Instance, E> {
 // -------
 // reference: <https://www.w3.org/TR/WGSL/#bit-reinterp-builtin-functions>
 
-pub fn bitcast_t(tplt: BitcastTemplate, e: &Instance) -> Result<Instance, E> {
+pub fn bitcast_t(tplt_ty: &Type, e: &Instance) -> Result<Instance, E> {
     fn lit_bytes(l: &LiteralInstance, ty: &Type) -> Result<Vec<u8>, E> {
         match l {
             LiteralInstance::Bool(_) => Err(E::Builtin("bitcast argument cannot be bool")),
@@ -515,8 +514,7 @@ pub fn bitcast_t(tplt: BitcastTemplate, e: &Instance) -> Result<Instance, E> {
             .unwrap()
     }
 
-    let ty = tplt.ty();
-    let inner_ty = tplt.inner_ty();
+    let inner_ty = tplt_ty.inner_ty();
 
     let bytes = match e {
         Instance::Literal(l) => lit_bytes(l, &inner_ty),
@@ -528,7 +526,7 @@ pub fn bitcast_t(tplt: BitcastTemplate, e: &Instance) -> Result<Instance, E> {
 
     let size_err = E::Builtin("`bitcast` input and output types must have the same size");
 
-    match ty {
+    match tplt_ty {
         Type::I32 => {
             let n = i32::from_le_bytes(bytes.try_into().map_err(|_| size_err)?);
             Ok(LiteralInstance::I32(n).into())
@@ -546,28 +544,28 @@ pub fn bitcast_t(tplt: BitcastTemplate, e: &Instance) -> Result<Instance, E> {
             Ok(LiteralInstance::F16(n).into())
         }
         Type::Vec(n, ty) => {
-            if *ty == Type::I32 && bytes.len() == 4 * (n as usize) {
+            if **ty == Type::I32 && bytes.len() == 4 * (*n as usize) {
                 let v = bytes
                     .chunks(4)
                     .map(|b| i32::from_le_bytes(b.try_into().unwrap()))
                     .map(|n| LiteralInstance::from(n).into())
                     .collect_vec();
                 Ok(VecInstance::new(v).into())
-            } else if *ty == Type::U32 && bytes.len() == 4 * (n as usize) {
+            } else if **ty == Type::U32 && bytes.len() == 4 * (*n as usize) {
                 let v = bytes
                     .chunks(4)
                     .map(|b| u32::from_le_bytes(b.try_into().unwrap()))
                     .map(|n| LiteralInstance::from(n).into())
                     .collect_vec();
                 Ok(VecInstance::new(v).into())
-            } else if *ty == Type::F32 && bytes.len() == 4 * (n as usize) {
+            } else if **ty == Type::F32 && bytes.len() == 4 * (*n as usize) {
                 let v = bytes
                     .chunks(4)
                     .map(|b| f32::from_le_bytes(b.try_into().unwrap()))
                     .map(|n| LiteralInstance::from(n).into())
                     .collect_vec();
                 Ok(VecInstance::new(v).into())
-            } else if *ty == Type::F16 && bytes.len() == 2 * (n as usize) {
+            } else if **ty == Type::F16 && bytes.len() == 2 * (*n as usize) {
                 let v = bytes
                     .chunks(2)
                     .map(|b| f16::from_le_bytes(b.try_into().unwrap()))
