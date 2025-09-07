@@ -330,7 +330,7 @@ pub fn conversion_rank(ty1: &Type, ty2: &Type) -> Option<u32> {
     }
 }
 
-/// performs overload resolution when two instances of T are involved (which is the most common).
+/// Performs overload resolution when two instances of T are involved (which is the most common).
 /// it just makes sure that the two instance types are the same. This is sufficient in most cases.
 pub fn convert<T: Convert + Ty + Clone>(i1: &T, i2: &T) -> Option<(T, T)> {
     let (ty1, ty2) = (i1.ty(), i2.ty());
@@ -378,7 +378,7 @@ pub fn convert_all_inner_to<'a, T: Convert + Ty + Clone + 'a>(
         .collect::<Option<Vec<_>>>()
 }
 
-/// performs overload resolution when two instances of T are involved (which is the most common).
+/// Performs overload resolution when two instances of T are involved (which is the most common).
 /// it just makes sure that the two types are the same. This is sufficient in most cases.
 pub fn convert_ty<'a>(ty1: &'a Type, ty2: &'a Type) -> Option<&'a Type> {
     conversion_rank(ty1, ty2)
@@ -386,7 +386,7 @@ pub fn convert_ty<'a>(ty1: &'a Type, ty2: &'a Type) -> Option<&'a Type> {
         .or_else(|| conversion_rank(ty2, ty1).map(|_rank| ty1))
 }
 
-/// performs overload resolution (find the type that all others can be automatically converted to)
+/// Performs overload resolution (find the type that all others can be automatically converted to)
 pub fn convert_all_ty<'a>(tys: impl IntoIterator<Item = &'a Type> + 'a) -> Option<&'a Type> {
     tys.into_iter()
         .map(Option::Some)

@@ -668,7 +668,7 @@ impl Exec for FunctionCall {
             } else if let GlobalDeclaration::Struct(decl) = decl {
                 let struct_ty = *decl.eval_ty(ctx)?.unwrap_struct();
                 let inst = struct_ctor(&struct_ty, &args)?;
-                Ok(Flow::Return(Some(inst)))
+                Ok(Flow::Return(Some(Instance::from(inst))))
             } else {
                 Err(E::NotCallable(fn_name))
             }

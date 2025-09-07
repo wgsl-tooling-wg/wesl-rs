@@ -1,25 +1,30 @@
 //! Built-in functions call implementations.
 //!
-//! The arguments must be [loaded][Type::loaded].
 //! Functions bear the same name as the WGSL counterpart.
 //! Functions that take template parameters are suffixed with `_t` and take `tplt_*` arguments.
 //!
+//! ### Warning
+//!
 //! Some functions are still TODO and are documented as such.
 //! Derivatives and texture functions are also missing.
+//!
+//! ### Usage quirks
+//!
+//! * The arguments must be [loaded][Type::loaded].
+//! * User-defined functions can shadow WGSL built-in functions.
+//! * Type aliases must be resolved: WGSL allows calling functions with the name of the alias.
 
 #![allow(non_snake_case)]
 
 use half::prelude::*;
-use num_traits::{FromPrimitive, One, ToBytes, ToPrimitive, Zero, real::Real};
-
 use itertools::{Itertools, chain, izip};
+use num_traits::{One, ToBytes, ToPrimitive, Zero, real::Real};
 
 use crate::{
     Error, Instance, ShaderStage,
-    conv::{Convert, convert, convert_all, convert_all_inner_to, convert_all_to, convert_all_ty},
+    conv::{Convert, convert, convert_all_ty},
     inst::{
-        ArrayInstance, AtomicInstance, LiteralInstance, MatInstance, RefInstance, StructInstance,
-        VecInstance,
+        AtomicInstance, LiteralInstance, MatInstance, RefInstance, StructInstance, VecInstance,
     },
     ty::{Ty, Type},
 };
@@ -28,453 +33,14 @@ use super::{Compwise, atomic_compare_exchange_struct_type, frexp_struct_type};
 
 type E = Error;
 
-// ------------
-// CONSTRUCTORS
-// ------------
-// reference: <https://www.w3.org/TR/WGSL/#constructor-builtin-function>
-
-pub fn array_t(tplt_ty: &Type, tplt_n: usize, args: &[Instance]) -> Result<Instance, E> {
-    let args = args
-        .iter()
-        .map(|a| {
-            a.convert_to(tplt_ty).ok_or_else(|| {
-                E::ParamType(Type::Array(Box::new(tplt_ty.clone()), Some(tplt_n)), a.ty())
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    if args.len() != tplt_n {
-        return Err(E::ParamCount("array".to_string(), tplt_n, args.len()));
-    }
-
-    Ok(ArrayInstance::new(args, false).into())
-}
-pub fn array(args: &[Instance]) -> Result<Instance, E> {
-    let args = convert_all(args).ok_or(E::Builtin("array elements are incompatible"))?;
-
-    if args.is_empty() {
-        return Err(E::Builtin("array constructor expects at least 1 argument"));
-    }
-
-    Ok(ArrayInstance::new(args, false).into())
-}
-
-pub fn bool(a1: &Instance) -> Result<Instance, E> {
-    match a1 {
-        Instance::Literal(l) => {
-            let zero = LiteralInstance::zero_value(&l.ty())?;
-            Ok(LiteralInstance::Bool(*l != zero).into())
-        }
-        _ => Err(E::Builtin("bool constructor expects a scalar argument")),
-    }
-}
-
-// TODO: check that "If T is a floating point type, e is converted to i32, rounding towards zero."
-pub fn i32(a1: &Instance) -> Result<Instance, E> {
-    match a1 {
-        Instance::Literal(l) => {
-            let val = match l {
-                LiteralInstance::Bool(n) => Some(n.then_some(1).unwrap_or(0)),
-                LiteralInstance::AbstractInt(n) => n.to_i32(), // identity if representable
-                LiteralInstance::AbstractFloat(n) => Some(*n as i32), // rounding towards 0
-                LiteralInstance::I32(n) => Some(*n),           // identity operation
-                LiteralInstance::U32(n) => Some(*n as i32),    // reinterpretation of bits
-                LiteralInstance::F32(n) => Some((*n as i32).min(2147483520)), // rounding towards 0 AND representable in f32
-                LiteralInstance::F16(n) => Some((f16::to_f32(*n) as i32).min(65504)), // rounding towards 0 AND representable in f16
-                #[cfg(feature = "naga_ext")]
-                LiteralInstance::I64(n) => n.to_i32(), // identity if representable
-                #[cfg(feature = "naga_ext")]
-                LiteralInstance::U64(n) => n.to_i32(), // identity if representable
-                #[cfg(feature = "naga_ext")]
-                LiteralInstance::F64(n) => Some(*n as i32), // rounding towards 0
-            }
-            .ok_or(E::ConvOverflow(*l, Type::I32))?;
-            Ok(LiteralInstance::I32(val).into())
-        }
-        _ => Err(E::Builtin("i32 constructor expects a scalar argument")),
-    }
-}
-
-pub fn u32(a1: &Instance) -> Result<Instance, E> {
-    match a1 {
-        Instance::Literal(l) => {
-            let val = match l {
-                LiteralInstance::Bool(n) => Some(n.then_some(1).unwrap_or(0)),
-                LiteralInstance::AbstractInt(n) => n.to_u32(), // identity if representable
-                LiteralInstance::AbstractFloat(n) => Some(*n as u32), // rounding towards 0
-                LiteralInstance::I32(n) => Some(*n as u32),    // reinterpretation of bits
-                LiteralInstance::U32(n) => Some(*n),           // identity operation
-                LiteralInstance::F32(n) => Some((*n as u32).min(4294967040)), // rounding towards 0 AND representable in f32
-                LiteralInstance::F16(n) => Some((f16::to_f32(*n) as u32).min(65504)), // rounding towards 0 AND representable in f16
-                #[cfg(feature = "naga_ext")]
-                LiteralInstance::I64(n) => n.to_u32(), // identity if representable
-                #[cfg(feature = "naga_ext")]
-                LiteralInstance::U64(n) => n.to_u32(), // identity if representable
-                #[cfg(feature = "naga_ext")]
-                LiteralInstance::F64(n) => Some(*n as u32), // rounding towards 0
-            }
-            .ok_or(E::ConvOverflow(*l, Type::U32))?;
-            Ok(LiteralInstance::U32(val).into())
-        }
-        _ => Err(E::Builtin("u32 constructor expects a scalar argument")),
-    }
-}
-
-pub fn f32(a1: &Instance, _stage: ShaderStage) -> Result<Instance, E> {
-    match a1 {
-        Instance::Literal(l) => {
-            let val = match l {
-                LiteralInstance::Bool(n) => Some(n.then_some(f32::one()).unwrap_or(f32::zero())),
-                LiteralInstance::AbstractInt(n) => n.to_f32(), // implicit conversion
-                LiteralInstance::AbstractFloat(n) => n.to_f32(), // implicit conversion
-                LiteralInstance::I32(n) => Some(*n as f32),    // scalar to float (never overflows)
-                LiteralInstance::U32(n) => Some(*n as f32),    // scalar to float (never overflows)
-                LiteralInstance::F32(n) => Some(*n),           // identity operation
-                LiteralInstance::F16(n) => Some(f16::to_f32(*n)), // exactly representable
-                #[cfg(feature = "naga_ext")]
-                LiteralInstance::I64(n) => n.to_f32(), // implicit conversion
-                #[cfg(feature = "naga_ext")]
-                LiteralInstance::U64(n) => n.to_f32(), // implicit conversion
-                #[cfg(feature = "naga_ext")]
-                LiteralInstance::F64(n) => n.to_f32(), // implicit conversion
-            }
-            .ok_or(E::ConvOverflow(*l, Type::F32))?;
-            Ok(LiteralInstance::F32(val).into())
-        }
-        _ => Err(E::Builtin("f32 constructor expects a scalar argument")),
-    }
-}
-
-pub fn f16(a1: &Instance, stage: ShaderStage) -> Result<Instance, E> {
-    match a1 {
-        Instance::Literal(l) => {
-            let val = match l {
-                LiteralInstance::Bool(n) => Some(n.then_some(f16::one()).unwrap_or(f16::zero())),
-                LiteralInstance::AbstractInt(n) => {
-                    // scalar to float (can overflow)
-                    if stage == ShaderStage::Const {
-                        let range = -65504..=65504;
-                        range.contains(n).then_some(f16::from_f32(*n as f32))
-                    } else {
-                        Some(f16::from_f32(*n as f32))
-                    }
-                }
-                LiteralInstance::AbstractFloat(n) => {
-                    // scalar to float (can overflow)
-                    if stage == ShaderStage::Const {
-                        let range = -65504.0..=65504.0;
-                        range.contains(n).then_some(f16::from_f32(*n as f32))
-                    } else {
-                        Some(f16::from_f32(*n as f32))
-                    }
-                }
-                LiteralInstance::I32(n) => {
-                    // scalar to float (can overflow)
-                    if stage == ShaderStage::Const {
-                        f16::from_i32(*n)
-                    } else {
-                        Some(f16::from_f32(*n as f32))
-                    }
-                }
-                LiteralInstance::U32(n) => {
-                    // scalar to float (can overflow)
-                    if stage == ShaderStage::Const {
-                        f16::from_u32(*n)
-                    } else {
-                        Some(f16::from_f32(*n as f32))
-                    }
-                }
-                LiteralInstance::F32(n) => {
-                    // scalar to float (can overflow)
-                    if stage == ShaderStage::Const {
-                        let range = -65504.0..=65504.0;
-                        range.contains(n).then_some(f16::from_f32(*n))
-                    } else {
-                        Some(f16::from_f32(*n))
-                    }
-                }
-                LiteralInstance::F16(n) => Some(*n), // identity operation
-                #[cfg(feature = "naga_ext")]
-                LiteralInstance::I64(n) => {
-                    // scalar to float (can overflow)
-                    if stage == ShaderStage::Const {
-                        let range = -65504..=65504;
-                        range.contains(n).then_some(f16::from_f32(*n as f32))
-                    } else {
-                        Some(f16::from_f32(*n as f32))
-                    }
-                }
-                #[cfg(feature = "naga_ext")]
-                LiteralInstance::U64(n) => {
-                    // scalar to float (can overflow)
-                    if stage == ShaderStage::Const {
-                        f16::from_u64(*n)
-                    } else {
-                        Some(f16::from_f32(*n as f32))
-                    }
-                }
-                #[cfg(feature = "naga_ext")]
-                LiteralInstance::F64(n) => {
-                    // scalar to float (can overflow)
-                    if stage == ShaderStage::Const {
-                        let range = -65504.0..=65504.0;
-                        range.contains(n).then_some(f16::from_f32(*n as f32))
-                    } else {
-                        Some(f16::from_f32(*n as f32))
-                    }
-                }
-            }
-            .ok_or(E::ConvOverflow(*l, Type::F16))?;
-            Ok(LiteralInstance::F16(val).into())
-        }
-        _ => Err(E::Builtin("f16 constructor expects a scalar argument")),
-    }
-}
-
-pub fn mat_t(
-    c: usize,
-    r: usize,
-    tplt_ty: &Type,
-    args: &[Instance],
-    stage: ShaderStage,
-) -> Result<Instance, E> {
-    // overload 1: mat conversion constructor
-    if let [Instance::Mat(m)] = args {
-        if m.c() != c || m.r() != r {
-            return Err(E::Conversion(
-                m.ty(),
-                Type::Mat(c as u8, r as u8, Box::new(tplt_ty.clone())),
-            ));
-        }
-
-        let conv_fn = match tplt_ty {
-            Type::F32 => f32,
-            Type::F16 => f16,
-            _ => return Err(E::Builtin("matrix type must be a f32 or f16")),
-        };
-
-        let comps = m
-            .iter_cols()
-            .map(|v| {
-                v.unwrap_vec_ref()
-                    .iter()
-                    .map(|n| conv_fn(n, stage))
-                    .collect::<Result<Vec<_>, _>>()
-                    .map(|s| Instance::Vec(VecInstance::new(s)))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(MatInstance::from_cols(comps).into())
-    } else {
-        let ty = args
-            .first()
-            .ok_or(E::Builtin("matrix constructor expects arguments"))?
-            .ty();
-        let ty = ty
-            .convert_inner_to(tplt_ty)
-            .ok_or(E::Conversion(ty.inner_ty(), tplt_ty.clone()))?;
-        let args =
-            convert_all_to(args, &ty).ok_or(E::Builtin("matrix components are incompatible"))?;
-
-        // overload 2: mat from column vectors
-        if ty.is_vec() {
-            if args.len() != c as usize {
-                return Err(E::ParamCount(format!("mat{c}x{r}"), c, args.len()));
-            }
-
-            Ok(MatInstance::from_cols(args).into())
-        }
-        // overload 3: mat from float values
-        else if ty.is_float() {
-            if args.len() != c * r {
-                return Err(E::ParamCount(format!("mat{c}x{r}"), c * r, args.len()));
-            }
-
-            let args = args
-                .chunks(r)
-                .map(|v| Instance::Vec(VecInstance::new(v.to_vec())))
-                .collect_vec();
-
-            Ok(MatInstance::from_cols(args).into())
-        } else {
-            Err(E::Builtin(
-                "matrix constructor expects float or vector of float arguments",
-            ))
-        }
-    }
-}
-
-pub fn mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
-    // overload 1: mat conversion constructor
-    if let [Instance::Mat(m)] = args {
-        if m.c() != c || m.r() != r {
-            let ty2 = Type::Mat(c as u8, r as u8, m.inner_ty().into());
-            return Err(E::Conversion(m.ty(), ty2));
-        }
-        // note: `matCxR(e: matCxR<S>) -> matCxR<S>` is no-op
-        Ok(m.clone().into())
-    } else {
-        let tys = args.iter().map(|a| a.ty()).collect_vec();
-        let ty = convert_all_ty(&tys).ok_or(E::Builtin("matrix components are incompatible"))?;
-        let mut inner_ty = ty.inner_ty();
-
-        if inner_ty.is_abstract_int() {
-            // force conversion from AbstractInt to a float type
-            inner_ty = Type::AbstractInt;
-        } else if !inner_ty.is_float() {
-            return Err(E::Builtin(
-                "matrix constructor expects float or vector of float arguments",
-            ));
-        }
-
-        let args = convert_all_inner_to(args, &inner_ty)
-            .ok_or(E::Builtin("matrix components are incompatible"))?;
-
-        // overload 2: mat from column vectors
-        if ty.is_vec() {
-            if args.len() != c {
-                return Err(E::ParamCount(format!("mat{c}x{r}"), c, args.len()));
-            }
-
-            Ok(MatInstance::from_cols(args).into())
-        }
-        // overload 3: mat from float values
-        else if ty.is_float() || ty.is_abstract_int() {
-            if args.len() != c * r {
-                return Err(E::ParamCount(format!("mat{c}x{r}"), c * r, args.len()));
-            }
-            let args = args
-                .chunks(r)
-                .map(|v| Instance::Vec(VecInstance::new(v.to_vec())))
-                .collect_vec();
-
-            Ok(MatInstance::from_cols(args).into())
-        } else {
-            Err(E::Builtin(
-                "matrix constructor expects float or vector of float arguments",
-            ))
-        }
-    }
-}
-
-pub fn vec_t(
-    n: usize,
-    tplt_ty: &Type,
-    args: &[Instance],
-    stage: ShaderStage,
-) -> Result<Instance, E> {
-    // overload 1: vec init from single scalar value
-    if let [Instance::Literal(l)] = args {
-        let val = l
-            .convert_to(tplt_ty)
-            .map(Instance::Literal)
-            .ok_or_else(|| E::ParamType(tplt_ty.clone(), l.ty()))?;
-        let comps = (0..n).map(|_| val.clone()).collect_vec();
-        Ok(VecInstance::new(comps).into())
-    }
-    // overload 2: vec conversion constructor
-    else if let [Instance::Vec(v)] = args {
-        let ty = Type::Vec(n as u8, Box::new(tplt_ty.clone()));
-        if v.n() != n {
-            return Err(E::Conversion(v.ty(), ty));
-        }
-
-        let conv_fn = match ty.inner_ty() {
-            Type::Bool => |n, _| bool(n),
-            Type::I32 => |n, _| i32(n),
-            Type::U32 => |n, _| u32(n),
-            Type::F32 => |n, stage| f32(n, stage),
-            Type::F16 => |n, stage| f16(n, stage),
-            _ => return Err(E::Builtin("vector type must be a scalar")),
-        };
-
-        let comps = v
-            .iter()
-            .map(|n| conv_fn(n, stage))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(VecInstance::new(comps).into())
-    }
-    // overload 3: vec init from component values
-    else {
-        // flatten vecN args
-        let args = args
-            .iter()
-            .flat_map(|a| -> Box<dyn Iterator<Item = &Instance>> {
-                match a {
-                    Instance::Vec(v) => Box::new(v.iter()),
-                    _ => Box::new(std::iter::once(a)),
-                }
-            })
-            .collect_vec();
-        if args.len() != n {
-            return Err(E::ParamCount(format!("vec{n}"), n, args.len()));
-        }
-
-        let comps = args
-            .iter()
-            .map(|a| {
-                a.convert_inner_to(tplt_ty)
-                    .ok_or_else(|| E::ParamType(tplt_ty.clone(), a.ty()))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(VecInstance::new(comps).into())
-    }
-}
-
-pub fn vec(n: usize, args: &[Instance]) -> Result<Instance, E> {
-    // overload 1: vec init from single scalar value
-    if let [Instance::Literal(l)] = args {
-        let val = Instance::Literal(*l);
-        let comps = (0..n).map(|_| val.clone()).collect_vec();
-        Ok(VecInstance::new(comps).into())
-    }
-    // overload 2: vec conversion constructor
-    else if let [Instance::Vec(v)] = args {
-        if v.n() != n {
-            let ty = v.ty();
-            let ty2 = Type::Vec(n as u8, ty.inner_ty().into());
-            return Err(E::Conversion(ty, ty2));
-        }
-        // note: `vecN(e: vecN<S>) -> vecN<S>` is no-op
-        Ok(v.clone().into())
-    }
-    // overload 3: vec init from component values
-    else if !args.is_empty() {
-        // flatten vecN args
-        let args = args
-            .iter()
-            .flat_map(|a| -> Box<dyn Iterator<Item = &Instance>> {
-                match a {
-                    Instance::Vec(v) => Box::new(v.iter()),
-                    _ => Box::new(std::iter::once(a)),
-                }
-            })
-            .cloned()
-            .collect_vec();
-        if args.len() != n {
-            return Err(E::ParamCount(format!("vec{n}"), n, args.len()));
-        }
-
-        let comps = convert_all(&args).ok_or(E::Builtin("vector components are incompatible"))?;
-
-        if !comps.first().unwrap(/* SAFETY: len() checked above */).ty().is_scalar() {
-            return Err(E::Builtin("vec constructor expects scalar arguments"));
-        }
-        Ok(VecInstance::new(comps).into())
-    }
-    // overload 3: zero-vec
-    else {
-        VecInstance::zero_value(n as u8, &Type::AbstractInt).map(Into::into)
-    }
-}
-
 // -------
 // BITCAST
 // -------
 // reference: <https://www.w3.org/TR/WGSL/#bit-reinterp-builtin-functions>
 
+/// `bitcast<T>()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#bitcast-builtin>
 pub fn bitcast_t(tplt_ty: &Type, e: &Instance) -> Result<Instance, E> {
     fn lit_bytes(l: &LiteralInstance, ty: &Type) -> Result<Vec<u8>, E> {
         match l {
@@ -585,6 +151,9 @@ pub fn bitcast_t(tplt_ty: &Type, e: &Instance) -> Result<Instance, E> {
 // -------
 // reference: <https://www.w3.org/TR/WGSL/#logical-builtin-functions>
 
+/// `all()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#all-builtin>
 pub fn all(e: &Instance) -> Result<Instance, E> {
     match e {
         Instance::Literal(LiteralInstance::Bool(_)) => Ok(e.clone()),
@@ -598,6 +167,9 @@ pub fn all(e: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `any()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#any-builtin>
 pub fn any(e: &Instance) -> Result<Instance, E> {
     match e {
         Instance::Literal(LiteralInstance::Bool(_)) => Ok(e.clone()),
@@ -611,6 +183,9 @@ pub fn any(e: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `select()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#select-builtin>
 pub fn select(f: &Instance, t: &Instance, cond: &Instance) -> Result<Instance, E> {
     let (f, t) = convert(f, t).ok_or(E::Builtin(
         "`select` 1st and 2nd arguments are incompatible",
@@ -652,6 +227,9 @@ pub fn select(f: &Instance, t: &Instance, cond: &Instance) -> Result<Instance, E
 // -----
 // reference: <https://www.w3.org/TR/WGSL/#array-builtin-functions>
 
+/// `arrayLength()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#arrayLength-builtin>
 pub fn arrayLength(p: &Instance) -> Result<Instance, E> {
     let err = E::Builtin("`arrayLength` expects a pointer to array argument");
     let r = match p {
@@ -708,7 +286,10 @@ macro_rules! impl_call_float_unary {
     }};
 }
 
-// TODO: checked_abs
+/// `abs()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#abs-builtin>
+// TODO: use checked_abs
 pub fn abs(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`abs` expects a scalar or vector of scalar argument");
     fn lit_abs(l: &LiteralInstance) -> Result<LiteralInstance, E> {
@@ -735,38 +316,63 @@ pub fn abs(e: &Instance) -> Result<Instance, E> {
     }
 }
 
-// NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
+/// `acos()` builtin function.
+///
+/// NOTE: the function returns NaN as an "indeterminate value" if computed out of domain
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#acos-builtin>
 pub fn acos(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("acos", e, n => n.acos())
 }
 
-// NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
+/// `acosh()` builtin function.
+///
+/// NOTE: the function returns NaN as an "indeterminate value" if computed out of domain
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#acosh-builtin>
 pub fn acosh(e: &Instance) -> Result<Instance, E> {
     // TODO: Rust's acosh implementation overflows for inputs close to max_float.
     // it's no big deal, but some cts tests fail because of that.
     impl_call_float_unary!("acosh", e, n => n.acosh())
 }
 
-// NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
+/// `asin()` builtin function.
+///
+/// NOTE: the function returns NaN as an "indeterminate value" if computed out of domain
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#asin-builtin>
 pub fn asin(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("asin", e, n => n.asin())
 }
 
+/// `asinh()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#asinh-builtin>
 pub fn asinh(e: &Instance) -> Result<Instance, E> {
     // TODO: Rust's asinh implementation overflows for inputs close to max_float.
     // it's no big deal, but some cts tests fail because of that.
     impl_call_float_unary!("asinh", e, n => n.asinh())
 }
 
+/// `atan()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atan-builtin>
 pub fn atan(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("atan", e, n => n.atan())
 }
 
-// NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
+/// `atanh()` builtin function.
+///
+/// NOTE: the function returns NaN as an "indeterminate value" if computed out of domain
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atanh-builtin>
 pub fn atanh(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("atanh", e, n => n.atanh())
 }
 
+/// `atan2()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atan2-builtin>
 pub fn atan2(y: &Instance, x: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`atan2` expects a float or vector of float argument");
     fn lit_atan2(y: &LiteralInstance, x: &LiteralInstance) -> Result<LiteralInstance, E> {
@@ -806,10 +412,16 @@ pub fn atan2(y: &Instance, x: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `ceil()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#ceil-builtin>
 pub fn ceil(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("ceil", e, n => n.ceil())
 }
 
+/// `clamp()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#clamp-builtin>
 pub fn clamp(e: &Instance, low: &Instance, high: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`clamp` arguments are incompatible");
     let tys = [e.ty(), low.ty(), high.ty()];
@@ -820,15 +432,25 @@ pub fn clamp(e: &Instance, low: &Instance, high: &Instance) -> Result<Instance, 
     min(&max(&e, &low)?, &high)
 }
 
-// NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
+/// `cos()` builtin function.
+///
+/// NOTE: the function returns NaN as an "indeterminate value" if computed out of domain
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#cos-builtin>
 pub fn cos(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("cos", e, n => n.cos())
 }
 
+/// `cosh()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#cosh-builtin>
 pub fn cosh(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("cosh", e, n => n.cosh())
 }
 
+/// `countLeadingZeros()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#countLeadingZeros-builtin>
 pub fn countLeadingZeros(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`countLeadingZeros` expects a float or vector of float argument");
     fn lit_leading_zeros(l: &LiteralInstance) -> Result<LiteralInstance, E> {
@@ -857,6 +479,9 @@ pub fn countLeadingZeros(e: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `countOneBits()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#countOneBits-builtin>
 pub fn countOneBits(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`countOneBits` expects a float or vector of float argument");
     fn lit_count_ones(l: &LiteralInstance) -> Result<LiteralInstance, E> {
@@ -885,6 +510,9 @@ pub fn countOneBits(e: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `countTrailingZeros()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#countTrailingZeros-builtin>
 pub fn countTrailingZeros(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`countTrailingZeros` expects a float or vector of float argument");
     fn lit_trailing_zeros(l: &LiteralInstance) -> Result<LiteralInstance, E> {
@@ -913,6 +541,9 @@ pub fn countTrailingZeros(e: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `cross()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#cross-builtin>
 pub fn cross(a: &Instance, b: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     let (a, b) = convert(a, b).ok_or(E::Builtin("`cross` arguments are incompatible"))?;
     match (a, b) {
@@ -934,6 +565,9 @@ pub fn cross(a: &Instance, b: &Instance, stage: ShaderStage) -> Result<Instance,
     }
 }
 
+/// `degrees()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#degrees-builtin>
 pub fn degrees(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("degrees", e, n => n.to_degrees())
 }
@@ -943,11 +577,18 @@ pub fn determinant(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("determinant".to_string()))
 }
 
-// NOTE: the function returns an error if computed out of domain
+/// `distance()` builtin function.
+///
+/// NOTE: the function returns an error if computed out of domain
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#distance-builtin>
 pub fn distance(e1: &Instance, e2: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     length(&e1.op_sub(e2, stage)?)
 }
 
+/// `dot()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#dot-builtin>
 pub fn dot(e1: &Instance, e2: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     let (e1, e2) = convert(e1, e2).ok_or(E::Builtin("`dot` arguments are incompatible"))?;
     match (e1, e2) {
@@ -966,10 +607,16 @@ pub fn dot4I8Packed(_a1: &Instance, _a2: &Instance) -> Result<Instance, E> {
     Err(E::Todo("dot4I8Packed".to_string()))
 }
 
+/// `exp()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#exp-builtin>
 pub fn exp(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("exp", e, n => n.exp())
 }
 
+/// `exp2()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#exp2-builtin>
 pub fn exp2(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("exp2", e, n => n.exp2())
 }
@@ -994,6 +641,9 @@ pub fn firstTrailingBit(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("firstTrailingBit".to_string()))
 }
 
+/// `floor()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#floor-builtin>
 pub fn floor(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("floor", e, n => n.floor())
 }
@@ -1003,12 +653,19 @@ pub fn fma(_a1: &Instance, _a2: &Instance, _a3: &Instance) -> Result<Instance, E
     Err(E::Todo("fma".to_string()))
 }
 
+/// `fract()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#fract-builtin>
 pub fn fract(e: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     e.op_sub(&floor(e)?, stage)
     // impl_call_float_unary!("fract", e, n => n.fract())
 }
 
+/// `frexp()` builtin function.
+///
 /// TODO: This built-in is only partially implemented.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#frexp-builtin>
 pub fn frexp(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`frexp` expects a float or vector of float argument");
     fn make_frexp_inst(fract: Instance, exp: Instance) -> Instance {
@@ -1130,7 +787,11 @@ pub fn insertBits(
     Err(E::Todo("insertBits".to_string()))
 }
 
-// NOTE: the function returns NaN as an `indeterminate value` if computed out of domain
+/// `inverseSqrt()` builtin function.
+///
+// NOTE: the function returns NaN as an "indeterminate value" if computed out of domain
+//
+/// Reference: <https://www.w3.org/TR/WGSL/#inverseSqrt-builtin>
 pub fn inverseSqrt(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`inverseSqrt` expects a float or vector of float argument");
     fn lit_isqrt(l: &LiteralInstance) -> Result<LiteralInstance, E> {
@@ -1160,6 +821,9 @@ pub fn inverseSqrt(e: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `ldexp()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#ldexp-builtin>
 pub fn ldexp(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     // from: https://docs.rs/libm/latest/src/libm/math/scalbn.rs.html#3-34
     fn scalbn(x: f64, mut n: i32) -> f64 {
@@ -1239,6 +903,9 @@ pub fn ldexp(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `length()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#length-builtin>
 pub fn length(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`length` expects a float or vector of float argument");
     match e {
@@ -1254,14 +921,23 @@ pub fn length(e: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `log()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#log-builtin>
 pub fn log(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("log", e, n => n.ln())
 }
 
+/// `log2()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#log2-builtin>
 pub fn log2(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("log2", e, n => n.log2())
 }
 
+/// `max()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#max-builtin>
 pub fn max(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`max` expects a scalar or vector of scalar argument");
     fn lit_max(e1: &LiteralInstance, e2: &LiteralInstance) -> Result<LiteralInstance, E> {
@@ -1293,6 +969,9 @@ pub fn max(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `min()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#min-builtin>
 pub fn min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`min` expects a scalar or vector of scalar argument");
     fn lit_min(e1: &LiteralInstance, e2: &LiteralInstance) -> Result<LiteralInstance, E> {
@@ -1324,6 +1003,9 @@ pub fn min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `mix()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#mix-builtin>
 pub fn mix(e1: &Instance, e2: &Instance, e3: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     let tys = [e1.inner_ty(), e2.inner_ty(), e3.inner_ty()];
     let inner_ty = convert_all_ty(&tys).ok_or(E::Builtin("`mix` arguments are incompatible"))?;
@@ -1344,10 +1026,16 @@ pub fn modf(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("modf".to_string()))
 }
 
+/// `normalize()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#normalize-builtin>
 pub fn normalize(e: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     e.op_div(&length(e)?, stage)
 }
 
+/// `pow()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#pow-builtin>
 pub fn pow(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`pow` expects a scalar or vector of scalar argument");
     fn lit_powf(e1: &LiteralInstance, e2: &LiteralInstance) -> Result<LiteralInstance, E> {
@@ -1392,6 +1080,9 @@ pub fn quantizeToF16(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("quantizeToF16".to_string()))
 }
 
+/// `radians()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#radians-builtin>
 pub fn radians(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("radians", e, n => n.to_radians())
 }
@@ -1411,6 +1102,9 @@ pub fn reverseBits(_a1: &Instance) -> Result<Instance, E> {
     Err(E::Todo("reverseBits".to_string()))
 }
 
+/// `round()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#round-builtin>
 pub fn round(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`round` expects a float or vector of float argument");
     fn lit_fn(l: &LiteralInstance) -> Result<LiteralInstance, E> {
@@ -1445,6 +1139,9 @@ pub fn round(e: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `saturate()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#saturate-builtin>
 pub fn saturate(e: &Instance) -> Result<Instance, E> {
     match e {
         Instance::Literal(_) => {
@@ -1466,6 +1163,9 @@ pub fn saturate(e: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `sign()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#sign-builtin>
 pub fn sign(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin(concat!(
         "`",
@@ -1520,10 +1220,16 @@ pub fn sign(e: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `sin()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#sin-builtin>
 pub fn sin(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("sin", e, n => n.sin())
 }
 
+/// `sinh()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#sinh-builtin>
 pub fn sinh(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("sinh", e, n => n.sinh())
 }
@@ -1533,10 +1239,16 @@ pub fn smoothstep(_low: &Instance, _high: &Instance, _x: &Instance) -> Result<In
     Err(E::Todo("smoothstep".to_string()))
 }
 
+/// `sqrt()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#sqrt-builtin>
 pub fn sqrt(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("sqrt", e, n => n.sqrt())
 }
 
+/// `step()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#step-builtin>
 pub fn step(edge: &Instance, x: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`step` expects a float or vector of float argument");
     fn lit_step(edge: &LiteralInstance, x: &LiteralInstance) -> Result<LiteralInstance, E> {
@@ -1598,14 +1310,23 @@ pub fn step(edge: &Instance, x: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `tan()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#tan-builtin>
 pub fn tan(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("tan", e, n => n.tan())
 }
 
+/// `tanh()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#tanh-builtin>
 pub fn tanh(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("tanh", e, n => n.tanh())
 }
 
+/// `transpose()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#transpose-builtin>
 pub fn transpose(e: &Instance) -> Result<Instance, E> {
     match e {
         Instance::Mat(e) => Ok(e.transpose().into()),
@@ -1613,6 +1334,9 @@ pub fn transpose(e: &Instance) -> Result<Instance, E> {
     }
 }
 
+/// `trunc()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#trunc-builtin>
 pub fn trunc(e: &Instance) -> Result<Instance, E> {
     impl_call_float_unary!("trunc", e, n => n.trunc())
 }
@@ -1622,6 +1346,9 @@ pub fn trunc(e: &Instance) -> Result<Instance, E> {
 // ------
 // reference: <https://www.w3.org/TR/WGSL/#atomic-builtin-functions>
 
+/// `atomicLoad()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atomicLoad-builtin>
 pub fn atomicLoad(e: &Instance) -> Result<Instance, E> {
     let err = E::Builtin("`atomicLoad` expects a pointer to atomic argument");
     if let Instance::Ptr(ptr) = e {
@@ -1636,6 +1363,10 @@ pub fn atomicLoad(e: &Instance) -> Result<Instance, E> {
         Err(err)
     }
 }
+
+/// `atomicStore()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atomicStore-builtin>
 pub fn atomicStore(e1: &Instance, e2: &Instance) -> Result<(), E> {
     let err = E::Builtin("`atomicStore` expects a pointer to atomic argument");
     if let Instance::Ptr(ptr) = e1 {
@@ -1654,42 +1385,73 @@ pub fn atomicStore(e1: &Instance, e2: &Instance) -> Result<(), E> {
         Err(err)
     }
 }
+
+/// `atomicSub()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atomicSub-builtin>
 pub fn atomicSub(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     let initial = atomicLoad(e1)?;
     atomicStore(e1, &initial.op_sub(e2, ShaderStage::Exec)?)?;
     Ok(initial)
 }
+
+/// `atomicMax()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atomicMax-builtin>
 pub fn atomicMax(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     let initial = atomicLoad(e1)?;
     atomicStore(e1, &max(&initial, e2)?)?;
     Ok(initial)
 }
+
+/// `atomicMin()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atomicMin-builtin>
 pub fn atomicMin(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     let initial = atomicLoad(e1)?;
     atomicStore(e1, &max(&initial, e2)?)?;
     Ok(initial)
 }
+
+/// `atomicAnd()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atomicAnd-builtin>
 pub fn atomicAnd(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     let initial = atomicLoad(e1)?;
     atomicStore(e1, &initial.op_bitand(e2)?)?;
     Ok(initial)
 }
+
+/// `atomicOr()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atomicOr-builtin>
 pub fn atomicOr(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     let initial = atomicLoad(e1)?;
     atomicStore(e1, &initial.op_bitor(e2)?)?;
     Ok(initial)
 }
+
+/// `atomicXor()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atomicXor-builtin>
 pub fn atomicXor(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     let initial = atomicLoad(e1)?;
     atomicStore(e1, &initial.op_bitxor(e2)?)?;
     Ok(initial)
 }
+
+/// `atomicExchange()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atomicExchange-builtin>
 pub fn atomicExchange(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     let initial = atomicLoad(e1)?;
     atomicStore(e1, e2)?;
     Ok(initial)
 }
 
+/// `atomicCompareExchangeWeak()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#atomicCompareExchangeWeak-builtin>
 pub fn atomicCompareExchangeWeak(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
     let initial = atomicLoad(e1)?;
     let exchanged = if initial == *e2 {
@@ -1709,6 +1471,9 @@ pub fn atomicCompareExchangeWeak(e1: &Instance, e2: &Instance) -> Result<Instanc
 // ------------
 // reference: <https://www.w3.org/TR/WGSL/#pack-builtin-functions>
 
+/// `pack4x8snorm()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#pack4x8snorm-builtin>
 pub fn pack4x8snorm(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`pack4x8snorm` expects a `vec4<f32>` argument");
 
@@ -1726,6 +1491,9 @@ pub fn pack4x8snorm(e: &Instance) -> Result<Instance, E> {
     Ok(LiteralInstance::U32(result).into())
 }
 
+/// `pack4x8unorm()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#pack4x8unorm-builtin>
 pub fn pack4x8unorm(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`pack4x8unorm` expects a `vec4<f32>` argument");
 
@@ -1743,6 +1511,9 @@ pub fn pack4x8unorm(e: &Instance) -> Result<Instance, E> {
     Ok(LiteralInstance::U32(result).into())
 }
 
+/// `pack4xI8()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#pack4xI8-builtin>
 pub fn pack4xI8(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`pack4xI8` expects a `vec4<i32>` argument");
 
@@ -1759,6 +1530,9 @@ pub fn pack4xI8(e: &Instance) -> Result<Instance, E> {
     Ok(LiteralInstance::U32(result).into())
 }
 
+/// `pack4xU8()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#pack4xU8-builtin>
 pub fn pack4xU8(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`pack4xU8` expects a `vec4<u32>` argument");
 
@@ -1775,6 +1549,9 @@ pub fn pack4xU8(e: &Instance) -> Result<Instance, E> {
     Ok(LiteralInstance::U32(result).into())
 }
 
+/// `pack4xI8Clamp()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#pack4xI8Clamp-builtin>
 pub fn pack4xI8Clamp(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`pack4xI8Clamp` expects a `vec4<i32>` argument");
 
@@ -1791,6 +1568,9 @@ pub fn pack4xI8Clamp(e: &Instance) -> Result<Instance, E> {
     Ok(LiteralInstance::U32(result).into())
 }
 
+/// `pack4xU8Clamp()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#pack4xU8Clamp-builtin>
 pub fn pack4xU8Clamp(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`pack4xU8Clamp` expects a `vec4<u32>` argument");
 
@@ -1807,6 +1587,9 @@ pub fn pack4xU8Clamp(e: &Instance) -> Result<Instance, E> {
     Ok(LiteralInstance::U32(result).into())
 }
 
+/// `pack2x16snorm()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#pack2x16snorm-builtin>
 pub fn pack2x16snorm(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`pack2x16snorm` expects a `vec2<f32>` argument");
 
@@ -1824,6 +1607,9 @@ pub fn pack2x16snorm(e: &Instance) -> Result<Instance, E> {
     Ok(LiteralInstance::U32(result).into())
 }
 
+/// `pack2x16unorm()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#pack2x16unorm-builtin>
 pub fn pack2x16unorm(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`pack2x16unorm` expects a `vec2<f32>` argument");
 
@@ -1841,6 +1627,9 @@ pub fn pack2x16unorm(e: &Instance) -> Result<Instance, E> {
     Ok(LiteralInstance::U32(result).into())
 }
 
+/// `pack2x16float()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#pack2x16float-builtin>
 pub fn pack2x16float(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`pack2x16float` expects a `vec2<f32>` argument");
 
@@ -1858,6 +1647,9 @@ pub fn pack2x16float(e: &Instance) -> Result<Instance, E> {
     Ok(LiteralInstance::U32(result).into())
 }
 
+/// `unpack4x8snorm()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#unpack4x8snorm-builtin>
 pub fn unpack4x8snorm(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`unpack4x8snorm` expects a `u32` argument");
 
@@ -1876,6 +1668,9 @@ pub fn unpack4x8snorm(e: &Instance) -> Result<Instance, E> {
     Ok(VecInstance::new(comps).into())
 }
 
+/// `unpack4x8unorm()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#unpack4x8unorm-builtin>
 pub fn unpack4x8unorm(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`unpack4x8unorm` expects a `u32` argument");
 
@@ -1894,6 +1689,9 @@ pub fn unpack4x8unorm(e: &Instance) -> Result<Instance, E> {
     Ok(VecInstance::new(comps).into())
 }
 
+/// `unpack4xI8()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#unpack4xI8-builtin>
 pub fn unpack4xI8(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`unpack4xI8` expects a `u32` argument");
 
@@ -1912,6 +1710,9 @@ pub fn unpack4xI8(e: &Instance) -> Result<Instance, E> {
     Ok(VecInstance::new(comps).into())
 }
 
+/// `unpack4xU8()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#unpack4xU8-builtin>
 pub fn unpack4xU8(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`unpack4xU8` expects a `u32` argument");
 
@@ -1930,6 +1731,9 @@ pub fn unpack4xU8(e: &Instance) -> Result<Instance, E> {
     Ok(VecInstance::new(comps).into())
 }
 
+/// `unpack2x16snorm()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#unpack2x16snorm-builtin>
 pub fn unpack2x16snorm(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`unpack2x16snorm` expects a `u32` argument");
 
@@ -1950,6 +1754,9 @@ pub fn unpack2x16snorm(e: &Instance) -> Result<Instance, E> {
     Ok(VecInstance::new(comps).into())
 }
 
+/// `unpack2x16unorm()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#unpack2x16unorm-builtin>
 pub fn unpack2x16unorm(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`unpack2x16unorm` expects a `u32` argument");
 
@@ -1970,6 +1777,9 @@ pub fn unpack2x16unorm(e: &Instance) -> Result<Instance, E> {
     Ok(VecInstance::new(comps).into())
 }
 
+/// `unpack2x16float()` builtin function.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#unpack2x16float-builtin>
 pub fn unpack2x16float(e: &Instance) -> Result<Instance, E> {
     const ERR: E = E::Builtin("`unpack2x16float` expects a `u32` argument");
 
