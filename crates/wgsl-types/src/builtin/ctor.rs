@@ -328,7 +328,7 @@ pub fn mat_t(
 
         // overload 2: mat from column vectors
         if ty.is_vec() {
-            if args.len() != c as usize {
+            if args.len() != c {
                 return Err(E::ParamCount(format!("mat{c}x{r}"), c, args.len()));
             }
 
@@ -793,7 +793,7 @@ pub fn type_ctor(name: &str, tplt: Option<&[TpltParam]>, args: &[Type]) -> Resul
             let tplt = ArrayTemplate::parse(t)?;
             array_ctor_ty_t(
                 &tplt.inner_ty(),
-                tplt.n().ok_or_else(|| E::TemplateArgs("array"))?,
+                tplt.n().ok_or(E::TemplateArgs("array"))?,
                 a,
             )
         }

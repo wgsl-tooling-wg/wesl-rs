@@ -178,7 +178,7 @@ impl LiteralInstance {
     /// Memory representation of host-shareable instances.
     ///
     /// Returns `None` if the type is not host-shareable
-    fn to_buffer(&self) -> Option<Vec<u8>> {
+    fn to_buffer(self) -> Option<Vec<u8>> {
         match self {
             LiteralInstance::Bool(_) => None,
             LiteralInstance::AbstractInt(_) => None,

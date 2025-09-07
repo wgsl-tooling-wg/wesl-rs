@@ -65,7 +65,7 @@ pub fn call_builtin_fn(
             let tplt = ArrayTemplate::parse(t)?;
             ctor::array_t(
                 &tplt.inner_ty(),
-                tplt.n().ok_or_else(|| E::TemplateArgs("array"))?,
+                tplt.n().ok_or(E::TemplateArgs("array"))?,
                 a,
             )
         }
