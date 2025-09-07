@@ -11,7 +11,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 use wgsl_syntax::AccessMode;
 
 use crate::{
-    Instance,
+    Error, Instance,
     inst::{ArrayInstance, LiteralInstance, MatInstance, StructInstance, VecInstance},
     ty::{Ty, Type},
 };
@@ -91,6 +91,22 @@ impl Type {
         } else {
             self
         }
+    }
+}
+
+impl Instance {
+    pub fn is_convertible_to(&self, ty: &Type) -> bool {
+        self.ty().is_convertible_to(ty)
+    }
+
+    /// Apply the load rule.
+    ///
+    /// Reference: <https://www.w3.org/TR/WGSL/#load-rule>
+    pub fn loaded(mut self) -> Result<Self, Error> {
+        while let Instance::Ref(r) = self {
+            self = r.read()?.to_owned();
+        }
+        Ok(self)
     }
 }
 

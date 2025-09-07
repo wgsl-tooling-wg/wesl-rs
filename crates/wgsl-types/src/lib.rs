@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 mod display;
 mod error;
 mod mem;
@@ -11,10 +13,10 @@ pub mod tplt;
 pub mod ty;
 
 pub use error::Error;
+pub use inst::Instance;
+pub use ty::Type;
 
-use inst::Instance;
 use tplt::TpltParam;
-use ty::Type;
 
 /// Function call signature.
 #[derive(Clone, Debug, PartialEq)]

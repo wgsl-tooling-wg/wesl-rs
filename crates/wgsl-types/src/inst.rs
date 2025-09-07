@@ -48,7 +48,7 @@ impl MemView {
 /// Instance of a plain type.
 ///
 /// Reference: <https://www.w3.org/TR/WGSL/#plain-types-section>
-#[derive(Clone, Debug, derive_more::From, PartialEq, derive_more::Unwrap)]
+#[derive(Clone, Debug, PartialEq, derive_more::From, derive_more::Unwrap)]
 #[unwrap(ref, ref_mut)]
 pub enum Instance {
     Literal(LiteralInstance),

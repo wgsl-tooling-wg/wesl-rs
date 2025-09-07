@@ -217,6 +217,7 @@ impl FromStr for SamplerType {
     }
 }
 
+/// WGSL type.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
     Bool,
@@ -246,7 +247,7 @@ pub enum Type {
 }
 
 impl Type {
-    /// reference: <https://www.w3.org/TR/WGSL/#scalar>
+    /// Reference: <https://www.w3.org/TR/WGSL/#scalar>
     pub fn is_scalar(&self) -> bool {
         matches!(
             self,
@@ -260,7 +261,7 @@ impl Type {
         )
     }
 
-    /// reference: <https://www.w3.org/TR/WGSL/#numeric-scalar>
+    /// Reference: <https://www.w3.org/TR/WGSL/#numeric-scalar>
     pub fn is_numeric(&self) -> bool {
         matches!(
             self,
@@ -268,17 +269,17 @@ impl Type {
         )
     }
 
-    /// reference: <https://www.w3.org/TR/WGSL/#integer-scalar>
+    /// Reference: <https://www.w3.org/TR/WGSL/#integer-scalar>
     pub fn is_integer(&self) -> bool {
         matches!(self, Type::AbstractInt | Type::I32 | Type::U32)
     }
 
-    /// reference: <https://www.w3.org/TR/WGSL/#floating-point-types>
+    /// Reference: <https://www.w3.org/TR/WGSL/#floating-point-types>
     pub fn is_float(&self) -> bool {
         matches!(self, Type::AbstractFloat | Type::F32 | Type::F16)
     }
 
-    /// reference: <https://www.w3.org/TR/WGSL/#abstract-types>
+    /// Reference: <https://www.w3.org/TR/WGSL/#abstract-types>
     pub fn is_abstract(&self) -> bool {
         match self {
             Type::AbstractInt => true,
@@ -292,7 +293,7 @@ impl Type {
         !self.is_abstract()
     }
 
-    /// reference: <https://www.w3.org/TR/WGSL/#storable-types>
+    /// Reference: <https://www.w3.org/TR/WGSL/#storable-types>
     pub fn is_storable(&self) -> bool {
         self.is_concrete()
             && matches!(

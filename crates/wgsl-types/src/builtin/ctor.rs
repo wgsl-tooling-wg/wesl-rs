@@ -375,16 +375,6 @@ impl Instance {
             | Type::Sampler(_) => Err(E::NotConstructible(ty.clone())),
         }
     }
-
-    /// Apply the load rule.
-    ///
-    /// Reference: <https://www.w3.org/TR/WGSL/#load-rule>
-    pub fn loaded(mut self) -> Result<Self, E> {
-        while let Instance::Ref(r) = self {
-            self = r.read()?.to_owned();
-        }
-        Ok(self)
-    }
 }
 
 impl LiteralInstance {
