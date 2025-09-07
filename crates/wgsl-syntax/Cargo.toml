@@ -9,13 +9,12 @@ version.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-serde = { version = "1.0.215", optional = true, features = ["derive", "rc"] }
+serde = { version = "1.0.215", optional = true, features = ["derive"] }
 tokrepr = { workspace = true, optional = true }
 
 [features]
 default = []
 
-wesl = []
 naga_ext = []
 serde = ["dep:serde"]
 tokrepr = ["dep:tokrepr"]
