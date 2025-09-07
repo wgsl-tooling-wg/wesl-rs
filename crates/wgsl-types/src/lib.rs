@@ -1,12 +1,12 @@
 mod display;
 mod error;
+mod mem;
 
 pub mod builtin;
 pub mod conv;
 pub mod enums;
 pub mod idents;
 pub mod inst;
-pub mod mem;
 pub mod tplt;
 pub mod ty;
 

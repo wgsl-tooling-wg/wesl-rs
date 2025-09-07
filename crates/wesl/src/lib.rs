@@ -649,7 +649,6 @@ impl EvalResult<'_> {
     // TODO: make context non-mut
     /// Get the WGSL string representing the evaluated expression.
     pub fn to_buffer(&mut self) -> Option<Vec<u8>> {
-        use eval::HostShareable;
         self.inst.to_buffer()
     }
 }

@@ -18,9 +18,7 @@ pub use exec::*;
 pub use lower::*;
 pub use to_expr::*;
 pub use ty::*;
-pub use wgsl_types::{
-    ShaderStage, builtin::*, conv::*, inst::*, mem::HostShareable, tplt::*, ty::*,
-};
+pub use wgsl_types::{ShaderStage, builtin::*, conv::*, inst::*, tplt::*, ty::*};
 
 use derive_more::Display;
 use std::{collections::HashMap, rc::Rc};

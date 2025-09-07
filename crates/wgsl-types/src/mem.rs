@@ -1,3 +1,5 @@
+//! Memory layout utilities.
+
 use half::f16;
 use itertools::Itertools;
 
@@ -9,14 +11,11 @@ use crate::{
     ty::{Ty, Type},
 };
 
-pub trait HostShareable: Ty + Sized {
-    /// Returns the memory for host-shareable types
-    /// Returns None if the type is not host-shareable
-    fn to_buffer(&self) -> Option<Vec<u8>>;
-}
-
-impl HostShareable for Instance {
-    fn to_buffer(&self) -> Option<Vec<u8>> {
+impl Instance {
+    /// Memory representation of host-shareable instances.
+    ///
+    /// Returns `None` if the type is not host-shareable.
+    pub fn to_buffer(&self) -> Option<Vec<u8>> {
         match self {
             Instance::Literal(l) => l.to_buffer(),
             Instance::Struct(s) => s.to_buffer(),
@@ -29,9 +28,11 @@ impl HostShareable for Instance {
             Instance::Deferred(_) => None,
         }
     }
-}
 
-impl Instance {
+    /// Load an instance from a byte buffer.
+    ///
+    /// Returns `None` if the type is not host-shareable, or if the buffer is too small.
+    /// The buffer can be larger than the type; extra bytes will be ignored.
     pub fn from_buffer(buf: &[u8], ty: &Type) -> Option<Self> {
         match ty {
             Type::Bool => None,
@@ -173,7 +174,10 @@ impl Instance {
     }
 }
 
-impl HostShareable for LiteralInstance {
+impl LiteralInstance {
+    /// Memory representation of host-shareable instances.
+    ///
+    /// Returns `None` if the type is not host-shareable
     fn to_buffer(&self) -> Option<Vec<u8>> {
         match self {
             LiteralInstance::Bool(_) => None,
@@ -194,7 +198,10 @@ impl HostShareable for LiteralInstance {
 }
 
 // TODO: layout
-impl HostShareable for StructInstance {
+impl StructInstance {
+    /// Memory representation of host-shareable instances.
+    ///
+    /// Returns `None` if the type is not host-shareable.
     fn to_buffer(&self) -> Option<Vec<u8>> {
         let mut buf = Vec::new();
         for (i, (inst, m)) in self.members.iter().zip(&self.ty.members).enumerate() {
@@ -225,7 +232,10 @@ impl HostShareable for StructInstance {
     }
 }
 
-impl HostShareable for ArrayInstance {
+impl ArrayInstance {
+    /// Memory representation of host-shareable instances.
+    ///
+    /// Returns `None` if the type is not host-shareable.
     fn to_buffer(&self) -> Option<Vec<u8>> {
         let mut buf = Vec::new();
         let ty = self.inner_ty();
@@ -241,7 +251,10 @@ impl HostShareable for ArrayInstance {
     }
 }
 
-impl HostShareable for VecInstance {
+impl VecInstance {
+    /// Memory representation of host-shareable instances.
+    ///
+    /// Returns `None` if the type is not host-shareable.
     fn to_buffer(&self) -> Option<Vec<u8>> {
         Some(
             self.iter()
@@ -251,7 +264,10 @@ impl HostShareable for VecInstance {
     }
 }
 
-impl HostShareable for MatInstance {
+impl MatInstance {
+    /// Memory representation of host-shareable instances.
+    ///
+    /// Returns `None` if the type is not host-shareable.
     fn to_buffer(&self) -> Option<Vec<u8>> {
         Some(
             self.iter_cols()
@@ -270,11 +286,17 @@ impl HostShareable for MatInstance {
     }
 }
 
-pub fn round_up(align: u32, size: u32) -> u32 {
+fn round_up(align: u32, size: u32) -> u32 {
     size.div_ceil(align) * align
 }
 
 impl Type {
+    /// Compute the size of the type.
+    ///
+    /// Return `None` if the type is not host-shareable, or if it contains a
+    /// runtime-sized array. See [`Type::min_size_of`] for runtime-sized arrays.
+    ///
+    /// Reference: <https://www.w3.org/TR/WGSL/#alignment-and-size>
     pub fn size_of(&self) -> Option<u32> {
         match self {
             Type::Bool => Some(4),
@@ -326,13 +348,22 @@ impl Type {
         }
     }
 
+    /// Variant of [`Type::size_of`], but for runtime-sized arrays, it returns the minimum
+    /// size of the array, i.e. the size of an array with one element.
     pub fn min_size_of(&self) -> Option<u32> {
         match self {
             Type::Array(ty, None) => Some(round_up(ty.align_of()?, ty.size_of()?)),
+            // TODO: should we also compute for structs containing a runtime-sized array?
+            // This function is only used once, anyway.
             _ => self.size_of(),
         }
     }
 
+    /// Compute the alignment of the type.
+    ///
+    /// Return `None` if the type is not host-shareable.
+    ///
+    /// Reference: <https://www.w3.org/TR/WGSL/#alignment-and-size>
     pub fn align_of(&self) -> Option<u32> {
         match self {
             Type::Bool => Some(4),
