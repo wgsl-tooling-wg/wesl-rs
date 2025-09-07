@@ -2,7 +2,8 @@ use half::f16;
 use itertools::Itertools;
 use wgsl_parse::{span::Spanned, syntax::*};
 use wgsl_types::{
-    inst::{Instance, LiteralInstance, PtrInstance, RefInstance, VecInstance},
+    builtin::{call_binary_op, call_unary_op},
+    inst::{Instance, LiteralInstance, RefInstance, VecInstance},
     ty::{Ty, Type},
 };
 
@@ -178,26 +179,16 @@ impl Eval for IndexingExpression {
 
 impl Eval for UnaryExpression {
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E> {
+        // TODO: operators should work with non-loaded instances
+        // (performs the load rule). Is it the case already?
         if self.operator == UnaryOperator::AddressOf {
             let operand = self.operand.eval(ctx)?;
-            match operand {
-                Instance::Ref(r) => Ok(PtrInstance::from(r).into()),
-                operand => Err(E::Unary(self.operator, operand.ty())),
-            }
+            operand.op_ref()
         } else {
             let operand = self.operand.eval_value(ctx)?;
-            match self.operator {
-                UnaryOperator::LogicalNegation => operand.op_not(),
-                UnaryOperator::Negation => operand.op_neg(),
-                UnaryOperator::BitwiseComplement => operand.op_bitnot(),
-                UnaryOperator::AddressOf => unreachable!("handled above"),
-                UnaryOperator::Indirection => match operand {
-                    Instance::Ptr(p) => Ok(RefInstance::from(p).into()),
-                    operand => Err(wgsl_types::Error::Unary(self.operator, operand.ty())),
-                },
-            }
-            .map_err(Into::into)
+            call_unary_op(self.operator, &operand)
         }
+        .map_err(Into::into)
     }
 }
 
@@ -233,26 +224,7 @@ impl Eval for BinaryExpression {
             }
         } else {
             let rhs = self.right.eval_value(ctx)?;
-            match self.operator {
-                BinaryOperator::ShortCircuitOr | BinaryOperator::ShortCircuitAnd => unreachable!(),
-                BinaryOperator::Addition => lhs.op_add(&rhs, ctx.stage),
-                BinaryOperator::Subtraction => lhs.op_sub(&rhs, ctx.stage),
-                BinaryOperator::Multiplication => lhs.op_mul(&rhs, ctx.stage),
-                BinaryOperator::Division => lhs.op_div(&rhs, ctx.stage),
-                BinaryOperator::Remainder => lhs.op_rem(&rhs, ctx.stage),
-                BinaryOperator::Equality => lhs.op_eq(&rhs),
-                BinaryOperator::Inequality => lhs.op_ne(&rhs),
-                BinaryOperator::LessThan => lhs.op_lt(&rhs),
-                BinaryOperator::LessThanEqual => lhs.op_le(&rhs),
-                BinaryOperator::GreaterThan => lhs.op_gt(&rhs),
-                BinaryOperator::GreaterThanEqual => lhs.op_ge(&rhs),
-                BinaryOperator::BitwiseOr => lhs.op_bitor(&rhs),
-                BinaryOperator::BitwiseAnd => lhs.op_bitand(&rhs),
-                BinaryOperator::BitwiseXor => lhs.op_bitxor(&rhs),
-                BinaryOperator::ShiftLeft => lhs.op_shl(&rhs, ctx.stage),
-                BinaryOperator::ShiftRight => lhs.op_shr(&rhs, ctx.stage),
-            }
-            .map_err(Into::into)
+            call_binary_op(self.operator, &lhs, &rhs, ctx.stage).map_err(Into::into)
         }
     }
 }

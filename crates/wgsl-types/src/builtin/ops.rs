@@ -3,12 +3,12 @@ use std::iter::zip;
 use crate::{
     Error, Instance, ShaderStage,
     conv::{Convert, convert, convert_inner},
-    inst::{LiteralInstance, MatInstance, VecInstance},
+    inst::{LiteralInstance, MatInstance, MemView, PtrInstance, RefInstance, VecInstance},
     ty::{Ty, Type},
 };
 
 use num_traits::{WrappingNeg, WrappingShl};
-use wgsl_syntax::{BinaryOperator, UnaryOperator};
+use wgsl_syntax::{AddressSpace, BinaryOperator, UnaryOperator};
 
 type E = Error;
 
@@ -547,7 +547,7 @@ impl Instance {
         match self {
             Self::Literal(lhs) => lhs.op_neg().map(Into::into),
             Self::Vec(lhs) => lhs.op_neg().map(Into::into),
-            _ => Err(E::Unary(UnaryOperator::LogicalNegation, self.ty())),
+            _ => Err(E::Unary(UnaryOperator::Negation, self.ty())),
         }
     }
     pub fn op_or(&self, rhs: &Self) -> Result<Self, E> {
@@ -1011,6 +1011,38 @@ impl Instance {
             both!(Self::Literal, lhs, rhs) => lhs.op_shr(rhs, stage).map(Into::into),
             both!(Self::Vec, lhs, rhs) => lhs.op_shr(rhs, stage).map(Into::into),
             _ => Err(E::Binary(BinaryOperator::ShiftRight, self.ty(), rhs.ty())),
+        }
+    }
+}
+
+// -------------------
+// POINTER EXPRESSIONS
+// -------------------
+// reference: https://www.w3.org/TR/WGSL/#address-of-expr
+// reference: https://www.w3.org/TR/WGSL/#indirection-expr
+
+impl Instance {
+    pub fn op_ref(&self) -> Result<Instance, E> {
+        match self {
+            Instance::Ref(r) => {
+                if r.space == AddressSpace::Handle {
+                    // "It is a shader-creation error if AS is the handle address space."
+                    Err(E::PtrHandle)
+                } else if r.ptr.borrow().ty().is_vec() && r.view != MemView::Whole {
+                    // "It is a shader-creation error if r is a reference to a vector component."
+                    Err(E::PtrVecComp)
+                } else {
+                    Ok(PtrInstance::from(r.clone()).into())
+                }
+            }
+            _ => Err(E::Unary(UnaryOperator::AddressOf, self.ty())),
+        }
+    }
+
+    pub fn op_deref(&self) -> Result<Instance, E> {
+        match self {
+            Instance::Ptr(p) => Ok(RefInstance::from(p.clone()).into()),
+            _ => Err(E::Unary(UnaryOperator::Indirection, self.ty())),
         }
     }
 }

@@ -493,6 +493,8 @@ impl Diagnostic<Error> {
                 | EvalError::NotWrite
                 | EvalError::NotRead
                 | EvalError::NotReadWrite
+                | EvalError::PtrHandle
+                | EvalError::PtrVecComp
                 | EvalError::Swizzle(_)
                 | EvalError::NegOverflow
                 | EvalError::AddOverflow

@@ -20,7 +20,7 @@ pub(crate) use call_ty::*;
 pub(crate) use ops::Compwise;
 
 use itertools::Itertools;
-use wgsl_syntax::BinaryOperator;
+use wgsl_syntax::{BinaryOperator, UnaryOperator};
 
 use crate::{
     CallSignature, Error, Instance, ShaderStage,
@@ -34,7 +34,8 @@ type E = Error;
 ///
 /// The arguments must be [loaded][Type::loaded].
 ///
-/// Includes built-ins constructors and zero-value constructors.
+/// Includes built-ins constructors and zero-value constructors, *except* the struct
+/// zero-value constructor, since it requires knowing the struct type.
 ///
 /// Some functions are still TODO, see [`call`] for the list of functions and statuses.
 pub fn call_builtin_fn(
@@ -209,7 +210,7 @@ pub fn call_builtin_fn(
     .map(Option::Some)
 }
 
-/// Call an operator.
+/// Call a binary operator.
 ///
 /// The arguments must be [loaded][Type::loaded].
 ///
@@ -217,9 +218,9 @@ pub fn call_builtin_fn(
 /// does not perform short-circuiting, as `lhs` and `rhs` are already computed.
 pub fn call_binary_op(
     op: BinaryOperator,
-    stage: ShaderStage,
     lhs: &Instance,
     rhs: &Instance,
+    stage: ShaderStage,
 ) -> Result<Instance, E> {
     match op {
         BinaryOperator::ShortCircuitOr => lhs.op_or(rhs),
@@ -240,5 +241,18 @@ pub fn call_binary_op(
         BinaryOperator::BitwiseXor => lhs.op_bitxor(rhs),
         BinaryOperator::ShiftLeft => lhs.op_shl(rhs, stage),
         BinaryOperator::ShiftRight => lhs.op_shr(rhs, stage),
+    }
+}
+
+/// Call a unary operator.
+///
+/// The arguments must be [loaded][Type::loaded].
+pub fn call_unary_op(operator: UnaryOperator, operand: &Instance) -> Result<Instance, E> {
+    match operator {
+        UnaryOperator::LogicalNegation => operand.op_not(),
+        UnaryOperator::Negation => operand.op_neg(),
+        UnaryOperator::BitwiseComplement => operand.op_bitnot(),
+        UnaryOperator::AddressOf => operand.op_ref(),
+        UnaryOperator::Indirection => operand.op_deref(),
     }
 }

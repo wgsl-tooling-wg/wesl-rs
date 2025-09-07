@@ -26,6 +26,10 @@ pub enum Error {
     NotRead,
     #[error("reference is not read-write")]
     NotReadWrite,
+    #[error("cannot create a pointer in `handle` address space")]
+    PtrHandle,
+    #[error("cannot create a pointer to a vector component")]
+    PtrVecComp,
 
     // conversions
     #[error("cannot convert from `{0}` to `{1}`")]

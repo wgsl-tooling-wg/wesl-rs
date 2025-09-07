@@ -53,6 +53,10 @@ pub enum EvalError {
     NotRead,
     #[error("reference is not read-write")]
     NotReadWrite,
+    #[error("cannot create a pointer in `handle` address space")]
+    PtrHandle,
+    #[error("cannot create a pointer to a vector component")]
+    PtrVecComp,
 
     // conversions
     #[error("cannot convert from `{0}` to `{1}`")]
@@ -212,6 +216,8 @@ impl From<wgsl_types::Error> for EvalError {
             wgsl_types::Error::NotWrite => Self::NotWrite,
             wgsl_types::Error::NotRead => Self::NotRead,
             wgsl_types::Error::NotReadWrite => Self::NotReadWrite,
+            wgsl_types::Error::PtrHandle => Self::PtrHandle,
+            wgsl_types::Error::PtrVecComp => Self::PtrVecComp,
             wgsl_types::Error::Conversion(a, b) => Self::Conversion(a, b),
             wgsl_types::Error::ConvOverflow(a, b) => Self::ConvOverflow(a, b),
             wgsl_types::Error::Component(a, b) => Self::Component(a, b),
