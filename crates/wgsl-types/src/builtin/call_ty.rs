@@ -14,10 +14,10 @@ type E = Error;
 ///
 /// The arguments must be [loaded][Type::loaded].
 ///
-/// Does not include constructor built-ins, see [`constructor_type`].
+/// Does not include constructor built-ins, see [`type_ctor`][super::type_ctor].
 ///
-/// Some functions are still TODO, see [`call`] for the list of functions and statuses.
-pub fn builtin_fn_type(
+/// Some functions are still TODO, see [`call`][super::call] for the list of functions and statuses.
+pub fn type_builtin_fn(
     name: &str,
     tplt: Option<&[TpltParam]>,
     args: &[Type],
@@ -41,7 +41,7 @@ pub fn builtin_fn_type(
 
     match (name, tplt, args) {
         // bitcast
-        ("bitcast", Some(t), [_]) => Ok(Some(BitcastTemplate::parse(t)?.ty())),
+        ("bitcast", Some(t), [_]) => Ok(Some(BitcastTemplate::parse(t)?.ty().clone())),
         // logical
         ("all", None, [_]) | ("any", None, [_]) => Ok(Some(Type::Bool)),
         ("select", None, [a1, a2, a3]) if (a1.is_scalar() || a1.is_vec()) && a3.is_bool() => {

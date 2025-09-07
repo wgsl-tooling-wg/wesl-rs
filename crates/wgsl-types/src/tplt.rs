@@ -27,6 +27,9 @@ pub struct ArrayTemplate {
 }
 
 impl ArrayTemplate {
+    pub fn new(ty: Type, n: Option<usize>) -> Self {
+        Self { n, ty }
+    }
     pub fn parse(tplt: &[TpltParam]) -> Result<ArrayTemplate, E> {
         let (ty, n) = match tplt {
             [TpltParam::Type(ty)] => Ok((ty.clone(), None)),
@@ -323,8 +326,8 @@ impl BitcastTemplate {
             ))
         }
     }
-    pub fn ty(&self) -> Type {
-        self.ty.clone()
+    pub fn ty(&self) -> &Type {
+        &self.ty
     }
     pub fn inner_ty(&self) -> Type {
         self.ty.inner_ty()

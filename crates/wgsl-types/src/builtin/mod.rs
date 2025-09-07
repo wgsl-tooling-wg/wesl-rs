@@ -13,11 +13,12 @@ mod ctor;
 mod ops;
 mod ops_ty;
 
-pub use call_ty::builtin_fn_type;
-pub use ctor::{ctor_type, is_ctor_fn};
-pub use ops_ty::{binary_op_type, unary_op_type};
+pub use call_ty::type_builtin_fn;
+pub use ctor::{is_ctor, type_ctor};
+pub use ops_ty::{type_binary_op, type_unary_op};
 
 pub(crate) use call_ty::*;
+pub(crate) use ctor::struct_ctor;
 pub(crate) use ops::Compwise;
 
 use itertools::Itertools;
@@ -35,8 +36,9 @@ type E = Error;
 ///
 /// The arguments must be [loaded][Type::loaded].
 ///
-/// Includes built-ins constructors and zero-value constructors, *except* the struct
-/// zero-value constructor, since it requires knowing the struct type.
+/// Includes built-in constructors and zero-value constructors, *except* the struct
+/// zero-value constructor, since it requires knowledge of the struct type.
+/// See [`call_ctor`] or [`Instance::zero_value`] for that.
 ///
 /// Some functions are still TODO, see [`call`] for the list of functions and statuses.
 pub fn call_builtin_fn(
@@ -48,7 +50,14 @@ pub fn call_builtin_fn(
     match (name, tplt, args) {
         // constructors
         ("array", Some(t), []) => Instance::zero_value(&ArrayTemplate::parse(t)?.ty()),
-        ("array", Some(t), a) => call::array_t(ArrayTemplate::parse(t)?, a),
+        ("array", Some(t), a) => {
+            let tplt = ArrayTemplate::parse(t)?;
+            call::array_t(
+                &tplt.inner_ty(),
+                tplt.n().ok_or_else(|| E::TemplateArgs("array"))?,
+                a,
+            )
+        }
         ("array", None, a) => call::array(a),
         ("bool", None, []) => Instance::zero_value(&Type::Bool),
         ("bool", None, [a1]) => call::bool(a1),
@@ -61,43 +70,43 @@ pub fn call_builtin_fn(
         ("f16", None, []) => Instance::zero_value(&Type::F16),
         ("f16", None, [a1]) => call::f16(a1, stage),
         ("mat2x2", Some(t), []) => Instance::zero_value(&MatTemplate::parse(t)?.ty(2, 2)),
-        ("mat2x2", Some(t), a) => call::mat_t(2, 2, MatTemplate::parse(t)?, a, stage),
+        ("mat2x2", Some(t), a) => call::mat_t(2, 2, MatTemplate::parse(t)?.inner_ty(), a, stage),
         ("mat2x2", None, a) => call::mat(2, 2, a),
         ("mat2x3", Some(t), []) => Instance::zero_value(&MatTemplate::parse(t)?.ty(2, 3)),
-        ("mat2x3", Some(t), a) => call::mat_t(2, 3, MatTemplate::parse(t)?, a, stage),
+        ("mat2x3", Some(t), a) => call::mat_t(2, 3, MatTemplate::parse(t)?.inner_ty(), a, stage),
         ("mat2x3", None, a) => call::mat(2, 3, a),
         ("mat2x4", Some(t), []) => Instance::zero_value(&MatTemplate::parse(t)?.ty(2, 4)),
-        ("mat2x4", Some(t), a) => call::mat_t(2, 4, MatTemplate::parse(t)?, a, stage),
+        ("mat2x4", Some(t), a) => call::mat_t(2, 4, MatTemplate::parse(t)?.inner_ty(), a, stage),
         ("mat2x4", None, a) => call::mat(2, 4, a),
         ("mat3x2", Some(t), []) => Instance::zero_value(&MatTemplate::parse(t)?.ty(3, 2)),
-        ("mat3x2", Some(t), a) => call::mat_t(3, 2, MatTemplate::parse(t)?, a, stage),
+        ("mat3x2", Some(t), a) => call::mat_t(3, 2, MatTemplate::parse(t)?.inner_ty(), a, stage),
         ("mat3x2", None, a) => call::mat(3, 2, a),
         ("mat3x3", Some(t), []) => Instance::zero_value(&MatTemplate::parse(t)?.ty(3, 3)),
-        ("mat3x3", Some(t), a) => call::mat_t(3, 3, MatTemplate::parse(t)?, a, stage),
+        ("mat3x3", Some(t), a) => call::mat_t(3, 3, MatTemplate::parse(t)?.inner_ty(), a, stage),
         ("mat3x3", None, a) => call::mat(3, 3, a),
         ("mat3x4", Some(t), []) => Instance::zero_value(&MatTemplate::parse(t)?.ty(3, 4)),
-        ("mat3x4", Some(t), a) => call::mat_t(3, 4, MatTemplate::parse(t)?, a, stage),
+        ("mat3x4", Some(t), a) => call::mat_t(3, 4, MatTemplate::parse(t)?.inner_ty(), a, stage),
         ("mat3x4", None, a) => call::mat(3, 4, a),
         ("mat4x2", Some(t), []) => Instance::zero_value(&MatTemplate::parse(t)?.ty(4, 2)),
-        ("mat4x2", Some(t), a) => call::mat_t(4, 2, MatTemplate::parse(t)?, a, stage),
+        ("mat4x2", Some(t), a) => call::mat_t(4, 2, MatTemplate::parse(t)?.inner_ty(), a, stage),
         ("mat4x2", None, a) => call::mat(4, 2, a),
         ("mat4x3", Some(t), []) => Instance::zero_value(&MatTemplate::parse(t)?.ty(4, 3)),
-        ("mat4x3", Some(t), a) => call::mat_t(4, 3, MatTemplate::parse(t)?, a, stage),
+        ("mat4x3", Some(t), a) => call::mat_t(4, 3, MatTemplate::parse(t)?.inner_ty(), a, stage),
         ("mat4x3", None, a) => call::mat(4, 3, a),
         ("mat4x4", Some(t), []) => Instance::zero_value(&MatTemplate::parse(t)?.ty(4, 4)),
-        ("mat4x4", Some(t), a) => call::mat_t(4, 4, MatTemplate::parse(t)?, a, stage),
+        ("mat4x4", Some(t), a) => call::mat_t(4, 4, MatTemplate::parse(t)?.inner_ty(), a, stage),
         ("mat4x4", None, a) => call::mat(4, 4, a),
         ("vec2", Some(t), []) => Instance::zero_value(&VecTemplate::parse(t)?.ty(2)),
-        ("vec2", Some(t), a) => call::vec_t(2, VecTemplate::parse(t)?, a, stage),
+        ("vec2", Some(t), a) => call::vec_t(2, VecTemplate::parse(t)?.inner_ty(), a, stage),
         ("vec2", None, a) => call::vec(2, a),
         ("vec3", Some(t), []) => Instance::zero_value(&VecTemplate::parse(t)?.ty(3)),
-        ("vec3", Some(t), a) => call::vec_t(3, VecTemplate::parse(t)?, a, stage),
+        ("vec3", Some(t), a) => call::vec_t(3, VecTemplate::parse(t)?.inner_ty(), a, stage),
         ("vec3", None, a) => call::vec(3, a),
         ("vec4", Some(t), []) => Instance::zero_value(&VecTemplate::parse(t)?.ty(4)),
-        ("vec4", Some(t), a) => call::vec_t(4, VecTemplate::parse(t)?, a, stage),
+        ("vec4", Some(t), a) => call::vec_t(4, VecTemplate::parse(t)?.inner_ty(), a, stage),
         ("vec4", None, a) => call::vec(4, a),
         // bitcast
-        ("bitcast", Some(t), [a1]) => call::bitcast_t(BitcastTemplate::parse(t)?, a1),
+        ("bitcast", Some(t), [a1]) => call::bitcast_t(BitcastTemplate::parse(t)?.ty(), a1),
         // logical
         ("all", None, [a]) => call::all(a),
         ("any", None, [a]) => call::any(a),
@@ -209,6 +218,47 @@ pub fn call_builtin_fn(
         })),
     }
     .map(Option::Some)
+}
+
+/// Call a constructor.
+///
+/// The arguments must be [loaded][Type::loaded].
+pub fn call_ctor(ty: &Type, args: &[Instance], stage: ShaderStage) -> Result<Instance, E> {
+    match (ty, args) {
+        (_, []) => Instance::zero_value(ty),
+        (Type::Bool, [a1]) => call::bool(a1),
+        (Type::I32, [a1]) => call::i32(a1),
+        (Type::U32, [a1]) => call::u32(a1),
+        (Type::F32, [a1]) => call::f32(a1, stage),
+        (Type::F16, [a1]) => call::f16(a1, stage),
+        #[cfg(feature = "naga_ext")]
+        (Type::I64 | Type::U64 | Type::F64, _) => Err(E::Todo(
+            "naga 64-bit literal constructors not implemented".to_string(),
+        )),
+        (Type::Struct(ty), a) => struct_ctor(ty, a),
+        (Type::Array(ty, n), a) => call::array_t(ty, n.unwrap_or(a.len()), a),
+        (Type::Vec(n, ty), a) => call::vec_t(*n as usize, ty, a, stage),
+        (Type::Mat(c, r, ty), a) => call::mat_t(*c as usize, *r as usize, ty, a, stage),
+        (
+            Type::AbstractInt
+            | Type::AbstractFloat
+            | Type::Atomic(_)
+            | Type::Ptr(_, _, _)
+            | Type::Ref(_, _, _)
+            | Type::Texture(_)
+            | Type::Sampler(_),
+            _,
+        ) => Err(E::NotConstructible(ty.clone())),
+        #[cfg(feature = "naga_ext")]
+        (Type::BindingArray(_, _), _) => Err(E::NotConstructible(ty.clone())),
+        (Type::Bool | Type::I32 | Type::U32 | Type::F32 | Type::F16, _) => {
+            Err(E::Signature(CallSignature {
+                name: ty.to_string(),
+                tplt: None,
+                args: args.iter().map(|a| a.ty()).collect_vec(),
+            }))
+        }
+    }
 }
 
 /// Call a binary operator.

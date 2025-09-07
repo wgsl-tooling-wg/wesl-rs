@@ -10,7 +10,8 @@ use wgsl_syntax::{AddressSpace, BinaryOperator, UnaryOperator};
 
 type E = Error;
 
-pub fn unary_op_type(operator: UnaryOperator, operand: &Type) -> Result<Type, E> {
+/// Compute the return type of a unary operator expression.
+pub fn type_unary_op(operator: UnaryOperator, operand: &Type) -> Result<Type, E> {
     match operator {
         UnaryOperator::LogicalNegation => operand.op_not(),
         UnaryOperator::Negation => operand.op_neg(),
@@ -20,7 +21,8 @@ pub fn unary_op_type(operator: UnaryOperator, operand: &Type) -> Result<Type, E>
     }
 }
 
-pub fn binary_op_type(op: BinaryOperator, lhs: &Type, rhs: &Type) -> Result<Type, E> {
+/// Compute the return type of a binary operator expression.
+pub fn type_binary_op(op: BinaryOperator, lhs: &Type, rhs: &Type) -> Result<Type, E> {
     match op {
         BinaryOperator::ShortCircuitOr => lhs.op_or(rhs),
         BinaryOperator::ShortCircuitAnd => lhs.op_and(rhs),
@@ -95,7 +97,7 @@ impl Type {
 
     /// Valid operands:
     /// * `T + T`, T: scalar or vec
-    /// * `S + V` or `V + S`, S: scalar, V: vec<S>
+    /// * `S + V` or `V + S`, S: scalar, V: `vec<S>`
     /// * `M + M`, M: mat
     pub fn op_add(&self, rhs: &Type) -> Result<Self, E> {
         let err = || E::Binary(BinaryOperator::Addition, self.ty(), rhs.ty());

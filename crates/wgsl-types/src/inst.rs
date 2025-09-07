@@ -212,7 +212,6 @@ impl StructInstance {
     /// # Panics
     /// * if there is not the right number of members
     /// * if the members are not of the right type
-    /// * if
     pub fn new(ty: StructType, members: Vec<Instance>) -> Self {
         assert_eq!(ty.members.len(), members.len());
         for (m, m_ty) in members.iter().zip(&ty.members) {

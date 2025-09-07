@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Display, iter::zip};
 use wgsl_types::{
     ShaderStage,
-    builtin::{call_builtin_fn, is_ctor_fn},
+    builtin::{call_builtin_fn, is_ctor},
     conv::Convert,
     enums::{AccessMode, AddressSpace},
     inst::{Instance, LiteralInstance, RefInstance, StructInstance, VecInstance},
@@ -551,7 +551,7 @@ impl Exec for FunctionCallStatement {
             Some(GlobalDeclaration::Struct(_)) => true,
             Some(_) => return Err(E::NotCallable(fn_name)),
             None => {
-                if is_ctor_fn(&fn_name) {
+                if is_ctor(&fn_name) {
                     true
                 } else {
                     return Err(E::UnknownFunction(fn_name));
@@ -700,7 +700,7 @@ impl Exec for FunctionCall {
             } else {
                 Err(E::NotCallable(fn_name))
             }
-        } else if is_ctor_fn(&fn_name) {
+        } else if is_ctor(&fn_name) {
             let call_res = call_builtin_fn(&fn_name, tplt.as_deref(), &args, ctx.stage)?;
             Ok(Flow::Return(call_res))
         } else {

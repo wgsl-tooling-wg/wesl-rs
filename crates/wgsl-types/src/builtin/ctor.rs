@@ -16,7 +16,7 @@ use super::Compwise;
 
 type E = Error;
 
-pub fn is_ctor_fn(name: &str) -> bool {
+pub fn is_ctor(name: &str) -> bool {
     matches!(
         name,
         "array"
@@ -40,18 +40,57 @@ pub fn is_ctor_fn(name: &str) -> bool {
     )
 }
 
+pub fn struct_ctor(struct_ty: &StructType, args: &[Instance]) -> Result<Instance, E> {
+    if args.len() != struct_ty.members.len() {
+        return Err(E::ParamCount(
+            struct_ty.name.clone(),
+            struct_ty.members.len(),
+            args.len(),
+        ));
+    }
+
+    let members = struct_ty
+        .members
+        .iter()
+        .zip(args)
+        .map(|(m_ty, inst)| {
+            let inst = inst
+                .convert_to(&m_ty.ty)
+                .ok_or_else(|| E::ParamType(m_ty.ty.clone(), inst.ty()))?;
+            Ok(inst)
+        })
+        .collect::<Result<Vec<_>, E>>()?;
+
+    Ok(Instance::Struct(StructInstance::new(struct_ty.clone(), members)).into())
+}
+
+pub fn struct_ctor_ty(struct_ty: &StructType, args: &[Type]) -> Result<Type, E> {
+    if args.len() != struct_ty.members.len() {
+        return Err(E::ParamCount(
+            struct_ty.name.clone(),
+            struct_ty.members.len(),
+            args.len(),
+        ));
+    }
+
+    for (m_ty, a_ty) in struct_ty.members.iter().zip(args) {
+        if !a_ty.is_convertible_to(&m_ty.ty) {
+            return Err(E::ParamType(m_ty.ty.clone(), a_ty.ty()));
+        }
+    }
+
+    Ok(Type::Struct(Box::new(struct_ty.clone())))
+}
+
 // -----------------
 // CONSTRUCTOR TYPES
 // -----------------
 
-fn array_ctor_ty_t(tplt: ArrayTemplate, args: &[Type]) -> Result<Type, E> {
-    if let Some(arg) = args
-        .iter()
-        .find(|arg| !arg.is_convertible_to(&tplt.inner_ty()))
-    {
-        Err(E::Conversion(arg.clone(), tplt.inner_ty()))
+fn array_ctor_ty_t(tplt_ty: &Type, tplt_n: usize, args: &[Type]) -> Result<Type, E> {
+    if let Some(arg) = args.iter().find(|arg| !arg.is_convertible_to(tplt_ty)) {
+        Err(E::Conversion(arg.clone(), tplt_ty.clone()))
     } else {
-        Ok(tplt.ty())
+        Ok(Type::Array(Box::new(tplt_ty.clone()), Some(tplt_n)))
     }
 }
 
@@ -60,12 +99,15 @@ fn array_ctor_ty(args: &[Type]) -> Result<Type, E> {
     Ok(Type::Array(Box::new(ty.clone()), Some(args.len())))
 }
 
-fn mat_ctor_ty_t(c: u8, r: u8, tplt: MatTemplate, args: &[Type]) -> Result<Type, E> {
+fn mat_ctor_ty_t(c: u8, r: u8, tplt_ty: &Type, args: &[Type]) -> Result<Type, E> {
     // overload 1: mat conversion constructor
     if let [ty @ Type::Mat(c2, r2, _)] = args {
         // note: this is an explicit conversion, not automatic conversion
         if *c2 != c || *r2 != r {
-            return Err(E::Conversion(ty.clone(), tplt.ty(c, r)));
+            return Err(E::Conversion(
+                ty.clone(),
+                Type::Mat(c, r, Box::new(tplt_ty.clone())),
+            ));
         }
     } else {
         if args.is_empty() {
@@ -73,8 +115,8 @@ fn mat_ctor_ty_t(c: u8, r: u8, tplt: MatTemplate, args: &[Type]) -> Result<Type,
         }
         let ty = convert_all_ty(args).ok_or(E::Builtin("matrix components are incompatible"))?;
         let ty = ty
-            .convert_inner_to(tplt.inner_ty())
-            .ok_or(E::Conversion(ty.inner_ty(), tplt.inner_ty().clone()))?;
+            .convert_inner_to(tplt_ty)
+            .ok_or(E::Conversion(ty.inner_ty(), tplt_ty.clone()))?;
 
         // overload 2: mat from column vectors
         if ty.is_vec() {
@@ -95,7 +137,7 @@ fn mat_ctor_ty_t(c: u8, r: u8, tplt: MatTemplate, args: &[Type]) -> Result<Type,
         }
     }
 
-    Ok(tplt.ty(c, r))
+    Ok(Type::Mat(c, r, Box::new(tplt_ty.clone())))
 }
 
 fn mat_ctor_ty(c: u8, r: u8, args: &[Type]) -> Result<Type, E> {
@@ -138,19 +180,19 @@ fn mat_ctor_ty(c: u8, r: u8, args: &[Type]) -> Result<Type, E> {
     }
 }
 
-fn vec_ctor_ty_t(n: u8, tplt: VecTemplate, args: &[Type]) -> Result<Type, E> {
+fn vec_ctor_ty_t(n: u8, tplt_ty: &Type, args: &[Type]) -> Result<Type, E> {
     if let [arg] = args {
         // overload 1: vec init from single scalar value
         if arg.is_scalar() {
-            if !arg.is_convertible_to(tplt.inner_ty()) {
-                return Err(E::Conversion(arg.clone(), tplt.inner_ty().clone()));
+            if !arg.is_convertible_to(tplt_ty) {
+                return Err(E::Conversion(arg.clone(), tplt_ty.clone()));
             }
         }
         // overload 2: vec conversion constructor
         else if arg.is_vec() {
             // note: this is an explicit conversion, not automatic conversion
         } else {
-            return Err(E::Conversion(arg.clone(), tplt.inner_ty().clone()));
+            return Err(E::Conversion(arg.clone(), tplt_ty.clone()));
         }
     }
     // overload 3: vec init from component values
@@ -159,8 +201,8 @@ fn vec_ctor_ty_t(n: u8, tplt: VecTemplate, args: &[Type]) -> Result<Type, E> {
         let n2 = args
             .iter()
             .try_fold(0, |acc, arg| match arg {
-                ty if ty.is_scalar() => ty.is_convertible_to(tplt.inner_ty()).then_some(acc + 1),
-                Type::Vec(n, ty) => ty.is_convertible_to(tplt.inner_ty()).then_some(acc + n),
+                ty if ty.is_scalar() => ty.is_convertible_to(tplt_ty).then_some(acc + 1),
+                Type::Vec(n, ty) => ty.is_convertible_to(tplt_ty).then_some(acc + n),
                 _ => None,
             })
             .ok_or(E::Builtin(
@@ -171,7 +213,7 @@ fn vec_ctor_ty_t(n: u8, tplt: VecTemplate, args: &[Type]) -> Result<Type, E> {
         }
     }
 
-    Ok(tplt.ty(n))
+    Ok(Type::Vec(n, Box::new(tplt_ty.clone())))
 }
 
 fn vec_ctor_ty(n: u8, args: &[Type]) -> Result<Type, E> {
@@ -220,10 +262,20 @@ fn vec_ctor_ty(n: u8, args: &[Type]) -> Result<Type, E> {
 /// Compute the return type of calling a built-in constructor function.
 ///
 /// The arguments must be [loaded][Type::loaded].
-pub fn ctor_type(name: &str, tplt: Option<&[TpltParam]>, args: &[Type]) -> Result<Type, E> {
+///
+/// Includes built-in constructors and zero-value constructors, *except* the struct
+/// zero-value constructor, since it requires knowledge of the struct type.
+pub fn type_ctor(name: &str, tplt: Option<&[TpltParam]>, args: &[Type]) -> Result<Type, E> {
     match (name, tplt, args) {
         ("array", Some(t), []) => Ok(ArrayTemplate::parse(t)?.ty()),
-        ("array", Some(t), _) => array_ctor_ty_t(ArrayTemplate::parse(t)?, args),
+        ("array", Some(t), a) => {
+            let tplt = ArrayTemplate::parse(t)?;
+            array_ctor_ty_t(
+                &tplt.ty(),
+                tplt.n().ok_or_else(|| E::TemplateArgs("array"))?,
+                a,
+            )
+        }
         ("array", None, _) => array_ctor_ty(args),
         ("bool", None, []) => Ok(Type::Bool),
         ("bool", None, [a]) if a.is_scalar() => Ok(Type::Bool),
@@ -236,40 +288,40 @@ pub fn ctor_type(name: &str, tplt: Option<&[TpltParam]>, args: &[Type]) -> Resul
         ("f16", None, []) => Ok(Type::F16),
         ("f16", None, [a]) if a.is_scalar() => Ok(Type::F16),
         ("mat2x2", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(2, 2)),
-        ("mat2x2", Some(t), _) => mat_ctor_ty_t(2, 2, MatTemplate::parse(t)?, args),
+        ("mat2x2", Some(t), _) => mat_ctor_ty_t(2, 2, MatTemplate::parse(t)?.inner_ty(), args),
         ("mat2x2", None, _) => mat_ctor_ty(2, 2, args),
         ("mat2x3", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(2, 3)),
-        ("mat2x3", Some(t), _) => mat_ctor_ty_t(2, 3, MatTemplate::parse(t)?, args),
+        ("mat2x3", Some(t), _) => mat_ctor_ty_t(2, 3, MatTemplate::parse(t)?.inner_ty(), args),
         ("mat2x3", None, _) => mat_ctor_ty(2, 3, args),
         ("mat2x4", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(2, 4)),
-        ("mat2x4", Some(t), _) => mat_ctor_ty_t(2, 4, MatTemplate::parse(t)?, args),
+        ("mat2x4", Some(t), _) => mat_ctor_ty_t(2, 4, MatTemplate::parse(t)?.inner_ty(), args),
         ("mat2x4", None, _) => mat_ctor_ty(2, 4, args),
         ("mat3x2", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(3, 2)),
-        ("mat3x2", Some(t), _) => mat_ctor_ty_t(3, 2, MatTemplate::parse(t)?, args),
+        ("mat3x2", Some(t), _) => mat_ctor_ty_t(3, 2, MatTemplate::parse(t)?.inner_ty(), args),
         ("mat3x2", None, _) => mat_ctor_ty(3, 2, args),
         ("mat3x3", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(3, 3)),
-        ("mat3x3", Some(t), _) => mat_ctor_ty_t(3, 3, MatTemplate::parse(t)?, args),
+        ("mat3x3", Some(t), _) => mat_ctor_ty_t(3, 3, MatTemplate::parse(t)?.inner_ty(), args),
         ("mat3x3", None, _) => mat_ctor_ty(3, 3, args),
         ("mat3x4", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(3, 4)),
-        ("mat3x4", Some(t), _) => mat_ctor_ty_t(3, 4, MatTemplate::parse(t)?, args),
+        ("mat3x4", Some(t), _) => mat_ctor_ty_t(3, 4, MatTemplate::parse(t)?.inner_ty(), args),
         ("mat3x4", None, _) => mat_ctor_ty(3, 4, args),
         ("mat4x2", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(4, 2)),
-        ("mat4x2", Some(t), _) => mat_ctor_ty_t(4, 2, MatTemplate::parse(t)?, args),
+        ("mat4x2", Some(t), _) => mat_ctor_ty_t(4, 2, MatTemplate::parse(t)?.inner_ty(), args),
         ("mat4x2", None, _) => mat_ctor_ty(4, 2, args),
         ("mat4x3", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(4, 3)),
-        ("mat4x3", Some(t), _) => mat_ctor_ty_t(4, 3, MatTemplate::parse(t)?, args),
+        ("mat4x3", Some(t), _) => mat_ctor_ty_t(4, 3, MatTemplate::parse(t)?.inner_ty(), args),
         ("mat4x3", None, _) => mat_ctor_ty(4, 3, args),
         ("mat4x4", Some(t), []) => Ok(MatTemplate::parse(t)?.ty(4, 4)),
-        ("mat4x4", Some(t), _) => mat_ctor_ty_t(4, 4, MatTemplate::parse(t)?, args),
+        ("mat4x4", Some(t), _) => mat_ctor_ty_t(4, 4, MatTemplate::parse(t)?.inner_ty(), args),
         ("mat4x4", None, _) => mat_ctor_ty(4, 4, args),
         ("vec2", Some(t), []) => Ok(VecTemplate::parse(t)?.ty(2)),
-        ("vec2", Some(t), _) => vec_ctor_ty_t(2, VecTemplate::parse(t)?, args),
+        ("vec2", Some(t), _) => vec_ctor_ty_t(2, VecTemplate::parse(t)?.inner_ty(), args),
         ("vec2", None, _) => vec_ctor_ty(2, args),
         ("vec3", Some(t), []) => Ok(VecTemplate::parse(t)?.ty(3)),
-        ("vec3", Some(t), _) => vec_ctor_ty_t(3, VecTemplate::parse(t)?, args),
+        ("vec3", Some(t), _) => vec_ctor_ty_t(3, VecTemplate::parse(t)?.inner_ty(), args),
         ("vec3", None, _) => vec_ctor_ty(3, args),
         ("vec4", Some(t), []) => Ok(VecTemplate::parse(t)?.ty(4)),
-        ("vec4", Some(t), _) => vec_ctor_ty_t(4, VecTemplate::parse(t)?, args),
+        ("vec4", Some(t), _) => vec_ctor_ty_t(4, VecTemplate::parse(t)?.inner_ty(), args),
         ("vec4", None, _) => vec_ctor_ty(4, args),
         _ => Err(E::Signature(CallSignature {
             name: name.to_string(),

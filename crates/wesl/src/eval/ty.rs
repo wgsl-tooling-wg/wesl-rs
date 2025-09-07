@@ -5,8 +5,8 @@ use crate::Eval;
 use super::{
     ATTR_INTRINSIC, ArrayTemplate, AtomicTemplate, Context, Convert, EvalAttrs, EvalError, Exec,
     MatTemplate, PtrTemplate, SamplerType, ScopeKind, StructType, SyntaxUtil, TextureTemplate,
-    TextureType, Ty, Type, VecTemplate, builtin_fn_type, check_swizzle, convert_ty, ctor_type,
-    is_ctor_fn, with_stage,
+    TextureType, Ty, Type, VecTemplate, check_swizzle, convert_ty, is_ctor, type_builtin_fn,
+    type_ctor, with_stage,
 };
 
 type E = EvalError;
@@ -485,7 +485,7 @@ impl EvalTy for FunctionCallExpression {
                 GlobalDeclaration::Struct(decl) => decl.eval_ty(ctx),
                 GlobalDeclaration::Function(decl) => {
                     if decl.body.contains_attribute(&ATTR_INTRINSIC) {
-                        builtin_fn_type(&name, tplt.as_deref(), &args)?
+                        type_builtin_fn(&name, tplt.as_deref(), &args)?
                             .ok_or_else(|| E::Void(decl.ident.to_string()))
                     } else {
                         // TODO: check argument types
@@ -498,8 +498,8 @@ impl EvalTy for FunctionCallExpression {
                 }
                 _ => Err(E::NotCallable(ty.to_string())),
             }
-        } else if is_ctor_fn(&ty.ident.name()) {
-            let res_ty = ctor_type(&name, tplt.as_deref(), &args)?;
+        } else if is_ctor(&ty.ident.name()) {
+            let res_ty = type_ctor(&name, tplt.as_deref(), &args)?;
             Ok(res_ty)
         } else {
             Err(E::UnknownFunction(ty.ident.to_string()))
