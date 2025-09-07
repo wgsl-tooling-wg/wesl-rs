@@ -40,6 +40,10 @@ pub fn is_ctor(name: &str) -> bool {
 
 /// Call a struct constructor.
 pub fn struct_ctor(struct_ty: &StructType, args: &[Instance]) -> Result<Instance, E> {
+    if args.is_empty() {
+        return StructInstance::zero_value(struct_ty).map(Instance::from);
+    }
+
     if args.len() != struct_ty.members.len() {
         return Err(E::ParamCount(
             struct_ty.name.clone(),
@@ -279,7 +283,7 @@ pub fn type_ctor(name: &str, tplt: Option<&[TpltParam]>, args: &[Type]) -> Resul
         ("array", Some(t), a) => {
             let tplt = ArrayTemplate::parse(t)?;
             array_ctor_ty_t(
-                &tplt.ty(),
+                &tplt.inner_ty(),
                 tplt.n().ok_or_else(|| E::TemplateArgs("array"))?,
                 a,
             )

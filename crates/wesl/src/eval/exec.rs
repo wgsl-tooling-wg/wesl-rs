@@ -1,11 +1,12 @@
 use std::{collections::HashMap, fmt::Display, iter::zip};
 use wgsl_types::{
     ShaderStage,
-    builtin::{call_builtin_fn, is_ctor},
+    builtin::{call_builtin_fn, is_ctor, struct_ctor},
     conv::Convert,
     enums::{AccessMode, AddressSpace},
-    inst::{Instance, LiteralInstance, RefInstance, StructInstance, VecInstance},
-    ty::{StructMemberType, StructType, Ty, Type},
+    inst::{Instance, LiteralInstance, RefInstance, VecInstance},
+    tplt::TpltParam,
+    ty::{Ty, Type},
 };
 
 use super::{
@@ -571,6 +572,75 @@ impl Exec for FunctionCallStatement {
     }
 }
 
+fn exec_fn(
+    decl: &Function,
+    tplt: Option<Vec<TpltParam>>,
+    args: Vec<Instance>,
+    ctx: &mut Context,
+) -> Result<Option<Instance>, E> {
+    let fn_name = decl.ident.to_string();
+
+    if ctx.stage == ShaderStage::Const && !decl.contains_attribute(&Attribute::Const) {
+        return Err(E::NotConst(decl.ident.to_string()));
+    }
+
+    if decl.body.contains_attribute(&ATTR_INTRINSIC) {
+        let call_res = call_builtin_fn(&fn_name, tplt.as_deref(), &args, ctx.stage)?;
+        return Ok(call_res);
+    }
+
+    if args.len() != decl.parameters.len() {
+        return Err(E::ParamCount(
+            decl.ident.to_string(),
+            decl.parameters.len(),
+            args.len(),
+        ));
+    }
+
+    let ret_ty = decl
+        .return_type
+        .as_ref()
+        .map(|expr| ty_eval_ty(expr, ctx))
+        .transpose()?;
+
+    let flow = with_scope!(ctx, {
+        let args = args
+            .iter()
+            .zip(&decl.parameters)
+            .map(|(arg, param)| {
+                let param_ty = ty_eval_ty(&param.ty, ctx)?;
+                arg.convert_to(&param_ty)
+                    .ok_or_else(|| E::ParamType(param_ty.clone(), arg.ty()))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
+
+        for (a, p) in zip(args, &decl.parameters) {
+            if !ctx.scope.add(p.ident.to_string(), a) {
+                return Err(E::DuplicateDecl(p.ident.to_string()));
+            }
+        }
+
+        // the arguments must be in the same scope as the function body.
+        let flow = compound_exec_no_scope(&decl.body, ctx)
+            .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
+
+        Ok(flow)
+    })?;
+
+    match (flow, ret_ty) {
+        (flow @ (Flow::Break | Flow::Continue), _) => Err(E::FlowInFunction(flow)),
+        (Flow::Return(Some(inst)), Some(ret_ty)) => inst
+            .convert_to(&ret_ty)
+            .ok_or(E::ReturnType(inst.ty(), fn_name.clone(), ret_ty))
+            .map(Into::into)
+            .inspect_err(|_| ctx.set_err_decl_ctx(fn_name)),
+        (Flow::Return(Some(inst)), None) => Err(E::UnexpectedReturn(fn_name, inst.ty())),
+        (Flow::Next | Flow::Return(None), Some(ret_ty)) => Err(E::NoReturn(fn_name, ret_ty)),
+        (Flow::Next | Flow::Return(None), None) => Ok(None),
+    }
+}
+
 impl Exec for FunctionCall {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         let ty = ctx.source.resolve_ty(&self.ty);
@@ -593,110 +663,12 @@ impl Exec for FunctionCall {
             .collect::<Result<Vec<_>, _>>()?;
 
         if let Some(decl) = ctx.source.decl(&fn_name) {
-            // function call
             if let GlobalDeclaration::Function(decl) = decl {
-                if ctx.stage == ShaderStage::Const && !decl.contains_attribute(&Attribute::Const) {
-                    return Err(E::NotConst(decl.ident.to_string()));
-                }
-
-                if decl.body.contains_attribute(&ATTR_INTRINSIC) {
-                    let call_res = call_builtin_fn(&fn_name, tplt.as_deref(), &args, ctx.stage)?;
-                    return Ok(Flow::Return(call_res));
-                }
-
-                if self.arguments.len() != decl.parameters.len() {
-                    return Err(E::ParamCount(
-                        decl.ident.to_string(),
-                        decl.parameters.len(),
-                        self.arguments.len(),
-                    ));
-                }
-
-                let ret_ty = decl
-                    .return_type
-                    .as_ref()
-                    .map(|expr| ty_eval_ty(expr, ctx))
-                    .transpose()?;
-
-                let flow = with_scope!(ctx, {
-                    let args = args
-                        .iter()
-                        .zip(&decl.parameters)
-                        .map(|(arg, param)| {
-                            let param_ty = ty_eval_ty(&param.ty, ctx)?;
-                            arg.convert_to(&param_ty)
-                                .ok_or_else(|| E::ParamType(param_ty.clone(), arg.ty()))
-                        })
-                        .collect::<Result<Vec<_>, _>>()
-                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
-
-                    for (a, p) in zip(args, &decl.parameters) {
-                        if !ctx.scope.add(p.ident.to_string(), a) {
-                            return Err(E::DuplicateDecl(p.ident.to_string()));
-                        }
-                    }
-
-                    // the arguments must be in the same scope as the function body.
-                    let flow = compound_exec_no_scope(&decl.body, ctx)
-                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
-
-                    Ok(flow)
-                })?;
-
-                match (flow, ret_ty) {
-                    (flow @ (Flow::Break | Flow::Continue), _) => Err(E::FlowInFunction(flow)),
-                    (Flow::Return(Some(inst)), Some(ret_ty)) => inst
-                        .convert_to(&ret_ty)
-                        .ok_or(E::ReturnType(inst.ty(), fn_name.clone(), ret_ty))
-                        .map(Into::into)
-                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name)),
-                    (Flow::Return(Some(inst)), None) => {
-                        Err(E::UnexpectedReturn(fn_name, inst.ty()))
-                    }
-                    (Flow::Next | Flow::Return(None), Some(ret_ty)) => {
-                        Err(E::NoReturn(fn_name, ret_ty))
-                    }
-                    (Flow::Next | Flow::Return(None), None) => Ok(Flow::Return(None)),
-                }
-            }
-            // struct constructor
-            else if let GlobalDeclaration::Struct(decl) = decl {
+                exec_fn(decl, tplt, args, ctx).map(Flow::Return)
+            } else if let GlobalDeclaration::Struct(decl) = decl {
                 let struct_ty = *decl.eval_ty(ctx)?.unwrap_struct();
-                if args.len() == decl.members.len() {
-                    let members = decl
-                        .members
-                        .iter()
-                        .zip(args)
-                        .map(|(member, inst)| {
-                            let ty = ty_eval_ty(&member.ty, ctx)?;
-                            let inst = inst
-                                .convert_to(&ty)
-                                .ok_or_else(|| E::ParamType(ty, inst.ty()))?;
-                            Ok(inst)
-                        })
-                        .collect::<Result<Vec<_>, E>>()?;
-                    Ok(Instance::Struct(StructInstance::new(struct_ty, members)).into())
-                } else if args.is_empty() {
-                    let members = decl
-                        .members
-                        .iter()
-                        .map(|m| {
-                            Ok(StructMemberType {
-                                name: m.ident.to_string(),
-                                ty: ty_eval_ty(&m.ty, ctx)?,
-                                size: m.attr_size(ctx)?,
-                                align: m.attr_align(ctx)?,
-                            })
-                        })
-                        .collect::<Result<Vec<_>, E>>()?;
-                    let struct_ty = StructType {
-                        name: decl.ident.to_string(),
-                        members,
-                    };
-                    Ok(Instance::Struct(StructInstance::zero_value(&struct_ty)?).into())
-                } else {
-                    Err(E::ParamCount(fn_name, decl.members.len(), args.len()))
-                }
+                let inst = struct_ctor(&struct_ty, &args)?;
+                Ok(Flow::Return(Some(inst)))
             } else {
                 Err(E::NotCallable(fn_name))
             }
