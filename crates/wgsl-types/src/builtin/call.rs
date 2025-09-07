@@ -14,8 +14,6 @@ use num_traits::{FromPrimitive, One, ToBytes, ToPrimitive, Zero, real::Real};
 
 use itertools::{Itertools, chain, izip};
 
-use crate::builtin::frexp_struct_type;
-use crate::tplt::{ArrayTemplate, BitcastTemplate, MatTemplate, VecTemplate};
 use crate::{
     Error, Instance, ShaderStage,
     conv::{Convert, convert, convert_all, convert_all_inner_to, convert_all_to, convert_all_ty},
@@ -23,11 +21,11 @@ use crate::{
         ArrayInstance, AtomicInstance, LiteralInstance, MatInstance, RefInstance, StructInstance,
         VecInstance,
     },
-    ops::Compwise,
+    tplt::{ArrayTemplate, BitcastTemplate, MatTemplate, VecTemplate},
     ty::{Ty, Type},
 };
 
-use super::atomic_compare_exchange_struct_type;
+use super::{Compwise, atomic_compare_exchange_struct_type, frexp_struct_type};
 
 type E = Error;
 

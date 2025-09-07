@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Display, iter::zip};
 use wgsl_types::{
     ShaderStage,
-    builtin::{call_builtin, is_constructor_fn},
+    builtin::{call_builtin_fn, is_ctor_fn},
     conv::Convert,
     enums::{AccessMode, AddressSpace},
     inst::{Instance, LiteralInstance, RefInstance, StructInstance, VecInstance},
@@ -551,7 +551,7 @@ impl Exec for FunctionCallStatement {
             Some(GlobalDeclaration::Struct(_)) => true,
             Some(_) => return Err(E::NotCallable(fn_name)),
             None => {
-                if is_constructor_fn(&fn_name) {
+                if is_ctor_fn(&fn_name) {
                     true
                 } else {
                     return Err(E::UnknownFunction(fn_name));
@@ -600,7 +600,7 @@ impl Exec for FunctionCall {
                 }
 
                 if decl.body.contains_attribute(&ATTR_INTRINSIC) {
-                    let call_res = call_builtin(&fn_name, tplt.as_deref(), &args, ctx.stage)?;
+                    let call_res = call_builtin_fn(&fn_name, tplt.as_deref(), &args, ctx.stage)?;
                     return Ok(Flow::Return(call_res));
                 }
 
@@ -700,8 +700,8 @@ impl Exec for FunctionCall {
             } else {
                 Err(E::NotCallable(fn_name))
             }
-        } else if is_constructor_fn(&fn_name) {
-            let call_res = call_builtin(&fn_name, tplt.as_deref(), &args, ctx.stage)?;
+        } else if is_ctor_fn(&fn_name) {
+            let call_res = call_builtin_fn(&fn_name, tplt.as_deref(), &args, ctx.stage)?;
             Ok(Flow::Return(call_res))
         } else {
             Err(E::UnknownFunction(fn_name))

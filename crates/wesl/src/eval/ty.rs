@@ -6,7 +6,7 @@ use super::{
     ATTR_INTRINSIC, ArrayTemplate, AtomicTemplate, Context, Convert, EvalAttrs, EvalError, Exec,
     MatTemplate, PtrTemplate, SamplerType, ScopeKind, StructType, SyntaxUtil, TextureTemplate,
     TextureType, Ty, Type, VecTemplate, builtin_fn_type, check_swizzle, constructor_type,
-    convert_ty, is_constructor_fn, with_stage,
+    convert_ty, is_ctor_fn, with_stage,
 };
 
 type E = EvalError;
@@ -498,7 +498,7 @@ impl EvalTy for FunctionCallExpression {
                 }
                 _ => Err(E::NotCallable(ty.to_string())),
             }
-        } else if is_constructor_fn(&ty.ident.name()) {
+        } else if is_ctor_fn(&ty.ident.name()) {
             let res_ty = constructor_type(&name, tplt.as_deref(), &args)?;
             Ok(res_ty)
         } else {

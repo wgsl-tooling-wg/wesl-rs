@@ -7,7 +7,6 @@ pub mod enums;
 pub mod idents;
 pub mod inst;
 pub mod mem;
-pub mod ops;
 pub mod tplt;
 pub mod ty;
 
