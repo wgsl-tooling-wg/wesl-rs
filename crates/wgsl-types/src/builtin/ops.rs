@@ -828,6 +828,7 @@ impl LiteralInstance {
             _ => Err(E::Unary(UnaryOperator::BitwiseComplement, self.ty())),
         }
     }
+    /// Note: this is both the "bitwise OR" and "logical OR" operator.
     pub fn op_bitor(&self, rhs: &Self) -> Result<Self, E> {
         let err = || E::Binary(BinaryOperator::BitwiseOr, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
@@ -838,6 +839,7 @@ impl LiteralInstance {
             _ => Err(err()),
         }
     }
+    /// Note: this is both the "bitwise AND" and "logical AND" operator.
     pub fn op_bitand(&self, rhs: &Self) -> Result<Self, E> {
         let err = || E::Binary(BinaryOperator::BitwiseAnd, self.ty(), rhs.ty());
         match convert(self, rhs).ok_or_else(err)? {
@@ -953,9 +955,11 @@ impl VecInstance {
     pub fn op_bitnot(&self) -> Result<Self, E> {
         self.compwise_unary(LiteralInstance::op_bitnot)
     }
+    /// Note: this is both the "bitwise OR" and "logical OR" operator.
     pub fn op_bitor(&self, rhs: &Self) -> Result<Self, E> {
         self.compwise_binary(rhs, |l, r| l.op_bitor(r))
     }
+    /// Note: this is both the "bitwise AND" and "logical AND" operator.
     pub fn op_bitand(&self, rhs: &Self) -> Result<Self, E> {
         self.compwise_binary(rhs, |l, r| l.op_bitand(r))
     }
@@ -978,6 +982,7 @@ impl Instance {
             _ => Err(E::Unary(UnaryOperator::BitwiseComplement, self.ty())),
         }
     }
+    /// Note: this is both the "bitwise OR" and "logical OR" operator.
     pub fn op_bitor(&self, rhs: &Self) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_bitor(rhs).map(Into::into),
@@ -985,6 +990,7 @@ impl Instance {
             _ => Err(E::Binary(BinaryOperator::BitwiseOr, self.ty(), rhs.ty())),
         }
     }
+    /// Note: this is both the "bitwise AND" and "logical AND" operator.
     pub fn op_bitand(&self, rhs: &Self) -> Result<Self, E> {
         match (self, rhs) {
             both!(Self::Literal, lhs, rhs) => lhs.op_bitand(rhs).map(Into::into),

@@ -15,6 +15,7 @@ mod ops_ty;
 
 pub use call_ty::builtin_fn_type;
 pub use ctor::{ctor_type, is_ctor_fn};
+pub use ops_ty::{binary_op_type, unary_op_type};
 
 pub(crate) use call_ty::*;
 pub(crate) use ops::Compwise;

@@ -225,8 +225,10 @@ pub enum BinaryOperator {
     /// `>=`
     GreaterThanEqual,
     /// `|`
+    /// Note: this is both the "bitwise OR" and "logical OR" operator.
     BitwiseOr,
     /// `&`
+    /// Note: this is both the "bitwise AND" and "logical AND" operator.
     BitwiseAnd,
     /// `^`
     BitwiseXor,

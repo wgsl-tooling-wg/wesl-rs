@@ -6,9 +6,42 @@ use crate::{
     ty::{Ty, Type},
 };
 
-use wgsl_syntax::{BinaryOperator, UnaryOperator};
+use wgsl_syntax::{AddressSpace, BinaryOperator, UnaryOperator};
 
 type E = Error;
+
+pub fn unary_op_type(operator: UnaryOperator, operand: &Type) -> Result<Type, E> {
+    match operator {
+        UnaryOperator::LogicalNegation => operand.op_not(),
+        UnaryOperator::Negation => operand.op_neg(),
+        UnaryOperator::BitwiseComplement => operand.op_bitnot(),
+        UnaryOperator::AddressOf => operand.op_ref(),
+        UnaryOperator::Indirection => operand.op_deref(),
+    }
+}
+
+pub fn binary_op_type(op: BinaryOperator, lhs: &Type, rhs: &Type) -> Result<Type, E> {
+    match op {
+        BinaryOperator::ShortCircuitOr => lhs.op_or(rhs),
+        BinaryOperator::ShortCircuitAnd => lhs.op_and(rhs),
+        BinaryOperator::Addition => lhs.op_add(rhs),
+        BinaryOperator::Subtraction => lhs.op_sub(rhs),
+        BinaryOperator::Multiplication => lhs.op_mul(rhs),
+        BinaryOperator::Division => lhs.op_div(rhs),
+        BinaryOperator::Remainder => lhs.op_rem(rhs),
+        BinaryOperator::Equality => lhs.op_eq(rhs),
+        BinaryOperator::Inequality => lhs.op_ne(rhs),
+        BinaryOperator::LessThan => lhs.op_lt(rhs),
+        BinaryOperator::LessThanEqual => lhs.op_le(rhs),
+        BinaryOperator::GreaterThan => lhs.op_gt(rhs),
+        BinaryOperator::GreaterThanEqual => lhs.op_ge(rhs),
+        BinaryOperator::BitwiseOr => lhs.op_bitor(rhs),
+        BinaryOperator::BitwiseAnd => lhs.op_bitand(rhs),
+        BinaryOperator::BitwiseXor => lhs.op_bitxor(rhs),
+        BinaryOperator::ShiftLeft => lhs.op_shl(rhs),
+        BinaryOperator::ShiftRight => lhs.op_shr(rhs),
+    }
+}
 
 // -------------------
 // LOGICAL EXPRESSIONS
@@ -20,6 +53,26 @@ impl Type {
         match self {
             Self::Bool | Self::Vec(_, _) => Ok(self.clone()),
             _ => Err(E::Unary(UnaryOperator::LogicalNegation, self.clone())),
+        }
+    }
+    pub fn op_or(&self, rhs: &Type) -> Result<Self, E> {
+        match (self, rhs) {
+            (Type::Bool, Type::Bool) => Ok(Type::Bool),
+            _ => Err(E::Binary(
+                BinaryOperator::ShortCircuitOr,
+                self.ty(),
+                rhs.ty(),
+            )),
+        }
+    }
+    pub fn op_and(&self, rhs: &Type) -> Result<Self, E> {
+        match (self, rhs) {
+            (Type::Bool, Type::Bool) => Ok(Type::Bool),
+            _ => Err(E::Binary(
+                BinaryOperator::ShortCircuitAnd,
+                self.ty(),
+                rhs.ty(),
+            )),
         }
     }
 }
@@ -255,24 +308,32 @@ impl Type {
         }
     }
 
+    /// Note: this is both the "bitwise OR" and "logical OR" operator.
+    ///
     /// Valid operands:
-    /// * `T | T`, I: integer, T: I or `vec<I>`
+    /// * `T | T`, T: integer, or `vec<integer>` (bitwise OR)
+    /// * `V | V`, V: `vec<bool>` (logical OR)
     pub fn op_bitor(&self, rhs: &Type) -> Result<Type, E> {
         let err = || E::Binary(BinaryOperator::BitwiseOr, self.ty(), rhs.ty());
         match convert_ty(self, rhs).ok_or_else(err)? {
             ty if ty.is_integer() => Ok(self.clone()),
             Type::Vec(_, ty) if ty.is_integer() => Ok(self.clone()),
+            Type::Vec(_, ty) if ty.is_bool() => Ok(self.clone()),
             _ => Err(err()),
         }
     }
 
+    /// Note: this is both the "bitwise AND" and "logical AND" operator.
+    ///
     /// Valid operands:
-    /// * `T & T`, I: integer, T: I or `vec<I>`
+    /// * `T & T`, T: integer or `vec<integer>` (bitwise AND)
+    /// * `V & V`, V: `vec<bool>` (logical AND)
     pub fn op_bitand(&self, rhs: &Type) -> Result<Type, E> {
         let err = || E::Binary(BinaryOperator::BitwiseAnd, self.ty(), rhs.ty());
         match convert_ty(self, rhs).ok_or_else(err)? {
             ty if ty.is_integer() => Ok(self.clone()),
             Type::Vec(_, ty) if ty.is_integer() => Ok(self.clone()),
+            Type::Vec(_, ty) if ty.is_bool() => Ok(self.clone()),
             _ => Err(err()),
         }
     }
@@ -311,6 +372,39 @@ impl Type {
             (lhs, Type::U32) if lhs.is_integer() => Ok(lhs.clone()),
             (lhs, Type::Vec(_, _)) => Ok(lhs.clone()),
             _ => Err(err()),
+        }
+    }
+}
+
+// -------------------
+// POINTER EXPRESSIONS
+// -------------------
+// reference: https://www.w3.org/TR/WGSL/#address-of-expr
+// reference: https://www.w3.org/TR/WGSL/#indirection-expr
+
+impl Type {
+    pub fn op_ref(&self) -> Result<Type, E> {
+        match self {
+            Type::Ref(a_s, ty, a_m) => {
+                if *a_s == AddressSpace::Handle {
+                    // "It is a shader-creation error if AS is the handle address space."
+                    Err(E::PtrHandle)
+                } else if false {
+                    // TODO: We do not yet have enough information to check this:
+                    // "It is a shader-creation error if r is a reference to a vector component."
+                    Err(E::PtrVecComp)
+                } else {
+                    Ok(Type::Ptr(*a_s, ty.clone(), *a_m))
+                }
+            }
+            _ => Err(E::Unary(UnaryOperator::AddressOf, self.ty())),
+        }
+    }
+
+    pub fn op_deref(&self) -> Result<Type, E> {
+        match self {
+            Type::Ptr(a_s, ty, a_m) => Ok(Type::Ref(*a_s, ty.clone(), *a_m)),
+            _ => Err(E::Unary(UnaryOperator::Indirection, self.ty())),
         }
     }
 }
