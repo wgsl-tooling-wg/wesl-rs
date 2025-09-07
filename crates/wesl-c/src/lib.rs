@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 #![allow(clippy::missing_safety_doc)]
 
 use std::collections::HashMap;
@@ -9,7 +10,7 @@ use wesl::{VirtualResolver, Wesl};
 
 #[cfg(feature = "eval")]
 use wesl::{
-    eval::{Eval, EvalAttrs, HostShareable, Inputs, Instance, RefInstance},
+    eval::{Eval, EvalAttrs, Inputs, Instance, RefInstance},
     syntax::{AccessMode, AddressSpace},
 };
 

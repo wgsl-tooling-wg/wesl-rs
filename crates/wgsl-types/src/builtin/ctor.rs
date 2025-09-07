@@ -5,14 +5,12 @@ use itertools::Itertools;
 use num_traits::Zero;
 
 use crate::{
-    CallSignature, Error, ShaderStage,
+    CallSignature, Error,
     conv::{Convert, convert_all_ty},
     inst::{ArrayInstance, Instance, LiteralInstance, MatInstance, StructInstance, VecInstance},
     tplt::{ArrayTemplate, MatTemplate, TpltParam, VecTemplate},
     ty::{StructType, Ty, Type},
 };
-
-use super::Compwise;
 
 type E = Error;
 
@@ -40,6 +38,7 @@ pub fn is_ctor(name: &str) -> bool {
     )
 }
 
+/// Call a struct constructor.
 pub fn struct_ctor(struct_ty: &StructType, args: &[Instance]) -> Result<Instance, E> {
     if args.len() != struct_ty.members.len() {
         return Err(E::ParamCount(
@@ -64,7 +63,15 @@ pub fn struct_ctor(struct_ty: &StructType, args: &[Instance]) -> Result<Instance
     Ok(Instance::Struct(StructInstance::new(struct_ty.clone(), members)).into())
 }
 
-pub fn struct_ctor_ty(struct_ty: &StructType, args: &[Type]) -> Result<Type, E> {
+/// Check a struct constructor call signature.
+///
+/// Validates the type and number of arguments passed.
+pub fn typecheck_struct_ctor(struct_ty: &StructType, args: &[Type]) -> Result<(), E> {
+    if args.is_empty() {
+        // zero-value constructor
+        return Ok(());
+    }
+
     if args.len() != struct_ty.members.len() {
         return Err(E::ParamCount(
             struct_ty.name.clone(),
@@ -79,7 +86,7 @@ pub fn struct_ctor_ty(struct_ty: &StructType, args: &[Type]) -> Result<Type, E> 
         }
     }
 
-    Ok(Type::Struct(Box::new(struct_ty.clone())))
+    Ok(())
 }
 
 // -----------------
@@ -265,6 +272,7 @@ fn vec_ctor_ty(n: u8, args: &[Type]) -> Result<Type, E> {
 ///
 /// Includes built-in constructors and zero-value constructors, *except* the struct
 /// zero-value constructor, since it requires knowledge of the struct type.
+/// You can type-check a struct constructor call with [`typecheck_struct_ctor`].
 pub fn type_ctor(name: &str, tplt: Option<&[TpltParam]>, args: &[Type]) -> Result<Type, E> {
     match (name, tplt, args) {
         ("array", Some(t), []) => Ok(ArrayTemplate::parse(t)?.ty()),
@@ -442,33 +450,5 @@ impl MatInstance {
         let zero_col = Instance::Vec(VecInstance::new((0..r).map(|_| zero.clone()).collect_vec()));
         let comps = (0..c).map(|_| zero_col.clone()).collect_vec();
         Ok(MatInstance::from_cols(comps))
-    }
-}
-
-impl VecInstance {
-    /// Warning, this function does not check operand types
-    pub fn dot(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<LiteralInstance, E> {
-        self.compwise_binary(rhs, |a, b| a.op_mul(b, stage))?
-            .into_iter()
-            .map(|c| Ok(c.unwrap_literal()))
-            .reduce(|a, b| a?.op_add(&b?, stage))
-            .unwrap()
-    }
-}
-
-impl MatInstance {
-    /// Warning, this function does not check operand types
-    pub fn transpose(&self) -> MatInstance {
-        let components = (0..self.r())
-            .map(|j| {
-                VecInstance::new(
-                    (0..self.c())
-                        .map(|i| self.get(i, j).unwrap().clone())
-                        .collect_vec(),
-                )
-                .into()
-            })
-            .collect_vec();
-        MatInstance::from_cols(components)
     }
 }

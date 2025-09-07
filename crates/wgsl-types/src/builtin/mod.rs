@@ -14,11 +14,10 @@ mod ops;
 mod ops_ty;
 
 pub use call_ty::type_builtin_fn;
-pub use ctor::{is_ctor, type_ctor};
+pub use ctor::{is_ctor, struct_ctor, type_ctor, typecheck_struct_ctor};
 pub use ops_ty::{type_binary_op, type_unary_op};
 
 pub(crate) use call_ty::*;
-pub(crate) use ctor::struct_ctor;
 pub(crate) use ops::Compwise;
 
 use itertools::Itertools;

@@ -12,7 +12,7 @@ use std::{
 use wesl::{
     CompileOptions, CompileResult, Diagnostic, Feature, Features, Inputs, ManglerKind, ModulePath,
     PkgBuilder, Router, StandardResolver, SyntaxUtil, VirtualResolver, Wesl,
-    eval::{Eval, EvalAttrs, HostShareable, Instance, RefInstance, Ty, ty_eval_ty},
+    eval::{Eval, EvalAttrs, Instance, RefInstance, Ty, ty_eval_ty},
     syntax::{self, AccessMode, AddressSpace, PathOrigin, TranslationUnit},
 };
 

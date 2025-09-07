@@ -1989,3 +1989,31 @@ pub fn unpack2x16float(e: &Instance) -> Result<Instance, E> {
 
     Ok(VecInstance::new(comps).into())
 }
+
+impl VecInstance {
+    /// Warning, this function does not check operand types
+    pub fn dot(&self, rhs: &VecInstance, stage: ShaderStage) -> Result<LiteralInstance, E> {
+        self.compwise_binary(rhs, |a, b| a.op_mul(b, stage))?
+            .into_iter()
+            .map(|c| Ok(c.unwrap_literal()))
+            .reduce(|a, b| a?.op_add(&b?, stage))
+            .unwrap()
+    }
+}
+
+impl MatInstance {
+    /// Warning, this function does not check operand types
+    pub fn transpose(&self) -> MatInstance {
+        let components = (0..self.r())
+            .map(|j| {
+                VecInstance::new(
+                    (0..self.c())
+                        .map(|i| self.get(i, j).unwrap().clone())
+                        .collect_vec(),
+                )
+                .into()
+            })
+            .collect_vec();
+        MatInstance::from_cols(components)
+    }
+}
