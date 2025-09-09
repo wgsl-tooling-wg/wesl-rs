@@ -1,11 +1,17 @@
 use std::{collections::HashMap, fmt::Display, iter::zip};
-
-use crate::eval::{VecInstance, conv::Convert};
+use wgsl_types::{
+    ShaderStage,
+    builtin::{call_builtin_fn, is_ctor, struct_ctor},
+    conv::Convert,
+    inst::{Instance, LiteralInstance, RefInstance, VecInstance},
+    syntax::{AccessMode, AddressSpace},
+    tplt::TpltParam,
+    ty::{Ty, Type},
+};
 
 use super::{
-    ATTR_INTRINSIC, AccessMode, Context, Eval, EvalError, EvalStage, EvalTy, Instance,
-    LiteralInstance, RefInstance, ScopeKind, StructInstance, SyntaxUtil, Ty, Type,
-    attrs::EvalAttrs, call_builtin, is_constructor_fn, ty_eval_ty,
+    ATTR_INTRINSIC, Context, Eval, EvalError, EvalTy, ScopeKind, SyntaxUtil, attrs::EvalAttrs,
+    eval_tplt_arg, ty_eval_ty,
 };
 
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
@@ -193,21 +199,20 @@ pub(crate) fn compound_exec_no_scope(
 impl Exec for AssignmentStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         let is_phony = matches!(self.lhs.node(), Expression::TypeOrIdentifier(TypeExpression { path: None, ident, template_args: None }) if *ident.name() == "_");
-        if self.operator.is_equal() && is_phony {
+        if self.operator == AssignmentOperator::Equal && is_phony {
             let _ = self.rhs.eval(ctx)?;
             return Ok(Flow::Next);
         }
 
         let lhs = self.lhs.eval(ctx)?;
-        let ty = lhs.ty().concretize();
 
         if let Instance::Ref(r) = lhs {
             let rhs = self.rhs.eval_value(ctx)?;
             match self.operator {
                 AssignmentOperator::Equal => {
                     let rhs = rhs
-                        .convert_to(&ty)
-                        .ok_or_else(|| E::AssignType(rhs.ty(), ty))?;
+                        .convert_to(&r.ty)
+                        .ok_or_else(|| E::AssignType(rhs.ty(), r.ty.clone()))?;
                     r.write(rhs)?;
                 }
                 AssignmentOperator::PlusEqual => {
@@ -359,7 +364,7 @@ impl Exec for SwitchStatement {
                         }
                     }
                     CaseSelector::Expression(e) => {
-                        let e = with_stage!(ctx, EvalStage::Const, { e.eval_value(ctx) })?;
+                        let e = with_stage!(ctx, ShaderStage::Const, { e.eval_value(ctx) })?;
                         let e = e
                             .convert_to(&ty)
                             .ok_or_else(|| E::Conversion(e.ty(), ty.clone()))?;
@@ -547,7 +552,7 @@ impl Exec for FunctionCallStatement {
             Some(GlobalDeclaration::Struct(_)) => true,
             Some(_) => return Err(E::NotCallable(fn_name)),
             None => {
-                if is_constructor_fn(&fn_name) {
+                if is_ctor(&fn_name) {
                     true
                 } else {
                     return Err(E::UnknownFunction(fn_name));
@@ -567,10 +572,89 @@ impl Exec for FunctionCallStatement {
     }
 }
 
+fn exec_fn(
+    decl: &Function,
+    tplt: Option<Vec<TpltParam>>,
+    args: Vec<Instance>,
+    ctx: &mut Context,
+) -> Result<Option<Instance>, E> {
+    let fn_name = decl.ident.to_string();
+
+    if ctx.stage == ShaderStage::Const && !decl.contains_attribute(&Attribute::Const) {
+        return Err(E::NotConst(decl.ident.to_string()));
+    }
+
+    if decl.body.contains_attribute(&ATTR_INTRINSIC) {
+        let call_res = call_builtin_fn(&fn_name, tplt.as_deref(), &args, ctx.stage)?;
+        return Ok(call_res);
+    }
+
+    if args.len() != decl.parameters.len() {
+        return Err(E::ParamCount(
+            decl.ident.to_string(),
+            decl.parameters.len(),
+            args.len(),
+        ));
+    }
+
+    let ret_ty = decl
+        .return_type
+        .as_ref()
+        .map(|expr| ty_eval_ty(expr, ctx))
+        .transpose()?;
+
+    let flow = with_scope!(ctx, {
+        let args = args
+            .iter()
+            .zip(&decl.parameters)
+            .map(|(arg, param)| {
+                let param_ty = ty_eval_ty(&param.ty, ctx)?;
+                arg.convert_to(&param_ty)
+                    .ok_or_else(|| E::ParamType(param_ty.clone(), arg.ty()))
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
+
+        for (a, p) in zip(args, &decl.parameters) {
+            if !ctx.scope.add(p.ident.to_string(), a) {
+                return Err(E::DuplicateDecl(p.ident.to_string()));
+            }
+        }
+
+        // the arguments must be in the same scope as the function body.
+        let flow = compound_exec_no_scope(&decl.body, ctx)
+            .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
+
+        Ok(flow)
+    })?;
+
+    match (flow, ret_ty) {
+        (flow @ (Flow::Break | Flow::Continue), _) => Err(E::FlowInFunction(flow)),
+        (Flow::Return(Some(inst)), Some(ret_ty)) => inst
+            .convert_to(&ret_ty)
+            .ok_or(E::ReturnType(inst.ty(), fn_name.clone(), ret_ty))
+            .map(Into::into)
+            .inspect_err(|_| ctx.set_err_decl_ctx(fn_name)),
+        (Flow::Return(Some(inst)), None) => Err(E::UnexpectedReturn(fn_name, inst.ty())),
+        (Flow::Next | Flow::Return(None), Some(ret_ty)) => Err(E::NoReturn(fn_name, ret_ty)),
+        (Flow::Next | Flow::Return(None), None) => Ok(None),
+    }
+}
+
 impl Exec for FunctionCall {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         let ty = ctx.source.resolve_ty(&self.ty);
         let fn_name = ty.ident.to_string();
+
+        let tplt = ty
+            .template_args
+            .as_ref()
+            .map(|t| {
+                t.iter()
+                    .map(|arg| eval_tplt_arg(arg, ctx))
+                    .collect::<Result<Vec<_>, _>>()
+            })
+            .transpose()?;
 
         let args = self
             .arguments
@@ -579,97 +663,18 @@ impl Exec for FunctionCall {
             .collect::<Result<Vec<_>, _>>()?;
 
         if let Some(decl) = ctx.source.decl(&fn_name) {
-            // function call
             if let GlobalDeclaration::Function(decl) = decl {
-                if ctx.stage == EvalStage::Const && !decl.contains_attribute(&Attribute::Const) {
-                    return Err(E::NotConst(decl.ident.to_string()));
-                }
-
-                if decl.body.contains_attribute(&ATTR_INTRINSIC) {
-                    return call_builtin(ty, args, ctx);
-                }
-
-                if self.arguments.len() != decl.parameters.len() {
-                    return Err(E::ParamCount(
-                        decl.ident.to_string(),
-                        decl.parameters.len(),
-                        self.arguments.len(),
-                    ));
-                }
-
-                let ret_ty = decl
-                    .return_type
-                    .as_ref()
-                    .map(|expr| ty_eval_ty(expr, ctx))
-                    .transpose()?;
-
-                let flow = with_scope!(ctx, {
-                    let args = args
-                        .iter()
-                        .zip(&decl.parameters)
-                        .map(|(arg, param)| {
-                            let param_ty = ty_eval_ty(&param.ty, ctx)?;
-                            arg.convert_to(&param_ty)
-                                .ok_or_else(|| E::ParamType(param_ty.clone(), arg.ty()))
-                        })
-                        .collect::<Result<Vec<_>, _>>()
-                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
-
-                    for (a, p) in zip(args, &decl.parameters) {
-                        if !ctx.scope.add(p.ident.to_string(), a) {
-                            return Err(E::DuplicateDecl(p.ident.to_string()));
-                        }
-                    }
-
-                    // the arguments must be in the same scope as the function body.
-                    let flow = compound_exec_no_scope(&decl.body, ctx)
-                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
-
-                    Ok(flow)
-                })?;
-
-                match (flow, ret_ty) {
-                    (flow @ (Flow::Break | Flow::Continue), _) => Err(E::FlowInFunction(flow)),
-                    (Flow::Return(Some(inst)), Some(ret_ty)) => inst
-                        .convert_to(&ret_ty)
-                        .ok_or(E::ReturnType(inst.ty(), fn_name.clone(), ret_ty))
-                        .map(Into::into)
-                        .inspect_err(|_| ctx.set_err_decl_ctx(fn_name)),
-                    (Flow::Return(Some(inst)), None) => {
-                        Err(E::UnexpectedReturn(fn_name, inst.ty()))
-                    }
-                    (Flow::Next | Flow::Return(None), Some(ret_ty)) => {
-                        Err(E::NoReturn(fn_name, ret_ty))
-                    }
-                    (Flow::Next | Flow::Return(None), None) => Ok(Flow::Return(None)),
-                }
-            }
-            // struct constructor
-            else if let GlobalDeclaration::Struct(decl) = decl {
-                if args.len() == decl.members.len() {
-                    let members = decl
-                        .members
-                        .iter()
-                        .zip(args)
-                        .map(|(member, inst)| {
-                            let ty = ty_eval_ty(&member.ty, ctx)?;
-                            let inst = inst
-                                .convert_to(&ty)
-                                .ok_or_else(|| E::ParamType(ty, inst.ty()))?;
-                            Ok((member.ident.to_string(), inst))
-                        })
-                        .collect::<Result<Vec<_>, _>>()?;
-                    Ok(Instance::Struct(StructInstance::new(fn_name, members)).into())
-                } else if args.is_empty() {
-                    Ok(Instance::Struct(StructInstance::zero_value(&fn_name, ctx)?).into())
-                } else {
-                    Err(E::ParamCount(fn_name, decl.members.len(), args.len()))
-                }
+                exec_fn(decl, tplt, args, ctx).map(Flow::Return)
+            } else if let GlobalDeclaration::Struct(decl) = decl {
+                let struct_ty = *decl.eval_ty(ctx)?.unwrap_struct();
+                let inst = struct_ctor(&struct_ty, &args)?;
+                Ok(Flow::Return(Some(Instance::from(inst))))
             } else {
                 Err(E::NotCallable(fn_name))
             }
-        } else if is_constructor_fn(&fn_name) {
-            call_builtin(ty, args, ctx)
+        } else if is_ctor(&fn_name) {
+            let call_res = call_builtin_fn(&fn_name, tplt.as_deref(), &args, ctx.stage)?;
+            Ok(Flow::Return(call_res))
         } else {
             Err(E::UnknownFunction(fn_name))
         }
@@ -846,7 +851,7 @@ pub fn exec_entrypoint(
 
 impl Exec for ConstAssertStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        with_stage!(ctx, EvalStage::Const, {
+        with_stage!(ctx, ShaderStage::Const, {
             let expr = self.expression.eval_value(ctx)?;
             let cond = match expr {
                 Instance::Literal(LiteralInstance::Bool(b)) => Ok(b),
@@ -862,7 +867,6 @@ impl Exec for ConstAssertStatement {
     }
 }
 
-// TODO: implement address space
 impl Exec for Declaration {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         if ctx.scope.local_contains(&self.ident.name()) {
@@ -872,7 +876,7 @@ impl Exec for Declaration {
         let ty = match (&self.ty, &self.initializer) {
             (None, None) => return Err(E::UntypedDecl),
             (None, Some(init)) => {
-                let ty = init.eval_ty(ctx)?;
+                let ty = init.eval_ty(ctx)?.loaded();
                 if self.kind.is_const() {
                     ty // only const declarations can be of abstract type.
                 } else {
@@ -882,7 +886,7 @@ impl Exec for Declaration {
             (Some(ty), _) => ty_eval_ty(ty, ctx)?,
         };
 
-        let init = |ctx: &mut Context, stage: EvalStage| {
+        let init = |ctx: &mut Context, stage: ShaderStage| {
             self.initializer
                 .as_ref()
                 .map(|init| {
@@ -894,78 +898,80 @@ impl Exec for Declaration {
         };
 
         let inst = match (self.kind, ctx.kind) {
-            (DeclarationKind::Const, _) => init(ctx, EvalStage::Const)?
+            (DeclarationKind::Const, _) => init(ctx, ShaderStage::Const)?
                 .ok_or_else(|| E::UninitConst(self.ident.to_string()))?,
             (DeclarationKind::Override, ScopeKind::Function) => return Err(E::OverrideInFn),
             (DeclarationKind::Let, ScopeKind::Function) => {
                 init(ctx, ctx.stage)?.ok_or_else(|| E::UninitLet(self.ident.to_string()))?
             }
-            (DeclarationKind::Var(space), ScopeKind::Function) => {
-                if !matches!(space, Some(AddressSpace::Function) | None) {
+            (DeclarationKind::Var(a_s), ScopeKind::Function) => {
+                if !matches!(a_s, Some((AddressSpace::Function, None)) | None) {
                     return Err(E::ForbiddenDecl(self.kind, ctx.kind));
                 }
                 let inst = init(ctx, ctx.stage)?
                     .map(Ok)
-                    .unwrap_or_else(|| Instance::zero_value(&ty, ctx))?;
+                    .unwrap_or_else(|| Instance::zero_value(&ty))?;
 
                 RefInstance::new(inst, AddressSpace::Function, AccessMode::ReadWrite).into()
             }
             (DeclarationKind::Override, ScopeKind::Module) => {
-                if ctx.stage == EvalStage::Const {
+                if ctx.stage == ShaderStage::Const {
                     Instance::Deferred(ty)
                 } else if let Some(inst) = ctx.overridable(&self.ident.name()) {
                     inst.convert_to(&ty)
                         .ok_or_else(|| E::Conversion(inst.ty(), ty))?
-                } else if let Some(inst) = init(ctx, EvalStage::Override)? {
+                } else if let Some(inst) = init(ctx, ShaderStage::Override)? {
                     inst
                 } else {
                     return Err(E::UninitOverride(self.ident.to_string()));
                 }
             }
             (DeclarationKind::Let, ScopeKind::Module) => return Err(E::LetInMod),
-            (DeclarationKind::Var(addr_space), ScopeKind::Module) => {
-                if ctx.stage == EvalStage::Const {
-                    Instance::Deferred(ty)
+            (DeclarationKind::Var(as_am), ScopeKind::Module) => {
+                let (a_s, a_m) = match as_am {
+                    Some((a_s, Some(a_m))) => (a_s, a_m),
+                    Some((a_s, None)) => (a_s, a_s.default_access_mode()),
+                    None => (AddressSpace::Handle, AccessMode::Read),
+                };
+                if ctx.stage == ShaderStage::Const {
+                    Instance::Deferred(Type::Ref(a_s, Box::new(ty), a_m))
                 } else {
-                    let addr_space = addr_space.unwrap_or(AddressSpace::Handle);
-
-                    match addr_space {
+                    match a_s {
                         AddressSpace::Function => {
                             return Err(E::ForbiddenDecl(self.kind, ctx.kind));
                         }
                         AddressSpace::Private => {
                             // the initializer for a private variable must be a const- or override-expression
-                            let inst = if let Some(inst) = init(ctx, EvalStage::Override)? {
+                            let inst = if let Some(inst) = init(ctx, ShaderStage::Override)? {
                                 inst
                             } else {
-                                Instance::zero_value(&ty, ctx)?
+                                Instance::zero_value(&ty)?
                             };
 
-                            RefInstance::new(inst, AddressSpace::Private, AccessMode::ReadWrite)
-                                .into()
+                            RefInstance::new(inst, a_s, a_m).into()
                         }
                         AddressSpace::Uniform => {
                             if self.initializer.is_some() {
-                                return Err(E::ForbiddenInitializer(addr_space));
+                                return Err(E::ForbiddenInitializer(a_s));
                             }
                             let (group, binding) = self.attr_group_binding(ctx)?;
                             let inst = ctx
                                 .resource(group, binding)
                                 .ok_or(E::MissingResource(group, binding))?;
-                            if inst.ty() != ty {
-                                return Err(E::Type(ty, inst.ty()));
+                            if inst.ty != ty {
+                                return Err(E::Type(ty, inst.ty.clone()));
                             }
-                            if !inst.space.is_uniform() {
-                                return Err(E::AddressSpace(addr_space, inst.space));
+                            if inst.space != AddressSpace::Uniform {
+                                return Err(E::AddressSpace(a_s, inst.space));
                             }
                             if inst.access != AccessMode::Read {
                                 return Err(E::AccessMode(AccessMode::Read, inst.access));
                             }
                             inst.clone().into()
                         }
-                        AddressSpace::Storage(access_mode) => {
+                        AddressSpace::Storage => {
                             if self.initializer.is_some() {
-                                return Err(E::ForbiddenInitializer(addr_space));
+                                return Err(E::ForbiddenInitializer(a_s));
                             }
                             let Some(ty) = &self.ty else {
                                 return Err(E::UntypedDecl);
@@ -975,29 +981,27 @@ impl Exec for Declaration {
                             let inst = ctx
                                 .resource(group, binding)
                                 .ok_or(E::MissingResource(group, binding))?;
-                            if ty != inst.ty() {
-                                return Err(E::Type(ty, inst.ty()));
+                            if ty != inst.ty {
+                                return Err(E::Type(ty, inst.ty.clone()));
                             }
-                            if !inst.space.is_storage() {
-                                return Err(E::AddressSpace(addr_space, inst.space));
+                            if inst.space != AddressSpace::Storage {
+                                return Err(E::AddressSpace(a_s, inst.space));
                             }
-                            let access_mode = access_mode.unwrap_or(AccessMode::Read);
-                            if inst.access != access_mode {
-                                return Err(E::AccessMode(access_mode, inst.access));
+                            if inst.access != a_m {
+                                return Err(E::AccessMode(a_m, inst.access));
                             }
                             inst.clone().into()
                         }
                         AddressSpace::Workgroup => {
                             if self.initializer.is_some() {
-                                return Err(E::ForbiddenInitializer(addr_space));
+                                return Err(E::ForbiddenInitializer(a_s));
                             }
 
                             // the initial value for a workgroup variable is the zero-value
                             // TODO: there is a special case with atomics to handle.
-                            let inst = Instance::zero_value(&ty, ctx)?;
+                            let inst = Instance::zero_value(&ty)?;
 
-                            RefInstance::new(inst, AddressSpace::Workgroup, AccessMode::ReadWrite)
-                                .into()
+                            RefInstance::new(inst, a_s, a_m).into()
                         }
                         AddressSpace::Handle => todo!("handle address space"),
                         #[cfg(feature = "naga_ext")]

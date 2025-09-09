@@ -1,33 +1,37 @@
 mod attrs;
 mod builtin;
 mod constant;
+mod conv;
+mod display;
 mod error;
 #[allow(clippy::module_inception)]
 mod eval;
 mod exec;
+mod instance;
 mod lower;
+mod mem;
+mod ops;
 mod to_expr;
 mod ty;
 
 pub use attrs::*;
 pub use builtin::*;
 pub(crate) use constant::*;
+pub use conv::*;
 pub use error::*;
 pub use eval::*;
 pub use exec::*;
+pub use instance::*;
 pub use lower::*;
+pub use mem::*;
 pub use to_expr::*;
 pub use ty::*;
-pub use wgsl_types::{ShaderStage, builtin::*, conv::*, inst::*, tplt::*, ty::*};
 
-use derive_more::Display;
 use std::{collections::HashMap, rc::Rc};
 use wgsl_parse::{
     span::{Span, Spanned},
     syntax::*,
 };
-
-use crate::syntax_util::IteratorExt;
 
 #[derive(Debug)]
 struct ScopeInner<T> {
@@ -65,14 +69,6 @@ impl<T> ScopeInner<T> {
                 .parent
                 .as_ref()
                 .is_some_and(|parent| parent.contains(name))
-    }
-    pub fn iter_keys(&self) -> impl Iterator<Item = &str> {
-        self.local.keys().map(|k| k.as_str()).chain(
-            self.parent
-                .iter()
-                .flat_map(|parent| parent.iter_keys())
-                .boxed(),
-        )
     }
 }
 
@@ -142,9 +138,6 @@ impl<T> Scope<T> {
     }
     pub fn contains(&self, name: &str) -> bool {
         self.inner.contains(name)
-    }
-    pub fn iter_keys(&self) -> impl Iterator<Item = &str> {
-        self.inner.iter_keys()
     }
 }
 

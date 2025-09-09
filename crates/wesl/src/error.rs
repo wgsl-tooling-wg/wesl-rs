@@ -266,6 +266,7 @@ impl Diagnostic<Error> {
                 *id = Ident::new(format!("{res}::{name}"));
             }
         }
+
         fn unmangle_name(
             mangled: &mut String,
             sourcemap: Option<&impl SourceMap>,
@@ -284,6 +285,7 @@ impl Diagnostic<Error> {
                 *mangled = format!("{res}::{name}");
             }
         }
+
         fn unmangle_expr(
             expr: &mut Expression,
             sourcemap: Option<&impl SourceMap>,
@@ -310,20 +312,63 @@ impl Diagnostic<Error> {
                 Expression::TypeOrIdentifier(ty) => unmangle_id(&mut ty.ident, sourcemap, mangler),
             }
         }
+
         #[cfg(feature = "eval")]
         fn unmangle_ty(
-            mangled: &mut crate::eval::Type,
+            mangled: &mut wgsl_types::ty::Type,
             sourcemap: Option<&impl SourceMap>,
             mangler: Option<&impl Mangler>,
         ) {
+            use wgsl_types::ty::Type;
             match mangled {
-                crate::eval::Type::Struct(name) => unmangle_name(name, sourcemap, mangler),
-                crate::eval::Type::Array(ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
-                crate::eval::Type::Atomic(ty) => unmangle_ty(&mut *ty, sourcemap, mangler),
-                crate::eval::Type::Ptr(_, ty) => unmangle_ty(&mut *ty, sourcemap, mangler),
+                // TODO unmangle components!
+                Type::Struct(s) => {
+                    unmangle_name(&mut s.name, sourcemap, mangler);
+                    for m in s.members.iter_mut() {
+                        unmangle_ty(&mut m.ty, sourcemap, mangler);
+                    }
+                }
+                Type::Array(ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
+                Type::Atomic(ty) => unmangle_ty(&mut *ty, sourcemap, mangler),
+                Type::Ptr(_, ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
+                Type::Ref(_, ty, _) => unmangle_ty(&mut *ty, sourcemap, mangler),
                 _ => (),
             }
         }
+
+        #[cfg(feature = "eval")]
+        fn unmangle_inst(
+            mangled: &mut wgsl_types::inst::Instance,
+            sourcemap: Option<&impl SourceMap>,
+            mangler: Option<&impl Mangler>,
+        ) {
+            use wgsl_types::inst::Instance;
+            match mangled {
+                Instance::Struct(inst) => {
+                    unmangle_name(&mut inst.ty.name, sourcemap, mangler);
+                    for inst in inst.members.iter_mut() {
+                        unmangle_inst(inst, sourcemap, mangler);
+                    }
+                }
+                Instance::Array(inst) => {
+                    for c in inst.iter_mut() {
+                        unmangle_inst(c, sourcemap, mangler);
+                    }
+                }
+                Instance::Ptr(inst) => {
+                    unmangle_ty(&mut inst.ptr.ty, sourcemap, mangler);
+                }
+                Instance::Ref(inst) => {
+                    unmangle_ty(&mut inst.ty, sourcemap, mangler);
+                }
+                Instance::Atomic(inst) => {
+                    unmangle_inst(inst.inner_mut(), sourcemap, mangler);
+                }
+                Instance::Deferred(ty) => unmangle_ty(ty, sourcemap, mangler),
+                Instance::Literal(_) | Instance::Vec(_) | Instance::Mat(_) => {}
+            }
+        }
+
         match &mut *self.error {
             Error::ParseError(_) => {}
             Error::ValidateError(e) => match e {
@@ -354,6 +399,9 @@ impl Diagnostic<Error> {
                 EvalError::Type(ty1, ty2) => {
                     unmangle_ty(ty1, sourcemap, mangler);
                     unmangle_ty(ty2, sourcemap, mangler);
+                }
+                EvalError::SampledType(ty) => {
+                    unmangle_ty(ty, sourcemap, mangler);
                 }
                 EvalError::NotType(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::UnknownType(name) => unmangle_name(name, sourcemap, mangler),
@@ -389,9 +437,20 @@ impl Diagnostic<Error> {
                 }
                 EvalError::UnknownFunction(name) => unmangle_name(name, sourcemap, mangler),
                 EvalError::NotCallable(name) => unmangle_name(name, sourcemap, mangler),
-                EvalError::Signature(ty, args) => {
-                    unmangle_id(&mut ty.ident, sourcemap, mangler);
-                    for arg in args {
+                EvalError::Signature(sig) => {
+                    unmangle_name(&mut sig.name, sourcemap, mangler);
+                    for tplt in sig.tplt.iter_mut().flatten() {
+                        match tplt {
+                            wgsl_types::tplt::TpltParam::Type(ty) => {
+                                unmangle_ty(ty, sourcemap, mangler)
+                            }
+                            wgsl_types::tplt::TpltParam::Instance(inst) => {
+                                unmangle_inst(inst, sourcemap, mangler)
+                            }
+                            wgsl_types::tplt::TpltParam::Enumerant(_) => {}
+                        }
+                    }
+                    for arg in &mut sig.args {
                         unmangle_ty(arg, sourcemap, mangler);
                     }
                 }
@@ -434,6 +493,8 @@ impl Diagnostic<Error> {
                 | EvalError::NotWrite
                 | EvalError::NotRead
                 | EvalError::NotReadWrite
+                | EvalError::PtrHandle
+                | EvalError::PtrVecComp
                 | EvalError::Swizzle(_)
                 | EvalError::NegOverflow
                 | EvalError::AddOverflow

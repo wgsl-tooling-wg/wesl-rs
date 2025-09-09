@@ -649,8 +649,7 @@ impl EvalResult<'_> {
     // TODO: make context non-mut
     /// Get the WGSL string representing the evaluated expression.
     pub fn to_buffer(&mut self) -> Option<Vec<u8>> {
-        use eval::HostShareable;
-        self.inst.to_buffer(&mut self.ctx)
+        self.inst.to_buffer()
     }
 }
 
@@ -710,7 +709,7 @@ impl CompileResult {
         let mut ctx = eval::Context::new(&self.syntax);
         ctx.add_bindings(bindings);
         ctx.add_overrides(overrides);
-        ctx.set_stage(eval::EvalStage::Exec);
+        ctx.set_stage(eval::ShaderStage::Exec);
 
         let entry_fn = eval::SyntaxUtil::decl_function(ctx.source, entrypoint)
             .ok_or_else(|| EvalError::UnknownFunction(entrypoint.to_string()))?;
@@ -977,7 +976,7 @@ pub fn exec<'s>(
     let mut ctx = eval::Context::new(wgsl);
     ctx.add_bindings(bindings);
     ctx.add_overrides(overrides);
-    ctx.set_stage(eval::EvalStage::Exec);
+    ctx.set_stage(eval::ShaderStage::Exec);
 
     let res = wgsl.exec(&mut ctx).and_then(|_| match expr.eval(&mut ctx) {
         Ok(ret) => Ok(Some(ret)),

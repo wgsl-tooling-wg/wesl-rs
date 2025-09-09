@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 #![allow(clippy::missing_safety_doc)]
 
 use std::collections::HashMap;
@@ -9,7 +10,7 @@ use wesl::{VirtualResolver, Wesl};
 
 #[cfg(feature = "eval")]
 use wesl::{
-    eval::{Eval, EvalAttrs, HostShareable, Inputs, Instance, RefInstance},
+    eval::{Eval, EvalAttrs, Inputs, Instance, RefInstance},
     syntax::{AccessMode, AddressSpace},
 };
 
@@ -314,25 +315,19 @@ fn parse_c_binding(
 
     let (storage, access) = match b.kind {
         WeslBindingType::Uniform => (AddressSpace::Uniform, AccessMode::Read),
-        WeslBindingType::Storage => (
-            AddressSpace::Storage(Some(AccessMode::ReadWrite)),
-            AccessMode::ReadWrite,
-        ),
-        WeslBindingType::ReadOnlyStorage => (
-            AddressSpace::Storage(Some(AccessMode::Read)),
-            AccessMode::Read,
-        ),
+        WeslBindingType::Storage => (AddressSpace::Storage, AccessMode::ReadWrite),
+        WeslBindingType::ReadOnlyStorage => (AddressSpace::Storage, AccessMode::Read),
         _ => return Err(wesl::Error::Custom("Unsupported binding type".to_string())),
     };
 
     let data_slice = unsafe { std::slice::from_raw_parts(b.data, b.data_len) };
-    let inst = Instance::from_buffer(data_slice, &ty, &mut ctx).ok_or_else(|| {
+    let inst = Instance::from_buffer(data_slice, &ty).ok_or_else(|| {
         wesl::Error::Custom(format!(
             "Resource @group({}) @binding({}) ({} bytes) incompatible with type ({} bytes)",
             b.group,
             b.binding,
             b.data_len,
-            ty.size_of(&mut ctx).unwrap_or_default()
+            ty.size_of().unwrap_or_default()
         ))
     })?;
 
@@ -723,7 +718,7 @@ pub unsafe extern "C" fn wesl_exec(
             // execute
             let inputs = Inputs::new_zero_initialized();
             match result.exec(&entrypoint_str, inputs, parsed_resources, parsed_overrides) {
-                Ok(mut exec_result) => {
+                Ok(exec_result) => {
                     // convert resources back to C format
                     let output_resources: Vec<WeslBinding> = resources_vec
                         .iter()
@@ -731,7 +726,7 @@ pub unsafe extern "C" fn wesl_exec(
                             let resource = exec_result.resource(r.group, r.binding)?;
                             let inst = resource.read().ok()?.to_owned();
                             let mut new_binding = *r;
-                            if let Some(buffer) = inst.to_buffer(&mut exec_result.ctx) {
+                            if let Some(buffer) = inst.to_buffer() {
                                 let boxed_data = buffer.into_boxed_slice();
                                 new_binding.data_len = boxed_data.len();
                                 new_binding.data = Box::into_raw(boxed_data) as *const u8;

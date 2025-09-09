@@ -31,6 +31,7 @@ quote = { version = "1.0.38", optional = true }  # dep for feature 'package'
 thiserror = "2.0.11"
 wesl-macros = { workspace = true, features = ["query"] }
 wgsl-parse = { workspace = true, features = ["wesl"] }
+wgsl-types = { workspace = true }
 
 [features]
 eval = ["quote"]
@@ -40,7 +41,7 @@ generics = ["wgsl-parse/generics"]
 # * https://github.com/gfx-rs/wgpu/issues/4410
 # * https://github.com/gfx-rs/wgpu/blob/trunk/docs/api-specs/ray_tracing.md
 # * https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
-naga_ext = ["wgsl-parse/naga_ext"]
+naga_ext = ["wgsl-parse/naga_ext", "wgsl-types/naga_ext"]
 package = ["dep:proc-macro2", "dep:quote"]
 quote = ["wesl-macros/quote"]
 serde = ["wgsl-parse/serde"]

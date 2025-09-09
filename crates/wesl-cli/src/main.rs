@@ -12,7 +12,7 @@ use std::{
 use wesl::{
     CompileOptions, CompileResult, Diagnostic, Feature, Features, Inputs, ManglerKind, ModulePath,
     PkgBuilder, Router, StandardResolver, SyntaxUtil, VirtualResolver, Wesl,
-    eval::{Eval, EvalAttrs, HostShareable, Instance, RefInstance, Ty, ty_eval_ty},
+    eval::{Eval, EvalAttrs, Instance, RefInstance, Ty, ty_eval_ty},
     syntax::{self, AccessMode, AddressSpace, PathOrigin, TranslationUnit},
 };
 
@@ -142,9 +142,9 @@ struct CompOptsArgs {
     /// Disable stripping unused declarations
     #[arg(long)]
     no_strip: bool,
-    /// Disable lowering output to compatibility-mode WGSL
+    /// Enable lowering output to compatibility-mode WGSL
     #[arg(long)]
-    no_lower: bool,
+    lower: bool,
     /// Disable performing validation checks
     #[arg(long)]
     no_validate: bool,
@@ -190,7 +190,7 @@ impl From<&CompOptsArgs> for CompileOptions {
             condcomp: !opts.no_cond_comp,
             generics: opts.generics,
             strip: !opts.no_strip,
-            lower: !opts.no_lower,
+            lower: opts.lower,
             validate: !opts.no_validate,
             lazy: !opts.eager,
             mangle_root: opts.mangle_root,
@@ -478,14 +478,8 @@ fn parse_binding(
     })?;
     let (storage, access) = match b.kind {
         BindingType::Uniform => (AddressSpace::Uniform, AccessMode::Read),
-        BindingType::Storage => (
-            AddressSpace::Storage(Some(AccessMode::ReadWrite)),
-            AccessMode::ReadWrite,
-        ),
-        BindingType::ReadOnlyStorage => (
-            AddressSpace::Storage(Some(AccessMode::Read)),
-            AccessMode::Read,
-        ),
+        BindingType::Storage => (AddressSpace::Storage, AccessMode::ReadWrite),
+        BindingType::ReadOnlyStorage => (AddressSpace::Storage, AccessMode::Read),
         BindingType::Filtering => todo!(),
         BindingType::NonFiltering => todo!(),
         BindingType::Comparison => todo!(),
@@ -498,13 +492,13 @@ fn parse_binding(
         BindingType::ReadWrite => todo!(),
         BindingType::ReadOnly => todo!(),
     };
-    let inst = Instance::from_buffer(&b.data, &ty, &mut ctx).ok_or_else(|| {
+    let inst = Instance::from_buffer(&b.data, &ty).ok_or_else(|| {
         CliError::ResourceIncompatible(
             b.group,
             b.binding,
             b.data.len() as u32,
             ty.clone(),
-            ty.size_of(&mut ctx).unwrap_or_default(),
+            ty.size_of().unwrap_or_default(),
         )
     })?;
     Ok((
@@ -612,11 +606,11 @@ fn run(cli: Cli) -> Result<(), CliError> {
             let comp = file_or_source(args.file)
                 .map(|input| run_compile(&args.options, input))
                 .unwrap_or_else(|| Ok(CompileResult::default()))?;
-            let mut eval = comp.eval(&args.expr)?;
+            let eval = comp.eval(&args.expr)?;
             if args.binary {
                 let buf = eval
                     .inst
-                    .to_buffer(&mut eval.ctx)
+                    .to_buffer()
                     .ok_or_else(|| CliError::NotStorable(eval.inst.ty()))?;
                 std::io::stdout().write_all(buf.as_slice()).unwrap();
             } else {
@@ -644,12 +638,12 @@ fn run(cli: Cli) -> Result<(), CliError> {
                 })
                 .collect::<Result<_, _>>()?;
 
-            let mut exec = comp.exec(&args.entrypoint, inputs, resources, overrides)?;
+            let exec = comp.exec(&args.entrypoint, inputs, resources, overrides)?;
 
             if let Some(inst) = &exec.inst {
                 if args.binary {
                     let buf = inst
-                        .to_buffer(&mut exec.ctx)
+                        .to_buffer()
                         .ok_or_else(|| CliError::NotStorable(inst.ty()))?;
                     std::io::stdout().write_all(buf.as_slice()).unwrap();
                 } else {
@@ -672,7 +666,7 @@ fn run(cli: Cli) -> Result<(), CliError> {
             for (group, binding, inst) in resources {
                 if args.binary {
                     let buf = inst
-                        .to_buffer(&mut exec.ctx)
+                        .to_buffer()
                         .ok_or_else(|| CliError::NotStorable(inst.ty()))?;
                     std::io::stdout().write_all(buf.as_slice()).unwrap();
                 } else {

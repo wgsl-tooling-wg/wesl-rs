@@ -28,6 +28,7 @@ logos = "0.15.0"
 serde = { version = "1.0.215", features = ["derive", "rc"], optional = true }
 thiserror = "2.0.12"
 tokrepr = { workspace = true, optional = true }
+wgsl-types = { workspace = true }
 
 [build-dependencies]
 lalrpop = { version = "0.22.1", default-features = false }
@@ -50,13 +51,13 @@ imports = []
 # * https://github.com/gfx-rs/wgpu/issues/4410
 # * https://github.com/gfx-rs/wgpu/blob/trunk/docs/api-specs/ray_tracing.md
 # * https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
-naga_ext = ["push_constant"]
+naga_ext = ["push_constant", "wgsl-types/naga_ext"]
 push_constant = []
-serde = ["dep:serde"]
+serde = ["dep:serde", "wgsl-types/serde"]
 # allow templates on function declarations
 # reference: none yet
 templates = []
-tokrepr = ["dep:tokrepr"]
+tokrepr = ["dep:tokrepr", "wgsl-types/tokrepr"]
 wesl = ["condcomp", "imports"]
 
 [lints]

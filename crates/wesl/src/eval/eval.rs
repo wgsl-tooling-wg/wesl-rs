@@ -1,11 +1,13 @@
-use super::{
-    Context, EvalError, Exec, Flow, Instance, LiteralInstance, PtrInstance, RefInstance, ScopeKind,
-    SyntaxUtil, Ty, Type, VecInstance,
-};
-
 use half::f16;
 use itertools::Itertools;
 use wgsl_parse::{span::Spanned, syntax::*};
+use wgsl_types::{
+    builtin::{call_binary_op, call_unary_op},
+    inst::{Instance, LiteralInstance, RefInstance, VecInstance},
+    ty::{Ty, Type},
+};
+
+use super::{Context, EvalError, Exec, Flow, ScopeKind, SyntaxUtil};
 
 type E = EvalError;
 
@@ -13,11 +15,7 @@ pub trait Eval {
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E>;
 
     fn eval_value(&self, ctx: &mut Context) -> Result<Instance, E> {
-        let mut inst = self.eval(ctx)?;
-        while let Instance::Ref(r) = inst {
-            inst = r.read()?.to_owned();
-        }
-        Ok(inst)
+        Ok(self.eval(ctx)?.loaded()?)
     }
 }
 
@@ -32,11 +30,6 @@ impl<T: Eval> Eval for Spanned<T> {
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E> {
         self.node()
             .eval(ctx)
-            .inspect_err(|_| ctx.set_err_span_ctx(self.span()))
-    }
-    fn eval_value(&self, ctx: &mut Context) -> Result<Instance, E> {
-        self.node()
-            .eval_value(ctx)
             .inspect_err(|_| ctx.set_err_span_ctx(self.span()))
     }
 }
@@ -108,7 +101,7 @@ impl Eval for NamedComponentExpression {
                 .collect_vec();
             if let [i] = indices.as_slice() {
                 if let Some(r) = r {
-                    r.view_index(*i).map(Instance::Ref)
+                    Ok(Instance::Ref(r.view_index(*i)?))
                 } else {
                     v.get(*i)
                         .cloned()
@@ -130,14 +123,14 @@ impl Eval for NamedComponentExpression {
         fn inst_comp(base: Instance, comp: &str) -> Result<Instance, E> {
             match &base {
                 Instance::Struct(s) => {
-                    let val = s.member(comp).ok_or_else(|| {
-                        E::Component(Type::Struct(s.name().to_string()), comp.to_string())
-                    })?;
+                    let val = s
+                        .member(comp)
+                        .ok_or_else(|| E::Component(s.ty(), comp.to_string()))?;
                     Ok(val.clone())
                 }
                 Instance::Vec(v) => vec_comp(v, comp, None),
                 Instance::Ref(r) => match &*r.read()? {
-                    Instance::Struct(_) => r.view_member(comp.to_string()).map(Into::into),
+                    Instance::Struct(_) => Ok(r.view_member(comp.to_string())?.into()),
                     Instance::Vec(v) => vec_comp(v, comp, Some(r)),
                     _ => Err(E::Component(base.ty(), comp.to_string())),
                 },
@@ -166,7 +159,7 @@ impl Eval for IndexingExpression {
                     .get(index)
                     .cloned()
                     .ok_or_else(|| E::OutOfBounds(index, a.ty(), a.n())),
-                Instance::Ref(r) => r.view_index(index).map(Instance::Ref),
+                Instance::Ref(r) => Ok(r.view_index(index)?.into()),
                 _ => Err(E::NotIndexable(base.ty())),
             }
         }
@@ -186,25 +179,16 @@ impl Eval for IndexingExpression {
 
 impl Eval for UnaryExpression {
     fn eval(&self, ctx: &mut Context) -> Result<Instance, E> {
+        // TODO: operators should work with non-loaded instances
+        // (performs the load rule). Is it the case already?
         if self.operator == UnaryOperator::AddressOf {
             let operand = self.operand.eval(ctx)?;
-            match operand {
-                Instance::Ref(r) => Ok(PtrInstance::from(r).into()),
-                operand => Err(E::Unary(self.operator, operand.ty())),
-            }
+            operand.op_ref()
         } else {
             let operand = self.operand.eval_value(ctx)?;
-            match self.operator {
-                UnaryOperator::LogicalNegation => operand.op_not(),
-                UnaryOperator::Negation => operand.op_neg(),
-                UnaryOperator::BitwiseComplement => operand.op_bitnot(),
-                UnaryOperator::AddressOf => unreachable!("handled above"),
-                UnaryOperator::Indirection => match operand {
-                    Instance::Ptr(p) => Ok(RefInstance::from(p).into()),
-                    operand => Err(E::Unary(self.operator, operand.ty())),
-                },
-            }
+            call_unary_op(self.operator, &operand)
         }
+        .map_err(Into::into)
     }
 }
 
@@ -240,25 +224,7 @@ impl Eval for BinaryExpression {
             }
         } else {
             let rhs = self.right.eval_value(ctx)?;
-            match self.operator {
-                BinaryOperator::ShortCircuitOr | BinaryOperator::ShortCircuitAnd => unreachable!(),
-                BinaryOperator::Addition => lhs.op_add(&rhs, ctx.stage),
-                BinaryOperator::Subtraction => lhs.op_sub(&rhs, ctx.stage),
-                BinaryOperator::Multiplication => lhs.op_mul(&rhs, ctx.stage),
-                BinaryOperator::Division => lhs.op_div(&rhs, ctx.stage),
-                BinaryOperator::Remainder => lhs.op_rem(&rhs, ctx.stage),
-                BinaryOperator::Equality => lhs.op_eq(&rhs),
-                BinaryOperator::Inequality => lhs.op_ne(&rhs),
-                BinaryOperator::LessThan => lhs.op_lt(&rhs),
-                BinaryOperator::LessThanEqual => lhs.op_le(&rhs),
-                BinaryOperator::GreaterThan => lhs.op_gt(&rhs),
-                BinaryOperator::GreaterThanEqual => lhs.op_ge(&rhs),
-                BinaryOperator::BitwiseOr => lhs.op_bitor(&rhs),
-                BinaryOperator::BitwiseAnd => lhs.op_bitand(&rhs),
-                BinaryOperator::BitwiseXor => lhs.op_bitxor(&rhs),
-                BinaryOperator::ShiftLeft => lhs.op_shl(&rhs, ctx.stage),
-                BinaryOperator::ShiftRight => lhs.op_shr(&rhs, ctx.stage),
-            }
+            call_binary_op(self.operator, &lhs, &rhs, ctx.stage).map_err(Into::into)
         }
     }
 }
@@ -282,7 +248,7 @@ impl Eval for TypeExpression {
         if self.template_args.is_some() {
             Err(E::UnexpectedTemplate(self.ident.to_string()))
         } else if let Some(inst) = ctx.scope.get(&self.ident.name()) {
-            if inst.is_deferred() {
+            if matches!(inst, Instance::Deferred(_)) {
                 Err(E::NotAccessible(self.ident.to_string(), ctx.stage))
             } else {
                 Ok(inst.clone())
@@ -293,7 +259,7 @@ impl Eval for TypeExpression {
                 if let Some(decl) = ctx.source.decl(&self.ident.name()) {
                     decl.exec(ctx)?;
                     if let Some(inst) = ctx.scope.get(&self.ident.name()) {
-                        return if inst.is_deferred() {
+                        return if matches!(inst, Instance::Deferred(_)) {
                             Err(E::NotAccessible(self.ident.to_string(), ctx.stage))
                         } else {
                             Ok(inst.clone())

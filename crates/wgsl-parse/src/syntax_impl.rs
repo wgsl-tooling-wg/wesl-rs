@@ -437,17 +437,6 @@ impl Statement {
     }
 }
 
-impl AccessMode {
-    /// Is [`Self::Read`] or [`Self::ReadWrite`]
-    pub fn is_read(&self) -> bool {
-        matches!(self, Self::Read | Self::ReadWrite)
-    }
-    /// Is [`Self::Write`] or [`Self::ReadWrite`]
-    pub fn is_write(&self) -> bool {
-        matches!(self, Self::Write | Self::ReadWrite)
-    }
-}
-
 impl From<Ident> for TypeExpression {
     fn from(ident: Ident) -> Self {
         Self::new(ident)

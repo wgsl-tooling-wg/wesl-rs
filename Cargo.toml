@@ -10,6 +10,7 @@ members = [
   "crates/wesl-test",
   "crates/wesl-web",
   "crates/wgsl-parse",
+  "crates/wgsl-types",
   "examples/random_wgsl",
   "examples/wesl-consumer",
 ]
@@ -28,6 +29,7 @@ tokrepr-derive = { version = "0.1.0", path = "crates/tokrepr-derive" }
 wesl = { version = "0.2.0", path = "crates/wesl" }
 wesl-macros = { version = "0.2.0", path = "crates/wesl-macros" }
 wgsl-parse = { version = "0.2.0", path = "crates/wgsl-parse" }
+wgsl-types = { version = "0.2.0", path = "crates/wgsl-types" }
 
 [workspace.lints.clippy]
 # TODO: change eventually

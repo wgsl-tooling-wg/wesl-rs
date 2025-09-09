@@ -1258,6 +1258,7 @@ dependencies = [
  "thiserror 2.0.12",
  "wesl-macros",
  "wgsl-parse",
+ "wgsl-types",
 ]
 
 [[package]]
@@ -1341,6 +1342,20 @@ dependencies = [
  "lalrpop-util",
  "lexical",
  "logos",
+ "serde",
+ "thiserror 2.0.12",
+ "tokrepr",
+ "wgsl-types",
+]
+
+[[package]]
+name = "wgsl-types"
+version = "0.2.0"
+dependencies = [
+ "derive_more",
+ "half",
+ "itertools",
+ "num-traits",
  "serde",
  "thiserror 2.0.12",
  "tokrepr",
