@@ -1,35 +1,39 @@
+//! Memory layout utilities.
+
 use half::f16;
 use itertools::Itertools;
 
-use super::{
-    ArrayInstance, AtomicInstance, Context, EvalAttrs, Instance, LiteralInstance, MatInstance,
-    StructInstance, SyntaxUtil, Ty, Type, VecInstance, ty_eval_ty,
+use crate::{
+    inst::{
+        ArrayInstance, AtomicInstance, Instance, LiteralInstance, MatInstance, StructInstance,
+        VecInstance,
+    },
+    ty::{Ty, Type},
 };
 
-pub trait HostShareable: Ty + Sized {
-    /// Returns the memory for host-shareable types
-    /// Returns None if the type is not host-shareable
-    fn to_buffer(&self, ctx: &mut Context) -> Option<Vec<u8>>;
-}
-
-impl HostShareable for Instance {
-    fn to_buffer(&self, ctx: &mut Context) -> Option<Vec<u8>> {
+impl Instance {
+    /// Memory representation of host-shareable instances.
+    ///
+    /// Returns `None` if the type is not host-shareable.
+    pub fn to_buffer(&self) -> Option<Vec<u8>> {
         match self {
-            Instance::Literal(l) => l.to_buffer(ctx),
-            Instance::Struct(s) => s.to_buffer(ctx),
-            Instance::Array(a) => a.to_buffer(ctx),
-            Instance::Vec(v) => v.to_buffer(ctx),
-            Instance::Mat(m) => m.to_buffer(ctx),
+            Instance::Literal(l) => l.to_buffer(),
+            Instance::Struct(s) => s.to_buffer(),
+            Instance::Array(a) => a.to_buffer(),
+            Instance::Vec(v) => v.to_buffer(),
+            Instance::Mat(m) => m.to_buffer(),
             Instance::Ptr(_) => None,
             Instance::Ref(_) => None,
-            Instance::Atomic(a) => a.inner().to_buffer(ctx),
+            Instance::Atomic(a) => a.inner().to_buffer(),
             Instance::Deferred(_) => None,
         }
     }
-}
 
-impl Instance {
-    pub fn from_buffer(buf: &[u8], ty: &Type, ctx: &mut Context) -> Option<Self> {
+    /// Load an instance from a byte buffer.
+    ///
+    /// Returns `None` if the type is not host-shareable, or if the buffer is too small.
+    /// The buffer can be larger than the type; extra bytes will be ignored.
+    pub fn from_buffer(buf: &[u8], ty: &Type) -> Option<Self> {
         match ty {
             Type::Bool => None,
             Type::AbstractInt => None,
@@ -73,57 +77,47 @@ impl Instance {
                 .ok()
                 .map(|buf| LiteralInstance::F64(f64::from_le_bytes(buf)).into()),
             Type::Struct(s) => {
-                let decl = ctx.source.decl_struct(s)?;
                 let mut offset = 0;
-                let members = decl
+                let members = s
                     .members
                     .iter()
                     .map(|m| {
-                        let ty = ty_eval_ty(&m.ty, ctx).ok()?;
                         // handle the specific case of runtime-sized arrays.
                         // they can only be the last member of a struct.
-                        let inst = if let Type::Array(_, None) = ty {
+                        let inst = if let Type::Array(_, None) = &m.ty {
                             let buf = buf.get(offset as usize..)?;
-                            Instance::from_buffer(buf, &ty, ctx)?
+                            Instance::from_buffer(buf, &m.ty)?
                         } else {
                             // TODO: handle errors, check valid size...
-                            let size = m
-                                .attr_size(ctx)
-                                .ok()
-                                .flatten()
-                                .or_else(|| ty.size_of(ctx))?;
-                            let align = m
-                                .attr_align(ctx)
-                                .ok()
-                                .flatten()
-                                .or_else(|| ty.align_of(ctx))?;
+                            let size = m.size.or_else(|| m.ty.size_of())?;
+                            let align = m.align.or_else(|| m.ty.align_of())?;
                             offset = round_up(align, offset);
                             let buf = buf.get(offset as usize..(offset + size) as usize)?;
                             offset += size;
-                            Instance::from_buffer(buf, &ty, ctx)?
+                            Instance::from_buffer(buf, &m.ty)?
                         };
-                        Some((m.ident.to_string(), inst))
+                        Some(inst)
                     })
                     .collect::<Option<Vec<_>>>()?;
-                Some(StructInstance::new(s.clone(), members).into())
+                Some(StructInstance::new((**s).clone(), members).into())
             }
             Type::Array(ty, Some(n)) => {
                 let mut offset = 0;
-                let size = ty.size_of(ctx)?;
-                let stride = round_up(ty.align_of(ctx)?, size);
+                let size = ty.size_of()?;
+                let stride = round_up(ty.align_of()?, size);
                 let mut comps = Vec::new();
                 while comps.len() != *n {
                     let buf = buf.get(offset as usize..(offset + size) as usize)?;
                     offset += stride;
-                    let inst = Instance::from_buffer(buf, ty, ctx)?;
+                    let inst = Instance::from_buffer(buf, ty)?;
                     comps.push(inst);
                 }
                 Some(ArrayInstance::new(comps, false).into())
             }
             Type::Array(ty, None) => {
                 let mut offset = 0;
-                let size = ty.size_of(ctx)?;
-                let stride = round_up(ty.align_of(ctx)?, size);
+                let size = ty.size_of()?;
+                let stride = round_up(ty.align_of()?, size);
                 let n = buf.len() as u32 / stride;
                 if n == 0 {
                     // arrays must not be empty
@@ -133,7 +127,7 @@ impl Instance {
                     .map(|_| {
                         let buf = buf.get(offset as usize..(offset + size) as usize)?;
                         offset += stride;
-                        Instance::from_buffer(buf, ty, ctx)
+                        Instance::from_buffer(buf, ty)
                     })
                     .collect::<Option<_>>()?;
                 Some(ArrayInstance::new(comps, true).into())
@@ -142,12 +136,12 @@ impl Instance {
             Type::BindingArray(_, _) => None,
             Type::Vec(n, ty) => {
                 let mut offset = 0;
-                let size = ty.size_of(ctx)?;
+                let size = ty.size_of()?;
                 let comps = (0..*n)
                     .map(|_| {
                         let buf = buf.get(offset as usize..(offset + size) as usize)?;
                         offset += size;
-                        Instance::from_buffer(buf, ty, ctx)
+                        Instance::from_buffer(buf, ty)
                     })
                     .collect::<Option<Vec<_>>>()?;
                 Some(VecInstance::new(comps).into())
@@ -155,13 +149,13 @@ impl Instance {
             Type::Mat(c, r, ty) => {
                 let mut offset = 0;
                 let col_ty = Type::Vec(*r, ty.clone());
-                let col_size = col_ty.size_of(ctx)?;
-                let col_off = round_up(col_ty.align_of(ctx)?, col_size);
+                let col_size = col_ty.size_of()?;
+                let col_off = round_up(col_ty.align_of()?, col_size);
                 let cols = (0..*c)
                     .map(|_| {
                         let buf = buf.get(offset as usize..(offset + col_size) as usize)?;
                         offset += col_off;
-                        Instance::from_buffer(buf, &col_ty, ctx)
+                        Instance::from_buffer(buf, &col_ty)
                     })
                     .collect::<Option<Vec<_>>>()?;
                 Some(MatInstance::from_cols(cols).into())
@@ -175,13 +169,16 @@ impl Instance {
                 };
                 Some(AtomicInstance::new(inst).into())
             }
-            Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => None,
+            Type::Ptr(_, _, _) | Type::Ref(_, _, _) | Type::Texture(_) | Type::Sampler(_) => None,
         }
     }
 }
 
-impl HostShareable for LiteralInstance {
-    fn to_buffer(&self, _ctx: &mut Context) -> Option<Vec<u8>> {
+impl LiteralInstance {
+    /// Memory representation of host-shareable instances.
+    ///
+    /// Returns `None` if the type is not host-shareable
+    fn to_buffer(self) -> Option<Vec<u8>> {
         match self {
             LiteralInstance::Bool(_) => None,
             LiteralInstance::AbstractInt(_) => None,
@@ -201,38 +198,30 @@ impl HostShareable for LiteralInstance {
 }
 
 // TODO: layout
-impl HostShareable for StructInstance {
-    fn to_buffer(&self, ctx: &mut Context) -> Option<Vec<u8>> {
+impl StructInstance {
+    /// Memory representation of host-shareable instances.
+    ///
+    /// Returns `None` if the type is not host-shareable.
+    fn to_buffer(&self) -> Option<Vec<u8>> {
         let mut buf = Vec::new();
-        let decl = ctx.source.decl_struct(self.name())?;
-        for (i, (name, inst)) in self.iter_members().enumerate() {
-            let ty = inst.ty();
+        for (i, (inst, m)) in self.members.iter().zip(&self.ty.members).enumerate() {
             let len = buf.len() as u32;
-            let m = decl.members.iter().find(|m| &*m.ident.name() == name)?;
-            let size = m
-                .attr_size(ctx)
-                .ok()
-                .flatten()
-                .or_else(|| ty.min_size_of(ctx))?;
+            let size = m.size.or_else(|| m.ty.min_size_of())?;
 
             // handle runtime-size arrays as last struct member
             let size = match inst {
                 Instance::Array(a) if a.runtime_sized => {
-                    (i == decl.members.len() - 1).then(|| a.n() as u32 * size)
+                    (i == self.members.len() - 1).then(|| a.n() as u32 * size)
                 }
                 _ => Some(size),
             }?;
 
-            let align = m
-                .attr_align(ctx)
-                .ok()
-                .flatten()
-                .or_else(|| ty.align_of(ctx))?;
+            let align = m.align.or_else(|| m.ty.align_of())?;
             let off = round_up(align, len);
             if off > len {
                 buf.extend((len..off).map(|_| 0));
             }
-            let mut bytes = inst.to_buffer(ctx)?;
+            let mut bytes = inst.to_buffer()?;
             let bytes_len = bytes.len() as u32;
             if size > bytes_len {
                 bytes.extend((bytes_len..size).map(|_| 0));
@@ -243,14 +232,17 @@ impl HostShareable for StructInstance {
     }
 }
 
-impl HostShareable for ArrayInstance {
-    fn to_buffer(&self, ctx: &mut Context) -> Option<Vec<u8>> {
+impl ArrayInstance {
+    /// Memory representation of host-shareable instances.
+    ///
+    /// Returns `None` if the type is not host-shareable.
+    fn to_buffer(&self) -> Option<Vec<u8>> {
         let mut buf = Vec::new();
         let ty = self.inner_ty();
-        let size = ty.size_of(ctx)?;
-        let stride = round_up(ty.align_of(ctx)?, size);
+        let size = ty.size_of()?;
+        let stride = round_up(ty.align_of()?, size);
         for c in self.iter() {
-            buf.extend(c.to_buffer(ctx)?);
+            buf.extend(c.to_buffer()?);
             if stride > size {
                 buf.extend((size..stride).map(|_| 0))
             }
@@ -259,25 +251,31 @@ impl HostShareable for ArrayInstance {
     }
 }
 
-impl HostShareable for VecInstance {
-    fn to_buffer(&self, ctx: &mut Context) -> Option<Vec<u8>> {
+impl VecInstance {
+    /// Memory representation of host-shareable instances.
+    ///
+    /// Returns `None` if the type is not host-shareable.
+    fn to_buffer(&self) -> Option<Vec<u8>> {
         Some(
             self.iter()
-                .flat_map(|v| v.to_buffer(ctx).unwrap(/* SAFETY: vector elements must be host-shareable */).into_iter())
+                .flat_map(|v| v.to_buffer().unwrap(/* SAFETY: vector elements must be host-shareable */).into_iter())
                 .collect_vec(),
         )
     }
 }
 
-impl HostShareable for MatInstance {
-    fn to_buffer(&self, ctx: &mut Context) -> Option<Vec<u8>> {
+impl MatInstance {
+    /// Memory representation of host-shareable instances.
+    ///
+    /// Returns `None` if the type is not host-shareable.
+    fn to_buffer(&self) -> Option<Vec<u8>> {
         Some(
             self.iter_cols()
                 .flat_map(|v| {
                     // SAFETY: vector elements must be host-shareable
-                    let mut v_buf = v.to_buffer(ctx).unwrap();
+                    let mut v_buf = v.to_buffer().unwrap();
                     let len = v_buf.len() as u32;
-                    let align = v.ty().align_of(ctx).unwrap();
+                    let align = v.ty().align_of().unwrap();
                     if len < align {
                         v_buf.extend((len..align).map(|_| 0));
                     }
@@ -288,12 +286,18 @@ impl HostShareable for MatInstance {
     }
 }
 
-pub fn round_up(align: u32, size: u32) -> u32 {
+fn round_up(align: u32, size: u32) -> u32 {
     size.div_ceil(align) * align
 }
 
 impl Type {
-    pub fn size_of(&self, ctx: &mut Context) -> Option<u32> {
+    /// Compute the size of the type.
+    ///
+    /// Return `None` if the type is not host-shareable, or if it contains a
+    /// runtime-sized array. See [`Type::min_size_of`] for runtime-sized arrays.
+    ///
+    /// Reference: <https://www.w3.org/TR/WGSL/#alignment-and-size>
+    pub fn size_of(&self) -> Option<u32> {
         match self {
             Type::Bool => Some(4),
             Type::AbstractInt => None,
@@ -309,59 +313,58 @@ impl Type {
             #[cfg(feature = "naga_ext")]
             Type::F64 => Some(8),
             Type::Struct(s) => {
-                let decl = ctx.source.decl_struct(s)?;
-                let past_last_mem = decl
+                let past_last_mem = s
                     .members
                     .iter()
                     .map(|m| {
-                        let ty = ty_eval_ty(&m.ty, ctx).ok()?;
                         // TODO: handle errors, check valid size...
-                        let size = m
-                            .attr_size(ctx)
-                            .ok()
-                            .flatten()
-                            .or_else(|| ty.size_of(ctx))?;
-                        let align = m
-                            .attr_align(ctx)
-                            .ok()
-                            .flatten()
-                            .or_else(|| ty.align_of(ctx))?;
+                        let size = m.size.or_else(|| m.ty.size_of())?;
+                        let align = m.align.or_else(|| m.ty.align_of())?;
                         Some((size, align))
                     })
                     .try_fold(0, |offset, mem| {
                         let (size, align) = mem?;
                         Some(round_up(align, offset) + size)
                     })?;
-                Some(round_up(self.align_of(ctx)?, past_last_mem))
+                Some(round_up(self.align_of()?, past_last_mem))
             }
             Type::Array(ty, Some(n)) => {
-                let (size, align) = (ty.size_of(ctx)?, ty.align_of(ctx)?);
+                let (size, align) = (ty.size_of()?, ty.align_of()?);
                 Some(*n as u32 * round_up(align, size))
             }
             Type::Array(_, None) => None,
             #[cfg(feature = "naga_ext")]
             Type::BindingArray(_, _) => None,
             Type::Vec(n, ty) => {
-                let size = ty.size_of(ctx)?;
+                let size = ty.size_of()?;
                 Some(*n as u32 * size)
             }
             Type::Mat(c, r, ty) => {
-                let align = Type::Vec(*r, ty.clone()).align_of(ctx)?;
+                let align = Type::Vec(*r, ty.clone()).align_of()?;
                 Some(*c as u32 * align)
             }
             Type::Atomic(_) => Some(4),
-            Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => None,
+            Type::Ptr(_, _, _) | Type::Ref(_, _, _) | Type::Texture(_) | Type::Sampler(_) => None,
         }
     }
 
-    pub fn min_size_of(&self, ctx: &mut Context) -> Option<u32> {
+    /// Variant of [`Type::size_of`], but for runtime-sized arrays, it returns the minimum
+    /// size of the array, i.e. the size of an array with one element.
+    pub fn min_size_of(&self) -> Option<u32> {
         match self {
-            Type::Array(ty, None) => Some(round_up(ty.align_of(ctx)?, ty.size_of(ctx)?)),
-            _ => self.size_of(ctx),
+            Type::Array(ty, None) => Some(round_up(ty.align_of()?, ty.size_of()?)),
+            // TODO: should we also compute for structs containing a runtime-sized array?
+            // This function is only used once, anyway.
+            _ => self.size_of(),
         }
     }
 
-    pub fn align_of(&self, ctx: &mut Context) -> Option<u32> {
+    /// Compute the alignment of the type.
+    ///
+    /// Return `None` if the type is not host-shareable.
+    ///
+    /// Reference: <https://www.w3.org/TR/WGSL/#alignment-and-size>
+    pub fn align_of(&self) -> Option<u32> {
         match self {
             Type::Bool => Some(4),
             Type::AbstractInt => None,
@@ -376,20 +379,13 @@ impl Type {
             Type::U64 => Some(8),
             #[cfg(feature = "naga_ext")]
             Type::F64 => Some(8),
-            Type::Struct(s) => {
-                let decl = ctx.source.decl_struct(s)?;
-                decl.members
-                    .iter()
-                    .map(|m| {
-                        let ty = ty_eval_ty(&m.ty, ctx).ok()?;
-                        m.attr_align(ctx)
-                            .ok()
-                            .flatten()
-                            .or_else(|| ty.align_of(ctx))
-                    })
-                    .try_fold(0, |a, b| Some(a.max(b?)))
-            }
-            Type::Array(ty, _) => ty.align_of(ctx),
+            Type::Struct(s) => s
+                .members
+                .iter()
+                // TODO: check valid align attr
+                .map(|m| m.align.or_else(|| m.ty.align_of()))
+                .try_fold(0, |a, b| Some(a.max(b?))),
+            Type::Array(ty, _) => ty.align_of(),
             #[cfg(feature = "naga_ext")]
             Type::BindingArray(_, _) => None,
             Type::Vec(n, ty) => {
@@ -400,12 +396,12 @@ impl Type {
                         _ => None,
                     }
                 } else {
-                    self.size_of(ctx)
+                    self.size_of()
                 }
             }
-            Type::Mat(_, r, ty) => Type::Vec(*r, ty.clone()).align_of(ctx),
+            Type::Mat(_, r, ty) => Type::Vec(*r, ty.clone()).align_of(),
             Type::Atomic(_) => Some(4),
-            Type::Ptr(_, _) | Type::Texture(_) | Type::Sampler(_) => None,
+            Type::Ptr(_, _, _) | Type::Ref(_, _, _) | Type::Texture(_) | Type::Sampler(_) => None,
         }
     }
 }

@@ -329,7 +329,8 @@ pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
         ..Default::default()
     };
 
-    let mut case_wgsl = wesl::compile(&root_module, &resolver, &EscapeMangler, &compile_options)?;
+    let mut case_wgsl =
+        wesl::compile_sourcemap(&root_module, &resolver, &EscapeMangler, &compile_options)?;
 
     if let Some(expect_wgsl) = &case.underscore_wgsl {
         let mut expect_wgsl = wgsl_parse::parse_str(expect_wgsl)?;
@@ -351,7 +352,7 @@ pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
         validate: true,
         ..Default::default()
     };
-    wesl::compile(&root, &resolver, &NoMangler, &options)?;
+    wesl::compile_sourcemap(&root, &resolver, &NoMangler, &options)?;
     Ok(())
 }
 

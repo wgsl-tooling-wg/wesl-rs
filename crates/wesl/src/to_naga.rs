@@ -11,7 +11,7 @@ use wgsl_parse::{Decorated, span::Span, syntax::*};
 
 use crate::{
     EvalError, Exec,
-    eval::{self, Context, EvalAttrs, EvalStage, EvalTy, SyntaxUtil, Type},
+    eval::{self, Context, EvalAttrs, EvalTy, ShaderStage, SyntaxUtil, Type},
 };
 
 #[derive(Clone, Debug, Error)]

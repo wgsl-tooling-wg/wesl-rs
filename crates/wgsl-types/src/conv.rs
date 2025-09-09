@@ -1,10 +1,19 @@
+//! Type conversion algorithms.
+//!
+//! Implementation of the [conversion_rank] algorithm and utilities to convert
+//! [`Type`]s and [`Instance`]s using [automatic conversions].
+//!
+//! [automatic conversions]: https://www.w3.org/TR/WGSL/#feasible-automatic-conversion
+
 use half::f16;
 use itertools::Itertools;
 use num_traits::{FromPrimitive, ToPrimitive};
 
-use super::{
-    ArrayInstance, Instance, LiteralInstance, MatInstance, PRELUDE, StructInstance, SyntaxUtil, Ty,
-    Type, VecInstance,
+use crate::{
+    Error, Instance,
+    inst::{ArrayInstance, LiteralInstance, MatInstance, StructInstance, VecInstance},
+    syntax::AccessMode,
+    ty::{Ty, Type},
 };
 
 pub trait Convert: Sized + Clone + Ty {
@@ -49,7 +58,7 @@ impl Convert for Type {
                 .convert_to(ty)
                 .map(|inner| Type::Mat(*c, *r, inner.into())),
             Type::Atomic(_) => (self == ty).then_some(ty.clone()),
-            Type::Ptr(_, _) => (self == ty).then_some(ty.clone()),
+            Type::Ptr(_, _, _) => (self == ty).then_some(ty.clone()),
             _ => self.convert_to(ty), // for types that don't have an inner ty
         }
     }
@@ -72,10 +81,37 @@ impl Type {
             _ => self.clone(),
         }
     }
+
+    /// Apply the load rule.
+    ///
+    /// Reference: <https://www.w3.org/TR/WGSL/#load-rule>
+    pub fn loaded(self) -> Self {
+        if let Type::Ref(_, ty, _) = self {
+            ty.loaded()
+        } else {
+            self
+        }
+    }
+}
+
+impl Instance {
+    pub fn is_convertible_to(&self, ty: &Type) -> bool {
+        self.ty().is_convertible_to(ty)
+    }
+
+    /// Apply the load rule.
+    ///
+    /// Reference: <https://www.w3.org/TR/WGSL/#load-rule>
+    pub fn loaded(mut self) -> Result<Self, Error> {
+        while let Instance::Ref(r) = self {
+            self = r.read()?.to_owned();
+        }
+        Ok(self)
+    }
 }
 
 impl LiteralInstance {
-    fn is_infinite(&self) -> bool {
+    pub fn is_infinite(&self) -> bool {
         match self {
             LiteralInstance::Bool(_) => false,
             LiteralInstance::AbstractInt(_) => false,
@@ -92,7 +128,7 @@ impl LiteralInstance {
             LiteralInstance::F64(n) => n.is_infinite(),
         }
     }
-    fn is_finite(&self) -> bool {
+    pub fn is_finite(&self) -> bool {
         !self.is_infinite()
     }
 }
@@ -191,27 +227,26 @@ impl Convert for StructInstance {
         if &self.ty() == ty {
             Some(self.clone())
         } else if let Type::Struct(s2) = ty {
-            let s1 = self.name();
-            if PRELUDE.decl_struct(s1).is_some()
-                && PRELUDE.decl_struct(s2).is_some()
-                && s1.ends_with("abstract")
-            {
-                if s2.ends_with("f32") {
+            let s1 = &self.ty;
+            if s1.name.starts_with("__") && s2.name.starts_with("__") {
+                // this is a struct type conversion of built-in types.
+                // __frexp_result_* or __modf_result_*
+                // TODO: here we just assume that s2 is a variant of s1. We should
+                // check.
+                if s2.name.ends_with("f32") {
                     let members = self
-                        .iter_members()
-                        .map(|(name, inst)| {
-                            Some((name.clone(), inst.convert_inner_to(&Type::F32)?))
-                        })
+                        .members
+                        .iter()
+                        .map(|inst| inst.convert_inner_to(&Type::F32))
                         .collect::<Option<Vec<_>>>()?;
-                    Some(StructInstance::new(s2.to_string(), members))
-                } else if s2.ends_with("f16") {
+                    Some(StructInstance::new((**s2).clone(), members))
+                } else if s2.name.ends_with("f16") {
                     let members = self
-                        .iter_members()
-                        .map(|(name, inst)| {
-                            Some((name.clone(), inst.convert_inner_to(&Type::F16)?))
-                        })
+                        .members
+                        .iter()
+                        .map(|inst| inst.convert_inner_to(&Type::F16))
                         .collect::<Option<Vec<_>>>()?;
-                    Some(StructInstance::new(s2.to_string(), members))
+                    Some(StructInstance::new((**s2).clone(), members))
                 } else {
                     None
                 }
@@ -262,6 +297,9 @@ pub fn conversion_rank(ty1: &Type, ty2: &Type) -> Option<u32> {
     // reference: <https://www.w3.org/TR/WGSL/#conversion-rank>
     match (ty1, ty2) {
         (_, _) if ty1 == ty2 => Some(0),
+        (Type::Ref(_, ty1, AccessMode::Read | AccessMode::ReadWrite), ty2) if &**ty1 == ty2 => {
+            Some(0)
+        }
         (Type::AbstractInt, Type::AbstractFloat) => Some(5),
         (Type::AbstractInt, Type::I32) => Some(3),
         (Type::AbstractInt, Type::U32) => Some(4),
@@ -271,13 +309,10 @@ pub fn conversion_rank(ty1: &Type, ty2: &Type) -> Option<u32> {
         (Type::AbstractFloat, Type::F16) => Some(2),
         // frexp and modf
         (Type::Struct(s1), Type::Struct(s2)) => {
-            if PRELUDE.decl_struct(s1).is_some()
-                && PRELUDE.decl_struct(s2).is_some()
-                && s1.ends_with("abstract")
-            {
-                if s2.ends_with("f32") {
+            if s1.name.starts_with("__") && s1.name.ends_with("abstract") {
+                if s2.name.ends_with("f32") {
                     Some(1)
-                } else if s2.ends_with("f16") {
+                } else if s2.name.ends_with("f16") {
                     Some(2)
                 } else {
                     None
@@ -295,7 +330,7 @@ pub fn conversion_rank(ty1: &Type, ty2: &Type) -> Option<u32> {
     }
 }
 
-/// performs overload resolution when two instances of T are involved (which is the most common).
+/// Performs overload resolution when two instances of T are involved (which is the most common).
 /// it just makes sure that the two instance types are the same. This is sufficient in most cases.
 pub fn convert<T: Convert + Ty + Clone>(i1: &T, i2: &T) -> Option<(T, T)> {
     let (ty1, ty2) = (i1.ty(), i2.ty());
@@ -343,7 +378,7 @@ pub fn convert_all_inner_to<'a, T: Convert + Ty + Clone + 'a>(
         .collect::<Option<Vec<_>>>()
 }
 
-/// performs overload resolution when two instances of T are involved (which is the most common).
+/// Performs overload resolution when two instances of T are involved (which is the most common).
 /// it just makes sure that the two types are the same. This is sufficient in most cases.
 pub fn convert_ty<'a>(ty1: &'a Type, ty2: &'a Type) -> Option<&'a Type> {
     conversion_rank(ty1, ty2)
@@ -351,7 +386,7 @@ pub fn convert_ty<'a>(ty1: &'a Type, ty2: &'a Type) -> Option<&'a Type> {
         .or_else(|| conversion_rank(ty2, ty1).map(|_rank| ty1))
 }
 
-/// performs overload resolution (find the type that all others can be automatically converted to)
+/// Performs overload resolution (find the type that all others can be automatically converted to)
 pub fn convert_all_ty<'a>(tys: impl IntoIterator<Item = &'a Type> + 'a) -> Option<&'a Type> {
     tys.into_iter()
         .map(Option::Some)

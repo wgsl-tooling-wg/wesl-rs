@@ -20,7 +20,10 @@
       "wesl-c",
       ".wesl",
       "WESL",
+      "wgsl-analyzer",
       "wgsl-parse",
+      "wgsl-types",
+      "wgsl-syntax",
       ".wgsl",
       "WGSL"
     ]

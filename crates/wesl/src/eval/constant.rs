@@ -1,6 +1,7 @@
-use super::{Scope, SyntaxUtil, is_constructor_fn};
+use super::{Scope, SyntaxUtil};
 use itertools::Itertools;
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
+use wgsl_types::builtin::is_ctor;
 
 macro_rules! with_scope {
     ($scope:expr, $body:tt) => {{
@@ -281,7 +282,7 @@ impl IsConst for FunctionCall {
                 // TODO: this is not optimal as it will be recomputed for the same functions.
                 decl.is_const(wesl, locals)
             } else {
-                is_constructor_fn(&fn_name)
+                is_ctor(&fn_name)
             }
         }
     }

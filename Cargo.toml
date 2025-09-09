@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/wgsl-parse",
+    "crates/wgsl-types",
     "crates/wesl-macros",
     "crates/wesl",
     "crates/wesl-test",
@@ -24,9 +25,10 @@ version = "0.2.0"
 rust-version = "1.87.0"
 
 [workspace.dependencies]
+wgsl-parse = { path = "crates/wgsl-parse", version = "0.2.0" }
+wgsl-types = { path = "crates/wgsl-types", version = "0.2.0" }
 wesl = { path = "crates/wesl", version = "0.2.0" }
 wesl-macros = { path = "crates/wesl-macros", version = "0.2.0" }
-wgsl-parse = { path = "crates/wgsl-parse", version = "0.2.0" }
 tokrepr = { path = "crates/tokrepr", version = "0.1.0" }
 tokrepr-derive = { path = "crates/tokrepr-derive", version = "0.1.0" }
 

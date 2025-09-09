@@ -27,6 +27,8 @@ use derive_more::{From, IsVariant, Unwrap};
 
 pub use crate::span::{Span, Spanned};
 
+pub use wgsl_types::syntax::*;
+
 #[cfg(feature = "tokrepr")]
 use tokrepr::TokRepr;
 
@@ -177,16 +179,6 @@ pub struct DiagnosticDirective {
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, PartialEq, Eq, IsVariant)]
-pub enum DiagnosticSeverity {
-    Error,
-    Warning,
-    Info,
-    Off,
-}
-
-#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct EnableDirective {
     #[cfg(feature = "attributes")]
@@ -235,30 +227,7 @@ pub enum DeclarationKind {
     Const,
     Override,
     Let,
-    Var(Option<AddressSpace>), // "None" corresponds to handle space if it is a module-scope declaration, otherwise function space.
-}
-
-#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
-pub enum AddressSpace {
-    Function,
-    Private,
-    Workgroup,
-    Uniform,
-    Storage(Option<AccessMode>),
-    Handle, // the handle address space cannot be spelled in WGSL.
-    #[cfg(feature = "push_constant")]
-    PushConstant,
-}
-
-#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AccessMode {
-    Read,
-    Write,
-    ReadWrite,
+    Var(Option<(AddressSpace, Option<AccessMode>)>), // "None" corresponds to handle space if it is a module-scope declaration, otherwise function space.
 }
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
@@ -320,51 +289,6 @@ pub struct ConstAssert {
     #[cfg(feature = "attributes")]
     pub attributes: Attributes,
     pub expression: ExpressionNode,
-}
-
-#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
-pub enum BuiltinValue {
-    VertexIndex,
-    InstanceIndex,
-    ClipDistances, // requires WGSL extension clip_distances
-    Position,
-    FrontFacing,
-    FragDepth,
-    SampleIndex,
-    SampleMask,
-    LocalInvocationId,
-    LocalInvocationIndex,
-    GlobalInvocationId,
-    WorkgroupId,
-    NumWorkgroups,
-    SubgroupInvocationId, // requires WGSL extension subgroups
-    SubgroupSize,         // requires WGSL extension subgroups
-    #[cfg(feature = "naga_ext")]
-    PrimitiveIndex,
-    #[cfg(feature = "naga_ext")]
-    ViewIndex,
-}
-
-#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
-pub enum InterpolationType {
-    Perspective,
-    Linear,
-    Flat,
-}
-
-#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
-pub enum InterpolationSampling {
-    Center,
-    Centroid,
-    Sample,
-    First,
-    Either,
 }
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
@@ -440,16 +364,6 @@ pub enum Attribute {
     EarlyDepthTest(Option<ConservativeDepth>),
     #[from]
     Custom(CustomAttribute),
-}
-
-#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
-#[cfg(feature = "naga_ext")]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
-pub enum ConservativeDepth {
-    GreaterEqual,
-    LessEqual,
-    Unchanged,
 }
 
 pub type AttributeNode = Spanned<Attribute>;
@@ -537,46 +451,11 @@ pub struct UnaryExpression {
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
-pub enum UnaryOperator {
-    LogicalNegation,
-    Negation,
-    BitwiseComplement,
-    AddressOf,
-    Indirection,
-}
-
-#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinaryExpression {
     pub operator: BinaryOperator,
     pub left: ExpressionNode,
     pub right: ExpressionNode,
-}
-
-#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, IsVariant)]
-pub enum BinaryOperator {
-    ShortCircuitOr,
-    ShortCircuitAnd,
-    Addition,
-    Subtraction,
-    Multiplication,
-    Division,
-    Remainder,
-    Equality,
-    Inequality,
-    LessThan,
-    LessThanEqual,
-    GreaterThan,
-    GreaterThanEqual,
-    BitwiseOr,
-    BitwiseAnd,
-    BitwiseXor,
-    ShiftLeft,
-    ShiftRight,
 }
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
@@ -649,23 +528,6 @@ pub struct AssignmentStatement {
     pub operator: AssignmentOperator,
     pub lhs: ExpressionNode,
     pub rhs: ExpressionNode,
-}
-
-#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, PartialEq, Eq, IsVariant)]
-pub enum AssignmentOperator {
-    Equal,
-    PlusEqual,
-    MinusEqual,
-    TimesEqual,
-    DivisionEqual,
-    ModuloEqual,
-    AndEqual,
-    OrEqual,
-    XorEqual,
-    ShiftRightAssign,
-    ShiftLeftAssign,
 }
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
