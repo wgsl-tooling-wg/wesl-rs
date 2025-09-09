@@ -33,8 +33,8 @@ wasm-bindgen = "0.2.95"
 wesl = { workspace = true, features = ["eval", "serde"] }
 
 [features]
-debug = ["console_error_panic_hook", "console_log"]
 default = ["ansi-to-html", "naga"]
+debug = ["console_error_panic_hook", "console_log"]
 
 [lints]
 workspace = true
