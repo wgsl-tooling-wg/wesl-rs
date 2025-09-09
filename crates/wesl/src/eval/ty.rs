@@ -12,7 +12,7 @@ use super::{
 type E = EvalError;
 
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
-use wgsl_types::{ShaderStage, enums::Enumerant, tplt::TpltParam, ty::StructMemberType};
+use wgsl_types::{ShaderStage, syntax::Enumerant, tplt::TpltParam, ty::StructMemberType};
 
 pub fn eval_tplt_arg(tplt: &TemplateArg, ctx: &mut Context) -> Result<TpltParam, E> {
     with_stage!(ctx, ShaderStage::Const, {

@@ -4,11 +4,11 @@ use crate::{
     Error, Instance, ShaderStage,
     conv::{Convert, convert, convert_inner},
     inst::{LiteralInstance, MatInstance, MemView, PtrInstance, RefInstance, VecInstance},
+    syntax::{AddressSpace, BinaryOperator, UnaryOperator},
     ty::{Ty, Type},
 };
 
 use num_traits::{WrappingNeg, WrappingShl};
-use wgsl_syntax::{AddressSpace, BinaryOperator, UnaryOperator};
 
 type E = Error;
 

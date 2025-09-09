@@ -4,14 +4,12 @@ use std::str::FromStr;
 
 use crate::{
     Error, Instance,
-    enums::{AccessMode, AddressSpace, TexelFormat},
     inst::{
         ArrayInstance, AtomicInstance, LiteralInstance, MatInstance, PtrInstance, RefInstance,
         StructInstance, VecInstance,
     },
+    syntax::{AccessMode, AddressSpace, SampledType, TexelFormat},
 };
-
-pub use wgsl_syntax::SampledType;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StructMemberType {

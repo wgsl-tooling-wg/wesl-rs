@@ -1,9 +1,17 @@
+//! Basic representations of WGSL syntactic elements, such as enums, operators, and
+//! context-dependent names.
+
 use std::{fmt::Display, str::FromStr};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "tokrepr")]
 use tokrepr::TokRepr;
+
+// ------------
+// ENUMERATIONS
+// ------------
+// reference: <https://www.w3.org/TR/WGSL/#enumeration-types>
 
 /// Address space enumeration.
 ///
@@ -123,16 +131,37 @@ pub enum TexelFormat {
     Rgba16Snorm,
 }
 
-#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum DiagnosticSeverity {
-    Error,
-    Warning,
-    Info,
-    Off,
+/// One of the predeclared enumerants.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#predeclared-enumerants>
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Enumerant {
+    AccessMode(AccessMode),
+    AddressSpace(AddressSpace),
+    TexelFormat(TexelFormat),
 }
 
+impl FromStr for Enumerant {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        AccessMode::from_str(s)
+            .map(Enumerant::AccessMode)
+            .or_else(|()| AddressSpace::from_str(s).map(Enumerant::AddressSpace))
+            .or_else(|()| TexelFormat::from_str(s).map(Enumerant::TexelFormat))
+    }
+}
+
+// -----------------------
+// CONTEXT-DEPENDENT NAMES
+// -----------------------
+// reference: <https://www.w3.org/TR/WGSL/#context-dependent-names>
+
+/// Built-in value names.
+///
+/// Context-dependent tokens.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#builtin-value-names>
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -158,6 +187,26 @@ pub enum BuiltinValue {
     ViewIndex,
 }
 
+/// Diagnostic Severity Control Names.
+///
+/// Context-dependent tokens.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#diagnostic-severity-control-names>
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum DiagnosticSeverity {
+    Error,
+    Warning,
+    Info,
+    Off,
+}
+
+///  Interpolation Type Names.
+///
+/// Context-dependent tokens.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#interpolation-type-names>
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -167,6 +216,11 @@ pub enum InterpolationType {
     Flat,
 }
 
+/// Interpolation Sampling Names.
+///
+/// Context-dependent tokens.
+///
+/// Reference: <https://www.w3.org/TR/WGSL/#interpolation-sampling-names>
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -177,6 +231,22 @@ pub enum InterpolationSampling {
     First,
     Either,
 }
+
+/// Naga extension: Conservative Depth.
+#[cfg(feature = "naga_ext")]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConservativeDepth {
+    GreaterEqual,
+    LessEqual,
+    Unchanged,
+}
+
+// -----------------------
+// CONTEXT-DEPENDENT NAMES
+// -----------------------
+// reference: <https://www.w3.org/TR/WGSL/#context-dependent-names>
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -266,18 +336,8 @@ pub enum AssignmentOperator {
     ShiftLeftAssign,
 }
 
-#[cfg(feature = "naga_ext")]
-#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ConservativeDepth {
-    GreaterEqual,
-    LessEqual,
-    Unchanged,
-}
-
 // ---------------
-// implementations
+// Implementations
 // ---------------
 
 impl AccessMode {
@@ -652,7 +712,7 @@ impl FromStr for SampledType {
 }
 
 // -------------
-// AsStr impls
+// Display impls
 // -------------
 
 impl Display for AddressSpace {

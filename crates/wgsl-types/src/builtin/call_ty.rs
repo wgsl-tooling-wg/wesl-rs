@@ -3,7 +3,7 @@
 use crate::{
     CallSignature, Error,
     conv::{Convert, convert_all_ty, convert_ty},
-    enums::AddressSpace,
+    syntax::AddressSpace,
     tplt::{BitcastTemplate, TpltParam},
     ty::{StructMemberType, StructType, TextureDimensions, TextureType, Ty, Type},
 };

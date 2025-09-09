@@ -8,15 +8,19 @@ version.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-wgsl-syntax = { workspace = true }
 derive_more = { version = "2.0.1", features = ["from", "unwrap"] }
 half = { version = "2.4.1", features = ["num-traits"] }
 itertools = "0.14.0"
 num-traits = "0.2.19"
 thiserror = "2.0.11"
 
+serde = { version = "1.0.215", optional = true, features = ["derive", "rc"] }
+tokrepr = { workspace = true, optional = true }
+
 [lints]
 workspace = true
 
 [features]
 naga_ext = []
+serde = ["dep:serde"]
+tokrepr = ["dep:tokrepr"]

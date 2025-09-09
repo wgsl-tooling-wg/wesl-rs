@@ -33,10 +33,10 @@ pub(crate) use call_ty::*;
 pub(crate) use ops::Compwise;
 
 use itertools::Itertools;
-use wgsl_syntax::{BinaryOperator, UnaryOperator};
 
 use crate::{
     CallSignature, Error, Instance, ShaderStage,
+    syntax::{BinaryOperator, UnaryOperator},
     tplt::{ArrayTemplate, BitcastTemplate, MatTemplate, TpltParam, VecTemplate},
     ty::{Ty, Type},
 };

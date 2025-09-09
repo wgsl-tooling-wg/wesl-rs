@@ -2,7 +2,10 @@ use std::sync::LazyLock;
 
 use wesl_macros::{quote_expression, quote_module};
 use wgsl_parse::syntax::*;
-use wgsl_types::ty::{SampledType, SamplerType, TextureType, Type};
+use wgsl_types::{
+    syntax::SampledType,
+    ty::{SamplerType, TextureType, Type},
+};
 
 use crate::builtin::builtin_ident;
 

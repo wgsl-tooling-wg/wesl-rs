@@ -4,11 +4,11 @@ use itertools::Itertools;
 
 use crate::{
     CallSignature,
-    enums::Enumerant,
     inst::{
         ArrayInstance, AtomicInstance, Instance, LiteralInstance, MatInstance, MemView,
         PtrInstance, RefInstance, StructInstance, VecInstance,
     },
+    syntax::Enumerant,
     tplt::TpltParam,
     ty::{SamplerType, TextureType, Ty, Type},
 };

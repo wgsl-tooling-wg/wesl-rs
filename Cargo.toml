@@ -1,10 +1,9 @@
 [workspace]
 members = [
-    "crates/wgsl-syntax",
     "crates/wgsl-parse",
+    "crates/wgsl-types",
     "crates/wesl-macros",
     "crates/wesl",
-    "crates/wgsl-types",
     "crates/wesl-test",
     "crates/wesl-cli",
     "crates/wesl-web",
@@ -26,7 +25,6 @@ version = "0.2.0"
 rust-version = "1.87.0"
 
 [workspace.dependencies]
-wgsl-syntax = { path = "crates/wgsl-syntax", version = "0.2.0" }
 wgsl-parse = { path = "crates/wgsl-parse", version = "0.2.0" }
 wgsl-types = { path = "crates/wgsl-types", version = "0.2.0" }
 wesl = { path = "crates/wesl", version = "0.2.0" }

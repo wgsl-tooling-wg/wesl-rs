@@ -6,9 +6,9 @@ mod mem;
 
 pub mod builtin;
 pub mod conv;
-pub mod enums;
 pub mod idents;
 pub mod inst;
+pub mod syntax;
 pub mod tplt;
 pub mod ty;
 

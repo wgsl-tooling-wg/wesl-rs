@@ -25,9 +25,9 @@ use std::sync::{Arc, RwLock, RwLockReadGuard};
 
 use derive_more::{From, IsVariant, Unwrap};
 
-pub use wgsl_syntax::*;
-
 pub use crate::span::{Span, Spanned};
+
+pub use wgsl_types::syntax::*;
 
 #[cfg(feature = "tokrepr")]
 use tokrepr::TokRepr;

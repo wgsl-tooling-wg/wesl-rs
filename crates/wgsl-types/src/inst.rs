@@ -11,7 +11,7 @@ use itertools::Itertools;
 
 use crate::{
     Error,
-    enums::{AccessMode, AddressSpace},
+    syntax::{AccessMode, AddressSpace},
     ty::{StructType, Ty, Type},
 };
 

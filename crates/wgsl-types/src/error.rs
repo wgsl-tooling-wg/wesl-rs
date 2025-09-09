@@ -1,7 +1,10 @@
 use thiserror::Error;
-use wgsl_syntax::{BinaryOperator, UnaryOperator};
 
-use crate::{CallSignature, Type, inst::LiteralInstance};
+use crate::{
+    CallSignature, Type,
+    inst::LiteralInstance,
+    syntax::{BinaryOperator, UnaryOperator},
+};
 
 /// The global error struct.
 #[derive(Clone, Debug, Error)]

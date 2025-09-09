@@ -8,11 +8,11 @@
 use half::f16;
 use itertools::Itertools;
 use num_traits::{FromPrimitive, ToPrimitive};
-use wgsl_syntax::AccessMode;
 
 use crate::{
     Error, Instance,
     inst::{ArrayInstance, LiteralInstance, MatInstance, StructInstance, VecInstance},
+    syntax::AccessMode,
     ty::{Ty, Type},
 };
 

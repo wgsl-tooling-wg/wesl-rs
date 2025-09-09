@@ -1345,15 +1345,7 @@ dependencies = [
  "serde",
  "thiserror 2.0.12",
  "tokrepr",
- "wgsl-syntax",
-]
-
-[[package]]
-name = "wgsl-syntax"
-version = "0.2.0"
-dependencies = [
- "serde",
- "tokrepr",
+ "wgsl-types",
 ]
 
 [[package]]
@@ -1364,8 +1356,9 @@ dependencies = [
  "half",
  "itertools",
  "num-traits",
+ "serde",
  "thiserror 2.0.12",
- "wgsl-syntax",
+ "tokrepr",
 ]
 
 [[package]]

@@ -3,10 +3,9 @@
 use crate::{
     Error,
     conv::{Convert, convert_ty},
+    syntax::{AddressSpace, BinaryOperator, UnaryOperator},
     ty::{Ty, Type},
 };
-
-use wgsl_syntax::{AddressSpace, BinaryOperator, UnaryOperator};
 
 type E = Error;
 

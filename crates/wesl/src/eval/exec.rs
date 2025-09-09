@@ -3,8 +3,8 @@ use wgsl_types::{
     ShaderStage,
     builtin::{call_builtin_fn, is_ctor, struct_ctor},
     conv::Convert,
-    enums::{AccessMode, AddressSpace},
     inst::{Instance, LiteralInstance, RefInstance, VecInstance},
+    syntax::{AccessMode, AddressSpace},
     tplt::TpltParam,
     ty::{Ty, Type},
 };

@@ -2,9 +2,9 @@
 
 use crate::{
     Error,
-    enums::{AccessMode, AddressSpace, Enumerant, TexelFormat},
     inst::{Instance, LiteralInstance},
-    ty::{SampledType, TextureType, Ty, Type},
+    syntax::{AccessMode, AddressSpace, Enumerant, SampledType, TexelFormat},
+    ty::{TextureType, Ty, Type},
 };
 
 /// A single template parameter.
