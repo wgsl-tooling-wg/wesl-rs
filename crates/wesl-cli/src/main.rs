@@ -142,9 +142,9 @@ struct CompOptsArgs {
     /// Disable stripping unused declarations
     #[arg(long)]
     no_strip: bool,
-    /// Disable lowering output to compatibility-mode WGSL
+    /// Enable lowering output to compatibility-mode WGSL
     #[arg(long)]
-    no_lower: bool,
+    lower: bool,
     /// Disable performing validation checks
     #[arg(long)]
     no_validate: bool,
@@ -190,7 +190,7 @@ impl From<&CompOptsArgs> for CompileOptions {
             condcomp: !opts.no_cond_comp,
             generics: opts.generics,
             strip: !opts.no_strip,
-            lower: !opts.no_lower,
+            lower: opts.lower,
             validate: !opts.no_validate,
             lazy: !opts.eager,
             mangle_root: opts.mangle_root,
