@@ -140,7 +140,7 @@ jobs:
         if: failure()
         run: |
           echo 'To fix toml fmt, please run `tombi fmt`.'
-          echo 'You can find taplo here: http://tombi-toml.github.io/tombi/.'
+          echo 'You can find tombi here: http://tombi-toml.github.io/tombi/.'
           echo 'Also use the `Tombi` extension.'
           echo 'You can find the extension here: https://marketplace.visualstudio.com/items?itemName=tombi-toml.tombi'
 
