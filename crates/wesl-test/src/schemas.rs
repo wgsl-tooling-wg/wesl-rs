@@ -150,6 +150,7 @@ impl fmt::Display for TestKind {
 
 #[derive(Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
+#[derive(Clone, Copy)]
 pub enum Expectation {
     Pass,
     Fail,
