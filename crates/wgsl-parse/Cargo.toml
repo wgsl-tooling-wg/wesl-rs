@@ -1,7 +1,6 @@
 [package]
 name = "wgsl-parse"
 version.workspace = true
-authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 description = "Parse a wgsl source file to a syntax tree"

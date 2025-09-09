@@ -1,7 +1,6 @@
 [package]
 name = "wesl-cli"
 version.workspace = true
-authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 description = "Various tools to parse, verify, evaluate and modify wgsl shader source."

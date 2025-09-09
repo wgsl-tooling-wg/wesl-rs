@@ -17,7 +17,6 @@ members = [
 
 [workspace.package]
 version = "0.2.0"
-authors = ["Mathis Brossier <mathis.brossier@gmail.com>", "WESL Contributors"]
 edition = "2024"
 rust-version = "1.87.0"
 repository = "https://github.com/wgsl-tooling-wg/wesl-rs"

@@ -1,7 +1,6 @@
 [package]
 name = "wesl-web"
 version.workspace = true
-authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 description = "WESL compiler in WebAssembly"

@@ -1,7 +1,6 @@
 [package]
 name = "wesl"
 version.workspace = true
-authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 description = "The WESL rust compiler"
