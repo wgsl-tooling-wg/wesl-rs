@@ -30,6 +30,8 @@ serde = { version = "1.0.215", optional = true, features = ["derive"] }
 # deps for feature 'package'
 proc-macro2 = { version = "1.0.93", optional = true }
 quote = { version = "1.0.38", optional = true }
+# for the wesl.toml feature
+toml = { version = "0.9.5", optional = true }
 
 [features]
 quote = ["wesl-macros/quote"]
@@ -37,6 +39,7 @@ eval = ["quote"]
 generics = ["wgsl-parse/generics"]
 serde = ["dep:serde", "wgsl-parse/serde"]
 package = ["dep:proc-macro2", "dep:quote"]
+toml = ["dep:toml", "dep:serde"]
 # allow naga/wgpu extensions.
 # They are not well-documented, the best I could find is this:
 # * https://github.com/gfx-rs/wgpu/issues/4410

@@ -1,4 +1,4 @@
-#![cfg(feature = "serde")]
+#![cfg(feature = "toml")]
 //! The WESL TOML file format.
 //!
 //! ```toml
@@ -93,4 +93,57 @@ enum WeslTomlDependencies {
 struct WeslToml {
     package: WeslTomlPackage,
     dependencies: WeslTomlDependencies,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use toml;
+
+    #[test]
+    fn parse_example_toml() {
+        let toml_str = r#"
+            [package]
+            edition = "unstable_2025"
+            package_manager = "npm"
+            root = "./shaders"
+            include = [ "shaders/**/*.wesl", "shaders/**/*.wgsl" ]
+            exclude = [ "**/test" ]
+
+            [dependencies]
+            foolib = {}
+            cute_bevy = { package = "bevy" }
+            mylib = { path = "../mylib" }
+        "#;
+
+        let parsed: WeslToml = toml::from_str(toml_str).unwrap();
+
+        assert_eq!(parsed.package.edition, WeslEdition::Unstable2025);
+        assert_eq!(parsed.package.package_manager, PackageManager::Npm);
+        assert_eq!(parsed.package.root, PathBuf::from("./shaders"));
+        assert!(
+            parsed
+                .package
+                .include
+                .contains(&"shaders/**/*.wesl".to_string())
+        );
+
+        match parsed.dependencies {
+            WeslTomlDependencies::Manual(deps) => {
+                assert!(matches!(
+                    deps.get("foolib").unwrap(),
+                    WeslTomlDependency::Auto { .. }
+                ));
+                assert!(matches!(
+                    deps.get("cute_bevy").unwrap(),
+                    WeslTomlDependency::Package { .. }
+                ));
+                assert!(matches!(
+                    deps.get("mylib").unwrap(),
+                    WeslTomlDependency::Path { .. }
+                ));
+            }
+            _ => panic!("expected manual dependencies"),
+        }
+    }
 }
