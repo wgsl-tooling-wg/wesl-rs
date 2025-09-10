@@ -1,11 +1,10 @@
 [package]
 name = "wesl-c"
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
-repository.workspace = true
 version.workspace = true
+edition.workspace = true
 rust-version.workspace = true
+repository.workspace = true
+license.workspace = true
 
 [lib]
 crate-type = ["cdylib", "staticlib"]
@@ -13,9 +12,9 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 wesl = { workspace = true }
 
-[lints]
-workspace = true
-
 [features]
 eval = ["wesl/eval"]
 generics = ["wesl/generics"]
+
+[lints]
+workspace = true

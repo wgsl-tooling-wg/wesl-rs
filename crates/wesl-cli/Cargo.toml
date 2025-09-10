@@ -1,25 +1,24 @@
 [package]
-authors.workspace = true
-default-run = "wesl"
+name = "wesl-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 description = "Various tools to parse, verify, evaluate and modify wgsl shader source."
 documentation = "https://docs.rs/wesl-cli"
-edition.workspace = true
-license.workspace = true
-name = "wesl-cli"
 repository.workspace = true
-version.workspace = true
-rust-version.workspace = true
-
-[dependencies]
-clap = { version = "4.5.11", features = ["derive"] }
-naga = { version = "25.0.1", optional = true, features = ["wgsl-in"] }
-thiserror = "2.0.11"
-wesl = { workspace = true, features = ["eval", "generics", "package"] }
-wgsl-parse = { workspace = true }
+license.workspace = true
+default-run = "wesl"
 
 [[bin]]
 name = "wesl"
 path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5.11", features = ["derive"] }
+naga = { version = "25.0.1", features = ["wgsl-in"], optional = true }
+thiserror = "2.0.11"
+wesl = { workspace = true, features = ["eval", "generics", "package"] }
+wgsl-parse = { workspace = true }
 
 [features]
 default = ["naga"]

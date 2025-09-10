@@ -1,21 +1,20 @@
 [package]
 name = "tokrepr-derive"
-description = "Derive macro for tokrepr"
-authors.workspace = true
-edition.workspace = true
-license.workspace = true
-repository.workspace = true
 version = "0.1.0"
+edition.workspace = true
 rust-version.workspace = true
+description = "Derive macro for tokrepr"
+repository.workspace = true
+license.workspace = true
+
+[lib]
+proc-macro = true
 
 [dependencies]
 itertools = "0.14.0"
 proc-macro2 = "1.0.86"
 quote = "1.0.37"
 syn = "2.0.77"
-
-[lib]
-proc-macro = true
 
 [lints]
 workspace = true

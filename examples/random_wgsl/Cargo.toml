@@ -1,14 +1,12 @@
 [package]
 name = "random_wgsl"
-description = "Random utility package for WGSL/WESL"
-documentation = "https://docs.rs/random_wgsl"
 version.workspace = true
 edition.workspace = true
-authors.workspace = true
+rust-version.workspace = true
+description = "Random utility package for WGSL/WESL"
+documentation = "https://docs.rs/random_wgsl"
 repository.workspace = true
 license.workspace = true
-rust-version.workspace = true
-
 publish = false
 
 [dependencies]

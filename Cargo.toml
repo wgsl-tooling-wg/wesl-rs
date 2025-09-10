@@ -1,42 +1,40 @@
 [workspace]
+resolver = "3"
 members = [
-    "crates/wgsl-parse",
-    "crates/wgsl-types",
-    "crates/wesl-macros",
-    "crates/wesl",
-    "crates/wesl-test",
-    "crates/wesl-cli",
-    "crates/wesl-web",
-    "crates/wesl-c",
-    "crates/tokrepr",
-    "crates/tokrepr-derive",
-    "examples/random_wgsl",
-    "examples/wesl-consumer",
+  "crates/tokrepr",
+  "crates/tokrepr-derive",
+  "crates/wesl",
+  "crates/wesl-c",
+  "crates/wesl-cli",
+  "crates/wesl-macros",
+  "crates/wesl-test",
+  "crates/wesl-web",
+  "crates/wgsl-parse",
+  "crates/wgsl-types",
+  "examples/random_wgsl",
+  "examples/wesl-consumer",
 ]
 
-resolver = "3"
-
 [workspace.package]
-authors = ["WESL Contributors", "Mathis Brossier <mathis.brossier@gmail.com>"]
-edition = "2024"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/wgsl-tooling-wg/wesl-rs"
 version = "0.2.0"
+edition = "2024"
 rust-version = "1.87.0"
+repository = "https://github.com/wgsl-tooling-wg/wesl-rs"
+license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-wgsl-parse = { path = "crates/wgsl-parse", version = "0.2.0" }
-wgsl-types = { path = "crates/wgsl-types", version = "0.2.0" }
-wesl = { path = "crates/wesl", version = "0.2.0" }
-wesl-macros = { path = "crates/wesl-macros", version = "0.2.0" }
 tokrepr = { path = "crates/tokrepr", version = "0.1.0" }
 tokrepr-derive = { path = "crates/tokrepr-derive", version = "0.1.0" }
-
-[workspace.lints.rust]
+wesl = { path = "crates/wesl", version = "0.2.0" }
+wesl-macros = { path = "crates/wesl-macros", version = "0.2.0" }
+wgsl-parse = { path = "crates/wgsl-parse", version = "0.2.0" }
+wgsl-types = { path = "crates/wgsl-types", version = "0.2.0" }
 
 [workspace.lints.clippy]
 # TODO: change eventually
 mutable_key_type = "allow"
+
+[workspace.lints.rust]
 
 [patch.crates-io]
 wesl = { path = "crates/wesl" }

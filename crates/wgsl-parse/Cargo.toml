@@ -1,63 +1,50 @@
 [package]
 name = "wgsl-parse"
-description = "Parse a wgsl source file to a syntax tree"
-documentation = "https://docs.rs/wgsl-parse"
 version.workspace = true
 edition.workspace = true
-authors.workspace = true
+rust-version.workspace = true
+description = "Parse a wgsl source file to a syntax tree"
+documentation = "https://docs.rs/wgsl-parse"
 repository.workspace = true
 license.workspace = true
-rust-version.workspace = true
 
 [dependencies]
 annotate-snippets = "0.11.4"
 derive_more = { version = "2.0.1", features = [
-    "as_ref",
-    "constructor",
-    "deref",
-    "deref_mut",
-    "from",
-    "is_variant",
-    "try_unwrap",
-    "unwrap",
+  "as_ref",
+  "constructor",
+  "deref",
+  "deref_mut",
+  "from",
+  "is_variant",
+  "try_unwrap",
+  "unwrap",
 ] }
 itertools = "0.14.0"
 lalrpop-util = "0.22.1"
 lexical = { version = "7.0.4", features = ["format", "power-of-two"] }
 logos = "0.15.0"
+serde = { version = "1.0.215", features = ["derive", "rc"], optional = true }
 thiserror = "2.0.12"
-wgsl-types = { workspace = true }
-
-serde = { version = "1.0.215", optional = true, features = ["derive", "rc"] }
 tokrepr = { workspace = true, optional = true }
+wgsl-types = { workspace = true }
 
 [build-dependencies]
 lalrpop = { version = "0.22.1", default-features = false }
 
 [features]
 default = []
-
-wesl = ["imports", "condcomp"]
-
 # allow attributes on most declarations and statements.
 # reference: https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md#appendix-updated-grammar
 attributes = []
-
-# allow templates on function declarations
-# reference: none yet
-templates = []
-
-# reference: none yet
-generics = ["attributes"]
-
 # conditional translation attribute (@if).
 # reference: https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/ConditionalTranslation.md
 condcomp = ["attributes"]
-
+# reference: none yet
+generics = ["attributes"]
 # import declarations.
 # reference: https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md
 imports = []
-
 # allow naga/wgpu extensions.
 # They are not well-documented, the best I could find is this:
 # * https://github.com/gfx-rs/wgpu/issues/4410
@@ -65,9 +52,12 @@ imports = []
 # * https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
 naga_ext = ["push_constant", "wgsl-types/naga_ext"]
 push_constant = []
-
 serde = ["dep:serde", "wgsl-types/serde"]
+# allow templates on function declarations
+# reference: none yet
+templates = []
 tokrepr = ["dep:tokrepr", "wgsl-types/tokrepr"]
+wesl = ["condcomp", "imports"]
 
 [lints]
 workspace = true

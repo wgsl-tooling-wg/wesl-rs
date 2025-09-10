@@ -121,8 +121,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: DavidAnson/markdownlint-cli2-action@v20
         with:
-          config: '.markdownlint.jsonc'
-          globs: '**/*.md'
+          config: ".markdownlint.jsonc"
+          globs: "**/*.md"
 
   toml:
     runs-on: ubuntu-latest
@@ -131,22 +131,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: "true"
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ env.STABLE_TOOLCHAIN }}
-      - name: Install taplo
-        run: cargo install taplo-cli --locked
-      - name: Run Taplo
-        id: taplo
-        run: taplo fmt --check --diff
-      - name: Taplo info
+      - uses: tombi-toml/setup-tombi@v1
+      - name: Lint TOML files
+        run: tombi lint
+      - name: Check formatting of TOML files
+        run: tombi format --check
+      - name: Tombi info
         if: failure()
         run: |
-          echo 'To fix toml fmt, please run `taplo fmt`.'
-          echo 'To check for a diff, run `taplo fmt --check --diff`.'
-          echo 'You can find taplo here: https://taplo.tamasfe.dev/.'
-          echo 'Also use the `Even Better Toml` extension.'
-          echo 'You can find the extension here: https://marketplace.visualstudio.com/items?itemName=tamasfe.even-better-toml'
+          echo 'To fix toml fmt, please run `tombi fmt`.'
+          echo 'You can find tombi here: http://tombi-toml.github.io/tombi/.'
+          echo 'Also use the `Tombi` extension.'
+          echo 'You can find the extension here: https://marketplace.visualstudio.com/items?itemName=tombi-toml.tombi'
 
   typos:
     runs-on: ubuntu-latest
