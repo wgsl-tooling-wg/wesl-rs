@@ -58,16 +58,6 @@ impl Module {
             .collect::<HashMap<_, _>>();
         let imports = flatten_imports(&source.imports, &path)?;
 
-        // TODO: this is not correct because of conditional compilation.
-        // for id in idents.keys() {
-        //     if imports
-        //         .keys()
-        //         .any(|k| k.name().as_str() == id.name().as_str())
-        //     {
-        //         return Err(E::DuplicateSymbol(id.to_string()));
-        //     }
-        // }
-
         Ok(Self {
             source,
             path,
@@ -387,13 +377,6 @@ fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Res
         match content {
             ImportContent::Item(item) => {
                 let ident = item.rename.as_ref().unwrap_or(&item.ident).clone();
-                // TODO: this is not correct because of conditional compilation.
-                // if res
-                //     .keys()
-                //     .any(|k| k.name().as_str() == ident.name().as_str())
-                // {
-                //     return Err(E::DuplicateSymbol(ident.to_string()));
-                // }
                 res.insert(
                     ident,
                     ImportItem {
