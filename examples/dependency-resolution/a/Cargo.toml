@@ -6,9 +6,9 @@ edition = "2024"
 [dependencies]
 c = "0.1.0"
 d = "0.1.0"
-wesl = { features = ["package"], path = "../../../crates/wesl" }
+wesl = { path = "../../../crates/wesl", features = ["package"] }
 
 [build-dependencies]
 c = "0.1.0"
 d = "0.1.0"
-wesl = { features = ["package"], path = "../../../crates/wesl" }
+wesl = { path = "../../../crates/wesl", features = ["package"] }

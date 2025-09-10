@@ -23,12 +23,12 @@ repository = "https://github.com/wgsl-tooling-wg/wesl-rs"
 license = "MIT OR Apache-2.0"
 
 [workspace.dependencies]
-tokrepr = { version = "0.1.0", path = "crates/tokrepr" }
-tokrepr-derive = { version = "0.1.0", path = "crates/tokrepr-derive" }
-wesl = { version = "0.2.0", path = "crates/wesl" }
-wesl-macros = { version = "0.2.0", path = "crates/wesl-macros" }
-wgsl-parse = { version = "0.2.0", path = "crates/wgsl-parse" }
-wgsl-types = { version = "0.2.0", path = "crates/wgsl-types" }
+tokrepr = { path = "crates/tokrepr", version = "0.1.0" }
+tokrepr-derive = { path = "crates/tokrepr-derive", version = "0.1.0" }
+wesl = { path = "crates/wesl", version = "0.2.0" }
+wesl-macros = { path = "crates/wesl-macros", version = "0.2.0" }
+wgsl-parse = { path = "crates/wgsl-parse", version = "0.2.0" }
+wgsl-types = { path = "crates/wgsl-types", version = "0.2.0" }
 
 [workspace.lints.clippy]
 # TODO: change eventually
