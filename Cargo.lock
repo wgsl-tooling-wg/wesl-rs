@@ -1255,6 +1255,7 @@ dependencies = [
  "num-traits",
  "proc-macro2",
  "quote",
+ "serde",
  "thiserror 2.0.12",
  "wesl-macros",
  "wgsl-parse",

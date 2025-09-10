@@ -26,6 +26,7 @@ thiserror = "2.0.11"
 wgsl-parse = { workspace = true, features = ["wesl"] }
 wgsl-types = { workspace = true }
 wesl-macros = { workspace = true, features = ["query"] }
+serde = { version = "1.0.215", optional = true, features = ["derive"] }
 # deps for feature 'package'
 proc-macro2 = { version = "1.0.93", optional = true }
 quote = { version = "1.0.38", optional = true }
@@ -34,7 +35,7 @@ quote = { version = "1.0.38", optional = true }
 quote = ["wesl-macros/quote"]
 eval = ["quote"]
 generics = ["wgsl-parse/generics"]
-serde = ["wgsl-parse/serde"]
+serde = ["dep:serde", "wgsl-parse/serde"]
 package = ["dep:proc-macro2", "dep:quote"]
 # allow naga/wgpu extensions.
 # They are not well-documented, the best I could find is this:

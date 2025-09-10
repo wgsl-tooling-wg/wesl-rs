@@ -18,6 +18,7 @@ mod resolve;
 mod sourcemap;
 mod strip;
 mod syntax_util;
+mod toml_cfg;
 mod validate;
 mod visit;
 
