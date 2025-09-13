@@ -1,6 +1,7 @@
 //! Static strings of all WGSL predeclared identifiers.
 
 /// Built-in types identifiers.
+/// Does not contain type-generators, see [`BUILTIN_TYPE_GENERATOR_NAMES`].
 ///
 /// Reference: <https://www.w3.org/TR/WGSL/#predeclared-types>
 pub const BUILTIN_TYPE_NAMES: &[&str] = &[
@@ -29,8 +30,6 @@ pub const BUILTIN_TYPE_NAMES: &[&str] = &[
     "u64",
     #[cfg(feature = "naga_ext")]
     "f64",
-    #[cfg(feature = "naga_ext")]
-    "binding_array",
 ];
 
 /// Built-in type-generators identifiers.
@@ -63,6 +62,8 @@ pub const BUILTIN_TYPE_GENERATOR_NAMES: &[&str] = &[
     "vec2",
     "vec3",
     "vec4",
+    #[cfg(feature = "naga_ext")]
+    "binding_array",
 ];
 
 /// Built-in `struct` identifiers.
@@ -94,12 +95,48 @@ pub const BUILTIN_STRUCT_NAMES: &[&str] = &[
     "__modf_result_vec3_abstract",
     "__modf_result_vec4_abstract",
     "__atomic_compare_exchange_result",
+    #[cfg(feature = "naga_ext")]
+    "RayDesc",
+    #[cfg(feature = "naga_ext")]
+    "RayIntersection",
 ];
 
 /// Built-in variable and value declarations identifiers.
 ///
 /// There are none currently in WGSL.
-pub const BUILTIN_DECLARATION_NAMES: &[&str] = &[];
+pub const BUILTIN_DECLARATION_NAMES: &[&str] = &[
+    // ray queries (naga extension). These are const declarations.
+    #[cfg(feature = "naga_ext")]
+    "RAY_FLAG_NONE", // value: 0x0
+    #[cfg(feature = "naga_ext")]
+    "RAY_FLAG_FORCE_OPAQUE", // value: 0x1
+    #[cfg(feature = "naga_ext")]
+    "RAY_FLAG_FORCE_NO_OPAQUE", // value: 0x2
+    #[cfg(feature = "naga_ext")]
+    "RAY_FLAG_TERMINATE_ON_FIRST_HIT", // value: 0x4
+    #[cfg(feature = "naga_ext")]
+    "RAY_FLAG_SKIP_CLOSEST_HIT_SHADER", // value: 0x8
+    #[cfg(feature = "naga_ext")]
+    "RAY_FLAG_CULL_BACK_FACING", // value: 0x10
+    #[cfg(feature = "naga_ext")]
+    "RAY_FLAG_CULL_FRONT_FACING", // value: 0x20
+    #[cfg(feature = "naga_ext")]
+    "RAY_FLAG_CULL_OPAQUE", // value: 0x40
+    #[cfg(feature = "naga_ext")]
+    "RAY_FLAG_CULL_NO_OPAQUE", // value: 0x80
+    #[cfg(feature = "naga_ext")]
+    "RAY_FLAG_SKIP_TRIANGLES", // value: 0x100
+    #[cfg(feature = "naga_ext")]
+    "RAY_FLAG_SKIP_AABBS", // value: 0x200
+    #[cfg(feature = "naga_ext")]
+    "RAY_QUERY_INTERSECTION_NONE", // value: 0
+    #[cfg(feature = "naga_ext")]
+    "RAY_QUERY_INTERSECTION_TRIANGLE", // value: 1
+    #[cfg(feature = "naga_ext")]
+    "RAY_QUERY_INTERSECTION_GENERATED", // value: 2
+    #[cfg(feature = "naga_ext")]
+    "RAY_QUERY_INTERSECTION_AABB", // value: 3
+];
 
 /// Predeclared type aliases names.
 pub const BUILTIN_ALIAS_NAMES: &[&str] = &[
@@ -353,7 +390,25 @@ pub const BUILTIN_FUNCTION_NAMES: &[&str] = &[
     "quadSwapDiagonal",
     "quadSwapX",
     "quadSwapY",
-    // : ray queries
+    // : ray queries (naga extension)
+    #[cfg(feature = "naga_ext")]
+    "rayQueryInitialize",
+    #[cfg(feature = "naga_ext")]
+    "rayQueryProceed",
+    #[cfg(feature = "naga_ext")]
+    "rayQueryGenerateIntersection",
+    #[cfg(feature = "naga_ext")]
+    "rayQueryConfirmIntersection",
+    #[cfg(feature = "naga_ext")]
+    "rayQueryTerminate",
+    #[cfg(feature = "naga_ext")]
+    "rayQueryGetCommittedIntersection",
+    #[cfg(feature = "naga_ext")]
+    "rayQueryGetCandidateIntersection",
+    #[cfg(feature = "naga_ext")]
+    "getCommittedHitVertexPositions",
+    #[cfg(feature = "naga_ext")]
+    "getCandidateHitVertexPositions",
 ];
 
 /// Built-in constructor identifiers (zero-value and value-constructors).
@@ -417,6 +472,11 @@ pub const BUILTIN_CONSTRUCTOR_NAMES: &[&str] = &[
     "mat4x2h",
     "mat4x3h",
     "mat4x4h",
+    // ray queries (naga extension)
+    #[cfg(feature = "naga_ext")]
+    "RayDesc",
+    #[cfg(feature = "naga_ext")]
+    "RayIntersection",
 ];
 
 /// All built-in identifiers.
