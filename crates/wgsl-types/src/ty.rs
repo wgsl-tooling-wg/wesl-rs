@@ -321,6 +321,18 @@ impl Type {
     pub fn is_f32(&self) -> bool {
         matches!(self, Type::F32)
     }
+    #[cfg(feature = "naga_ext")]
+    pub fn is_i64(&self) -> bool {
+        matches!(self, Type::I64)
+    }
+    #[cfg(feature = "naga_ext")]
+    pub fn is_u64(&self) -> bool {
+        matches!(self, Type::U64)
+    }
+    #[cfg(feature = "naga_ext")]
+    pub fn is_f64(&self) -> bool {
+        matches!(self, Type::F64)
+    }
     pub fn is_bool(&self) -> bool {
         matches!(self, Type::Bool)
     }

@@ -233,10 +233,14 @@ impl AtomicTemplate {
             [TpltParam::Type(ty)] => Ok(ty.clone()),
             _ => Err(E::TemplateArgs("atomic")),
         }?;
+        #[cfg(feature = "naga_ext")]
+        if ty.is_i64() || ty.is_u64() {
+            return Ok(AtomicTemplate { ty });
+        }
         if ty.is_i32() || ty.is_u32() {
             Ok(AtomicTemplate { ty })
         } else {
-            Err(Error::Builtin("atomic template type must be i32 or u32"))
+            Err(Error::Builtin("atomic template type must be an integer"))
         }
     }
     pub fn ty(&self) -> Type {
@@ -285,7 +289,7 @@ impl TextureTemplate {
         match tplt {
             [TpltParam::Type(ty)] => ty.try_into(),
             [_] => Err(Error::Builtin(
-                "invalid sampled type, expected `i32`, `u32` of `f32`",
+                "texture sampled type must be `i32`, `u32` or `f32`",
             )),
             _ => Err(Error::Builtin(
                 "sampled texture types take a single template parameter",
