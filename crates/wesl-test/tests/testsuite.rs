@@ -148,9 +148,8 @@ fn main() {
                 });
 
             include_paths.into_iter().map(move |shader_path| {
-                let case = std::fs::read_to_string(&shader_path).expect("failed to read test file");
                 libtest_mimic::Trial::test(format!("{name}::{shader_path:?}"), move || {
-                    validation_case(&case)
+                    validation_case(shader_path)
                 })
             })
         })
@@ -164,6 +163,23 @@ fn main() {
             .map(|e| {
                 let name = format!("bevy::{:?}", e.file_name());
                 libtest_mimic::Trial::test(name, move || bevy_case(e.path()))
+            })
+    });
+
+    tests.extend({
+        let in_entries = std::fs::read_dir("wgpu/in")
+            .expect("missing dir `wgpu/in`")
+            .map(|f| (f, "int"));
+        let out_entries = std::fs::read_dir("wgpu/out")
+            .expect("missing dir `wgpu/out`")
+            .map(|f| (f, "out"));
+        in_entries
+            .chain(out_entries)
+            .filter_map(|(e, d)| e.ok().map(|e| (e, d)))
+            .filter(|(e, _)| e.path().extension() == Some(OsStr::new("wgsl")))
+            .map(|(e, d)| {
+                let name = format!("wgpu::{d}::{:?}", e.file_name());
+                libtest_mimic::Trial::test(name, move || validation_case(e.path()))
             })
     });
 
@@ -342,7 +358,8 @@ pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
     Ok(())
 }
 
-pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
+pub fn validation_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
+    let input = std::fs::read_to_string(path).expect("failed to read test file");
     let mut resolver = VirtualResolver::new();
     let root = ModulePath::from_str("package::main")?;
     resolver.add_module(root.clone(), input.into());

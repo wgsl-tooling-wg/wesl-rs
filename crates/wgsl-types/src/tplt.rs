@@ -85,9 +85,7 @@ impl BindingArrayTemplate {
                 Instance::Literal(LiteralInstance::AbstractInt(n)) => (n > 0).then_some(n as usize),
                 Instance::Literal(LiteralInstance::I32(n)) => (n > 0).then_some(n as usize),
                 Instance::Literal(LiteralInstance::U32(n)) => (n > 0).then_some(n as usize),
-                #[cfg(feature = "naga_ext")]
                 Instance::Literal(LiteralInstance::I64(n)) => (n > 0).then_some(n as usize),
-                #[cfg(feature = "naga_ext")]
                 Instance::Literal(LiteralInstance::U64(n)) => (n > 0).then_some(n as usize),
                 _ => None,
             }

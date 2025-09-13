@@ -25,7 +25,8 @@
       "wgsl-types",
       "wgsl-syntax",
       ".wgsl",
-      "WGSL"
+      "WGSL",
+      "WGPU"
     ]
   }
 }
