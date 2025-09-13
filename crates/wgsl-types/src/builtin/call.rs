@@ -394,14 +394,14 @@ pub fn atan2(y: &Instance, x: &Instance) -> Result<Instance, E> {
             }
             LiteralInstance::I32(_) => Err(ERR),
             LiteralInstance::U32(_) => Err(ERR),
-            LiteralInstance::F32(y) => Ok(LiteralInstance::from(y.atan2(x.unwrap_f_32()))),
-            LiteralInstance::F16(y) => Ok(LiteralInstance::from(y.atan2(x.unwrap_f_16()))),
+            LiteralInstance::F32(y) => Ok(LiteralInstance::from(y.atan2(x.unwrap_f32()))),
+            LiteralInstance::F16(y) => Ok(LiteralInstance::from(y.atan2(x.unwrap_f16()))),
             #[cfg(feature = "naga_ext")]
             LiteralInstance::I64(_) => Err(ERR),
             #[cfg(feature = "naga_ext")]
             LiteralInstance::U64(_) => Err(ERR),
             #[cfg(feature = "naga_ext")]
-            LiteralInstance::F64(y) => Ok(LiteralInstance::F64(y.atan2(x.unwrap_f_64()))),
+            LiteralInstance::F64(y) => Ok(LiteralInstance::F64(y.atan2(x.unwrap_f64()))),
         }
     }
     let (y, x) = convert(y, x).ok_or(E::Builtin("`atan2` arguments are incompatible"))?;
@@ -949,16 +949,16 @@ pub fn max(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             LiteralInstance::AbstractFloat(e1) => {
                 Ok(LiteralInstance::from(e1.max(e2.unwrap_abstract_float())))
             }
-            LiteralInstance::I32(e1) => Ok(LiteralInstance::from(*e1.max(&e2.unwrap_i_32()))),
-            LiteralInstance::U32(e1) => Ok(LiteralInstance::from(*e1.max(&e2.unwrap_u_32()))),
-            LiteralInstance::F32(e1) => Ok(LiteralInstance::from(e1.max(e2.unwrap_f_32()))),
-            LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.max(e2.unwrap_f_16()))),
+            LiteralInstance::I32(e1) => Ok(LiteralInstance::from(*e1.max(&e2.unwrap_i32()))),
+            LiteralInstance::U32(e1) => Ok(LiteralInstance::from(*e1.max(&e2.unwrap_u32()))),
+            LiteralInstance::F32(e1) => Ok(LiteralInstance::from(e1.max(e2.unwrap_f32()))),
+            LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.max(e2.unwrap_f16()))),
             #[cfg(feature = "naga_ext")]
-            LiteralInstance::I64(e1) => Ok(LiteralInstance::I64(*e1.max(&e2.unwrap_i_64()))),
+            LiteralInstance::I64(e1) => Ok(LiteralInstance::I64(*e1.max(&e2.unwrap_i64()))),
             #[cfg(feature = "naga_ext")]
-            LiteralInstance::U64(e1) => Ok(LiteralInstance::U64(*e1.max(&e2.unwrap_u_64()))),
+            LiteralInstance::U64(e1) => Ok(LiteralInstance::U64(*e1.max(&e2.unwrap_u64()))),
             #[cfg(feature = "naga_ext")]
-            LiteralInstance::F64(e1) => Ok(LiteralInstance::F64(e1.max(e2.unwrap_f_64()))),
+            LiteralInstance::F64(e1) => Ok(LiteralInstance::F64(e1.max(e2.unwrap_f64()))),
         }
     }
     let (e1, e2) = convert(e1, e2).ok_or(E::Builtin("`max` arguments are incompatible"))?;
@@ -983,16 +983,16 @@ pub fn min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             LiteralInstance::AbstractFloat(e1) => {
                 Ok(LiteralInstance::from(e1.min(e2.unwrap_abstract_float())))
             }
-            LiteralInstance::I32(e1) => Ok(LiteralInstance::from(*e1.min(&e2.unwrap_i_32()))),
-            LiteralInstance::U32(e1) => Ok(LiteralInstance::from(*e1.min(&e2.unwrap_u_32()))),
-            LiteralInstance::F32(e1) => Ok(LiteralInstance::from(e1.min(e2.unwrap_f_32()))),
-            LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.min(e2.unwrap_f_16()))),
+            LiteralInstance::I32(e1) => Ok(LiteralInstance::from(*e1.min(&e2.unwrap_i32()))),
+            LiteralInstance::U32(e1) => Ok(LiteralInstance::from(*e1.min(&e2.unwrap_u32()))),
+            LiteralInstance::F32(e1) => Ok(LiteralInstance::from(e1.min(e2.unwrap_f32()))),
+            LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.min(e2.unwrap_f16()))),
             #[cfg(feature = "naga_ext")]
-            LiteralInstance::I64(e1) => Ok(LiteralInstance::I64(*e1.max(&e2.unwrap_i_64()))),
+            LiteralInstance::I64(e1) => Ok(LiteralInstance::I64(*e1.max(&e2.unwrap_i64()))),
             #[cfg(feature = "naga_ext")]
-            LiteralInstance::U64(e1) => Ok(LiteralInstance::U64(*e1.max(&e2.unwrap_u_64()))),
+            LiteralInstance::U64(e1) => Ok(LiteralInstance::U64(*e1.max(&e2.unwrap_u64()))),
             #[cfg(feature = "naga_ext")]
-            LiteralInstance::F64(e1) => Ok(LiteralInstance::F64(e1.max(e2.unwrap_f_64()))),
+            LiteralInstance::F64(e1) => Ok(LiteralInstance::F64(e1.max(e2.unwrap_f64()))),
         }
     }
     let (e1, e2) = convert(e1, e2).ok_or(E::Builtin("`min` arguments are incompatible"))?;
@@ -1057,14 +1057,14 @@ pub fn pow(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             }
             LiteralInstance::I32(_) => Err(ERR),
             LiteralInstance::U32(_) => Err(ERR),
-            LiteralInstance::F32(e1) => Ok(LiteralInstance::from(e1.powf(e2.unwrap_f_32()))),
-            LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.powf(e2.unwrap_f_16()))),
+            LiteralInstance::F32(e1) => Ok(LiteralInstance::from(e1.powf(e2.unwrap_f32()))),
+            LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.powf(e2.unwrap_f16()))),
             #[cfg(feature = "naga_ext")]
             LiteralInstance::I64(_) => Err(ERR),
             #[cfg(feature = "naga_ext")]
             LiteralInstance::U64(_) => Err(ERR),
             #[cfg(feature = "naga_ext")]
-            LiteralInstance::F64(e1) => Ok(LiteralInstance::F64(e1.powf(e2.unwrap_f_64()))),
+            LiteralInstance::F64(e1) => Ok(LiteralInstance::F64(e1.powf(e2.unwrap_f64()))),
         }
     }
     let (e1, e2) = convert(e1, e2).ok_or(E::Builtin("`pow` arguments are incompatible"))?;
@@ -1278,12 +1278,12 @@ pub fn step(edge: &Instance, x: &Instance) -> Result<Instance, E> {
             )),
             LiteralInstance::I32(_) => Err(ERR),
             LiteralInstance::U32(_) => Err(ERR),
-            LiteralInstance::F32(edge) => Ok(LiteralInstance::from(if *edge <= x.unwrap_f_32() {
+            LiteralInstance::F32(edge) => Ok(LiteralInstance::from(if *edge <= x.unwrap_f32() {
                 1.0
             } else {
                 0.0
             })),
-            LiteralInstance::F16(edge) => Ok(LiteralInstance::from(if *edge <= x.unwrap_f_16() {
+            LiteralInstance::F16(edge) => Ok(LiteralInstance::from(if *edge <= x.unwrap_f16() {
                 1.0
             } else {
                 0.0
@@ -1293,7 +1293,7 @@ pub fn step(edge: &Instance, x: &Instance) -> Result<Instance, E> {
             #[cfg(feature = "naga_ext")]
             LiteralInstance::U64(_) => Err(ERR),
             #[cfg(feature = "naga_ext")]
-            LiteralInstance::F64(edge) => Ok(LiteralInstance::F64(if *edge <= x.unwrap_f_64() {
+            LiteralInstance::F64(edge) => Ok(LiteralInstance::F64(if *edge <= x.unwrap_f64() {
                 1.0
             } else {
                 0.0
@@ -1484,7 +1484,7 @@ pub fn pack4x8snorm(e: &Instance) -> Result<Instance, E> {
 
     let mut result = 0u32;
     for i in 0..4 {
-        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f_32();
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f32();
         let bits = (0.5 + 127.0 * val.clamp(-1.0, 1.0)).floor() as i8 as u8;
         result |= (bits as u32) << (8 * i);
     }
@@ -1504,7 +1504,7 @@ pub fn pack4x8unorm(e: &Instance) -> Result<Instance, E> {
 
     let mut result = 0u32;
     for i in 0..4 {
-        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f_32();
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f32();
         let bits = (0.5 + 255.0 * val.clamp(0.0, 1.0)).floor() as u8;
         result |= (bits as u32) << (8 * i);
     }
@@ -1524,7 +1524,7 @@ pub fn pack4xI8(e: &Instance) -> Result<Instance, E> {
 
     let mut result = 0u32;
     for i in 0..4 {
-        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_i_32();
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_i32();
         result |= (val as u8 as u32) << (8 * i);
     }
     Ok(LiteralInstance::U32(result).into())
@@ -1543,7 +1543,7 @@ pub fn pack4xU8(e: &Instance) -> Result<Instance, E> {
 
     let mut result = 0u32;
     for i in 0..4 {
-        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_u_32();
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_u32();
         result |= (val as u8 as u32) << (8 * i);
     }
     Ok(LiteralInstance::U32(result).into())
@@ -1562,7 +1562,7 @@ pub fn pack4xI8Clamp(e: &Instance) -> Result<Instance, E> {
 
     let mut result = 0u32;
     for i in 0..4 {
-        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_i_32();
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_i32();
         result |= (val as i8 as u32) << (8 * i);
     }
     Ok(LiteralInstance::U32(result).into())
@@ -1581,7 +1581,7 @@ pub fn pack4xU8Clamp(e: &Instance) -> Result<Instance, E> {
 
     let mut result = 0u32;
     for i in 0..4 {
-        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_u_32();
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_u32();
         result |= (val as u8 as u32) << (8 * i);
     }
     Ok(LiteralInstance::U32(result).into())
@@ -1600,7 +1600,7 @@ pub fn pack2x16snorm(e: &Instance) -> Result<Instance, E> {
 
     let mut result = 0u32;
     for i in 0..2 {
-        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f_32();
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f32();
         let bits = (0.5 + 32767.0 * val.clamp(-1.0, 1.0)).floor() as i16 as u16;
         result |= (bits as u32) << (16 * i);
     }
@@ -1620,7 +1620,7 @@ pub fn pack2x16unorm(e: &Instance) -> Result<Instance, E> {
 
     let mut result = 0u32;
     for i in 0..2 {
-        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f_32();
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f32();
         let bits = (0.5 + 65535.0 * val.clamp(0.0, 1.0)).floor() as u16;
         result |= (bits as u32) << (16 * i);
     }
@@ -1640,7 +1640,7 @@ pub fn pack2x16float(e: &Instance) -> Result<Instance, E> {
 
     let mut result = 0u32;
     for i in 0..2 {
-        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f_32();
+        let val = v.get(i).unwrap().unwrap_literal_ref().unwrap_f32();
         let bits = f16::from_f32(val).to_bits();
         result |= (bits as u32) << (16 * i);
     }
@@ -1657,7 +1657,7 @@ pub fn unpack4x8snorm(e: &Instance) -> Result<Instance, E> {
         .convert_to(&Type::U32)
         .ok_or(ERR)?
         .unwrap_literal()
-        .unwrap_u_32();
+        .unwrap_u32();
 
     let comps = e
         .to_le_bytes()
@@ -1678,7 +1678,7 @@ pub fn unpack4x8unorm(e: &Instance) -> Result<Instance, E> {
         .convert_to(&Type::U32)
         .ok_or(ERR)?
         .unwrap_literal()
-        .unwrap_u_32();
+        .unwrap_u32();
 
     let comps = e
         .to_le_bytes()
@@ -1699,7 +1699,7 @@ pub fn unpack4xI8(e: &Instance) -> Result<Instance, E> {
         .convert_to(&Type::U32)
         .ok_or(ERR)?
         .unwrap_literal()
-        .unwrap_u_32();
+        .unwrap_u32();
 
     let comps = e
         .to_le_bytes()
@@ -1720,7 +1720,7 @@ pub fn unpack4xU8(e: &Instance) -> Result<Instance, E> {
         .convert_to(&Type::U32)
         .ok_or(ERR)?
         .unwrap_literal()
-        .unwrap_u_32();
+        .unwrap_u32();
 
     let comps = e
         .to_le_bytes()
@@ -1741,7 +1741,7 @@ pub fn unpack2x16snorm(e: &Instance) -> Result<Instance, E> {
         .convert_to(&Type::U32)
         .ok_or(ERR)?
         .unwrap_literal()
-        .unwrap_u_32();
+        .unwrap_u32();
 
     let lsb = e as u16 as i16;
     let msb = (e >> 16) as u16 as i16;
@@ -1764,7 +1764,7 @@ pub fn unpack2x16unorm(e: &Instance) -> Result<Instance, E> {
         .convert_to(&Type::U32)
         .ok_or(ERR)?
         .unwrap_literal()
-        .unwrap_u_32();
+        .unwrap_u32();
 
     let lsb = e as u16;
     let msb = (e >> 16) as u16;
@@ -1787,7 +1787,7 @@ pub fn unpack2x16float(e: &Instance) -> Result<Instance, E> {
         .convert_to(&Type::U32)
         .ok_or(ERR)?
         .unwrap_literal()
-        .unwrap_u_32();
+        .unwrap_u32();
 
     let lsb = e as u16;
     let msb = (e >> 16) as u16;
