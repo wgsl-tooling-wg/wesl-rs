@@ -1352,12 +1352,10 @@ dependencies = [
 name = "wgsl-types"
 version = "0.2.0"
 dependencies = [
- "derive_more",
  "half",
  "itertools",
  "num-traits",
  "serde",
- "thiserror 2.0.12",
  "tokrepr",
 ]
 
