@@ -48,8 +48,7 @@ impl MemView {
 /// Instance of a plain type.
 ///
 /// Reference: <https://www.w3.org/TR/WGSL/#plain-types-section>
-#[derive(Clone, Debug, PartialEq, derive_more::From, derive_more::Unwrap)]
-#[unwrap(ref, ref_mut)]
+#[derive(Clone, Debug, PartialEq, derive_more::From)]
 pub enum Instance {
     Literal(LiteralInstance),
     Struct(StructInstance),
@@ -62,6 +61,39 @@ pub enum Instance {
     /// For instances that cannot be computed currently, we store the type.
     /// TODO: remove this
     Deferred(Type),
+}
+
+impl Instance {
+    pub fn unwrap_literal(self) -> LiteralInstance {
+        match self {
+            Instance::Literal(field_0) => field_0,
+            val => panic!("called `Instance::unwrap_literal()` on a `{val}` value"),
+        }
+    }
+    pub fn unwrap_literal_ref(&self) -> &LiteralInstance {
+        match self {
+            Instance::Literal(field_0) => field_0,
+            val => panic!("called `Instance::unwrap_literal_ref()` on a `{val}` value"),
+        }
+    }
+    pub fn unwrap_vec(self) -> VecInstance {
+        match self {
+            Instance::Vec(field_0) => field_0,
+            val => panic!("called `Instance::unwrap_vec()` on a `{val}` value"),
+        }
+    }
+    pub fn unwrap_vec_ref(&self) -> &VecInstance {
+        match self {
+            Instance::Vec(field_0) => field_0,
+            val => panic!("called `Instance::unwrap_vec_ref()` on a `{val}` value"),
+        }
+    }
+    pub fn unwrap_vec_mut(&mut self) -> &mut VecInstance {
+        match self {
+            Instance::Vec(field_0) => field_0,
+            val => panic!("called `Instance::unwrap_vec_mut()` on a `{val}` value"),
+        }
+    }
 }
 
 // Transitive `From` implementations.
@@ -177,7 +209,7 @@ impl Instance {
 }
 
 /// Instance of a numeric literal type.
-#[derive(Clone, Copy, Debug, PartialEq, derive_more::From, derive_more::Unwrap)]
+#[derive(Clone, Copy, Debug, PartialEq, derive_more::From)]
 pub enum LiteralInstance {
     Bool(bool),
     AbstractInt(i64),
@@ -195,6 +227,73 @@ pub enum LiteralInstance {
     #[cfg(feature = "naga_ext")]
     #[from(skip)]
     F64(f64),
+}
+
+impl LiteralInstance {
+    pub fn unwrap_bool(self) -> bool {
+        match self {
+            LiteralInstance::Bool(field_0) => field_0,
+            val => panic!("called `LiteralInstance::unwrap_bool()` on a `{val}` value"),
+        }
+    }
+
+    pub fn unwrap_abstract_int(self) -> i64 {
+        match self {
+            LiteralInstance::AbstractInt(field_0) => field_0,
+            val => panic!("called `LiteralInstance::unwrap_abstract_int()` on a `{val}` value"),
+        }
+    }
+    pub fn unwrap_abstract_float(self) -> f64 {
+        match self {
+            LiteralInstance::AbstractFloat(field_0) => field_0,
+            val => panic!("called `LiteralInstance::unwrap_abstract_float()` on a `{val}` value"),
+        }
+    }
+    pub fn unwrap_i32(self) -> i32 {
+        match self {
+            LiteralInstance::I32(field_0) => field_0,
+            val => panic!("called `LiteralInstance::unwrap_i32()` on a `{val}` value"),
+        }
+    }
+    pub fn unwrap_u32(self) -> u32 {
+        match self {
+            LiteralInstance::U32(field_0) => field_0,
+            val => panic!("called `LiteralInstance::unwrap_u32()` on a `{val}` value"),
+        }
+    }
+    pub fn unwrap_f32(self) -> f32 {
+        match self {
+            LiteralInstance::F32(field_0) => field_0,
+            val => panic!("called `LiteralInstance::unwrap_f32()` on a `{val}` value"),
+        }
+    }
+    pub fn unwrap_f16(self) -> f16 {
+        match self {
+            LiteralInstance::F16(field_0) => field_0,
+            val => panic!("called `LiteralInstance::unwrap_f16()` on a `{val}` value"),
+        }
+    }
+    #[cfg(feature = "naga_ext")]
+    pub fn unwrap_i64(self) -> i64 {
+        match self {
+            LiteralInstance::I64(field_0) => field_0,
+            val => panic!("called `LiteralInstance::unwrap_i64()` on a `{val}` value"),
+        }
+    }
+    #[cfg(feature = "naga_ext")]
+    pub fn unwrap_u64(self) -> u64 {
+        match self {
+            LiteralInstance::U64(field_0) => field_0,
+            val => panic!("called `LiteralInstance::unwrap_u64()` on a `{val}` value"),
+        }
+    }
+    #[cfg(feature = "naga_ext")]
+    pub fn unwrap_f64(self) -> f64 {
+        match self {
+            LiteralInstance::F64(field_0) => field_0,
+            val => panic!("called `LiteralInstance::unwrap_f64()` on a `{val}` value"),
+        }
+    }
 }
 
 /// Instance of a `struct` type.
@@ -376,6 +475,7 @@ impl<T: Into<Instance>> From<[T; 4]> for VecInstance {
 /// Reference: <https://www.w3.org/TR/WGSL/#matrix-types>
 #[derive(Clone, Debug, PartialEq)]
 pub struct MatInstance {
+    /// Column vectors of the matrix
     components: Vec<Instance>,
 }
 

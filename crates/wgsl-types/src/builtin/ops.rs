@@ -861,7 +861,7 @@ impl LiteralInstance {
     }
     pub fn op_shl(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         let err = || E::Binary(BinaryOperator::ShiftLeft, self.ty(), rhs.ty());
-        let r = rhs.convert_to(&Type::U32).ok_or_else(err)?.unwrap_u_32();
+        let r = rhs.convert_to(&Type::U32).ok_or_else(err)?.unwrap_u32();
         let stage = stage == ShaderStage::Const || stage == ShaderStage::Override;
 
         // in const and override expressions, shr operation must not overflow (all discarded bits
@@ -921,7 +921,7 @@ impl LiteralInstance {
     }
     pub fn op_shr(&self, rhs: &Self, stage: ShaderStage) -> Result<Self, E> {
         let err = || E::Binary(BinaryOperator::ShiftRight, self.ty(), rhs.ty());
-        let r = rhs.convert_to(&Type::U32).ok_or_else(err)?.unwrap_u_32();
+        let r = rhs.convert_to(&Type::U32).ok_or_else(err)?.unwrap_u32();
         let stage = stage == ShaderStage::Const || stage == ShaderStage::Override;
 
         // shift by 0 is no-op
