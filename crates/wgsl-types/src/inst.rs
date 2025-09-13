@@ -48,7 +48,7 @@ impl MemView {
 /// Instance of a plain type.
 ///
 /// Reference: <https://www.w3.org/TR/WGSL/#plain-types-section>
-#[derive(Clone, Debug, PartialEq, derive_more::From)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Instance {
     Literal(LiteralInstance),
     Struct(StructInstance),
@@ -95,6 +95,26 @@ impl Instance {
         }
     }
 }
+
+macro_rules! from_enum {
+    ($target_enum:ident :: $field:ident ( $from:ident )) => {
+        impl From<$from> for $target_enum {
+            fn from(value: $from) -> Self {
+                $target_enum::$field(value)
+            }
+        }
+    };
+}
+
+from_enum!(Instance::Literal(LiteralInstance));
+from_enum!(Instance::Struct(StructInstance));
+from_enum!(Instance::Array(ArrayInstance));
+from_enum!(Instance::Vec(VecInstance));
+from_enum!(Instance::Mat(MatInstance));
+from_enum!(Instance::Ptr(PtrInstance));
+from_enum!(Instance::Ref(RefInstance));
+from_enum!(Instance::Atomic(AtomicInstance));
+from_enum!(Instance::Deferred(Type));
 
 // Transitive `From` implementations.
 // They have to be implemented manually unfortunately.
@@ -209,7 +229,7 @@ impl Instance {
 }
 
 /// Instance of a numeric literal type.
-#[derive(Clone, Copy, Debug, PartialEq, derive_more::From)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LiteralInstance {
     Bool(bool),
     AbstractInt(i64),
@@ -219,15 +239,20 @@ pub enum LiteralInstance {
     F32(f32),
     F16(f16),
     #[cfg(feature = "naga_ext")]
-    #[from(skip)]
     I64(i64), // identity if representable
     #[cfg(feature = "naga_ext")]
-    #[from(skip)]
     U64(u64), // reinterpretation of bits
     #[cfg(feature = "naga_ext")]
-    #[from(skip)]
     F64(f64),
 }
+
+from_enum!(LiteralInstance::Bool(bool));
+from_enum!(LiteralInstance::AbstractInt(i64));
+from_enum!(LiteralInstance::AbstractFloat(f64));
+from_enum!(LiteralInstance::I32(i32));
+from_enum!(LiteralInstance::U32(u32));
+from_enum!(LiteralInstance::F32(f32));
+from_enum!(LiteralInstance::F16(f16));
 
 impl LiteralInstance {
     pub fn unwrap_bool(self) -> bool {
