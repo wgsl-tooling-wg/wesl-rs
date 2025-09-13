@@ -6,10 +6,9 @@ use wgsl_parse::syntax::{
     Expression, ExpressionNode, FunctionCall, GlobalDeclaration, Ident, TranslationUnit,
     TypeExpression,
 };
+use wgsl_types::idents::{BUILTIN_CONSTRUCTOR_NAMES, BUILTIN_FUNCTION_NAMES};
 
-use crate::builtin::{BUILTIN_CONSTRUCTOR_NAMES, BUILTIN_FUNCTION_NAMES, builtin_ident};
-use crate::visit::Visit;
-use crate::{Diagnostic, Error};
+use crate::{Diagnostic, Error, idents::builtin_ident, visit::Visit};
 
 /// WESL or WGSL Validation error.
 #[derive(Clone, Debug, thiserror::Error)]

@@ -1,21 +1,21 @@
 mod attrs;
-mod builtin;
 mod constant;
 mod error;
 #[allow(clippy::module_inception)]
 mod eval;
 mod exec;
 mod lower;
+mod prelude;
 mod to_expr;
 mod ty;
 
 pub use attrs::*;
-pub use builtin::*;
 pub(crate) use constant::*;
 pub use error::*;
 pub use eval::*;
 pub use exec::*;
 pub use lower::*;
+pub use prelude::*;
 pub use to_expr::*;
 pub use ty::*;
 pub use wgsl_types::{ShaderStage, builtin::*, conv::*, inst::*, tplt::*, ty::*};

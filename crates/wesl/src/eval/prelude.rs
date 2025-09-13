@@ -2,12 +2,8 @@ use std::sync::LazyLock;
 
 use wesl_macros::{quote_expression, quote_module};
 use wgsl_parse::syntax::*;
-use wgsl_types::{
-    syntax::SampledType,
-    ty::{SamplerType, TextureType, Type},
-};
 
-use crate::builtin::builtin_ident;
+use crate::idents::builtin_ident;
 
 pub static EXPR_TRUE: Expression = quote_expression!(true);
 pub static EXPR_FALSE: Expression = quote_expression!(false);
@@ -17,125 +13,6 @@ pub static ATTR_INTRINSIC: LazyLock<Attribute> = LazyLock::new(|| {
         arguments: None,
     })
 });
-
-pub trait BuiltinIdent {
-    fn builtin_ident(&self) -> Option<&'static Ident>;
-}
-
-impl BuiltinIdent for Type {
-    fn builtin_ident(&self) -> Option<&'static Ident> {
-        match self {
-            Type::Bool => builtin_ident("bool"),
-            Type::AbstractInt => builtin_ident("__AbstractInt"),
-            Type::AbstractFloat => builtin_ident("__AbstractFloat"),
-            Type::I32 => builtin_ident("i32"),
-            Type::U32 => builtin_ident("u32"),
-            Type::F32 => builtin_ident("f32"),
-            Type::F16 => builtin_ident("f16"),
-            #[cfg(feature = "naga_ext")]
-            Type::I64 => builtin_ident("i64"),
-            #[cfg(feature = "naga_ext")]
-            Type::U64 => builtin_ident("u64"),
-            #[cfg(feature = "naga_ext")]
-            Type::F64 => builtin_ident("f64"),
-            Type::Struct(_) => None,
-            Type::Array(_, _) => builtin_ident("array"),
-            #[cfg(feature = "naga_ext")]
-            Type::BindingArray(_, _) => builtin_ident("binding_array"),
-            Type::Vec(n, _) => match n {
-                2 => builtin_ident("vec2"),
-                3 => builtin_ident("vec3"),
-                4 => builtin_ident("vec4"),
-                _ => unreachable!("vec must be 2 3 or 4 components"),
-            },
-            Type::Mat(c, r, _) => match (c, r) {
-                (2, 2) => builtin_ident("mat2x2"),
-                (2, 3) => builtin_ident("mat2x3"),
-                (2, 4) => builtin_ident("mat2x4"),
-                (3, 2) => builtin_ident("mat3x2"),
-                (3, 3) => builtin_ident("mat3x3"),
-                (3, 4) => builtin_ident("mat3x4"),
-                (4, 2) => builtin_ident("mat4x2"),
-                (4, 3) => builtin_ident("mat4x3"),
-                (4, 4) => builtin_ident("mat4x4"),
-                _ => unreachable!("mat must be 2 3 or 4 components"),
-            },
-            Type::Atomic(_) => builtin_ident("atomic"),
-            Type::Ptr(_, _, _) => builtin_ident("ptr"),
-            Type::Ref(_, _, _) => builtin_ident("__ref"),
-            Type::Texture(texture_type) => texture_type.builtin_ident(),
-            Type::Sampler(sampler_type) => sampler_type.builtin_ident(),
-        }
-    }
-}
-
-impl BuiltinIdent for TextureType {
-    fn builtin_ident(&self) -> Option<&'static Ident> {
-        builtin_ident(match self {
-            Self::Sampled1D(_) => "texture_1d",
-            Self::Sampled2D(_) => "texture_2d",
-            Self::Sampled2DArray(_) => "texture_2d_array",
-            Self::Sampled3D(_) => "texture_3d",
-            Self::SampledCube(_) => "texture_cube",
-            Self::SampledCubeArray(_) => "texture_cube_array",
-            Self::Multisampled2D(_) => "texture_multisampled_2d",
-            Self::DepthMultisampled2D => "texture_depth_multisampled_2d",
-            Self::External => "texture_external",
-            Self::Storage1D(_, _) => "texture_storage_1d",
-            Self::Storage2D(_, _) => "texture_storage_2d",
-            Self::Storage2DArray(_, _) => "texture_storage_2d_array",
-            Self::Storage3D(_, _) => "texture_storage_3d",
-            Self::Depth2D => "texture_depth_2d",
-            Self::Depth2DArray => "texture_depth_2d_array",
-            Self::DepthCube => "texture_depth_cube",
-            Self::DepthCubeArray => "texture_depth_cube_array",
-        })
-    }
-}
-
-impl BuiltinIdent for SamplerType {
-    fn builtin_ident(&self) -> Option<&'static Ident> {
-        match self {
-            SamplerType::Sampler => builtin_ident("sampler"),
-            SamplerType::SamplerComparison => builtin_ident("sampler_comparison"),
-        }
-    }
-}
-
-impl BuiltinIdent for SampledType {
-    fn builtin_ident(&self) -> Option<&'static Ident> {
-        match self {
-            Self::I32 => builtin_ident("i32"),
-            Self::U32 => builtin_ident("u32"),
-            Self::F32 => builtin_ident("f32"),
-        }
-    }
-}
-
-impl BuiltinIdent for AddressSpace {
-    fn builtin_ident(&self) -> Option<&'static Ident> {
-        match self {
-            Self::Function => builtin_ident("function"),
-            Self::Private => builtin_ident("private"),
-            Self::Workgroup => builtin_ident("workgroup"),
-            Self::Uniform => builtin_ident("uniform"),
-            Self::Storage => builtin_ident("storage"),
-            Self::Handle => None,
-            #[cfg(feature = "naga_ext")]
-            Self::PushConstant => builtin_ident("push_constant"),
-        }
-    }
-}
-
-impl BuiltinIdent for AccessMode {
-    fn builtin_ident(&self) -> Option<&'static Ident> {
-        match self {
-            Self::Read => builtin_ident("read"),
-            Self::Write => builtin_ident("write"),
-            Self::ReadWrite => builtin_ident("read_write"),
-        }
-    }
-}
 
 pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
     let abstract_int = builtin_ident("__AbstractInt").unwrap();

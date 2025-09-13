@@ -1,6 +1,6 @@
 use std::{borrow::Cow, collections::HashMap, iter::Iterator};
 
-use crate::{builtin::builtin_ident, visit::Visit};
+use crate::{idents::builtin_ident, visit::Visit};
 use wesl_macros::query_mut;
 use wgsl_parse::syntax::*;
 

@@ -3,11 +3,11 @@ use wgsl_types::{
     ty::{TextureType, Ty, Type},
 };
 
-use super::{BuiltinIdent, SyntaxUtil};
+use super::SyntaxUtil;
 
 use crate::{
-    builtin::builtin_ident,
     eval::{Context, EvalError},
+    idents::{BuiltinIdent, builtin_ident},
 };
 use wgsl_parse::{span::Spanned, syntax::*};
 
