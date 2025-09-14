@@ -44,12 +44,50 @@ macro_rules! with_stage {
     }};
 }
 
+// because some places in the grammar requires that no scope is created when executing a
+// CompoundStatement, such as for loops with initializer or function invocations.
+//
+// * 'Regular': compute statements in a regular scope, can shadow parent scope.
+// * 'Transparent': parent scope declarations cannot be shadowed.
+// * 'Leaking': local declarations are leaked into the parent scope.
+#[derive(Clone, Copy)]
+pub(crate) enum CompoundScope {
+    Regular,
+    Transparent,
+    Leaking,
+}
+
+impl CompoundScope {
+    pub(crate) fn push(&self, ctx: &mut Context) {
+        match self {
+            CompoundScope::Regular => {
+                ctx.scope.push();
+            }
+            CompoundScope::Transparent => {
+                ctx.scope.push_transparent();
+            }
+            CompoundScope::Leaking => {}
+        }
+    }
+
+    pub(crate) fn pop(&self, ctx: &mut Context) {
+        match self {
+            CompoundScope::Regular | CompoundScope::Transparent => {
+                ctx.scope.pop();
+            }
+            CompoundScope::Leaking => {}
+        }
+    }
+}
+
 macro_rules! with_scope {
-    ($ctx:expr, $body:tt) => {{
+    ($ctx:expr, $body:tt) => {{ with_scope!($ctx, CompoundScope::Regular, $body) }};
+    ($ctx:expr, $scoping:expr, $body:tt) => {{
+        $scoping.push($ctx);
         $ctx.scope.push();
         #[allow(clippy::redundant_closure_call)]
         let body = (|| $body)();
-        $ctx.scope.pop();
+        $scoping.pop($ctx);
         body
     }};
 }
@@ -159,30 +197,16 @@ impl Exec for Statement {
 
 impl Exec for CompoundStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        with_scope!(ctx, {
-            for stmt in &self.statements {
-                let flow = stmt.exec(ctx)?;
-                match flow {
-                    Flow::Next => (),
-                    Flow::Break | Flow::Continue | Flow::Return(_) => {
-                        return Ok(flow);
-                    }
-                }
-            }
-
-            Ok(Flow::Next)
-        })
+        compound_exec(&self, ctx, CompoundScope::Regular)
     }
 }
 
-// because some places in the grammar requires that no scope is created when executing the
-// CompoundStatement, such as for loops with initializer or function invocations.
-pub(crate) fn compound_exec_no_scope(
+pub(crate) fn compound_exec(
     stmt: &CompoundStatement,
     ctx: &mut Context,
+    scoping: CompoundScope,
 ) -> Result<Flow, E> {
-    with_scope!(ctx, {
-        ctx.scope.make_transparent();
+    with_scope!(ctx, scoping, {
         for stmt in &stmt.statements {
             let flow = stmt.exec(ctx)?;
             match flow {
@@ -388,27 +412,27 @@ impl Exec for SwitchStatement {
 impl Exec for LoopStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         loop {
-            let flow = self.body.exec(ctx)?;
-
-            match flow {
-                Flow::Next | Flow::Continue => {
-                    if let Some(cont) = &self.continuing {
-                        let flow = cont.exec(ctx)?;
-
-                        match flow {
-                            Flow::Next => (),
-                            Flow::Break => return Ok(Flow::Next), // This must be a break-if, see impl Exec for ContinuingStatement
-                            Flow::Continue => unreachable!("no continue in continuing"),
-                            Flow::Return(_) => unreachable!("no return in continuing"),
+            let flow = with_scope!(ctx, {
+                // we track scope manually because the continuing statement is actually
+                // part of the body block.
+                let flow = compound_exec(&self.body, ctx, CompoundScope::Leaking)?;
+                match flow {
+                    Flow::Next | Flow::Continue => {
+                        if let Some(cont) = &self.continuing {
+                            cont.exec(ctx) // may be Flow::Next or Flow::Break (for break-if)
+                        } else {
+                            Ok(Flow::Next)
                         }
                     }
+                    Flow::Break | Flow::Return(_) => Ok(flow),
                 }
-                Flow::Break => {
-                    return Ok(Flow::Next);
-                }
-                Flow::Return(_) => {
-                    return Ok(flow);
-                }
+            })?;
+
+            // we end the loop if there was a return, break or break-if.
+            match flow {
+                Flow::Next | Flow::Continue => (),
+                Flow::Break => return Ok(Flow::Next),
+                Flow::Return(_) => return Ok(flow),
             }
         }
     }
@@ -416,26 +440,30 @@ impl Exec for LoopStatement {
 
 impl Exec for ContinuingStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        let flow = self.body.exec(ctx)?;
-        match flow {
-            Flow::Next => {
-                if let Some(break_if) = &self.break_if {
-                    let expr = break_if.expression.eval_value(ctx)?;
-                    let cond = match expr {
-                        Instance::Literal(LiteralInstance::Bool(b)) => Ok(b),
-                        _ => Err(E::Type(Type::Bool, expr.ty())),
-                    }?;
-                    if cond {
-                        Ok(Flow::Break)
+        with_scope!(ctx, {
+            // we track scope manually because the continuing statement is actually
+            // part of the body block.
+            let flow = compound_exec(&self.body, ctx, CompoundScope::Leaking)?;
+            match flow {
+                Flow::Next => {
+                    if let Some(break_if) = &self.break_if {
+                        let expr = break_if.expression.eval_value(ctx)?;
+                        let cond = match expr {
+                            Instance::Literal(LiteralInstance::Bool(b)) => Ok(b),
+                            _ => Err(E::Type(Type::Bool, expr.ty())),
+                        }?;
+                        if cond {
+                            Ok(Flow::Break)
+                        } else {
+                            Ok(Flow::Next)
+                        }
                     } else {
                         Ok(Flow::Next)
                     }
-                } else {
-                    Ok(Flow::Next)
                 }
+                Flow::Break | Flow::Continue | Flow::Return(_) => Err(E::FlowInContinuing(flow)),
             }
-            Flow::Break | Flow::Continue | Flow::Return(_) => Err(E::FlowInContinuing(flow)),
-        }
+        })
     }
 }
 
@@ -469,7 +497,7 @@ impl Exec for ForStatement {
                 }
 
                 // the body has to run in the same scope as the initializer.
-                let flow = compound_exec_no_scope(&self.body, ctx)?;
+                let flow = compound_exec(&self.body, ctx, CompoundScope::Transparent)?;
 
                 match flow {
                     Flow::Next | Flow::Continue => {
@@ -622,7 +650,7 @@ fn exec_fn(
         }
 
         // the arguments must be in the same scope as the function body.
-        let flow = compound_exec_no_scope(&decl.body, ctx)
+        let flow = compound_exec(&decl.body, ctx, CompoundScope::Transparent)
             .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
 
         Ok(flow)
@@ -830,7 +858,7 @@ pub fn exec_entrypoint(
         }
 
         // the arguments must be in the same scope as the function body.
-        let flow = compound_exec_no_scope(&entrypoint.body, ctx)
+        let flow = compound_exec(&entrypoint.body, ctx, CompoundScope::Transparent)
             .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
 
         Ok(flow)

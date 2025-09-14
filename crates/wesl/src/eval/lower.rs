@@ -5,7 +5,8 @@ use wgsl_types::ty::{Ty, Type};
 use crate::eval::{ATTR_INTRINSIC, Context, Eval, EvalError, Exec, ty_eval_ty};
 
 use super::{
-    EXPR_FALSE, EXPR_TRUE, EvalTy, Instance, ShaderStage, SyntaxUtil, to_expr::ToExpr, with_scope,
+    CompoundScope, EXPR_FALSE, EXPR_TRUE, EvalTy, Instance, ShaderStage, SyntaxUtil,
+    to_expr::ToExpr, with_scope,
 };
 
 type E = EvalError;
@@ -278,7 +279,7 @@ impl Lower for Function {
                     return Err(E::DuplicateDecl(p.ident.to_string()));
                 }
             }
-            compound_lower(&mut self.body, ctx, true)?;
+            compound_lower(&mut self.body, ctx, CompoundScope::Transparent)?;
             Ok(())
         })?;
 
@@ -402,13 +403,10 @@ impl Lower for Statement {
 fn compound_lower(
     stmt: &mut CompoundStatement,
     ctx: &mut Context,
-    transparent: bool,
+    scoping: CompoundScope,
 ) -> Result<(), E> {
     stmt.attributes.lower(ctx)?;
-    with_scope!(ctx, {
-        if transparent {
-            ctx.scope.make_transparent();
-        }
+    with_scope!(ctx, scoping, {
         for stmt in &mut stmt.statements {
             stmt.lower(ctx)?;
         }
@@ -438,7 +436,7 @@ fn compound_lower(
 
 impl Lower for CompoundStatement {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
-        compound_lower(self, ctx, false)
+        compound_lower(self, ctx, CompoundScope::Regular)
     }
 }
 
@@ -502,14 +500,21 @@ impl Lower for SwitchStatement {
 
 impl Lower for LoopStatement {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
-        self.body.lower(ctx)?;
-        if let Some(cont) = &mut self.continuing {
-            cont.body.lower(ctx)?;
-            if let Some(break_if) = &mut cont.break_if {
-                break_if.expression.lower(ctx)?;
+        with_scope!(ctx, {
+            compound_lower(&mut self.body, ctx, CompoundScope::Leaking)?;
+
+            if let Some(cont) = &mut self.continuing {
+                with_scope!(ctx, {
+                    compound_lower(&mut cont.body, ctx, CompoundScope::Leaking)?;
+                    if let Some(break_if) = &mut cont.break_if {
+                        break_if.expression.lower(ctx)?;
+                    }
+                    Result::<_, E>::Ok(())
+                })?;
             }
-        }
-        Ok(())
+
+            Ok(())
+        })
     }
 }
 
@@ -520,7 +525,7 @@ impl Lower for ForStatement {
         with_scope!(ctx, {
             self.initializer.lower(ctx)?;
             self.condition.lower(ctx)?;
-            compound_lower(&mut self.body, ctx, true)?;
+            compound_lower(&mut self.body, ctx, CompoundScope::Transparent)?;
             Ok(())
         })
     }

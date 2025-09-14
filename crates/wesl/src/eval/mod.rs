@@ -89,9 +89,10 @@ impl<T> Scope<T> {
     pub fn is_root(&self) -> bool {
         self.inner.parent.is_none()
     }
-    /// variable in a 'transparent' have the same scope as the parent scope.
+    /// variables in a 'transparent' scope have the same scope as the parent scope.
     /// this is useful for 'for' loops and function calls which have the same
     /// end-of-scope for initializer and formal parameters as the body.
+    /// When The transparent scope ends, its declarations are dropped.
     ///
     /// see <https://github.com/gpuweb/gpuweb/issues/5024>
     pub fn make_transparent(&mut self) {
@@ -104,6 +105,13 @@ impl<T> Scope<T> {
             local: Default::default(),
             parent: Some(self.inner.clone()),
             transparent: false,
+        });
+    }
+    pub fn push_transparent(&mut self) {
+        self.inner = Rc::new(ScopeInner {
+            local: Default::default(),
+            parent: Some(self.inner.clone()),
+            transparent: true,
         });
     }
     pub fn pop(&mut self) {
