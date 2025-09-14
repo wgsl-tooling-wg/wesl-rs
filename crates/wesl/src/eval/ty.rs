@@ -478,6 +478,7 @@ impl EvalTy for FunctionCallExpression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
         let ty = ctx.source.resolve_ty(&self.ty);
         let name = ty.ident.name();
+
         let tplt = ty
             .template_args
             .as_ref()

@@ -573,7 +573,8 @@ impl Exec for DiscardStatement {
 
 impl Exec for FunctionCallStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        let fn_name = self.call.ty.ident.to_string();
+        let ty = ctx.source.resolve_ty(&self.call.ty);
+        let fn_name = ty.ident.to_string();
 
         let is_must_use = match ctx.source.decl(&fn_name) {
             Some(GlobalDeclaration::Function(decl)) => decl.contains_attribute(&Attribute::MustUse),
@@ -592,11 +593,7 @@ impl Exec for FunctionCallStatement {
             return Err(E::MustUse(fn_name));
         }
 
-        match self.call.eval(ctx) {
-            Ok(_) => Ok(Flow::Next),
-            Err(E::Void(_)) => Ok(Flow::Next),
-            Err(e) => Err(e),
-        }
+        self.call.exec(ctx).map(|_| Flow::Next)
     }
 }
 

@@ -124,7 +124,7 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
             }
             Some(GlobalDeclaration::TypeAlias(decl)) => {
                 if decl.ty.template_args.is_some() {
-                    return Err(E::NotCallable(ident.to_string()));
+                    // TODO: check args for builtin functions
                 } else {
                     check_call(call, &decl.ty.ident, wesl)?;
                 }
