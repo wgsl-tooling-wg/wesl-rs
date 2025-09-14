@@ -50,15 +50,15 @@ impl BuiltinIdent for Type {
             Type::U32 => builtin_ident("u32"),
             Type::F32 => builtin_ident("f32"),
             Type::F16 => builtin_ident("f16"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::I64 => builtin_ident("i64"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::U64 => builtin_ident("u64"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::F64 => builtin_ident("f64"),
             Type::Struct(_) => None,
             Type::Array(_, _) => builtin_ident("array"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::BindingArray(_, _) => builtin_ident("binding_array"),
             Type::Vec(n, _) => match n {
                 2 => builtin_ident("vec2"),
@@ -139,7 +139,7 @@ impl BuiltinIdent for AddressSpace {
             Self::Uniform => builtin_ident("uniform"),
             Self::Storage => builtin_ident("storage"),
             Self::Handle => None,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Self::PushConstant => builtin_ident("push_constant"),
         }
     }

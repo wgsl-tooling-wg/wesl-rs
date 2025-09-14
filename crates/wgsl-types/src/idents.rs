@@ -24,11 +24,11 @@ pub const BUILTIN_TYPE_NAMES: &[&str] = &[
     "texture_external",
     "u32",
     // naga extensions
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "i64",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "u64",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "f64",
 ];
 
@@ -62,7 +62,7 @@ pub const BUILTIN_TYPE_GENERATOR_NAMES: &[&str] = &[
     "vec2",
     "vec3",
     "vec4",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "binding_array",
 ];
 
@@ -95,9 +95,9 @@ pub const BUILTIN_STRUCT_NAMES: &[&str] = &[
     "__modf_result_vec3_abstract",
     "__modf_result_vec4_abstract",
     "__atomic_compare_exchange_result",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RayDesc",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RayIntersection",
 ];
 
@@ -106,35 +106,35 @@ pub const BUILTIN_STRUCT_NAMES: &[&str] = &[
 /// There are none currently in WGSL.
 pub const BUILTIN_DECLARATION_NAMES: &[&str] = &[
     // ray queries (naga extension). These are const declarations.
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_FLAG_NONE", // value: 0x0
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_FLAG_FORCE_OPAQUE", // value: 0x1
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_FLAG_FORCE_NO_OPAQUE", // value: 0x2
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_FLAG_TERMINATE_ON_FIRST_HIT", // value: 0x4
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_FLAG_SKIP_CLOSEST_HIT_SHADER", // value: 0x8
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_FLAG_CULL_BACK_FACING", // value: 0x10
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_FLAG_CULL_FRONT_FACING", // value: 0x20
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_FLAG_CULL_OPAQUE", // value: 0x40
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_FLAG_CULL_NO_OPAQUE", // value: 0x80
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_FLAG_SKIP_TRIANGLES", // value: 0x100
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_FLAG_SKIP_AABBS", // value: 0x200
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_QUERY_INTERSECTION_NONE", // value: 0
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_QUERY_INTERSECTION_TRIANGLE", // value: 1
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_QUERY_INTERSECTION_GENERATED", // value: 2
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RAY_QUERY_INTERSECTION_AABB", // value: 3
 ];
 
@@ -162,7 +162,7 @@ pub const BUILTIN_ENUMERANT_NAMES: &[&str] = &[
     "workgroup",
     "uniform",
     "storage",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "push_constant",
     // : texel format
     "rgba8unorm",
@@ -182,53 +182,53 @@ pub const BUILTIN_ENUMERANT_NAMES: &[&str] = &[
     "rgba32sint",
     "rgba32float",
     "bgra8unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r8unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r8snorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r8uint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r8sint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r16unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r16snorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r16uint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r16sint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r16float",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg8unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg8snorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg8uint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg8sint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg16unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg16snorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg16uint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg16sint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg16float",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rgb10a2uint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rgb10a2unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg11b10float",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r64uint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rgba16unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rgba16snorm",
 ];
 
@@ -391,23 +391,23 @@ pub const BUILTIN_FUNCTION_NAMES: &[&str] = &[
     "quadSwapX",
     "quadSwapY",
     // : ray queries (naga extension)
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rayQueryInitialize",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rayQueryProceed",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rayQueryGenerateIntersection",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rayQueryConfirmIntersection",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rayQueryTerminate",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rayQueryGetCommittedIntersection",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rayQueryGetCandidateIntersection",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "getCommittedHitVertexPositions",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "getCandidateHitVertexPositions",
 ];
 
@@ -421,11 +421,11 @@ pub const BUILTIN_CONSTRUCTOR_NAMES: &[&str] = &[
     "f32",
     "i32",
     "u32",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "i64",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "u64",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "f64",
     // type-generators
     "array",
@@ -473,9 +473,9 @@ pub const BUILTIN_CONSTRUCTOR_NAMES: &[&str] = &[
     "mat4x3h",
     "mat4x4h",
     // ray queries (naga extension)
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RayDesc",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "RayIntersection",
 ];
 

@@ -58,19 +58,19 @@ impl Instance {
                 .try_into()
                 .ok()
                 .map(|buf| LiteralInstance::F16(f16::from_le_bytes(buf)).into()),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::I64 => buf
                 .get(..8)?
                 .try_into()
                 .ok()
                 .map(|buf| LiteralInstance::I64(i64::from_le_bytes(buf)).into()),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::U64 => buf
                 .get(..8)?
                 .try_into()
                 .ok()
                 .map(|buf| LiteralInstance::U64(u64::from_le_bytes(buf)).into()),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::F64 => buf
                 .get(..8)?
                 .try_into()
@@ -132,7 +132,7 @@ impl Instance {
                     .collect::<Option<_>>()?;
                 Some(ArrayInstance::new(comps, true).into())
             }
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::BindingArray(_, _) => None,
             Type::Vec(n, ty) => {
                 let mut offset = 0;
@@ -187,11 +187,11 @@ impl LiteralInstance {
             LiteralInstance::U32(n) => Some(n.to_le_bytes().to_vec()),
             LiteralInstance::F32(n) => Some(n.to_le_bytes().to_vec()),
             LiteralInstance::F16(n) => Some(n.to_le_bytes().to_vec()),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(n) => Some(n.to_le_bytes().to_vec()),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(n) => Some(n.to_le_bytes().to_vec()),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(n) => Some(n.to_le_bytes().to_vec()),
         }
     }
@@ -306,11 +306,11 @@ impl Type {
             Type::U32 => Some(4),
             Type::F32 => Some(4),
             Type::F16 => Some(2),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::I64 => Some(8),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::U64 => Some(8),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::F64 => Some(8),
             Type::Struct(s) => {
                 let past_last_mem = s
@@ -333,7 +333,7 @@ impl Type {
                 Some(*n as u32 * round_up(align, size))
             }
             Type::Array(_, None) => None,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::BindingArray(_, _) => None,
             Type::Vec(n, ty) => {
                 let size = ty.size_of()?;
@@ -373,11 +373,11 @@ impl Type {
             Type::U32 => Some(4),
             Type::F32 => Some(4),
             Type::F16 => Some(2),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::I64 => Some(8),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::U64 => Some(8),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::F64 => Some(8),
             Type::Struct(s) => s
                 .members
@@ -386,7 +386,7 @@ impl Type {
                 .map(|m| m.align.or_else(|| m.ty.align_of()))
                 .try_fold(0, |a, b| Some(a.max(b?))),
             Type::Array(ty, _) => ty.align_of(),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::BindingArray(_, _) => None,
             Type::Vec(n, ty) => {
                 if *n == 3 {

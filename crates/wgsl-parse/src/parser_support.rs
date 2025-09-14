@@ -229,7 +229,7 @@ pub(crate) fn parse_attribute(
         },
         #[cfg(feature = "generics")]
         "type" => parse_attr_type(args).map(Attribute::Type),
-        #[cfg(feature = "naga_ext")]
+        #[cfg(feature = "naga-ext")]
         "early_depth_test" => match args {
             Some(args) => {
                 let mut it = args.into_iter();

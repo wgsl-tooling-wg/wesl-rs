@@ -242,7 +242,7 @@ pub fn call_ctor(ty: &Type, args: &[Instance], stage: ShaderStage) -> Result<Ins
         (Type::U32, [a1]) => ctor::u32(a1),
         (Type::F32, [a1]) => ctor::f32(a1, stage),
         (Type::F16, [a1]) => ctor::f16(a1, stage),
-        #[cfg(feature = "naga_ext")]
+        #[cfg(feature = "naga-ext")]
         (Type::I64 | Type::U64 | Type::F64, _) => Err(E::Todo(
             "naga 64-bit literal constructors not implemented".to_string(),
         )),
@@ -260,7 +260,7 @@ pub fn call_ctor(ty: &Type, args: &[Instance], stage: ShaderStage) -> Result<Ins
             | Type::Sampler(_),
             _,
         ) => Err(E::NotConstructible(ty.clone())),
-        #[cfg(feature = "naga_ext")]
+        #[cfg(feature = "naga-ext")]
         (Type::BindingArray(_, _), _) => Err(E::NotConstructible(ty.clone())),
         (Type::Bool | Type::I32 | Type::U32 | Type::F32 | Type::F16, _) => {
             Err(E::Signature(CallSignature {

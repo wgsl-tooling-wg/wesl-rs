@@ -41,9 +41,9 @@ impl ArrayTemplate {
                 Instance::Literal(LiteralInstance::AbstractInt(n)) => (n > 0).then_some(n as usize),
                 Instance::Literal(LiteralInstance::I32(n)) => (n > 0).then_some(n as usize),
                 Instance::Literal(LiteralInstance::U32(n)) => (n > 0).then_some(n as usize),
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 Instance::Literal(LiteralInstance::I64(n)) => (n > 0).then_some(n as usize),
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 Instance::Literal(LiteralInstance::U64(n)) => (n > 0).then_some(n as usize),
                 _ => None,
             }
@@ -66,13 +66,13 @@ impl ArrayTemplate {
     }
 }
 
-#[cfg(feature = "naga_ext")]
+#[cfg(feature = "naga-ext")]
 pub struct BindingArrayTemplate {
     n: Option<usize>,
     ty: Type,
 }
 
-#[cfg(feature = "naga_ext")]
+#[cfg(feature = "naga-ext")]
 impl BindingArrayTemplate {
     pub fn parse(tplt: &[TpltParam]) -> Result<BindingArrayTemplate, E> {
         let (ty, n) = match tplt {
@@ -205,7 +205,7 @@ impl PtrTemplate {
                     (AddressSpace::Handle, _) => {
                         unreachable!("handle address space cannot be spelled")
                     }
-                    #[cfg(feature = "naga_ext")]
+                    #[cfg(feature = "naga-ext")]
                     (AddressSpace::PushConstant, _) => {
                         todo!("push_constant")
                     }
@@ -231,7 +231,7 @@ impl AtomicTemplate {
             [TpltParam::Type(ty)] => Ok(ty.clone()),
             _ => Err(E::TemplateArgs("atomic")),
         }?;
-        #[cfg(feature = "naga_ext")]
+        #[cfg(feature = "naga-ext")]
         if ty.is_i64() || ty.is_u64() {
             return Ok(AtomicTemplate { ty });
         }

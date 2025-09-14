@@ -701,9 +701,9 @@ pub struct Inputs {
     pub subgroup_invocation_id: Option<u32>,
     /// A power of two within the range [4, 128]
     pub subgroup_size: Option<u32>,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     pub primitive_index: Option<u32>,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     pub view_index: Option<u32>,
 
     pub user_defined: HashMap<u32, Instance>,
@@ -725,9 +725,9 @@ impl Inputs {
             num_workgroups: Some([1, 1, 1]),
             subgroup_invocation_id: Some(0),
             subgroup_size: Some(4),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             primitive_index: Some(0),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             view_index: Some(0),
             user_defined: Default::default(),
         }
@@ -786,9 +786,9 @@ pub fn exec_entrypoint(
                         inputs.subgroup_invocation_id.map(Instance::from)
                     }
                     BuiltinValue::SubgroupSize => inputs.subgroup_size.map(Instance::from),
-                    #[cfg(feature = "naga_ext")]
+                    #[cfg(feature = "naga-ext")]
                     BuiltinValue::PrimitiveIndex => inputs.primitive_index.map(Instance::from),
-                    #[cfg(feature = "naga_ext")]
+                    #[cfg(feature = "naga-ext")]
                     BuiltinValue::ViewIndex => inputs.view_index.map(Instance::from),
                     BuiltinValue::ClipDistances | BuiltinValue::FragDepth => {
                         return Err(E::OutputBuiltin(builtin));
@@ -1004,7 +1004,7 @@ impl Exec for Declaration {
                             RefInstance::new(inst, a_s, a_m).into()
                         }
                         AddressSpace::Handle => todo!("handle address space"),
-                        #[cfg(feature = "naga_ext")]
+                        #[cfg(feature = "naga-ext")]
                         AddressSpace::PushConstant => todo!("push_constant address space"),
                     }
                 }

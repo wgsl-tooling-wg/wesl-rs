@@ -119,11 +119,11 @@ extern {
         "import" => Token::KwImport,
 
         // naga extensions
-        #[cfg(feature = "naga_ext")]
+        #[cfg(feature = "naga-ext")]
         TokI64 => Token::I64(<i64>),
-        #[cfg(feature = "naga_ext")]
+        #[cfg(feature = "naga-ext")]
         TokU64 => Token::U64(<u64>),
-        #[cfg(feature = "naga_ext")]
+        #[cfg(feature = "naga-ext")]
         TokF64 => Token::F64(<f64>),
     }
 }
@@ -218,11 +218,11 @@ pub Literal: LiteralExpression = {
     TokU32           => LiteralExpression::U32(<>),
     TokF32           => LiteralExpression::F32(<>),
     TokF16           => LiteralExpression::F16(<>),
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     TokI64 => LiteralExpression::I64(<>),
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     TokU64 => LiteralExpression::U64(<>),
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     TokF64 => LiteralExpression::F64(<>),
     BoolLiteral,
 };

@@ -63,11 +63,11 @@ impl Display for LiteralInstance {
             LiteralInstance::U32(lit) => write!(f, "{lit}u"),
             LiteralInstance::F32(lit) => write!(f, "{lit}f"),
             LiteralInstance::F16(lit) => write!(f, "{lit}h"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(lit) => write!(f, "{lit}li"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(lit) => write!(f, "{lit}lu"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(lit) => write!(f, "{lit}lf"),
         }
     }
@@ -121,7 +121,7 @@ impl Display for MatInstance {
 //                 None => write!(f, "storage"),
 //             },
 //             Self::Handle => write!(f, "handle"),
-//             #[cfg(feature = "naga_ext")]
+//             #[cfg(feature = "naga-ext")]
 //             Self::PushConstant => write!(f, "push_constant"),
 //         }
 //     }
@@ -135,7 +135,7 @@ impl Display for MatInstance {
 //         AddressSpace::Uniform => "uniform",
 //         AddressSpace::Storage(_) => "storage",
 //         AddressSpace::Handle => "handle",
-//         #[cfg(feature = "naga_ext")]
+//         #[cfg(feature = "naga-ext")]
 //         AddressSpace::PushConstant => "push_constant",
 //     }
 // }
@@ -208,18 +208,18 @@ impl Display for Type {
             Type::U32 => write!(f, "u32"),
             Type::F32 => write!(f, "f32"),
             Type::F16 => write!(f, "f16"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::I64 => write!(f, "i64"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::U64 => write!(f, "u64"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::F64 => write!(f, "f64"),
             Type::Struct(s) => write!(f, "{}", s.name),
             Type::Array(ty, Some(n)) => write!(f, "array<{ty}, {n}>"),
             Type::Array(ty, None) => write!(f, "array<{ty}>"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::BindingArray(ty, Some(n)) => write!(f, "binding_array<{ty}, {n}>"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::BindingArray(ty, None) => write!(f, "binding_array<{ty}>"),
             Type::Vec(n, ty) => write!(f, "vec{n}<{ty}>"),
             Type::Mat(m, n, ty) => write!(f, "mat{m}x{n}<{ty}>"),

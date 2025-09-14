@@ -69,11 +69,11 @@ impl EvalTy for LiteralExpression {
             LiteralExpression::U32(_) => Ok(Type::U32),
             LiteralExpression::F32(_) => Ok(Type::F32),
             LiteralExpression::F16(_) => Ok(Type::F16),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralExpression::I64(_) => Ok(Type::I64),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralExpression::U64(_) => Ok(Type::U64),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralExpression::F64(_) => Ok(Type::F64),
         }
     }
@@ -143,7 +143,7 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
                 let tplt = ArrayTemplate::parse(&tplt)?;
                 Ok(tplt.ty())
             }
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "binding_array" => {
                 let tplt = super::BindingArrayTemplate::parse(&tplt)?;
                 Ok(tplt.ty())
@@ -272,7 +272,7 @@ impl EvalTy for IndexingExpression {
         fn eval_inner_ty(base_ty: Type) -> Result<Type, E> {
             match base_ty {
                 Type::Array(ty, _) => Ok(*ty),
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 Type::BindingArray(ty, _) => Ok(*ty),
                 Type::Vec(_, ty) => Ok(*ty),
                 Type::Mat(_, r, ty) => Ok(Type::Vec(r, ty)),

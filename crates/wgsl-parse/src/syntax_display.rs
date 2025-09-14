@@ -307,9 +307,9 @@ impl Display for Attribute {
             Attribute::Else => write!(f, "@else"),
             #[cfg(feature = "generics")]
             Attribute::Type(e1) => write!(f, "@type({e1})"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Attribute::EarlyDepthTest(None) => write!(f, "@early_depth_test"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Attribute::EarlyDepthTest(Some(e1)) => write!(f, "@early_depth_test({e1})"),
             Attribute::Custom(custom) => {
                 let name = &custom.name;
@@ -373,11 +373,11 @@ impl Display for LiteralExpression {
             LiteralExpression::U32(num) => write!(f, "{num}u"),
             LiteralExpression::F32(num) => write!(f, "{num}f"),
             LiteralExpression::F16(num) => write!(f, "{num}h"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralExpression::I64(num) => write!(f, "{num}li"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralExpression::U64(num) => write!(f, "{num}lu"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralExpression::F64(num) => write!(f, "{num}lf"),
         }
     }

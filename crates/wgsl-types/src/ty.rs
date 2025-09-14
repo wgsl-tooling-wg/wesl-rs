@@ -225,15 +225,15 @@ pub enum Type {
     U32,
     F32,
     F16,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     I64,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     U64,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     F64,
     Struct(Box<StructType>),
     Array(Box<Type>, Option<usize>),
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     BindingArray(Box<Type>, Option<usize>),
     Vec(u8, Box<Type>),
     Mat(u8, u8, Box<Type>),
@@ -324,15 +324,15 @@ impl Type {
     pub fn is_f32(&self) -> bool {
         matches!(self, Type::F32)
     }
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     pub fn is_i64(&self) -> bool {
         matches!(self, Type::I64)
     }
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     pub fn is_u64(&self) -> bool {
         matches!(self, Type::U64)
     }
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     pub fn is_f64(&self) -> bool {
         matches!(self, Type::F64)
     }
@@ -394,15 +394,15 @@ impl Ty for Type {
             Type::U32 => self.clone(),
             Type::F32 => self.clone(),
             Type::F16 => self.clone(),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::I64 => self.clone(),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::U64 => self.clone(),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::F64 => self.clone(),
             Type::Struct(_) => self.clone(),
             Type::Array(ty, _) => ty.ty(),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::BindingArray(ty, _) => ty.ty(),
             Type::Vec(_, ty) => ty.ty(),
             Type::Mat(_, _, ty) => ty.ty(),
@@ -454,11 +454,11 @@ impl Ty for LiteralInstance {
             LiteralInstance::U32(_) => Type::U32,
             LiteralInstance::F32(_) => Type::F32,
             LiteralInstance::F16(_) => Type::F16,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(_) => Type::I64,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(_) => Type::U64,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(_) => Type::F64,
         }
     }

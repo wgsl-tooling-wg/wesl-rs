@@ -67,11 +67,11 @@ impl Eval for LiteralExpression {
                     Ok(LiteralInstance::F16(l).into()) // TODO: check infinity
                 }
             }
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralExpression::I64(l) => Ok(LiteralInstance::I64(*l).into()),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralExpression::U64(l) => Ok(LiteralInstance::U64(*l).into()),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralExpression::F64(l) => Ok(LiteralInstance::F64(*l).into()),
         }
     }
