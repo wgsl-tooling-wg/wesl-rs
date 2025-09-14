@@ -45,11 +45,7 @@ generics = ["attributes"]
 # import declarations.
 # reference: https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md
 imports = []
-# allow naga/wgpu extensions.
-# They are not well-documented, the best I could find is this:
-# * https://github.com/gfx-rs/wgpu/issues/4410
-# * https://github.com/gfx-rs/wgpu/blob/trunk/docs/api-specs/ray_tracing.md
-# * https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
+# See crates/wesl/Cargo.toml
 naga-ext = ["wgsl-types/naga-ext"]
 serde = ["dep:serde", "wgsl-types/serde"]
 # allow templates on function declarations

@@ -35,12 +35,21 @@ wgsl-types = { workspace = true }
 [features]
 eval = ["quote"]
 generics = ["wgsl-parse/generics"]
-# allow naga/wgpu extensions.
+# Allow naga/wgpu extensions.
 # They are not well-documented, the best I could find is this:
 # * https://github.com/gfx-rs/wgpu/issues/4410
 # * https://github.com/gfx-rs/wgpu/blob/trunk/docs/api-specs/ray_tracing.md
 # * https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
 # * test files in https://github.com/gfx-rs/wgpu/tree/trunk/naga/tests
+#
+# List of supported naga extensions:
+# * 64-bit types: i64/u64/f64 and li, lu, lf literal suffixes
+# * extra builtins: `subgroup_id`, `num_subgroups`, `primitive_index`, `view_index`
+# * extra texel formats: see `TexelFormat`
+# * `push_constant` address space
+# * `atomic` access mode for textures
+# * ray queries API (built-in functions, constants and struct types)
+# * `atomic<f32>`
 naga-ext = ["wgsl-parse/naga-ext", "wgsl-types/naga-ext"]
 package = ["dep:proc-macro2", "dep:quote"]
 quote = ["wesl-macros/quote"]
