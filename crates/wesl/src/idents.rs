@@ -107,6 +107,12 @@ impl BuiltinIdent for TextureType {
             Self::Depth2DArray => "texture_depth_2d_array",
             Self::DepthCube => "texture_depth_cube",
             Self::DepthCubeArray => "texture_depth_cube_array",
+            #[cfg(feature = "naga-ext")]
+            Self::Sampled1DArray(_) => "texture_1d_array",
+            #[cfg(feature = "naga-ext")]
+            Self::Storage1DArray(_, _) => "texture_storage_1d_array",
+            #[cfg(feature = "naga-ext")]
+            Self::Multisampled2DArray(_) => "texture_multisampled_2d_array",
         })
     }
 }
@@ -151,6 +157,8 @@ impl BuiltinIdent for AccessMode {
             Self::Read => builtin_ident("read"),
             Self::Write => builtin_ident("write"),
             Self::ReadWrite => builtin_ident("read_write"),
+            #[cfg(feature = "naga-ext")]
+            Self::Atomic => builtin_ident("atomic"),
         }
     }
 }

@@ -30,27 +30,14 @@ type E = Error;
 /// Warning: WGSL allows shadowing built-in functions. Check that a user-defined
 /// function does not shadow the built-in one.
 pub fn is_ctor(name: &str) -> bool {
-    matches!(
-        name,
-        "array"
-            | "bool"
-            | "i32"
-            | "u32"
-            | "f32"
-            | "f16"
-            | "mat2x2"
-            | "mat2x3"
-            | "mat2x4"
-            | "mat3x2"
-            | "mat3x3"
-            | "mat3x4"
-            | "mat4x2"
-            | "mat4x3"
-            | "mat4x4"
-            | "vec2"
-            | "vec3"
-            | "vec4"
-    )
+    match name {
+        "array" | "bool" | "i32" | "u32" | "f32" | "f16" | "mat2x2" | "mat2x3" | "mat2x4"
+        | "mat3x2" | "mat3x3" | "mat3x4" | "mat4x2" | "mat4x3" | "mat4x4" | "vec2" | "vec3"
+        | "vec4" => true,
+        #[cfg(feature = "naga-ext")]
+        "i64" | "u64" | "f64" => true,
+        _ => false,
+    }
 }
 
 // ------------
@@ -278,6 +265,27 @@ pub fn f16(a1: &Instance, stage: ShaderStage) -> Result<Instance, E> {
     }
 }
 
+/// `i64()` constructor (naga extension).
+///
+/// TODO: This built-in is not implemented!
+pub fn i64(_a1: &Instance) -> Result<Instance, E> {
+    Err(E::Todo("i64".to_string()))
+}
+
+/// `u64()` constructor (naga extension).
+///
+/// TODO: This built-in is not implemented!
+pub fn u64(_a1: &Instance) -> Result<Instance, E> {
+    Err(E::Todo("u64".to_string()))
+}
+
+/// `f64()` constructor (naga extension).
+///
+/// TODO: This built-in is not implemented!
+pub fn f64(_a1: &Instance, _stage: ShaderStage) -> Result<Instance, E> {
+    Err(E::Todo("f64".to_string()))
+}
+
 /// `matCxR<T>()` constructor.
 ///
 /// Reference: <https://www.w3.org/TR/WGSL/#mat2x2-builtin>
@@ -485,6 +493,10 @@ pub fn vec_t(
 pub fn vec(n: usize, args: &[Instance]) -> Result<Instance, E> {
     // overload 1: vec init from single scalar value
     if let [Instance::Literal(l)] = args {
+        let ty = l.ty();
+        if !ty.is_scalar() {
+            return Err(E::Builtin("vec constructor expects scalar arguments"));
+        }
         let val = Instance::Literal(*l);
         let comps = (0..n).map(|_| val.clone()).collect_vec();
         Ok(VecInstance::new(comps).into())
@@ -844,6 +856,18 @@ pub fn type_ctor(name: &str, tplt: Option<&[TpltParam]>, args: &[Type]) -> Resul
         ("vec4", Some(t), []) => Ok(VecTemplate::parse(t)?.ty(4)),
         ("vec4", Some(t), _) => vec_ctor_ty_t(4, VecTemplate::parse(t)?.inner_ty(), args),
         ("vec4", None, _) => vec_ctor_ty(4, args),
+        #[cfg(feature = "naga-ext")]
+        ("i64", None, []) => Ok(Type::I64),
+        #[cfg(feature = "naga-ext")]
+        ("i64", None, [a]) if a.is_scalar() => Ok(Type::I64),
+        #[cfg(feature = "naga-ext")]
+        ("u64", None, []) => Ok(Type::U64),
+        #[cfg(feature = "naga-ext")]
+        ("u64", None, [a]) if a.is_scalar() => Ok(Type::U64),
+        #[cfg(feature = "naga-ext")]
+        ("f64", None, []) => Ok(Type::F64),
+        #[cfg(feature = "naga-ext")]
+        ("f64", None, [a]) if a.is_scalar() => Ok(Type::F64),
         _ => Err(E::Signature(CallSignature {
             name: name.to_string(),
             tplt: tplt.map(|t| t.to_vec()),

@@ -116,6 +116,18 @@ pub fn call_builtin_fn(
         ("vec4", Some(t), []) => Instance::zero_value(&VecTemplate::parse(t)?.ty(4)),
         ("vec4", Some(t), a) => ctor::vec_t(4, VecTemplate::parse(t)?.inner_ty(), a, stage),
         ("vec4", None, a) => ctor::vec(4, a),
+        #[cfg(feature = "naga-ext")]
+        ("i64", None, []) => Instance::zero_value(&Type::I64),
+        #[cfg(feature = "naga-ext")]
+        ("i64", None, [a1]) => ctor::i64(a1),
+        #[cfg(feature = "naga-ext")]
+        ("u64", None, []) => Instance::zero_value(&Type::U64),
+        #[cfg(feature = "naga-ext")]
+        ("u64", None, [a1]) => ctor::u64(a1),
+        #[cfg(feature = "naga-ext")]
+        ("f64", None, []) => Instance::zero_value(&Type::F64),
+        #[cfg(feature = "naga-ext")]
+        ("f64", None, [a1]) => ctor::f64(a1, stage),
         // bitcast
         ("bitcast", Some(t), [a1]) => call::bitcast_t(BitcastTemplate::parse(t)?.ty(), a1),
         // logical
@@ -242,10 +254,6 @@ pub fn call_ctor(ty: &Type, args: &[Instance], stage: ShaderStage) -> Result<Ins
         (Type::U32, [a1]) => ctor::u32(a1),
         (Type::F32, [a1]) => ctor::f32(a1, stage),
         (Type::F16, [a1]) => ctor::f16(a1, stage),
-        #[cfg(feature = "naga-ext")]
-        (Type::I64 | Type::U64 | Type::F64, _) => Err(E::Todo(
-            "naga 64-bit literal constructors not implemented".to_string(),
-        )),
         (Type::Struct(ty), a) => struct_ctor(ty, a).map(Instance::from),
         (Type::Array(ty, n), a) => ctor::array_t(ty, n.unwrap_or(a.len()), a),
         (Type::Vec(n, ty), a) => ctor::vec_t(*n as usize, ty, a, stage),
@@ -260,6 +268,10 @@ pub fn call_ctor(ty: &Type, args: &[Instance], stage: ShaderStage) -> Result<Ins
             | Type::Sampler(_),
             _,
         ) => Err(E::NotConstructible(ty.clone())),
+        #[cfg(feature = "naga-ext")]
+        (Type::I64 | Type::U64 | Type::F64, _) => Err(E::Todo(
+            "naga 64-bit literal constructors not implemented".to_string(),
+        )),
         #[cfg(feature = "naga-ext")]
         (Type::BindingArray(_, _), _) => Err(E::NotConstructible(ty.clone())),
         (Type::Bool | Type::I32 | Type::U32 | Type::F32 | Type::F16, _) => {

@@ -182,6 +182,11 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
                 let tplt = TextureTemplate::parse(name, &tplt)?;
                 Ok(Type::Texture(tplt.ty()))
             }
+            #[cfg(feature = "naga-ext")]
+            "texture_1d_array" | "texture_storage_1d_array" | "texture_multisampled_2d_array" => {
+                let tplt = TextureTemplate::parse(name, &tplt)?;
+                Ok(Type::Texture(tplt.ty()))
+            }
             _ => Err(E::UnexpectedTemplate(name.to_string())),
         }
     }
@@ -203,6 +208,14 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
             "texture_depth_cube_array" => Ok(Type::Texture(TextureType::DepthCubeArray)),
             "sampler" => Ok(Type::Sampler(SamplerType::Sampler)),
             "sampler_comparison" => Ok(Type::Sampler(SamplerType::SamplerComparison)),
+
+            #[cfg(feature = "naga-ext")]
+            "i64" => Ok(Type::I64),
+            #[cfg(feature = "naga-ext")]
+            "u64" => Ok(Type::U64),
+            #[cfg(feature = "naga-ext")]
+            "f64" => Ok(Type::F64),
+
             _ => Err(E::UnknownType(name.to_string())),
         }
     }

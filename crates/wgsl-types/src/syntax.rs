@@ -55,6 +55,8 @@ pub enum AccessMode {
     Read,
     Write,
     ReadWrite,
+    #[cfg(feature = "naga-ext")]
+    Atomic,
 }
 
 /// Texel format enumeration.
@@ -181,6 +183,10 @@ pub enum BuiltinValue {
     NumWorkgroups,
     SubgroupInvocationId, // requires WGSL extension subgroups
     SubgroupSize,         // requires WGSL extension subgroups
+    #[cfg(feature = "naga-ext")]
+    SubgroupId, // requires WGSL extension subgroups
+    #[cfg(feature = "naga-ext")]
+    NumSubgroups, // requires WGSL extension subgroups
     #[cfg(feature = "naga-ext")]
     PrimitiveIndex,
     #[cfg(feature = "naga-ext")]
@@ -533,6 +539,8 @@ impl FromStr for AccessMode {
             "read" => Ok(Self::Read),
             "write" => Ok(Self::Write),
             "read_write" => Ok(Self::ReadWrite),
+            #[cfg(feature = "naga-ext")]
+            "atomic" => Ok(Self::Atomic),
             _ => Err(()),
         }
     }
@@ -648,6 +656,10 @@ impl FromStr for BuiltinValue {
             "subgroup_invocation_id" => Ok(Self::SubgroupInvocationId),
             "subgroup_size" => Ok(Self::SubgroupSize),
             #[cfg(feature = "naga-ext")]
+            "subgroup_id" => Ok(Self::SubgroupId),
+            #[cfg(feature = "naga-ext")]
+            "num_subgroups" => Ok(Self::NumSubgroups),
+            #[cfg(feature = "naga-ext")]
             "primitive_index" => Ok(Self::PrimitiveIndex),
             #[cfg(feature = "naga-ext")]
             "view_index" => Ok(Self::ViewIndex),
@@ -736,6 +748,8 @@ impl Display for AccessMode {
             Self::Read => write!(f, "read"),
             Self::Write => write!(f, "write"),
             Self::ReadWrite => write!(f, "read_write"),
+            #[cfg(feature = "naga-ext")]
+            Self::Atomic => write!(f, "atomic"),
         }
     }
 }
@@ -830,6 +844,10 @@ impl Display for BuiltinValue {
             Self::NumWorkgroups => write!(f, "num_workgroups"),
             Self::SubgroupInvocationId => write!(f, "subgroup_invocation_id"),
             Self::SubgroupSize => write!(f, "subgroup_size"),
+            #[cfg(feature = "naga-ext")]
+            Self::SubgroupId => write!(f, "subgroup_id"),
+            #[cfg(feature = "naga-ext")]
+            Self::NumSubgroups => write!(f, "num_subgroups"),
             #[cfg(feature = "naga-ext")]
             Self::PrimitiveIndex => write!(f, "primitive_index"),
             #[cfg(feature = "naga-ext")]

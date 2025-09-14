@@ -232,7 +232,7 @@ impl AtomicTemplate {
             _ => Err(E::TemplateArgs("atomic")),
         }?;
         #[cfg(feature = "naga-ext")]
-        if ty.is_i64() || ty.is_u64() {
+        if ty.is_f32() || ty.is_i64() || ty.is_u64() {
             return Ok(AtomicTemplate { ty });
         }
         if ty.is_i32() || ty.is_u32() {
@@ -278,6 +278,17 @@ impl TextureTemplate {
             "texture_storage_3d" => {
                 let (tex, acc) = Self::texel_access(tplt)?;
                 TextureType::Storage3D(tex, acc)
+            }
+            #[cfg(feature = "naga-ext")]
+            "texture_1d_array" => TextureType::Sampled1DArray(Self::sampled_type(tplt)?),
+            #[cfg(feature = "naga-ext")]
+            "texture_storage_1d_array" => {
+                let (tex, acc) = Self::texel_access(tplt)?;
+                TextureType::Storage1DArray(tex, acc)
+            }
+            #[cfg(feature = "naga-ext")]
+            "texture_multisampled_2d_array" => {
+                TextureType::Multisampled2DArray(Self::sampled_type(tplt)?)
             }
             _ => return Err(E::Builtin("not a templated texture type")),
         };

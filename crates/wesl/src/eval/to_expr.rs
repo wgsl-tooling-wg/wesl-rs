@@ -257,6 +257,29 @@ impl ToExpr for Type {
                     TextureType::Depth2DArray => None,
                     TextureType::DepthCube => None,
                     TextureType::DepthCubeArray => None,
+                    #[cfg(feature = "naga-ext")]
+                    TextureType::Sampled1DArray(sampled)
+                    | TextureType::Multisampled2DArray(sampled) => Some(vec![TemplateArg {
+                        expression: Expression::TypeOrIdentifier(TypeExpression::new(
+                            builtin_ident(&sampled.to_string()).unwrap().clone(),
+                        ))
+                        .into(),
+                    }]),
+                    #[cfg(feature = "naga-ext")]
+                    TextureType::Storage1DArray(texel, access) => Some(vec![
+                        TemplateArg {
+                            expression: Expression::TypeOrIdentifier(TypeExpression::new(
+                                builtin_ident(&texel.to_string()).unwrap().clone(),
+                            ))
+                            .into(),
+                        },
+                        TemplateArg {
+                            expression: Expression::TypeOrIdentifier(TypeExpression::new(
+                                builtin_ident(&access.to_string()).unwrap().clone(),
+                            ))
+                            .into(),
+                        },
+                    ]),
                 };
                 Ok(ty)
             }

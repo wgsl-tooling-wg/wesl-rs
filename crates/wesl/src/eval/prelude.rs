@@ -79,7 +79,7 @@ pub static PRELUDE: LazyLock<TranslationUnit> = LazyLock::new(|| {
         struct __modf_result_vec2_abstract { fract: vec2<#abstract_float>, whole: vec2<#abstract_float> }
         struct __modf_result_vec3_abstract { fract: vec3<#abstract_float>, whole: vec3<#abstract_float> }
         struct __modf_result_vec4_abstract { fract: vec4<#abstract_float>, whole: vec4<#abstract_float> }
-        @generic(T) struct atomic_compare_exchange_result { old_value: T, exchanged: bool }
+        @generic(T) struct __atomic_compare_exchange_result { old_value: T, exchanged: bool }
 
         // bitcast
         @const @must_use fn bitcast() @__intrinsic {}

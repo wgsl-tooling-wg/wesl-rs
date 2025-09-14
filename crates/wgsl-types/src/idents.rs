@@ -64,6 +64,12 @@ pub const BUILTIN_TYPE_GENERATOR_NAMES: &[&str] = &[
     "vec4",
     #[cfg(feature = "naga-ext")]
     "binding_array",
+    #[cfg(feature = "naga-ext")]
+    "texture_1d_array",
+    #[cfg(feature = "naga-ext")]
+    "texture_storage_1d_array",
+    #[cfg(feature = "naga-ext")]
+    "texture_multisampled_2d_array",
 ];
 
 /// Built-in `struct` identifiers.

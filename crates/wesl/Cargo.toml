@@ -50,6 +50,8 @@ generics = ["wgsl-parse/generics"]
 # * `atomic` access mode for textures
 # * ray queries API (built-in functions, constants and struct types)
 # * `atomic<f32>`
+# * `texture_1d_array`, `texture_storage_1d_array`, `texture_multisampled_2d_array`
+# * `subgroupBallot()` with no argument (defaults to `true`)
 naga-ext = ["wgsl-parse/naga-ext", "wgsl-types/naga-ext"]
 package = ["dep:proc-macro2", "dep:quote"]
 quote = ["wesl-macros/quote"]

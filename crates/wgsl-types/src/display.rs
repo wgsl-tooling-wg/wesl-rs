@@ -260,6 +260,16 @@ impl Display for TextureType {
             TextureType::Depth2DArray => write!(f, "texture_depth_2d_array"),
             TextureType::DepthCube => write!(f, "texture_depth_cube"),
             TextureType::DepthCubeArray => write!(f, "texture_depth_cube_array"),
+            #[cfg(feature = "naga-ext")]
+            TextureType::Sampled1DArray(sampled) => write!(f, "texture_1d_array<{sampled}>"),
+            #[cfg(feature = "naga-ext")]
+            TextureType::Storage1DArray(texel, access) => {
+                write!(f, "texture_storage_1d_array<{texel}, {access}>")
+            }
+            #[cfg(feature = "naga-ext")]
+            TextureType::Multisampled2DArray(sampled) => {
+                write!(f, "texture_multisampled_2d_array<{sampled}>")
+            }
         }
     }
 }

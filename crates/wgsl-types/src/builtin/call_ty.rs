@@ -244,11 +244,7 @@ pub fn type_builtin_fn(
         ("textureLoad", None, [Type::Texture(t), ..]) => {
             Ok(Some(Type::Vec(4, Box::new(t.channel_type().into()))))
         }
-        ("textureNumLayers", None, [Type::Texture(t)])
-            if t.is_sampled() || t.is_depth() || t.is_storage() =>
-        {
-            Ok(Some(Type::U32))
-        }
+        ("textureNumLayers", None, [Type::Texture(t)]) if t.is_arrayed() => Ok(Some(Type::U32)),
         ("textureNumLevels", None, [Type::Texture(t)]) if t.is_sampled() || t.is_depth() => {
             Ok(Some(Type::U32))
         }
@@ -384,9 +380,11 @@ pub fn type_builtin_fn(
         ("subgroupExclusiveAdd", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
         ("subgroupInclusiveAdd", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
         ("subgroupAll", None, [Type::Bool]) => Ok(Some(Type::Bool)),
-        ("subgroupAnd", None, [Type::Bool]) => Ok(Some(Type::Bool)),
+        ("subgroupAnd", None, [a]) if is_integer(a) => Ok(Some(a.concretize())),
         ("subgroupAny", None, [Type::Bool]) => Ok(Some(Type::Bool)),
         ("subgroupBallot", None, [Type::Bool]) => Ok(Some(Type::Vec(4, Type::U32.into()))),
+        #[cfg(feature = "naga-ext")]
+        ("subgroupBallot", None, []) => Ok(Some(Type::Vec(4, Type::U32.into()))),
         ("subgroupBroadcast", None, [a1, a2]) if is_numeric(a1) && a2.is_integer() => {
             Ok(Some(a1.concretize()))
         }
@@ -449,10 +447,14 @@ pub(crate) fn frexp_struct_name(ty: &Type) -> Option<&'static str> {
 
 pub(crate) fn frexp_struct_type(ty: &Type) -> Option<StructType> {
     frexp_struct_name(ty).map(|name| {
-        let exp_ty = if ty.is_abstract() {
+        let exp_inner_ty = if ty.is_abstract() {
             Type::AbstractInt
         } else {
             Type::I32
+        };
+        let exp_ty = match ty {
+            Type::Vec(n, _) => Type::Vec(*n, Box::new(exp_inner_ty)),
+            _ => exp_inner_ty,
         };
         StructType {
             name: name.to_string(),

@@ -169,7 +169,7 @@ fn main() {
     tests.extend({
         let in_entries = std::fs::read_dir("wgpu/in")
             .expect("missing dir `wgpu/in`")
-            .map(|f| (f, "int"));
+            .map(|f| (f, "in"));
         let out_entries = std::fs::read_dir("wgpu/out")
             .expect("missing dir `wgpu/out`")
             .map(|f| (f, "out"));

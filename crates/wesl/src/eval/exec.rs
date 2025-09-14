@@ -730,6 +730,10 @@ pub struct Inputs {
     /// A power of two within the range [4, 128]
     pub subgroup_size: Option<u32>,
     #[cfg(feature = "naga-ext")]
+    pub subgroup_id: Option<u32>,
+    #[cfg(feature = "naga-ext")]
+    pub num_subgroups: Option<u32>,
+    #[cfg(feature = "naga-ext")]
     pub primitive_index: Option<u32>,
     #[cfg(feature = "naga-ext")]
     pub view_index: Option<u32>,
@@ -753,6 +757,10 @@ impl Inputs {
             num_workgroups: Some([1, 1, 1]),
             subgroup_invocation_id: Some(0),
             subgroup_size: Some(4),
+            #[cfg(feature = "naga-ext")]
+            subgroup_id: Some(0),
+            #[cfg(feature = "naga-ext")]
+            num_subgroups: Some(1),
             #[cfg(feature = "naga-ext")]
             primitive_index: Some(0),
             #[cfg(feature = "naga-ext")]
@@ -814,6 +822,10 @@ pub fn exec_entrypoint(
                         inputs.subgroup_invocation_id.map(Instance::from)
                     }
                     BuiltinValue::SubgroupSize => inputs.subgroup_size.map(Instance::from),
+                    #[cfg(feature = "naga-ext")]
+                    BuiltinValue::SubgroupId => inputs.subgroup_id.map(Instance::from),
+                    #[cfg(feature = "naga-ext")]
+                    BuiltinValue::NumSubgroups => inputs.num_subgroups.map(Instance::from),
                     #[cfg(feature = "naga-ext")]
                     BuiltinValue::PrimitiveIndex => inputs.primitive_index.map(Instance::from),
                     #[cfg(feature = "naga-ext")]
