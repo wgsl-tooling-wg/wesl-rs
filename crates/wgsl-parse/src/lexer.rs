@@ -203,7 +203,7 @@ fn parse_hex_f64(lex: &mut logos::Lexer<Token>) -> Option<f64> {
     lexical::parse_with_options::<f64, _, HEX_FORMAT>(str, options).ok()
 }
 
-fn parse_line_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
+fn parse_line_comment(lex: &mut logos::Lexer<Token>) {
     let rem = lex.remainder();
     // see blankspace and line breaks: https://www.w3.org/TR/WGSL/#blankspace-and-line-breaks
     let line_end = rem
@@ -212,10 +212,9 @@ fn parse_line_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
         .map(|(i, _)| i)
         .unwrap_or(rem.len());
     lex.bump(line_end);
-    logos::Skip
 }
 
-fn parse_block_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
+fn parse_block_comment(lex: &mut logos::Lexer<Token>) {
     let mut depth = 1;
     while depth > 0 {
         let rem = lex.remainder();
@@ -231,7 +230,6 @@ fn parse_block_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
             lex.bump(1);
         }
     }
-    logos::Skip
 }
 
 /// These are not valid WGSL identifiers and will trigger an error if used.
@@ -415,15 +413,17 @@ pub struct LexerState {
     error = ParseError)]
 pub enum Token {
     #[token("//", parse_line_comment)]
+    LineComment,
     #[token("/*", parse_block_comment, priority = 2)]
+    BlockComment,
     // the parse_ident function can return either Token::Ident or Token::ReservedWord.
+    // Token::Ignored variant is never produced.
+    // It serves as a placeholder for running parse_ident.
     #[regex(
         r#"([_\p{XID_Start}][\p{XID_Continue}]+)|([\p{XID_Start}])"#,
         parse_ident,
         priority = 1
     )]
-    // Token::Ignored variant is never produced.
-    // It serves as a placeholder for above logos callbacks.
     Ignored,
     // syntactic tokens
     // https://www.w3.org/TR/WGSL/#syntactic-tokens
@@ -656,6 +656,13 @@ pub enum Token {
 }
 
 impl Token {
+    pub fn is_trivia(&self) -> bool {
+        matches!(
+            self,
+            Token::LineComment | Token::BlockComment | Token::Ignored
+        )
+    }
+
     #[allow(unused)]
     pub fn is_symbol(&self) -> bool {
         matches!(
@@ -760,6 +767,8 @@ impl Display for Token {
     /// This display implementation is used for error messages.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Token::LineComment => f.write_str("// line comment"),
+            Token::BlockComment => f.write_str("/* block comment */"),
             Token::Ignored => unreachable!(),
             Token::SymAnd => f.write_str("&"),
             Token::SymAndAnd => f.write_str("&&"),
@@ -880,7 +889,9 @@ pub struct Lexer<'s> {
 impl<'s> Lexer<'s> {
     pub fn new(source: &'s str) -> Self {
         let mut token_stream = Token::lexer_with_extras(source, LexerState::default()).spanned();
-        let next_token = token_stream.next();
+        let next_token =
+            token_stream.find(|(tok, _)| tok.as_ref().is_ok_and(|tok| !tok.is_trivia()));
+
         Self {
             source,
             token_stream,
@@ -900,7 +911,9 @@ impl<'s> Lexer<'s> {
                 let span2 = span1.start + 1..span1.end;
                 Some((Ok(tok), span2))
             }
-            None => self.token_stream.next(),
+            None => self
+                .token_stream
+                .find(|(tok, _)| tok.as_ref().is_ok_and(|tok| !tok.is_trivia())),
         };
 
         (tok1, tok2)
