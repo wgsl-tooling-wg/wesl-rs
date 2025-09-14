@@ -60,18 +60,22 @@ fn make_explicit_return(stmt: &mut ReturnStatement, ctx: &mut Context) -> Result
         (Some(expr), Some(ret_expr)) => {
             let ret_ty = ty_eval_ty(ret_expr, ctx)?;
             let expr_ty = expr.eval_ty(ctx)?.loaded();
-            if expr_ty != ret_ty {
-                if expr_ty.is_convertible_to(&ret_ty) {
-                    let ty = ret_ty.to_expr(ctx)?.unwrap_type_or_identifier();
-                    *expr.node_mut() = Expression::FunctionCall(FunctionCall {
-                        ty,
-                        arguments: vec![expr.clone()],
-                    })
-                } else {
-                    return Err(E::ReturnType(expr_ty, decl.ident.to_string(), ret_ty));
-                }
+
+            if expr_ty == ret_ty || expr_ty.is_array() && ret_ty.is_array() {
+                // array<> does not have a constructor that takes another array.
+                return Ok(());
             }
-            Ok(())
+
+            if expr_ty.is_convertible_to(&ret_ty) {
+                let ty = ret_ty.to_expr(ctx)?.unwrap_type_or_identifier();
+                *expr.node_mut() = Expression::FunctionCall(FunctionCall {
+                    ty,
+                    arguments: vec![expr.clone()],
+                });
+                Ok(())
+            } else {
+                Err(E::ReturnType(expr_ty, decl.ident.to_string(), ret_ty))
+            }
         }
     }
 }
@@ -102,8 +106,8 @@ impl Lower for Expression {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
         match self.eval_value(ctx) {
             Ok(inst) => *self = inst.to_expr(ctx)?,
-            // `NotAccessible` is supposed to be the only possible error when evaluating valid code.
-            Err(E::NotAccessible(_, ShaderStage::Const) | E::NotConst(_)) => {
+            // These are supposed to be the only acceptable errors when evaluating valid code.
+            Err(E::Todo(_) | E::NotAccessible(_, ShaderStage::Const) | E::NotConst(_)) => {
                 ctx.err_span = None;
                 match self {
                     Expression::Literal(_) => (),

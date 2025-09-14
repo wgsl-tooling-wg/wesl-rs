@@ -309,6 +309,9 @@ impl Type {
             )
     }
 
+    pub fn is_array(&self) -> bool {
+        matches!(self, Type::Array(_, _))
+    }
     pub fn is_vec(&self) -> bool {
         matches!(self, Type::Vec(_, _))
     }

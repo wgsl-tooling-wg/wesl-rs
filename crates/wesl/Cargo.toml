@@ -40,6 +40,7 @@ generics = ["wgsl-parse/generics"]
 # * https://github.com/gfx-rs/wgpu/issues/4410
 # * https://github.com/gfx-rs/wgpu/blob/trunk/docs/api-specs/ray_tracing.md
 # * https://github.com/gfx-rs/wgpu/blob/b93b55920a978ef9f013efe8d75cb10e69488629/naga/src/valid/mod.rs#L83
+# * test files in https://github.com/gfx-rs/wgpu/tree/trunk/naga/tests
 naga_ext = ["wgsl-parse/naga_ext", "wgsl-types/naga_ext"]
 package = ["dep:proc-macro2", "dep:quote"]
 quote = ["wesl-macros/quote"]
