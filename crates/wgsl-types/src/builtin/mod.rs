@@ -281,6 +281,10 @@ pub fn call_ctor(ty: &Type, args: &[Instance], stage: ShaderStage) -> Result<Ins
                 args: args.iter().map(|a| a.ty()).collect_vec(),
             }))
         }
+        #[cfg(feature = "naga-ext")]
+        (Type::RayQuery(_) | Type::AccelerationStructure(_), _) => {
+            Err(E::NotConstructible(ty.clone()))
+        }
     }
 }
 

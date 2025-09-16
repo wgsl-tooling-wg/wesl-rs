@@ -1,9 +1,8 @@
 use std::{collections::HashMap, sync::LazyLock};
 
-use itertools::chain;
 use wgsl_parse::syntax::*;
 use wgsl_types::{
-    idents::*,
+    idents::iter_builtin_idents,
     syntax::SampledType,
     ty::{SamplerType, TextureType, Type},
 };
@@ -12,21 +11,7 @@ use wgsl_types::{
 ///
 /// Using these idents allow better use-count tracking and referencing.
 pub static BUILTIN_IDENTS: LazyLock<HashMap<&str, Ident>> = LazyLock::new(|| {
-    macro_rules! ident {
-        ($name:expr) => {
-            ($name, Ident::new($name.to_string()))
-        };
-    }
-    HashMap::from_iter(chain!(
-        BUILTIN_TYPE_NAMES.iter().map(|id| ident!(*id)),
-        BUILTIN_TYPE_GENERATOR_NAMES.iter().map(|id| ident!(*id)),
-        BUILTIN_STRUCT_NAMES.iter().map(|id| ident!(*id)),
-        BUILTIN_DECLARATION_NAMES.iter().map(|id| ident!(*id)),
-        BUILTIN_ALIAS_NAMES.iter().map(|id| ident!(*id)),
-        BUILTIN_ENUMERANT_NAMES.iter().map(|id| ident!(*id)),
-        BUILTIN_FUNCTION_NAMES.iter().map(|id| ident!(*id)),
-        BUILTIN_CONSTRUCTOR_NAMES.iter().map(|id| ident!(*id)),
-    ))
+    HashMap::from_iter(iter_builtin_idents().map(|id| (id, Ident::new(id.to_string()))))
 });
 
 /// Get a built-in WGSL name as [`Ident`].
@@ -50,16 +35,8 @@ impl BuiltinIdent for Type {
             Type::U32 => builtin_ident("u32"),
             Type::F32 => builtin_ident("f32"),
             Type::F16 => builtin_ident("f16"),
-            #[cfg(feature = "naga-ext")]
-            Type::I64 => builtin_ident("i64"),
-            #[cfg(feature = "naga-ext")]
-            Type::U64 => builtin_ident("u64"),
-            #[cfg(feature = "naga-ext")]
-            Type::F64 => builtin_ident("f64"),
             Type::Struct(_) => None,
             Type::Array(_, _) => builtin_ident("array"),
-            #[cfg(feature = "naga-ext")]
-            Type::BindingArray(_, _) => builtin_ident("binding_array"),
             Type::Vec(n, _) => match n {
                 2 => builtin_ident("vec2"),
                 3 => builtin_ident("vec3"),
@@ -83,6 +60,18 @@ impl BuiltinIdent for Type {
             Type::Ref(_, _, _) => builtin_ident("__ref"),
             Type::Texture(texture_type) => texture_type.builtin_ident(),
             Type::Sampler(sampler_type) => sampler_type.builtin_ident(),
+            #[cfg(feature = "naga-ext")]
+            Type::I64 => builtin_ident("i64"),
+            #[cfg(feature = "naga-ext")]
+            Type::U64 => builtin_ident("u64"),
+            #[cfg(feature = "naga-ext")]
+            Type::F64 => builtin_ident("f64"),
+            #[cfg(feature = "naga-ext")]
+            Type::BindingArray(_, _) => builtin_ident("binding_array"),
+            #[cfg(feature = "naga-ext")]
+            Type::RayQuery(_) => builtin_ident("ray_query"),
+            #[cfg(feature = "naga-ext")]
+            Type::AccelerationStructure(_) => builtin_ident("acceleration_structure"),
         }
     }
 }

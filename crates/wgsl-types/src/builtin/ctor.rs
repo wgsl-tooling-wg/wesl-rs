@@ -892,17 +892,9 @@ impl Instance {
             Type::U32 => Ok(LiteralInstance::U32(0).into()),
             Type::F32 => Ok(LiteralInstance::F32(0.0).into()),
             Type::F16 => Ok(LiteralInstance::F16(f16::zero()).into()),
-            #[cfg(feature = "naga-ext")]
-            Type::I64 => Ok(LiteralInstance::I64(0).into()),
-            #[cfg(feature = "naga-ext")]
-            Type::U64 => Ok(LiteralInstance::U64(0).into()),
-            #[cfg(feature = "naga-ext")]
-            Type::F64 => Ok(LiteralInstance::F64(0.0).into()),
             Type::Struct(s) => StructInstance::zero_value(s).map(Into::into),
             Type::Array(a_ty, Some(n)) => ArrayInstance::zero_value(*n, a_ty).map(Into::into),
             Type::Array(_, None) => Err(E::NotConstructible(ty.clone())),
-            #[cfg(feature = "naga-ext")]
-            Type::BindingArray(_, _) => Err(E::NotConstructible(ty.clone())),
             Type::Vec(n, v_ty) => VecInstance::zero_value(*n, v_ty).map(Into::into),
             Type::Mat(c, r, m_ty) => MatInstance::zero_value(*c, *r, m_ty).map(Into::into),
             Type::Atomic(_)
@@ -910,6 +902,18 @@ impl Instance {
             | Type::Ref(_, _, _)
             | Type::Texture(_)
             | Type::Sampler(_) => Err(E::NotConstructible(ty.clone())),
+            #[cfg(feature = "naga-ext")]
+            Type::I64 => Ok(LiteralInstance::I64(0).into()),
+            #[cfg(feature = "naga-ext")]
+            Type::U64 => Ok(LiteralInstance::U64(0).into()),
+            #[cfg(feature = "naga-ext")]
+            Type::F64 => Ok(LiteralInstance::F64(0.0).into()),
+            #[cfg(feature = "naga-ext")]
+            Type::BindingArray(_, _) => Err(E::NotConstructible(ty.clone())),
+            #[cfg(feature = "naga-ext")]
+            Type::RayQuery(_) => Err(E::NotConstructible(ty.clone())),
+            #[cfg(feature = "naga-ext")]
+            Type::AccelerationStructure(_) => Err(E::NotConstructible(ty.clone())),
         }
     }
 }

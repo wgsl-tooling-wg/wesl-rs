@@ -8,7 +8,7 @@ use crate::{
         ArrayInstance, AtomicInstance, LiteralInstance, MatInstance, PtrInstance, RefInstance,
         StructInstance, VecInstance,
     },
-    syntax::{AccessMode, AddressSpace, SampledType, TexelFormat},
+    syntax::{AccelerationStructureFlags, AccessMode, AddressSpace, SampledType, TexelFormat},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -267,16 +267,8 @@ pub enum Type {
     U32,
     F32,
     F16,
-    #[cfg(feature = "naga-ext")]
-    I64,
-    #[cfg(feature = "naga-ext")]
-    U64,
-    #[cfg(feature = "naga-ext")]
-    F64,
     Struct(Box<StructType>),
     Array(Box<Type>, Option<usize>),
-    #[cfg(feature = "naga-ext")]
-    BindingArray(Box<Type>, Option<usize>),
     Vec(u8, Box<Type>),
     Mat(u8, u8, Box<Type>),
     Atomic(Box<Type>),
@@ -284,6 +276,18 @@ pub enum Type {
     Ref(AddressSpace, Box<Type>, AccessMode),
     Texture(TextureType),
     Sampler(SamplerType),
+    #[cfg(feature = "naga-ext")]
+    I64,
+    #[cfg(feature = "naga-ext")]
+    U64,
+    #[cfg(feature = "naga-ext")]
+    F64,
+    #[cfg(feature = "naga-ext")]
+    BindingArray(Box<Type>, Option<usize>),
+    #[cfg(feature = "naga-ext")]
+    RayQuery(Option<AccelerationStructureFlags>),
+    #[cfg(feature = "naga-ext")]
+    AccelerationStructure(Option<AccelerationStructureFlags>),
 }
 
 impl Type {
@@ -457,16 +461,8 @@ impl Ty for Type {
             Type::U32 => self.clone(),
             Type::F32 => self.clone(),
             Type::F16 => self.clone(),
-            #[cfg(feature = "naga-ext")]
-            Type::I64 => self.clone(),
-            #[cfg(feature = "naga-ext")]
-            Type::U64 => self.clone(),
-            #[cfg(feature = "naga-ext")]
-            Type::F64 => self.clone(),
             Type::Struct(_) => self.clone(),
             Type::Array(ty, _) => ty.ty(),
-            #[cfg(feature = "naga-ext")]
-            Type::BindingArray(ty, _) => ty.ty(),
             Type::Vec(_, ty) => ty.ty(),
             Type::Mat(_, _, ty) => ty.ty(),
             Type::Atomic(ty) => ty.ty(),
@@ -474,6 +470,18 @@ impl Ty for Type {
             Type::Ref(_, ty, _) => ty.ty(),
             Type::Texture(_) => self.clone(),
             Type::Sampler(_) => self.clone(),
+            #[cfg(feature = "naga-ext")]
+            Type::I64 => self.clone(),
+            #[cfg(feature = "naga-ext")]
+            Type::U64 => self.clone(),
+            #[cfg(feature = "naga-ext")]
+            Type::F64 => self.clone(),
+            #[cfg(feature = "naga-ext")]
+            Type::BindingArray(ty, _) => ty.ty(),
+            #[cfg(feature = "naga-ext")]
+            Type::RayQuery(_) => self.clone(),
+            #[cfg(feature = "naga-ext")]
+            Type::AccelerationStructure(_) => self.clone(),
         }
     }
 }

@@ -284,6 +284,21 @@ impl ToExpr for Type {
                 Ok(ty)
             }
             Type::Sampler(_) => Ok(TypeExpression::new(ident.unwrap())),
+            #[cfg(feature = "naga-ext")]
+            Type::RayQuery(flags) | Type::AccelerationStructure(flags) => Ok(TypeExpression {
+                path: None,
+                ident: ident.unwrap(),
+                template_args: (*flags == Some(AccelerationStructureFlags::VertexReturn)).then(
+                    || {
+                        vec![TemplateArg {
+                            expression: Expression::TypeOrIdentifier(TypeExpression::new(
+                                builtin_ident("vertex_return").unwrap().clone(),
+                            ))
+                            .into(),
+                        }]
+                    },
+                ),
+            }),
         }
         .map(Expression::from)
     }

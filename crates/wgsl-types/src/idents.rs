@@ -30,6 +30,10 @@ pub const BUILTIN_TYPE_NAMES: &[&str] = &[
     "u64",
     #[cfg(feature = "naga-ext")]
     "f64",
+    #[cfg(feature = "naga-ext")]
+    "ray_query",
+    #[cfg(feature = "naga-ext")]
+    "acceleration_structure",
 ];
 
 /// Built-in type-generators identifiers.
@@ -236,6 +240,8 @@ pub const BUILTIN_ENUMERANT_NAMES: &[&str] = &[
     "rgba16unorm",
     #[cfg(feature = "naga-ext")]
     "rgba16snorm",
+    #[cfg(feature = "naga-ext")]
+    "vertex_return", // for ray_query and acceleration_structure
 ];
 
 /// Built-in functions identifiers, excluding built-in constructors.

@@ -133,6 +133,15 @@ pub enum TexelFormat {
     Rgba16Snorm,
 }
 
+/// Acceleration structure flags (naga extension)
+#[cfg(feature = "naga-ext")]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AccelerationStructureFlags {
+    VertexReturn,
+}
+
 /// One of the predeclared enumerants.
 ///
 /// Reference: <https://www.w3.org/TR/WGSL/#predeclared-enumerants>
@@ -141,6 +150,8 @@ pub enum Enumerant {
     AccessMode(AccessMode),
     AddressSpace(AddressSpace),
     TexelFormat(TexelFormat),
+    #[cfg(feature = "naga-ext")]
+    AccelerationStructureFlags(AccelerationStructureFlags),
 }
 
 impl FromStr for Enumerant {
@@ -151,6 +162,10 @@ impl FromStr for Enumerant {
             .map(Enumerant::AccessMode)
             .or_else(|()| AddressSpace::from_str(s).map(Enumerant::AddressSpace))
             .or_else(|()| TexelFormat::from_str(s).map(Enumerant::TexelFormat))
+            .or_else(|()| {
+                #[cfg(feature = "naga-ext")]
+                AccelerationStructureFlags::from_str(s).map(Enumerant::AccelerationStructureFlags)
+            })
     }
 }
 
@@ -621,6 +636,18 @@ impl FromStr for TexelFormat {
     }
 }
 
+#[cfg(feature = "naga-ext")]
+impl FromStr for AccelerationStructureFlags {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "vertex_return" => Ok(Self::VertexReturn),
+            _ => Err(()),
+        }
+    }
+}
+
 impl FromStr for DiagnosticSeverity {
     type Err = ();
 
@@ -822,6 +849,15 @@ impl Display for TexelFormat {
             TexelFormat::Rgba16Unorm => write!(f, "rgba16unorm"),
             #[cfg(feature = "naga-ext")]
             TexelFormat::Rgba16Snorm => write!(f, "rgba16snorm"),
+        }
+    }
+}
+
+#[cfg(feature = "naga-ext")]
+impl Display for AccelerationStructureFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::VertexReturn => write!(f, "vertex_return"),
         }
     }
 }

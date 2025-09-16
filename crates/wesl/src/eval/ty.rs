@@ -182,11 +182,19 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
                 let tplt = TextureTemplate::parse(name, &tplt)?;
                 Ok(Type::Texture(tplt.ty()))
             }
+
             #[cfg(feature = "naga-ext")]
             "texture_1d_array" | "texture_storage_1d_array" | "texture_multisampled_2d_array" => {
                 let tplt = TextureTemplate::parse(name, &tplt)?;
                 Ok(Type::Texture(tplt.ty()))
             }
+            #[cfg(feature = "naga-ext")]
+            "ray_query" => Ok(Type::RayQuery(None)),
+            #[cfg(feature = "naga-ext")]
+            "acceleration_structure" => Ok(Type::AccelerationStructure(Some(
+                wgsl_types::syntax::AccelerationStructureFlags::VertexReturn,
+            ))),
+
             _ => Err(E::UnexpectedTemplate(name.to_string())),
         }
     }
@@ -215,6 +223,10 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
             "u64" => Ok(Type::U64),
             #[cfg(feature = "naga-ext")]
             "f64" => Ok(Type::F64),
+            #[cfg(feature = "naga-ext")]
+            "ray_query" => Ok(Type::RayQuery(Default::default())),
+            #[cfg(feature = "naga-ext")]
+            "acceleration_structure" => Ok(Type::AccelerationStructure(Default::default())),
 
             _ => Err(E::UnknownType(name.to_string())),
         }

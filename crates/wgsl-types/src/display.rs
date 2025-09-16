@@ -109,43 +109,14 @@ impl Display for MatInstance {
     }
 }
 
-// impl Display for AddressSpace {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             Self::Function => write!(f, "function"),
-//             Self::Private => write!(f, "private"),
-//             Self::Workgroup => write!(f, "workgroup"),
-//             Self::Uniform => write!(f, "uniform"),
-//             Self::Storage(access_mode) => match access_mode {
-//                 Some(access_mode) => write!(f, "storage, {access_mode}"),
-//                 None => write!(f, "storage"),
-//             },
-//             Self::Handle => write!(f, "handle"),
-//             #[cfg(feature = "naga-ext")]
-//             Self::PushConstant => write!(f, "push_constant"),
-//         }
-//     }
-// }
-
-// fn addr_space(space: AddressSpace) -> &'static str {
-//     match space {
-//         AddressSpace::Function => "function",
-//         AddressSpace::Private => "private",
-//         AddressSpace::Workgroup => "workgroup",
-//         AddressSpace::Uniform => "uniform",
-//         AddressSpace::Storage(_) => "storage",
-//         AddressSpace::Handle => "handle",
-//         #[cfg(feature = "naga-ext")]
-//         AddressSpace::PushConstant => "push_constant",
-//     }
-// }
-
 impl Display for Enumerant {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Enumerant::AccessMode(access_mode) => write!(f, "{access_mode}"),
             Enumerant::AddressSpace(address_space) => write!(f, "{address_space}"),
             Enumerant::TexelFormat(texel_format) => write!(f, "{texel_format}"),
+            #[cfg(feature = "naga-ext")]
+            Enumerant::AccelerationStructureFlags(flags) => write!(f, "{flags}"),
         }
     }
 }
@@ -208,19 +179,9 @@ impl Display for Type {
             Type::U32 => write!(f, "u32"),
             Type::F32 => write!(f, "f32"),
             Type::F16 => write!(f, "f16"),
-            #[cfg(feature = "naga-ext")]
-            Type::I64 => write!(f, "i64"),
-            #[cfg(feature = "naga-ext")]
-            Type::U64 => write!(f, "u64"),
-            #[cfg(feature = "naga-ext")]
-            Type::F64 => write!(f, "f64"),
             Type::Struct(s) => write!(f, "{}", s.name),
             Type::Array(ty, Some(n)) => write!(f, "array<{ty}, {n}>"),
             Type::Array(ty, None) => write!(f, "array<{ty}>"),
-            #[cfg(feature = "naga-ext")]
-            Type::BindingArray(ty, Some(n)) => write!(f, "binding_array<{ty}, {n}>"),
-            #[cfg(feature = "naga-ext")]
-            Type::BindingArray(ty, None) => write!(f, "binding_array<{ty}>"),
             Type::Vec(n, ty) => write!(f, "vec{n}<{ty}>"),
             Type::Mat(m, n, ty) => write!(f, "mat{m}x{n}<{ty}>"),
             Type::Atomic(ty) => write!(f, "atomic<{ty}>"),
@@ -228,6 +189,26 @@ impl Display for Type {
             Type::Ref(a_s, ty, a_m) => write!(f, "ref<{a_s}, {ty}, {a_m}>"),
             Type::Texture(texture_type) => texture_type.fmt(f),
             Type::Sampler(sampler_type) => sampler_type.fmt(f),
+            #[cfg(feature = "naga-ext")]
+            Type::I64 => write!(f, "i64"),
+            #[cfg(feature = "naga-ext")]
+            Type::U64 => write!(f, "u64"),
+            #[cfg(feature = "naga-ext")]
+            Type::F64 => write!(f, "f64"),
+            #[cfg(feature = "naga-ext")]
+            Type::BindingArray(ty, Some(n)) => write!(f, "binding_array<{ty}, {n}>"),
+            #[cfg(feature = "naga-ext")]
+            Type::BindingArray(ty, None) => write!(f, "binding_array<{ty}>"),
+            #[cfg(feature = "naga-ext")]
+            Type::RayQuery(None) => write!(f, "ray_query"),
+            #[cfg(feature = "naga-ext")]
+            Type::RayQuery(Some(_)) => write!(f, "ray_query<vertex_return>"),
+            #[cfg(feature = "naga-ext")]
+            Type::AccelerationStructure(None) => write!(f, "acceleration_structure"),
+            #[cfg(feature = "naga-ext")]
+            Type::AccelerationStructure(Some(_)) => {
+                write!(f, "acceleration_structure<vertex_return>")
+            }
         }
     }
 }
