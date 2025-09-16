@@ -410,16 +410,6 @@ pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
         compiler.set_feature("PREPASS_FRAGMENT", true); // water_material needs it
         compiler.set_feature("PREPASS_PIPELINE", true); // water_material needs it
         compiler.set_feature("NORMAL_PREPASS_OR_DEFERRED_PREPASS", true); // water_material needs it
-
-        compiler
-            .compile(&ModulePath::new(PathOrigin::Absolute, vec![name.clone()]))
-            .inspect_err(|e| {
-                println!(
-                    "{}",
-                    wesl::Diagnostic::from(e.clone()).detail.output.unwrap()
-                )
-            })
-            .ok();
     }
     compiler.compile(&ModulePath::new(PathOrigin::Absolute, vec![name]))?;
     Ok(())

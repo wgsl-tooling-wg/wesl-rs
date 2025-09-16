@@ -54,6 +54,13 @@ impl<T> Default for Scope<T> {
 }
 
 impl<T> ScopeInner<T> {
+    pub fn depth(&self) -> u32 {
+        if let Some(parent) = &self.parent {
+            parent.depth() + 1
+        } else {
+            0
+        }
+    }
     pub fn get(&self, name: &str) -> Option<&T> {
         self.local
             .get(name)
@@ -88,6 +95,9 @@ impl<T> Scope<T> {
     }
     pub fn is_root(&self) -> bool {
         self.inner.parent.is_none()
+    }
+    pub fn depth(&self) -> u32 {
+        self.inner.depth()
     }
     /// variables in a 'transparent' scope have the same scope as the parent scope.
     /// this is useful for 'for' loops and function calls which have the same

@@ -84,7 +84,6 @@ macro_rules! with_scope {
     ($ctx:expr, $body:tt) => {{ with_scope!($ctx, CompoundScope::Regular, $body) }};
     ($ctx:expr, $scoping:expr, $body:tt) => {{
         $scoping.push($ctx);
-        $ctx.scope.push();
         #[allow(clippy::redundant_closure_call)]
         let body = (|| $body)();
         $scoping.pop($ctx);
