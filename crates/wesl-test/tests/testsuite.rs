@@ -178,8 +178,20 @@ fn main() {
             .filter_map(|(e, d)| e.ok().map(|e| (e, d)))
             .filter(|(e, _)| e.path().extension() == Some(OsStr::new("wgsl")))
             .map(|(e, d)| {
-                let name = format!("wgpu::{d}::{:?}", e.file_name());
+                let filename = e.file_name();
+                let name = format!("wgpu::{d}::{:?}", filename);
                 libtest_mimic::Trial::test(name, move || validation_case(e.path()))
+                    .with_ignored_flag(
+                        [
+                            "lexical-scopes.wgsl",     // https://github.com/gfx-rs/wgpu/issues/8235
+                            "msl-vpt-formats-x1.wgsl", // https://github.com/gfx-rs/wgpu/issues/8225
+                            "msl-vpt-formats-x2.wgsl", // https://github.com/gfx-rs/wgpu/issues/8225
+                            "msl-vpt-formats-x3.wgsl", // https://github.com/gfx-rs/wgpu/issues/8225
+                            "msl-vpt-formats-x4.wgsl", // https://github.com/gfx-rs/wgpu/issues/8225
+                        ]
+                        .iter()
+                        .any(|f| filename.to_str() == Some(f)),
+                    )
             })
     });
 
