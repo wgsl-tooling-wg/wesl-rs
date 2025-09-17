@@ -3,7 +3,7 @@
 use crate::{
     CallSignature, Error,
     conv::{Convert, convert_all_ty, convert_ty},
-    syntax::AddressSpace,
+    syntax::{AccessMode, AddressSpace},
     tplt::{BitcastTemplate, TpltParam},
     ty::{StructMemberType, StructType, TextureDimensions, TextureType, Ty, Type},
 };
@@ -416,6 +416,48 @@ pub fn type_builtin_fn(
         ("quadSwapDiagonal", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
         ("quadSwapX", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
         ("quadSwapY", None, [a]) if is_numeric(a) => Ok(Some(a.concretize())),
+
+        // naga ray queries extension
+        // TODO: validate naga extensions arguments
+        #[cfg(feature = "naga-ext")]
+        (
+            "rayQueryInitialize",
+            None,
+            [
+                Type::Ptr(AddressSpace::Function, _ty, AccessMode::ReadWrite),
+                Type::AccelerationStructure(_),
+                Type::Struct(_),
+            ],
+        ) => Ok(None),
+        #[cfg(feature = "naga-ext")]
+        (
+            "rayQueryProceed",
+            None,
+            [Type::Ptr(AddressSpace::Function, _ty, AccessMode::ReadWrite)],
+        ) => Ok(Some(Type::Bool)),
+        #[cfg(feature = "naga-ext")]
+        ("rayQueryGenerateIntersection", None, [a1]) if a1.is_convertible_to(&Type::F32) => {
+            Ok(None)
+        }
+        #[cfg(feature = "naga-ext")]
+        ("rayQueryConfirmIntersection", None, []) => Ok(None),
+        #[cfg(feature = "naga-ext")]
+        ("rayQueryTerminate", None, []) => Ok(None),
+        #[cfg(feature = "naga-ext")]
+        (
+            "rayQueryGetCommittedIntersection" | "rayQueryGetCandidateIntersection",
+            None,
+            [Type::Ptr(AddressSpace::Function, _ty, AccessMode::ReadWrite)],
+        ) => Ok(Some(ray_intersection_struct_type().into())),
+        #[cfg(feature = "naga-ext")]
+        (
+            "getCommittedHitVertexPositions" | "getCandidateHitVertexPositions",
+            None,
+            [Type::Ptr(AddressSpace::Function, _ty, AccessMode::ReadWrite)],
+        ) => Ok(Some(Type::Array(
+            Box::new(Type::Vec(3, Box::new(Type::F32))),
+            Some(3),
+        ))),
         _ => Err(err()),
     }
 }
@@ -505,4 +547,49 @@ pub(crate) fn modf_struct_type(ty: &Type) -> Option<StructType> {
             StructMemberType::new("whole".to_string(), ty.clone()),
         ],
     })
+}
+
+#[cfg(feature = "naga-ext")]
+#[allow(unused)]
+pub(crate) fn ray_desc_struct_type() -> StructType {
+    StructType {
+        name: "RayDesc".to_string(),
+        members: vec![
+            StructMemberType::new("flags".to_string(), Type::U32),
+            StructMemberType::new("cull_mask".to_string(), Type::U32),
+            StructMemberType::new("t_min".to_string(), Type::F32),
+            StructMemberType::new("t_max".to_string(), Type::F32),
+            StructMemberType::new("origin".to_string(), Type::Vec(3, Box::new(Type::F32))),
+            StructMemberType::new("dir".to_string(), Type::Vec(3, Box::new(Type::F32))),
+        ],
+    }
+}
+
+#[cfg(feature = "naga-ext")]
+pub(crate) fn ray_intersection_struct_type() -> StructType {
+    StructType {
+        name: "RayIntersection".to_string(),
+        members: vec![
+            StructMemberType::new("kind".to_string(), Type::U32),
+            StructMemberType::new("t".to_string(), Type::F32),
+            StructMemberType::new("instance_custom_data".to_string(), Type::U32),
+            StructMemberType::new("instance_index".to_string(), Type::U32),
+            StructMemberType::new("sbt_record_offset".to_string(), Type::U32),
+            StructMemberType::new("geometry_index".to_string(), Type::U32),
+            StructMemberType::new("primitive_index".to_string(), Type::U32),
+            StructMemberType::new(
+                "barycentrics".to_string(),
+                Type::Vec(2, Box::new(Type::F32)),
+            ),
+            StructMemberType::new("front_face".to_string(), Type::Bool),
+            StructMemberType::new(
+                "object_to_world".to_string(),
+                Type::Mat(4, 3, Box::new(Type::F32)),
+            ),
+            StructMemberType::new(
+                "world_to_object".to_string(),
+                Type::Mat(4, 3, Box::new(Type::F32)),
+            ),
+        ],
+    }
 }

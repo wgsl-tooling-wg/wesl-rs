@@ -9,6 +9,8 @@ use wgsl_types::{
     ty::{Ty, Type},
 };
 
+use crate::eval::PRELUDE;
+
 use super::{
     ATTR_INTRINSIC, Context, Eval, EvalError, EvalTy, ScopeKind, SyntaxUtil, attrs::EvalAttrs,
     eval_tplt_arg, ty_eval_ty,
@@ -131,7 +133,11 @@ impl<T: Exec> Exec for Spanned<T> {
 impl Exec for TranslationUnit {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         module_scope!(ctx, {
-            for decl in &ctx.source.global_declarations {
+            for decl in PRELUDE
+                .global_declarations
+                .iter()
+                .chain(&ctx.source.global_declarations)
+            {
                 let flow = decl.exec(ctx)?;
                 match flow {
                     Flow::Next => (),
