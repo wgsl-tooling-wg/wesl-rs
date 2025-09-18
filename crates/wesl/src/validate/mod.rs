@@ -7,9 +7,10 @@ use wgsl_parse::syntax::{
     TranslationUnit, TypeExpression,
 };
 
-use crate::builtin::{BUILTIN_CONSTRUCTOR_NAMES, BUILTIN_FUNCTION_NAMES, builtin_ident};
+use crate::builtin::builtin_ident;
 use crate::visit::Visit;
 use crate::{Diagnostic, Error};
+use wgsl_types::idents::{BUILTIN_CONSTRUCTOR_NAMES, BUILTIN_FUNCTION_NAMES};
 
 /// WESL or WGSL Validation error.
 #[derive(Clone, Debug, thiserror::Error)]
