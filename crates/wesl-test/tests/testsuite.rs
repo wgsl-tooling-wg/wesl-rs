@@ -171,7 +171,7 @@ fn main() {
             .filter(|(e, _)| e.path().extension() == Some(OsStr::new("wgsl")))
             .map(|(e, d)| {
                 let filename = e.file_name();
-                let name = format!("wgpu::{d}::{:?}", filename);
+                let name = format!("wgpu::{d}::{filename:?}");
                 libtest_mimic::Trial::test(name, move || validation_case(e.path()))
                     .with_ignored_flag(
                         [

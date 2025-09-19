@@ -202,7 +202,7 @@ impl Exec for Statement {
 
 impl Exec for CompoundStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        compound_exec(&self, ctx, CompoundScope::Regular)
+        compound_exec(self, ctx, CompoundScope::Regular)
     }
 }
 
