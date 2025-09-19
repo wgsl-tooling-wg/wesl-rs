@@ -22,42 +22,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  check-advisories:
+  cargo-deny:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-deny
-        run: cargo install cargo-deny
-      - name: Check for security advisories and unmaintained crates
-        run: cargo deny check advisories
-
-  check-bans:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-deny
-        run: cargo install cargo-deny
-      - name: Check for banned and duplicated dependencies
-        run: cargo deny check bans
-
-  check-licenses:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-deny
-        run: cargo install cargo-deny
-      - name: Check for unauthorized licenses
-        run: cargo deny check licenses
-
-  check-sources:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install cargo-deny
-        run: cargo install cargo-deny
-      - name: Checked for unauthorized crate sources
-        run: cargo deny check sources
+      - uses: EmbarkStudios/cargo-deny-action@v2
