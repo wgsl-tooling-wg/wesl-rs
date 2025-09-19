@@ -2,14 +2,7 @@
 
 use std::str::FromStr;
 
-use crate::{
-    Error, Instance,
-    inst::{
-        ArrayInstance, AtomicInstance, LiteralInstance, MatInstance, PtrInstance, RefInstance,
-        StructInstance, VecInstance,
-    },
-    syntax::{AccelerationStructureFlags, AccessMode, AddressSpace, SampledType, TexelFormat},
-};
+use crate::{Error, Instance, inst::*, syntax::*};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StructMemberType {

@@ -158,14 +158,15 @@ impl FromStr for Enumerant {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        AccessMode::from_str(s)
+        let res = AccessMode::from_str(s)
             .map(Enumerant::AccessMode)
             .or_else(|()| AddressSpace::from_str(s).map(Enumerant::AddressSpace))
-            .or_else(|()| TexelFormat::from_str(s).map(Enumerant::TexelFormat))
-            .or_else(|()| {
-                #[cfg(feature = "naga-ext")]
-                AccelerationStructureFlags::from_str(s).map(Enumerant::AccelerationStructureFlags)
-            })
+            .or_else(|()| TexelFormat::from_str(s).map(Enumerant::TexelFormat));
+        #[cfg(feature = "naga-ext")]
+        let res = res.or_else(|()| {
+            AccelerationStructureFlags::from_str(s).map(Enumerant::AccelerationStructureFlags)
+        });
+        res
     }
 }
 
