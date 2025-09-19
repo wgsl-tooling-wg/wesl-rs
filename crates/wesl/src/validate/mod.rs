@@ -3,12 +3,14 @@ use std::collections::HashSet;
 use wesl_macros::query;
 use wgsl_parse::Decorated;
 use wgsl_parse::syntax::{
-    Expression, ExpressionNode, FunctionCall, GlobalDeclaration, Ident, TranslationUnit,
-    TypeExpression,
+    Expression, ExpressionNode, FunctionCall, GlobalDeclaration, Ident, ImportContent,
+    TranslationUnit, TypeExpression,
 };
 use wgsl_types::idents::{BUILTIN_CONSTRUCTOR_NAMES, BUILTIN_FUNCTION_NAMES};
 
-use crate::{Diagnostic, Error, idents::builtin_ident, visit::Visit};
+use crate::idents::builtin_ident;
+use crate::visit::Visit;
+use crate::{Diagnostic, Error};
 
 /// WESL or WGSL Validation error.
 #[derive(Clone, Debug, thiserror::Error)]
@@ -170,6 +172,46 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
 
 fn check_duplicate_decl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     let mut unique = HashSet::new();
+
+    fn check_ident(id: &Ident, unique: &mut HashSet<String>) -> Result<(), Diagnostic<Error>> {
+        if unique.contains(id.name().as_str()) {
+            Err(Diagnostic::from(E::Duplicate(id.to_string())).with_declaration(id.to_string()))
+        } else {
+            unique.insert(id.to_string());
+            Ok(())
+        }
+    }
+
+    fn check_import_content(
+        cont: &ImportContent,
+        unique: &mut HashSet<String>,
+    ) -> Result<(), Diagnostic<Error>> {
+        match cont {
+            ImportContent::Item(item) => {
+                let id = item.rename.as_ref().unwrap_or(&item.ident);
+                check_ident(id, unique)?;
+            }
+            ImportContent::Collection(coll) => {
+                for item in coll {
+                    check_import_content(&item.content, unique)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    for import in &wesl.imports {
+        if import
+            .attributes()
+            .iter()
+            .any(|attr| attr.is_if() || attr.is_elif() || attr.is_else())
+        {
+            // we skip checking declarations that have conditional compilation flags.
+            continue;
+        }
+        check_import_content(&import.content, &mut unique)?;
+    }
+
     for decl in &wesl.global_declarations {
         if decl
             .attributes()
@@ -180,11 +222,7 @@ fn check_duplicate_decl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
             continue;
         }
         if let Some(id) = decl.ident() {
-            if !unique.insert(id.to_string()) {
-                return Err(
-                    Diagnostic::from(E::Duplicate(id.to_string())).with_declaration(id.to_string())
-                );
-            }
+            check_ident(id, &mut unique)?;
         }
     }
     Ok(())

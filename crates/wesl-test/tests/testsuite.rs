@@ -6,7 +6,7 @@
 
 use std::{ffi::OsStr, path::PathBuf, process::Command, str::FromStr};
 
-use wesl::{CompileOptions, EscapeMangler, NoMangler, VirtualResolver, syntax::*};
+use wesl::{CompileOptions, EscapeMangler, NoMangler, VirtualResolver, syntax::*, validate_wesl};
 use wesl_test::schemas::*;
 
 fn eprint_test(case: &Test) {
@@ -48,33 +48,25 @@ fn eprint_wgsl_test(case: &WgslTestSrc) {
 fn main() {
     let mut tests: Vec<libtest_mimic::Trial> = Vec::new();
 
-    tests.extend({
-        let file = std::fs::read_to_string("spec-tests/lit-type-inference.json")
-            .expect("failed to read test file");
-        let json: Vec<Test> = serde_json::from_str(&file).expect("failed to parse json file");
-        json.into_iter().map(|case| {
-            let name = format!("lit-type-inference.json::{}", case.name);
-            let ignored = case.skip.unwrap_or(false);
-            libtest_mimic::Trial::test(name, move || {
-                json_case(&case).inspect_err(|_| eprint_test(&case))
+    let spec_tests = [
+        "spec-tests/idents.json",
+        "spec-tests/lit-type-inference.json",
+        "spec-tests/imports.json",
+    ];
+    for path in spec_tests {
+        tests.extend({
+            let file = std::fs::read_to_string(path).expect("failed to read test file");
+            let json: Vec<Test> = serde_json::from_str(&file).expect("failed to parse json file");
+            json.into_iter().map(|case| {
+                let name = format!("{path}::{}", case.name);
+                let ignored = case.skip.unwrap_or(false);
+                libtest_mimic::Trial::test(name, move || {
+                    json_case(&case).inspect_err(|_| eprint_test(&case))
+                })
+                .with_ignored_flag(ignored)
             })
-            .with_ignored_flag(ignored)
-        })
-    });
-
-    tests.extend({
-        let file =
-            std::fs::read_to_string("spec-tests/idents.json").expect("failed to read test file");
-        let json: Vec<Test> = serde_json::from_str(&file).expect("failed to parse json file");
-        json.into_iter().map(|case| {
-            let name = format!("idents.json::{}", case.name);
-            let ignored = case.skip.unwrap_or(false);
-            libtest_mimic::Trial::test(name, move || {
-                json_case(&case).inspect_err(|_| eprint_test(&case))
-            })
-            .with_ignored_flag(ignored)
-        })
-    });
+        });
+    }
 
     tests.extend({
         let file =
@@ -280,16 +272,11 @@ fn json_case(case: &Test) -> Result<(), libtest_mimic::Failed> {
                 SyntaxKind::Statement => case.code.parse::<Statement>().map(|_| ()),
                 SyntaxKind::Expression => case.code.parse::<Expression>().map(|_| ()),
             };
-            match res {
-                Ok(()) => {
-                    if case.expect == Expectation::Fail {
-                        return Err("expected Fail, got Pass".into());
-                    }
-                }
-                Err(e) => {
-                    if case.expect == Expectation::Pass {
-                        return Err(format!("expected Pass, got Fail (`{e}`)").into());
-                    }
+            match (res, case.expect) {
+                (Err(_), Expectation::Fail) | (Ok(()), Expectation::Pass) => Ok(()),
+                (Ok(()), Expectation::Fail) => Err("expected Fail, got Pass".into()),
+                (Err(e), Expectation::Pass) => {
+                    Err(format!("expected Pass, got Fail (`{e}`)").into())
                 }
             }
         }
@@ -297,29 +284,41 @@ fn json_case(case: &Test) -> Result<(), libtest_mimic::Failed> {
             let wesl = case.code.parse::<TranslationUnit>()?;
             let expr = eval.parse::<Expression>()?;
             let (eval_inst, _) = wesl::eval(&expr, &wesl);
-            match result {
-                Some(expect) => {
+            let expect = result
+                .as_ref()
+                .map(|expect| -> Result<_, wesl::Error> {
                     let expr = expect.parse::<Expression>()?;
                     let (expect_inst, _) = wesl::eval(&expr, &wesl);
-                    let expect_inst = expect_inst?;
-                    let eval_inst = eval_inst?;
-                    if eval_inst != expect_inst {
-                        return Err(format!("expected `{expect_inst}`, got `{eval_inst}`").into());
+                    Ok(expect_inst?)
+                })
+                .transpose()?;
+            match (eval_inst, expect) {
+                (Err(_), None) => Ok(()),
+                (Ok(inst), Some(expect)) => {
+                    if inst != expect {
+                        Err(format!("expected `{expect}`, got `{inst}`").into())
+                    } else {
+                        Ok(())
                     }
                 }
-                None => {
-                    if let Ok(inst) = eval_inst {
-                        return Err(format!("expected Fail, got Pass (`{inst}`)").into());
-                    }
+                (Ok(inst), None) => Err(format!("expected Fail, got Pass (`{inst}`)").into()),
+                (Err(err), Some(expect)) => {
+                    Err(format!("expected `{expect}`, got Fail (`{err}`)").into())
                 }
-            };
+            }
         }
         TestKind::Context => {
-            panic!("TODO: context tests")
+            let wesl = case.code.parse::<TranslationUnit>()?;
+            let valid = validate_wesl(&wesl);
+            match (valid, case.expect) {
+                (Err(_), Expectation::Fail) | (Ok(()), Expectation::Pass) => Ok(()),
+                (Ok(()), Expectation::Fail) => Err("expected Fail, got Pass".into()),
+                (Err(e), Expectation::Pass) => {
+                    Err(format!("expected Pass, got Fail (`{e}`)").into())
+                }
+            }
         }
     }
-
-    Ok(())
 }
 
 fn testsuite_syntax_case(case: &ParsingTest) -> Result<(), libtest_mimic::Failed> {
