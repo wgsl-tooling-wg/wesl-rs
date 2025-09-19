@@ -545,8 +545,9 @@ impl<E: std::error::Error> std::error::Error for Diagnostic<E> {}
 impl<E: std::error::Error> Display for Diagnostic<E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         use annotate_snippets::*;
-        let title = format!("{}", self.error);
-        let mut msg = Level::Error.title(&title);
+        let msg = format!("{}", self.error);
+        let title = Level::ERROR.primary_title(&msg);
+        let mut group = Group::with_title(title);
 
         let orig = self.display_origin();
         let short_orig = self.display_short_origin();
@@ -556,21 +557,22 @@ impl<E: std::error::Error> Display for Diagnostic<E> {
 
             if let Some(source) = source {
                 if span.range().end <= source.len() {
-                    let annot = Level::Error.span(span.range()).label(&title);
+                    let annot = AnnotationKind::Primary.span(span.range()).label(&msg);
                     let mut snip = Snippet::source(source).fold(true).annotation(annot);
 
                     if let Some(orig) = &short_orig {
-                        snip = snip.origin(orig);
+                        snip = snip.path(orig);
                     }
 
-                    msg = msg.snippet(snip);
+                    group = group.element(snip);
                 } else {
-                    msg = msg.footer(
-                        Level::Note.title("cannot display snippet: invalid source location"),
+                    group = group.element(
+                        Level::NOTE.message("cannot display snippet: invalid source location"),
                     )
                 }
             } else {
-                msg = msg.footer(Level::Note.title("cannot display snippet: missing source file"))
+                group = group
+                    .element(Level::NOTE.message("cannot display snippet: missing source file"))
             }
         }
 
@@ -580,10 +582,10 @@ impl<E: std::error::Error> Display for Diagnostic<E> {
         } else {
             note = format!("in {orig}");
         }
-        msg = msg.footer(Level::Note.title(&note));
+        let group = group.element(Level::NOTE.message(&note));
 
         let renderer = Renderer::styled();
-        let rendered = renderer.render(msg);
+        let rendered = renderer.render(&[group]);
         write!(f, "{rendered}")
     }
 }
