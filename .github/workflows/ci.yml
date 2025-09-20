@@ -85,6 +85,8 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -Dwarnings
+      - name: Clippy (all features)
         run: cargo clippy --workspace --all-targets --all-features -- -Dwarnings
 
   # COMBAK: we disable miri for now because it hangs indefinitely. issue #73
