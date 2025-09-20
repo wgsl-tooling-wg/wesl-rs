@@ -177,14 +177,14 @@ macro_rules! include_wesl {
 /// See [`PkgBuilder`] for more information about building WESL packages.
 #[macro_export]
 macro_rules! wesl_pkg {
-    ($pkg_name:ident) => {
-        $crate::wesl_pkg!($pkg_name, concat!("/", stringify!($pkg_name), ".rs"));
+    ($(#[$attr:meta])* $vis:vis $pkg_name:ident) => {
+        $crate::wesl_pkg!($(#[$attr])* $vis $pkg_name, concat!(stringify!($pkg_name), ".rs"));
     };
-    ($pkg_name:ident, $source:expr) => {
-        pub mod $pkg_name {
+    ($(#[$attr:meta])* $vis:vis $pkg_name:ident, $source:expr) => {
+        $(#[$attr])* $vis mod $pkg_name {
             #![allow(non_snake_case)]
             use $crate::{CodegenModule, CodegenPkg};
-            include!(concat!(env!("OUT_DIR"), $source));
+            include!(concat!(env!("OUT_DIR"), "/", $source));
         }
     };
 }
