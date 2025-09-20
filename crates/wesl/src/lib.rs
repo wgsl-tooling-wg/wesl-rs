@@ -182,6 +182,7 @@ macro_rules! wesl_pkg {
     };
     ($pkg_name:ident, $source:expr) => {
         pub mod $pkg_name {
+            #![allow(non_snake_case)]
             use $crate::{CodegenModule, CodegenPkg};
             include!(concat!(env!("OUT_DIR"), $source));
         }

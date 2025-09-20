@@ -7,7 +7,95 @@ use crate::{
     Diagnostic, Error, ModulePath, SyntaxUtil, resolve::CodegenPkg, validate::validate_wesl,
 };
 use quote::{format_ident, quote};
-use wgsl_parse::syntax::{PathOrigin, TranslationUnit};
+use wgsl_parse::{
+    lexer::{Lexer, Token},
+    syntax::TranslationUnit,
+};
+use wgsl_types::idents::RESERVED_WORDS;
+
+/// WGSL identifier predicate, including reserved words, but excluding keywords.
+fn is_mod_ident(name: &str) -> bool {
+    let mut lex = Lexer::new(name);
+    RESERVED_WORDS.contains(&name)
+        || match (lex.next(), lex.next()) {
+            (Some(Ok((_, Token::Ident(_), _))), None) => true,
+            _ => false,
+        }
+}
+
+// https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md#reference-level-explanation
+const RESERVED_MOD_NAMES: &[&'static str] = &[
+    // WGSL keywords
+    "const_assert",
+    "continue",
+    "continuing",
+    "default",
+    "diagnostic",
+    "discard",
+    "else",
+    "enable",
+    "false",
+    "fn",
+    "for",
+    "if",
+    "let",
+    "loop",
+    "override",
+    "requires",
+    "return",
+    "struct",
+    "switch",
+    "true",
+    "var",
+    "while",
+    // WESL keywords
+    "self",
+    "super",
+    "package",
+    "as",
+    "import",
+    // Rust keywords
+    // TODO: This is a limitation of the current `wesl-rs` codegen.
+    "as",
+    "async",
+    "await",
+    "break",
+    "const",
+    "continue",
+    "crate",
+    "dyn",
+    "else",
+    "enum",
+    "extern",
+    "false",
+    "fn",
+    "for",
+    "if",
+    "impl",
+    "in",
+    "let",
+    "loop",
+    "match",
+    "mod",
+    "move",
+    "mut",
+    "pub",
+    "ref",
+    "return",
+    "Self",
+    "self",
+    "static",
+    "struct",
+    "super",
+    "trait",
+    "true",
+    "type",
+    "union",
+    "unsafe",
+    "use",
+    "where",
+    "while",
+];
 
 /// A builder that generates code for WESL packages.
 ///
@@ -73,6 +161,8 @@ pub struct Module {
 pub enum ScanDirectoryError {
     #[error("Package root was not found: `{0}`")]
     RootNotFound(PathBuf),
+    #[error("Module name `{0}` is reserved")]
+    ReservedModName(String),
     #[error("I/O error while scanning package root: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -109,10 +199,35 @@ impl PkgBuilder {
     /// all .wesl and .wgsl files reachable from the root module, recursively.
     /// The name or the root file is ignored, instead the name of the package is used.
     pub fn scan_root(self, path: impl AsRef<Path>) -> Result<Pkg, ScanDirectoryError> {
-        fn process_path(path: &Path) -> Result<Option<Module>, std::io::Error> {
+        fn process_path(path: &Path) -> Result<Option<Module>, ScanDirectoryError> {
             let path_with_ext_wesl = path.with_extension("wesl");
             let path_with_ext_wgsl = path.with_extension("wgsl");
             let path_without_ext = path.with_extension("");
+            let path_filename = path_without_ext
+                .file_stem()
+                .unwrap()
+                .to_string_lossy()
+                .to_string();
+
+            if !path_with_ext_wesl.is_file()
+                && !path_with_ext_wgsl.is_file()
+                && !path_without_ext.is_dir()
+            {
+                return Ok(None);
+            }
+
+            if RESERVED_MOD_NAMES.contains(&path_filename.as_str()) {
+                return Err(ScanDirectoryError::ReservedModName(path_filename));
+            }
+
+            if !is_mod_ident(&path_filename) {
+                // skip file or directory names that are not valid identifiers,
+                // but WGSL reserved words not in RESERVED_MOD_NAMES are allowed.
+                println!(
+                    "cargo::warning=skipped file/dir: not a WGSL ident `{path_filename}` {path:?}"
+                );
+                return Ok(None);
+            }
 
             // check for source file
             let source = if path_with_ext_wesl.is_file() {
@@ -138,11 +253,9 @@ impl PkgBuilder {
                     // other errors should only be logged
                     match process_path(&entry) {
                         Ok(Some(module)) => submodules.push(module),
-                        Ok(None) => {
-                            eprintln!("INFO: found non shader/dir at {entry:?}: ignoring")
-                        }
+                        Ok(None) => {}
                         Err(err) => {
-                            eprintln!("WARN: error processing submodule {entry:?}: {err}")
+                            println!("cargo::error=error processing submodule {entry:?}: {err}")
                         }
                     }
                 }
@@ -153,11 +266,6 @@ impl PkgBuilder {
                 return Ok(None);
             }
 
-            let path_filename = path_without_ext
-                .file_stem()
-                .unwrap()
-                .to_string_lossy()
-                .to_string();
             let module = Module {
                 name: path_filename,
                 source,
@@ -216,18 +324,25 @@ impl Module {
         }
     }
 
-    fn validate(&self, path: ModulePath) -> Result<(), Error> {
-        let mut wesl: TranslationUnit = self.source.parse().map_err(|e| {
+    fn validate(&self, parent_path: ModulePath) -> Result<(), Error> {
+        let mut path = parent_path.clone();
+        path.push(&self.name);
+
+        eprintln!("INFO: validate {path}");
+
+        let to_diagnostic = |e: Error| {
             Diagnostic::from(e)
                 .with_module_path(path.clone(), None)
                 .with_source(self.source.clone())
-        })?;
+        };
+        let mut wesl: TranslationUnit = self
+            .source
+            .parse()
+            .map_err(|e: wgsl_parse::Error| to_diagnostic(e.into()))?;
         wesl.retarget_idents();
-        validate_wesl(&wesl)?;
+        validate_wesl(&wesl).map_err(|e| to_diagnostic(e.into()))?;
         for module in &self.submodules {
-            let mut path = path.clone();
-            path.push(&self.name);
-            module.validate(path)?;
+            module.validate(path.clone())?;
         }
         Ok(())
     }
@@ -262,8 +377,7 @@ impl Pkg {
 
     /// Run validation checks on each of the scanned files.
     pub fn validate(self) -> Result<Self, Error> {
-        let path = ModulePath::new(PathOrigin::Absolute, vec![self.root.name.clone()]);
-        self.root.validate(path)?;
+        self.root.validate(ModulePath::new_root())?;
         Ok(self)
     }
 
