@@ -228,7 +228,11 @@ fn parse_block_comment(lex: &mut logos::Lexer<Token>) {
             lex.bump(2);
             depth -= 1;
         } else {
-            lex.bump(1);
+            let mut next_char = 1;
+            while !rem.is_char_boundary(next_char) {
+                next_char += 1;
+            }
+            lex.bump(next_char);
         }
     }
 }
