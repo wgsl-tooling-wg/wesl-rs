@@ -15,7 +15,7 @@ regex = "1.11.1"
 serde = { version = "1.0.210", features = ["derive"] }
 
 [dev-dependencies]
-bevy-wgsl = { git = "https://github.com/wgsl-tooling-wg/bevy-wgsl", rev = "cd0c5ea86bbb7f189810a1e55a1b3ec911411ee1" }
+bevy-wgsl = { git = "https://github.com/wgsl-tooling-wg/bevy-wgsl", rev = "5ed0b02042dee10ea392e87f7a8b848b234724be" }
 libtest-mimic = "0.8.1"
 serde_json = "1.0.140"
 wesl = { workspace = true, features = ["eval", "naga-ext"] }

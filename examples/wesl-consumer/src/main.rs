@@ -6,7 +6,7 @@ fn main() {
     // run wesl at run-time
     #[cfg(not(feature = "build-time"))]
     let source = wesl::Wesl::new("src/shaders")
-        .add_package(&random_wgsl::random::PACKAGE)
+        .add_package(&random_wgsl::PACKAGE)
         .compile(&"package::main".parse().unwrap())
         .inspect_err(|e| {
             eprintln!("{e}");

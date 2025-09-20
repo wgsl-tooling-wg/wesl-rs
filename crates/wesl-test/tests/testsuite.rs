@@ -393,7 +393,7 @@ pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
         .to_string();
     let mut compiler = wesl::Wesl::new(base);
     compiler
-        .add_package(&bevy_wgsl::bevy::PACKAGE)
+        .add_package(&bevy_wgsl::PACKAGE)
         .add_constants([
             ("MAX_CASCADES_PER_LIGHT", 10.0),
             ("MAX_DIRECTIONAL_LIGHTS", 10.0),

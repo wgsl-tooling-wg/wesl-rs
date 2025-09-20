@@ -125,8 +125,7 @@ const RESERVED_MOD_NAMES: &[&'static str] = &[
 /// ```
 /// Then, in your `lib.rs` file, expose the generated module with the [`crate::wesl_pkg`] macro.
 /// ```ignore
-/// // in src/lib.rs
-/// wesl::wesl_pkg!(my_package);
+/// wesl::wesl_pkg!(pub my_package);
 /// ```
 ///
 /// The package name must be a valid rust identifier, E.g. it must not contain dashes `-`.
@@ -310,7 +309,6 @@ impl Module {
         let submods = self.submodules.iter().map(|submod| submod.codegen());
 
         quote! {
-            #[allow(clippy::all)]
             pub mod #mod_ident {
                 use super::CodegenModule;
                 pub const MODULE: CodegenModule = CodegenModule {
@@ -359,17 +357,31 @@ impl Pkg {
         });
 
         let crate_name = &self.crate_name;
-        let root = format_ident!("{}", self.root.name);
-        let root_mod = self.root.codegen();
+        let root_name = &self.root.name;
+        let root_source = &self.root.source;
+
+        let submodules = self.root.submodules.iter().map(|submod| {
+            let name = &submod.name;
+            let ident = format_ident!("{}", name);
+            quote! { &#ident::MODULE }
+        });
+
+        let submods = self.root.submodules.iter().map(|submod| submod.codegen());
 
         let tokens = quote! {
             pub const PACKAGE: CodegenPkg = CodegenPkg {
                 crate_name: #crate_name,
-                root: &#root::MODULE,
+                root: &MODULE,
                 dependencies: &[#(#deps),*],
             };
 
-            #root_mod
+            pub const MODULE: CodegenModule = CodegenModule {
+                name: #root_name,
+                source: #root_source,
+                submodules: &[#(#submodules),*]
+            };
+
+            #(#submods)*
         };
 
         tokens.to_string()
