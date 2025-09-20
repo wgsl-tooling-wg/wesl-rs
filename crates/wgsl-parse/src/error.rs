@@ -135,12 +135,15 @@ impl Display for ErrorWithSource<'_> {
         use annotate_snippets::*;
         let text = format!("{}", self.error.error);
 
-        let annot = Level::Info.span(self.error.span.range());
-        let snip = Snippet::source(&self.source).fold(true).annotation(annot);
-        let msg = Level::Error.title(&text).snippet(snip);
+        let annot = AnnotationKind::Primary.span(self.error.span.range());
+        let snip = Snippet::source(self.source.clone())
+            .fold(true)
+            .annotation(annot);
+        let title = Level::ERROR.primary_title(&text);
+        let group = title.element(snip);
 
         let renderer = Renderer::styled();
-        let rendered = renderer.render(msg);
+        let rendered = renderer.render(&[group]);
         write!(f, "{rendered}")
     }
 }
