@@ -17,14 +17,14 @@ use wgsl_types::idents::RESERVED_WORDS;
 fn is_mod_ident(name: &str) -> bool {
     let mut lex = Lexer::new(name);
     RESERVED_WORDS.contains(&name)
-        || match (lex.next(), lex.next()) {
-            (Some(Ok((_, Token::Ident(_), _))), None) => true,
-            _ => false,
-        }
+        || matches!(
+            (lex.next(), lex.next()),
+            (Some(Ok((_, Token::Ident(_), _))), None)
+        )
 }
 
 // https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md#reference-level-explanation
-const RESERVED_MOD_NAMES: &[&'static str] = &[
+const RESERVED_MOD_NAMES: &[&str] = &[
     // WGSL keywords
     "const_assert",
     "continue",
