@@ -5,7 +5,8 @@ use wgsl_types::ty::{Ty, Type};
 use crate::eval::{ATTR_INTRINSIC, Context, Eval, EvalError, Exec, ty_eval_ty};
 
 use super::{
-    EXPR_FALSE, EXPR_TRUE, EvalTy, Instance, ShaderStage, SyntaxUtil, to_expr::ToExpr, with_scope,
+    CompoundScope, EXPR_FALSE, EXPR_TRUE, EvalTy, Instance, ShaderStage, SyntaxUtil,
+    to_expr::ToExpr, with_scope,
 };
 
 type E = EvalError;
@@ -60,18 +61,22 @@ fn make_explicit_return(stmt: &mut ReturnStatement, ctx: &mut Context) -> Result
         (Some(expr), Some(ret_expr)) => {
             let ret_ty = ty_eval_ty(ret_expr, ctx)?;
             let expr_ty = expr.eval_ty(ctx)?.loaded();
-            if expr_ty != ret_ty {
-                if expr_ty.is_convertible_to(&ret_ty) {
-                    let ty = ret_ty.to_expr(ctx)?.unwrap_type_or_identifier();
-                    *expr.node_mut() = Expression::FunctionCall(FunctionCall {
-                        ty,
-                        arguments: vec![expr.clone()],
-                    })
-                } else {
-                    return Err(E::ReturnType(expr_ty, decl.ident.to_string(), ret_ty));
-                }
+
+            if expr_ty == ret_ty || expr_ty.is_array() && ret_ty.is_array() {
+                // array<> does not have a constructor that takes another array.
+                return Ok(());
             }
-            Ok(())
+
+            if expr_ty.is_convertible_to(&ret_ty) {
+                let ty = ret_ty.to_expr(ctx)?.unwrap_type_or_identifier();
+                *expr.node_mut() = Expression::FunctionCall(FunctionCall {
+                    ty,
+                    arguments: vec![expr.clone()],
+                });
+                Ok(())
+            } else {
+                Err(E::ReturnType(expr_ty, decl.ident.to_string(), ret_ty))
+            }
         }
     }
 }
@@ -102,8 +107,8 @@ impl Lower for Expression {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
         match self.eval_value(ctx) {
             Ok(inst) => *self = inst.to_expr(ctx)?,
-            // `NotAccessible` is supposed to be the only possible error when evaluating valid code.
-            Err(E::NotAccessible(_, ShaderStage::Const) | E::NotConst(_)) => {
+            // These are supposed to be the only acceptable errors when evaluating valid code.
+            Err(E::Todo(_) | E::NotAccessible(_, ShaderStage::Const) | E::NotConst(_)) => {
                 ctx.err_span = None;
                 match self {
                     Expression::Literal(_) => (),
@@ -274,7 +279,7 @@ impl Lower for Function {
                     return Err(E::DuplicateDecl(p.ident.to_string()));
                 }
             }
-            compound_lower(&mut self.body, ctx, true)?;
+            compound_lower(&mut self.body, ctx, CompoundScope::Transparent)?;
             Ok(())
         })?;
 
@@ -398,13 +403,10 @@ impl Lower for Statement {
 fn compound_lower(
     stmt: &mut CompoundStatement,
     ctx: &mut Context,
-    transparent: bool,
+    scoping: CompoundScope,
 ) -> Result<(), E> {
     stmt.attributes.lower(ctx)?;
-    with_scope!(ctx, {
-        if transparent {
-            ctx.scope.make_transparent();
-        }
+    with_scope!(ctx, scoping, {
         for stmt in &mut stmt.statements {
             stmt.lower(ctx)?;
         }
@@ -434,7 +436,7 @@ fn compound_lower(
 
 impl Lower for CompoundStatement {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
-        compound_lower(self, ctx, false)
+        compound_lower(self, ctx, CompoundScope::Regular)
     }
 }
 
@@ -498,14 +500,21 @@ impl Lower for SwitchStatement {
 
 impl Lower for LoopStatement {
     fn lower(&mut self, ctx: &mut Context) -> Result<(), E> {
-        self.body.lower(ctx)?;
-        if let Some(cont) = &mut self.continuing {
-            cont.body.lower(ctx)?;
-            if let Some(break_if) = &mut cont.break_if {
-                break_if.expression.lower(ctx)?;
+        with_scope!(ctx, {
+            compound_lower(&mut self.body, ctx, CompoundScope::Leaking)?;
+
+            if let Some(cont) = &mut self.continuing {
+                with_scope!(ctx, {
+                    compound_lower(&mut cont.body, ctx, CompoundScope::Leaking)?;
+                    if let Some(break_if) = &mut cont.break_if {
+                        break_if.expression.lower(ctx)?;
+                    }
+                    Result::<_, E>::Ok(())
+                })?;
             }
-        }
-        Ok(())
+
+            Ok(())
+        })
     }
 }
 
@@ -516,7 +525,7 @@ impl Lower for ForStatement {
         with_scope!(ctx, {
             self.initializer.lower(ctx)?;
             self.condition.lower(ctx)?;
-            compound_lower(&mut self.body, ctx, true)?;
+            compound_lower(&mut self.body, ctx, CompoundScope::Transparent)?;
             Ok(())
         })
     }

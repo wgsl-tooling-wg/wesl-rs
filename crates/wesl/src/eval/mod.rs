@@ -1,21 +1,21 @@
 mod attrs;
-mod builtin;
 mod constant;
 mod error;
 #[allow(clippy::module_inception)]
 mod eval;
 mod exec;
 mod lower;
+mod prelude;
 mod to_expr;
 mod ty;
 
 pub use attrs::*;
-pub use builtin::*;
 pub(crate) use constant::*;
 pub use error::*;
 pub use eval::*;
 pub use exec::*;
 pub use lower::*;
+pub use prelude::*;
 pub use to_expr::*;
 pub use ty::*;
 pub use wgsl_types::{ShaderStage, builtin::*, conv::*, inst::*, tplt::*, ty::*};
@@ -54,6 +54,13 @@ impl<T> Default for Scope<T> {
 }
 
 impl<T> ScopeInner<T> {
+    pub fn depth(&self) -> u32 {
+        if let Some(parent) = &self.parent {
+            parent.depth() + 1
+        } else {
+            0
+        }
+    }
     pub fn get(&self, name: &str) -> Option<&T> {
         self.local
             .get(name)
@@ -89,9 +96,13 @@ impl<T> Scope<T> {
     pub fn is_root(&self) -> bool {
         self.inner.parent.is_none()
     }
-    /// variable in a 'transparent' have the same scope as the parent scope.
+    pub fn depth(&self) -> u32 {
+        self.inner.depth()
+    }
+    /// variables in a 'transparent' scope have the same scope as the parent scope.
     /// this is useful for 'for' loops and function calls which have the same
     /// end-of-scope for initializer and formal parameters as the body.
+    /// When The transparent scope ends, its declarations are dropped.
     ///
     /// see <https://github.com/gpuweb/gpuweb/issues/5024>
     pub fn make_transparent(&mut self) {
@@ -104,6 +115,13 @@ impl<T> Scope<T> {
             local: Default::default(),
             parent: Some(self.inner.clone()),
             transparent: false,
+        });
+    }
+    pub fn push_transparent(&mut self) {
+        self.inner = Rc::new(ScopeInner {
+            local: Default::default(),
+            parent: Some(self.inner.clone()),
+            transparent: true,
         });
     }
     pub fn pop(&mut self) {

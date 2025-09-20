@@ -238,11 +238,11 @@ pub enum LiteralInstance {
     U32(u32),
     F32(f32),
     F16(f16),
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     I64(i64), // identity if representable
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     U64(u64), // reinterpretation of bits
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     F64(f64),
 }
 
@@ -298,21 +298,21 @@ impl LiteralInstance {
             val => panic!("called `LiteralInstance::unwrap_f16()` on a `{val}` value"),
         }
     }
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     pub fn unwrap_i64(self) -> i64 {
         match self {
             LiteralInstance::I64(field_0) => field_0,
             val => panic!("called `LiteralInstance::unwrap_i64()` on a `{val}` value"),
         }
     }
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     pub fn unwrap_u64(self) -> u64 {
         match self {
             LiteralInstance::U64(field_0) => field_0,
             val => panic!("called `LiteralInstance::unwrap_u64()` on a `{val}` value"),
         }
     }
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     pub fn unwrap_f64(self) -> f64 {
         match self {
             LiteralInstance::F64(field_0) => field_0,

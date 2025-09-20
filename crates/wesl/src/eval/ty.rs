@@ -69,11 +69,11 @@ impl EvalTy for LiteralExpression {
             LiteralExpression::U32(_) => Ok(Type::U32),
             LiteralExpression::F32(_) => Ok(Type::F32),
             LiteralExpression::F16(_) => Ok(Type::F16),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralExpression::I64(_) => Ok(Type::I64),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralExpression::U64(_) => Ok(Type::U64),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralExpression::F64(_) => Ok(Type::F64),
         }
     }
@@ -143,7 +143,7 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
                 let tplt = ArrayTemplate::parse(&tplt)?;
                 Ok(tplt.ty())
             }
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "binding_array" => {
                 let tplt = super::BindingArrayTemplate::parse(&tplt)?;
                 Ok(tplt.ty())
@@ -182,6 +182,19 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
                 let tplt = TextureTemplate::parse(name, &tplt)?;
                 Ok(Type::Texture(tplt.ty()))
             }
+
+            #[cfg(feature = "naga-ext")]
+            "texture_1d_array" | "texture_storage_1d_array" | "texture_multisampled_2d_array" => {
+                let tplt = TextureTemplate::parse(name, &tplt)?;
+                Ok(Type::Texture(tplt.ty()))
+            }
+            #[cfg(feature = "naga-ext")]
+            "ray_query" => Ok(Type::RayQuery(None)),
+            #[cfg(feature = "naga-ext")]
+            "acceleration_structure" => Ok(Type::AccelerationStructure(Some(
+                wgsl_types::syntax::AccelerationStructureFlags::VertexReturn,
+            ))),
+
             _ => Err(E::UnexpectedTemplate(name.to_string())),
         }
     }
@@ -203,6 +216,18 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
             "texture_depth_cube_array" => Ok(Type::Texture(TextureType::DepthCubeArray)),
             "sampler" => Ok(Type::Sampler(SamplerType::Sampler)),
             "sampler_comparison" => Ok(Type::Sampler(SamplerType::SamplerComparison)),
+
+            #[cfg(feature = "naga-ext")]
+            "i64" => Ok(Type::I64),
+            #[cfg(feature = "naga-ext")]
+            "u64" => Ok(Type::U64),
+            #[cfg(feature = "naga-ext")]
+            "f64" => Ok(Type::F64),
+            #[cfg(feature = "naga-ext")]
+            "ray_query" => Ok(Type::RayQuery(Default::default())),
+            #[cfg(feature = "naga-ext")]
+            "acceleration_structure" => Ok(Type::AccelerationStructure(Default::default())),
+
             _ => Err(E::UnknownType(name.to_string())),
         }
     }
@@ -272,7 +297,7 @@ impl EvalTy for IndexingExpression {
         fn eval_inner_ty(base_ty: Type) -> Result<Type, E> {
             match base_ty {
                 Type::Array(ty, _) => Ok(*ty),
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 Type::BindingArray(ty, _) => Ok(*ty),
                 Type::Vec(_, ty) => Ok(*ty),
                 Type::Mat(_, r, ty) => Ok(Type::Vec(r, ty)),
@@ -465,6 +490,7 @@ impl EvalTy for FunctionCallExpression {
     fn eval_ty(&self, ctx: &mut Context) -> Result<Type, E> {
         let ty = ctx.source.resolve_ty(&self.ty);
         let name = ty.ident.name();
+
         let tplt = ty
             .template_args
             .as_ref()

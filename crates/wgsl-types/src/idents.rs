@@ -1,6 +1,7 @@
 //! Static strings of all WGSL predeclared identifiers.
 
 /// Built-in types identifiers.
+/// Does not contain type-generators, see [`BUILTIN_TYPE_GENERATOR_NAMES`].
 ///
 /// Reference: <https://www.w3.org/TR/WGSL/#predeclared-types>
 pub const BUILTIN_TYPE_NAMES: &[&str] = &[
@@ -23,14 +24,16 @@ pub const BUILTIN_TYPE_NAMES: &[&str] = &[
     "texture_external",
     "u32",
     // naga extensions
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "i64",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "u64",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "f64",
-    #[cfg(feature = "naga_ext")]
-    "binding_array",
+    #[cfg(feature = "naga-ext")]
+    "ray_query",
+    #[cfg(feature = "naga-ext")]
+    "acceleration_structure",
 ];
 
 /// Built-in type-generators identifiers.
@@ -63,6 +66,14 @@ pub const BUILTIN_TYPE_GENERATOR_NAMES: &[&str] = &[
     "vec2",
     "vec3",
     "vec4",
+    #[cfg(feature = "naga-ext")]
+    "binding_array",
+    #[cfg(feature = "naga-ext")]
+    "texture_1d_array",
+    #[cfg(feature = "naga-ext")]
+    "texture_storage_1d_array",
+    #[cfg(feature = "naga-ext")]
+    "texture_multisampled_2d_array",
 ];
 
 /// Built-in `struct` identifiers.
@@ -94,12 +105,48 @@ pub const BUILTIN_STRUCT_NAMES: &[&str] = &[
     "__modf_result_vec3_abstract",
     "__modf_result_vec4_abstract",
     "__atomic_compare_exchange_result",
+    #[cfg(feature = "naga-ext")]
+    "RayDesc",
+    #[cfg(feature = "naga-ext")]
+    "RayIntersection",
 ];
 
 /// Built-in variable and value declarations identifiers.
 ///
 /// There are none currently in WGSL.
-pub const BUILTIN_DECLARATION_NAMES: &[&str] = &[];
+pub const BUILTIN_DECLARATION_NAMES: &[&str] = &[
+    // ray queries (naga extension). These are const declarations.
+    #[cfg(feature = "naga-ext")]
+    "RAY_FLAG_NONE", // value: 0x0
+    #[cfg(feature = "naga-ext")]
+    "RAY_FLAG_FORCE_OPAQUE", // value: 0x1
+    #[cfg(feature = "naga-ext")]
+    "RAY_FLAG_FORCE_NO_OPAQUE", // value: 0x2
+    #[cfg(feature = "naga-ext")]
+    "RAY_FLAG_TERMINATE_ON_FIRST_HIT", // value: 0x4
+    #[cfg(feature = "naga-ext")]
+    "RAY_FLAG_SKIP_CLOSEST_HIT_SHADER", // value: 0x8
+    #[cfg(feature = "naga-ext")]
+    "RAY_FLAG_CULL_BACK_FACING", // value: 0x10
+    #[cfg(feature = "naga-ext")]
+    "RAY_FLAG_CULL_FRONT_FACING", // value: 0x20
+    #[cfg(feature = "naga-ext")]
+    "RAY_FLAG_CULL_OPAQUE", // value: 0x40
+    #[cfg(feature = "naga-ext")]
+    "RAY_FLAG_CULL_NO_OPAQUE", // value: 0x80
+    #[cfg(feature = "naga-ext")]
+    "RAY_FLAG_SKIP_TRIANGLES", // value: 0x100
+    #[cfg(feature = "naga-ext")]
+    "RAY_FLAG_SKIP_AABBS", // value: 0x200
+    #[cfg(feature = "naga-ext")]
+    "RAY_QUERY_INTERSECTION_NONE", // value: 0
+    #[cfg(feature = "naga-ext")]
+    "RAY_QUERY_INTERSECTION_TRIANGLE", // value: 1
+    #[cfg(feature = "naga-ext")]
+    "RAY_QUERY_INTERSECTION_GENERATED", // value: 2
+    #[cfg(feature = "naga-ext")]
+    "RAY_QUERY_INTERSECTION_AABB", // value: 3
+];
 
 /// Predeclared type aliases names.
 pub const BUILTIN_ALIAS_NAMES: &[&str] = &[
@@ -125,7 +172,7 @@ pub const BUILTIN_ENUMERANT_NAMES: &[&str] = &[
     "workgroup",
     "uniform",
     "storage",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "push_constant",
     // : texel format
     "rgba8unorm",
@@ -145,54 +192,56 @@ pub const BUILTIN_ENUMERANT_NAMES: &[&str] = &[
     "rgba32sint",
     "rgba32float",
     "bgra8unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r8unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r8snorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r8uint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r8sint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r16unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r16snorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r16uint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r16sint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r16float",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg8unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg8snorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg8uint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg8sint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg16unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg16snorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg16uint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg16sint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg16float",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rgb10a2uint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rgb10a2unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rg11b10float",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "r64uint",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rgba16unorm",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "rgba16snorm",
+    #[cfg(feature = "naga-ext")]
+    "vertex_return", // for ray_query and acceleration_structure
 ];
 
 /// Built-in functions identifiers, excluding built-in constructors.
@@ -353,7 +402,25 @@ pub const BUILTIN_FUNCTION_NAMES: &[&str] = &[
     "quadSwapDiagonal",
     "quadSwapX",
     "quadSwapY",
-    // : ray queries
+    // : ray queries (naga extension)
+    #[cfg(feature = "naga-ext")]
+    "rayQueryInitialize",
+    #[cfg(feature = "naga-ext")]
+    "rayQueryProceed",
+    #[cfg(feature = "naga-ext")]
+    "rayQueryGenerateIntersection",
+    #[cfg(feature = "naga-ext")]
+    "rayQueryConfirmIntersection",
+    #[cfg(feature = "naga-ext")]
+    "rayQueryTerminate",
+    #[cfg(feature = "naga-ext")]
+    "rayQueryGetCommittedIntersection",
+    #[cfg(feature = "naga-ext")]
+    "rayQueryGetCandidateIntersection",
+    #[cfg(feature = "naga-ext")]
+    "getCommittedHitVertexPositions",
+    #[cfg(feature = "naga-ext")]
+    "getCandidateHitVertexPositions",
 ];
 
 /// Built-in constructor identifiers (zero-value and value-constructors).
@@ -366,11 +433,11 @@ pub const BUILTIN_CONSTRUCTOR_NAMES: &[&str] = &[
     "f32",
     "i32",
     "u32",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "i64",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "u64",
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     "f64",
     // type-generators
     "array",
@@ -417,6 +484,11 @@ pub const BUILTIN_CONSTRUCTOR_NAMES: &[&str] = &[
     "mat4x2h",
     "mat4x3h",
     "mat4x4h",
+    // ray queries (naga extension)
+    #[cfg(feature = "naga-ext")]
+    "RayDesc",
+    #[cfg(feature = "naga-ext")]
+    "RayIntersection",
 ];
 
 /// All built-in identifiers.

@@ -64,11 +64,11 @@ pub fn bitcast_t(tplt_ty: &Type, e: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(n) => Ok(n.to_le_bytes().to_vec()),
             LiteralInstance::F32(n) => Ok(n.to_le_bytes().to_vec()),
             LiteralInstance::F16(n) => Ok(n.to_le_bytes().to_vec()),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(n) => Ok(n.to_le_bytes().to_vec()),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(n) => Ok(n.to_le_bytes().to_vec()),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(n) => Ok(n.to_le_bytes().to_vec()),
         }
     }
@@ -270,11 +270,11 @@ macro_rules! impl_call_float_unary {
                 LiteralInstance::U32(_) => Err(ERR),
                 LiteralInstance::F32($n) => Ok(LiteralInstance::from($expr)),
                 LiteralInstance::F16($n) => Ok(LiteralInstance::from($expr)),
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::I64(_) => Err(ERR),
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::U64(_) => Err(ERR),
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::F64($n) => Ok(LiteralInstance::F64($expr)),
             }
         }
@@ -301,11 +301,11 @@ pub fn abs(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(_) => Ok(*l),
             LiteralInstance::F32(n) => Ok(LiteralInstance::from(n.abs())),
             LiteralInstance::F16(n) => Ok(LiteralInstance::from(n.abs())),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(n) => Ok(LiteralInstance::I64(n.wrapping_abs())),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(_) => Ok(*l),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(n) => Ok(LiteralInstance::F64(n.abs())),
         }
     }
@@ -396,11 +396,11 @@ pub fn atan2(y: &Instance, x: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(_) => Err(ERR),
             LiteralInstance::F32(y) => Ok(LiteralInstance::from(y.atan2(x.unwrap_f32()))),
             LiteralInstance::F16(y) => Ok(LiteralInstance::from(y.atan2(x.unwrap_f16()))),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(y) => Ok(LiteralInstance::F64(y.atan2(x.unwrap_f64()))),
         }
     }
@@ -464,11 +464,11 @@ pub fn countLeadingZeros(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(n) => Ok(LiteralInstance::U32(n.leading_zeros())),
             LiteralInstance::F32(_) => Err(ERR),
             LiteralInstance::F16(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(n) => Ok(LiteralInstance::I64(n.leading_zeros() as i64)),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(n) => Ok(LiteralInstance::U64(n.leading_zeros() as u64)),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(_) => Err(ERR),
         }
     }
@@ -495,11 +495,11 @@ pub fn countOneBits(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(n) => Ok(LiteralInstance::U32(n.count_ones())),
             LiteralInstance::F32(_) => Err(ERR),
             LiteralInstance::F16(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(n) => Ok(LiteralInstance::I64(n.count_ones() as i64)),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(n) => Ok(LiteralInstance::U64(n.count_ones() as u64)),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(_) => Err(ERR),
         }
     }
@@ -526,11 +526,11 @@ pub fn countTrailingZeros(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(n) => Ok(LiteralInstance::U32(n.trailing_zeros())),
             LiteralInstance::F32(_) => Err(ERR),
             LiteralInstance::F16(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(n) => Ok(LiteralInstance::I64(n.trailing_zeros() as i64)),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(n) => Ok(LiteralInstance::U64(n.trailing_zeros() as u64)),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(_) => Err(ERR),
         }
     }
@@ -722,11 +722,11 @@ pub fn frexp(e: &Instance) -> Result<Instance, E> {
                     LiteralInstance::I32(exp).into(),
                 ))
             }
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(_) => todo!(),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(_) => todo!(),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(n) => {
                 let (fract, exp) = frexp(*n);
                 Ok(make_frexp_inst(
@@ -806,11 +806,11 @@ pub fn inverseSqrt(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(_) => Err(ERR),
             LiteralInstance::F32(n) => Ok(LiteralInstance::from(1.0 / n.sqrt())),
             LiteralInstance::F16(n) => Ok(LiteralInstance::from(f16::one() / n.sqrt())),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(n) => Ok(LiteralInstance::F64(1.0 / n.sqrt())),
         }
     }
@@ -953,11 +953,11 @@ pub fn max(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(e1) => Ok(LiteralInstance::from(*e1.max(&e2.unwrap_u32()))),
             LiteralInstance::F32(e1) => Ok(LiteralInstance::from(e1.max(e2.unwrap_f32()))),
             LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.max(e2.unwrap_f16()))),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(e1) => Ok(LiteralInstance::I64(*e1.max(&e2.unwrap_i64()))),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(e1) => Ok(LiteralInstance::U64(*e1.max(&e2.unwrap_u64()))),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(e1) => Ok(LiteralInstance::F64(e1.max(e2.unwrap_f64()))),
         }
     }
@@ -987,11 +987,11 @@ pub fn min(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(e1) => Ok(LiteralInstance::from(*e1.min(&e2.unwrap_u32()))),
             LiteralInstance::F32(e1) => Ok(LiteralInstance::from(e1.min(e2.unwrap_f32()))),
             LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.min(e2.unwrap_f16()))),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(e1) => Ok(LiteralInstance::I64(*e1.max(&e2.unwrap_i64()))),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(e1) => Ok(LiteralInstance::U64(*e1.max(&e2.unwrap_u64()))),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(e1) => Ok(LiteralInstance::F64(e1.max(e2.unwrap_f64()))),
         }
     }
@@ -1059,11 +1059,11 @@ pub fn pow(e1: &Instance, e2: &Instance) -> Result<Instance, E> {
             LiteralInstance::U32(_) => Err(ERR),
             LiteralInstance::F32(e1) => Ok(LiteralInstance::from(e1.powf(e2.unwrap_f32()))),
             LiteralInstance::F16(e1) => Ok(LiteralInstance::from(e1.powf(e2.unwrap_f16()))),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(e1) => Ok(LiteralInstance::F64(e1.powf(e2.unwrap_f64()))),
         }
     }
@@ -1124,11 +1124,11 @@ pub fn round(e: &Instance) -> Result<Instance, E> {
             LiteralInstance::F16(n) => Ok(LiteralInstance::from(f16::from_f32(
                 f16::to_f32(*n).round_ties_even(),
             ))),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(n) => Ok(LiteralInstance::F64(n.round_ties_even())),
         }
     }
@@ -1197,15 +1197,15 @@ pub fn sign(e: &Instance) -> Result<Instance, E> {
             } else {
                 n.signum()
             })),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(n) => Ok(LiteralInstance::I64(n.signum())),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(n) => Ok(LiteralInstance::U64(if n.is_zero() {
                 *n
             } else {
                 1
             })),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(n) => Ok(LiteralInstance::F64(if n.is_zero() {
                 *n
             } else {
@@ -1288,11 +1288,11 @@ pub fn step(edge: &Instance, x: &Instance) -> Result<Instance, E> {
             } else {
                 0.0
             })),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(_) => Err(ERR),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(edge) => Ok(LiteralInstance::F64(if *edge <= x.unwrap_f64() {
                 1.0
             } else {

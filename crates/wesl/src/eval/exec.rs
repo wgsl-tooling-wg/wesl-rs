@@ -9,6 +9,8 @@ use wgsl_types::{
     ty::{Ty, Type},
 };
 
+use crate::eval::PRELUDE;
+
 use super::{
     ATTR_INTRINSIC, Context, Eval, EvalError, EvalTy, ScopeKind, SyntaxUtil, attrs::EvalAttrs,
     eval_tplt_arg, ty_eval_ty,
@@ -44,12 +46,49 @@ macro_rules! with_stage {
     }};
 }
 
+// because some places in the grammar requires that no scope is created when executing a
+// CompoundStatement, such as for loops with initializer or function invocations.
+//
+// * 'Regular': compute statements in a regular scope, can shadow parent scope.
+// * 'Transparent': parent scope declarations cannot be shadowed.
+// * 'Leaking': local declarations are leaked into the parent scope.
+#[derive(Clone, Copy)]
+pub(crate) enum CompoundScope {
+    Regular,
+    Transparent,
+    Leaking,
+}
+
+impl CompoundScope {
+    pub(crate) fn push(&self, ctx: &mut Context) {
+        match self {
+            CompoundScope::Regular => {
+                ctx.scope.push();
+            }
+            CompoundScope::Transparent => {
+                ctx.scope.push_transparent();
+            }
+            CompoundScope::Leaking => {}
+        }
+    }
+
+    pub(crate) fn pop(&self, ctx: &mut Context) {
+        match self {
+            CompoundScope::Regular | CompoundScope::Transparent => {
+                ctx.scope.pop();
+            }
+            CompoundScope::Leaking => {}
+        }
+    }
+}
+
 macro_rules! with_scope {
-    ($ctx:expr, $body:tt) => {{
-        $ctx.scope.push();
+    ($ctx:expr, $body:tt) => {{ with_scope!($ctx, CompoundScope::Regular, $body) }};
+    ($ctx:expr, $scoping:expr, $body:tt) => {{
+        $scoping.push($ctx);
         #[allow(clippy::redundant_closure_call)]
         let body = (|| $body)();
-        $ctx.scope.pop();
+        $scoping.pop($ctx);
         body
     }};
 }
@@ -94,7 +133,11 @@ impl<T: Exec> Exec for Spanned<T> {
 impl Exec for TranslationUnit {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         module_scope!(ctx, {
-            for decl in &ctx.source.global_declarations {
+            for decl in PRELUDE
+                .global_declarations
+                .iter()
+                .chain(&ctx.source.global_declarations)
+            {
                 let flow = decl.exec(ctx)?;
                 match flow {
                     Flow::Next => (),
@@ -159,30 +202,16 @@ impl Exec for Statement {
 
 impl Exec for CompoundStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        with_scope!(ctx, {
-            for stmt in &self.statements {
-                let flow = stmt.exec(ctx)?;
-                match flow {
-                    Flow::Next => (),
-                    Flow::Break | Flow::Continue | Flow::Return(_) => {
-                        return Ok(flow);
-                    }
-                }
-            }
-
-            Ok(Flow::Next)
-        })
+        compound_exec(self, ctx, CompoundScope::Regular)
     }
 }
 
-// because some places in the grammar requires that no scope is created when executing the
-// CompoundStatement, such as for loops with initializer or function invocations.
-pub(crate) fn compound_exec_no_scope(
+pub(crate) fn compound_exec(
     stmt: &CompoundStatement,
     ctx: &mut Context,
+    scoping: CompoundScope,
 ) -> Result<Flow, E> {
-    with_scope!(ctx, {
-        ctx.scope.make_transparent();
+    with_scope!(ctx, scoping, {
         for stmt in &stmt.statements {
             let flow = stmt.exec(ctx)?;
             match flow {
@@ -388,27 +417,27 @@ impl Exec for SwitchStatement {
 impl Exec for LoopStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         loop {
-            let flow = self.body.exec(ctx)?;
-
-            match flow {
-                Flow::Next | Flow::Continue => {
-                    if let Some(cont) = &self.continuing {
-                        let flow = cont.exec(ctx)?;
-
-                        match flow {
-                            Flow::Next => (),
-                            Flow::Break => return Ok(Flow::Next), // This must be a break-if, see impl Exec for ContinuingStatement
-                            Flow::Continue => unreachable!("no continue in continuing"),
-                            Flow::Return(_) => unreachable!("no return in continuing"),
+            let flow = with_scope!(ctx, {
+                // we track scope manually because the continuing statement is actually
+                // part of the body block.
+                let flow = compound_exec(&self.body, ctx, CompoundScope::Leaking)?;
+                match flow {
+                    Flow::Next | Flow::Continue => {
+                        if let Some(cont) = &self.continuing {
+                            cont.exec(ctx) // may be Flow::Next or Flow::Break (for break-if)
+                        } else {
+                            Ok(Flow::Next)
                         }
                     }
+                    Flow::Break | Flow::Return(_) => Ok(flow),
                 }
-                Flow::Break => {
-                    return Ok(Flow::Next);
-                }
-                Flow::Return(_) => {
-                    return Ok(flow);
-                }
+            })?;
+
+            // we end the loop if there was a return, break or break-if.
+            match flow {
+                Flow::Next | Flow::Continue => (),
+                Flow::Break => return Ok(Flow::Next),
+                Flow::Return(_) => return Ok(flow),
             }
         }
     }
@@ -416,26 +445,30 @@ impl Exec for LoopStatement {
 
 impl Exec for ContinuingStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        let flow = self.body.exec(ctx)?;
-        match flow {
-            Flow::Next => {
-                if let Some(break_if) = &self.break_if {
-                    let expr = break_if.expression.eval_value(ctx)?;
-                    let cond = match expr {
-                        Instance::Literal(LiteralInstance::Bool(b)) => Ok(b),
-                        _ => Err(E::Type(Type::Bool, expr.ty())),
-                    }?;
-                    if cond {
-                        Ok(Flow::Break)
+        with_scope!(ctx, {
+            // we track scope manually because the continuing statement is actually
+            // part of the body block.
+            let flow = compound_exec(&self.body, ctx, CompoundScope::Leaking)?;
+            match flow {
+                Flow::Next => {
+                    if let Some(break_if) = &self.break_if {
+                        let expr = break_if.expression.eval_value(ctx)?;
+                        let cond = match expr {
+                            Instance::Literal(LiteralInstance::Bool(b)) => Ok(b),
+                            _ => Err(E::Type(Type::Bool, expr.ty())),
+                        }?;
+                        if cond {
+                            Ok(Flow::Break)
+                        } else {
+                            Ok(Flow::Next)
+                        }
                     } else {
                         Ok(Flow::Next)
                     }
-                } else {
-                    Ok(Flow::Next)
                 }
+                Flow::Break | Flow::Continue | Flow::Return(_) => Err(E::FlowInContinuing(flow)),
             }
-            Flow::Break | Flow::Continue | Flow::Return(_) => Err(E::FlowInContinuing(flow)),
-        }
+        })
     }
 }
 
@@ -469,7 +502,7 @@ impl Exec for ForStatement {
                 }
 
                 // the body has to run in the same scope as the initializer.
-                let flow = compound_exec_no_scope(&self.body, ctx)?;
+                let flow = compound_exec(&self.body, ctx, CompoundScope::Transparent)?;
 
                 match flow {
                     Flow::Next | Flow::Continue => {
@@ -545,7 +578,8 @@ impl Exec for DiscardStatement {
 
 impl Exec for FunctionCallStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
-        let fn_name = self.call.ty.ident.to_string();
+        let ty = ctx.source.resolve_ty(&self.call.ty);
+        let fn_name = ty.ident.to_string();
 
         let is_must_use = match ctx.source.decl(&fn_name) {
             Some(GlobalDeclaration::Function(decl)) => decl.contains_attribute(&Attribute::MustUse),
@@ -564,11 +598,7 @@ impl Exec for FunctionCallStatement {
             return Err(E::MustUse(fn_name));
         }
 
-        match self.call.eval(ctx) {
-            Ok(_) => Ok(Flow::Next),
-            Err(E::Void(_)) => Ok(Flow::Next),
-            Err(e) => Err(e),
-        }
+        self.call.exec(ctx).map(|_| Flow::Next)
     }
 }
 
@@ -622,7 +652,7 @@ fn exec_fn(
         }
 
         // the arguments must be in the same scope as the function body.
-        let flow = compound_exec_no_scope(&decl.body, ctx)
+        let flow = compound_exec(&decl.body, ctx, CompoundScope::Transparent)
             .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
 
         Ok(flow)
@@ -701,9 +731,13 @@ pub struct Inputs {
     pub subgroup_invocation_id: Option<u32>,
     /// A power of two within the range [4, 128]
     pub subgroup_size: Option<u32>,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
+    pub subgroup_id: Option<u32>,
+    #[cfg(feature = "naga-ext")]
+    pub num_subgroups: Option<u32>,
+    #[cfg(feature = "naga-ext")]
     pub primitive_index: Option<u32>,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     pub view_index: Option<u32>,
 
     pub user_defined: HashMap<u32, Instance>,
@@ -725,9 +759,13 @@ impl Inputs {
             num_workgroups: Some([1, 1, 1]),
             subgroup_invocation_id: Some(0),
             subgroup_size: Some(4),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
+            subgroup_id: Some(0),
+            #[cfg(feature = "naga-ext")]
+            num_subgroups: Some(1),
+            #[cfg(feature = "naga-ext")]
             primitive_index: Some(0),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             view_index: Some(0),
             user_defined: Default::default(),
         }
@@ -786,9 +824,13 @@ pub fn exec_entrypoint(
                         inputs.subgroup_invocation_id.map(Instance::from)
                     }
                     BuiltinValue::SubgroupSize => inputs.subgroup_size.map(Instance::from),
-                    #[cfg(feature = "naga_ext")]
+                    #[cfg(feature = "naga-ext")]
+                    BuiltinValue::SubgroupId => inputs.subgroup_id.map(Instance::from),
+                    #[cfg(feature = "naga-ext")]
+                    BuiltinValue::NumSubgroups => inputs.num_subgroups.map(Instance::from),
+                    #[cfg(feature = "naga-ext")]
                     BuiltinValue::PrimitiveIndex => inputs.primitive_index.map(Instance::from),
-                    #[cfg(feature = "naga_ext")]
+                    #[cfg(feature = "naga-ext")]
                     BuiltinValue::ViewIndex => inputs.view_index.map(Instance::from),
                     BuiltinValue::ClipDistances | BuiltinValue::FragDepth => {
                         return Err(E::OutputBuiltin(builtin));
@@ -830,7 +872,7 @@ pub fn exec_entrypoint(
         }
 
         // the arguments must be in the same scope as the function body.
-        let flow = compound_exec_no_scope(&entrypoint.body, ctx)
+        let flow = compound_exec(&entrypoint.body, ctx, CompoundScope::Transparent)
             .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
 
         Ok(flow)
@@ -1004,7 +1046,7 @@ impl Exec for Declaration {
                             RefInstance::new(inst, a_s, a_m).into()
                         }
                         AddressSpace::Handle => todo!("handle address space"),
-                        #[cfg(feature = "naga_ext")]
+                        #[cfg(feature = "naga-ext")]
                         AddressSpace::PushConstant => todo!("push_constant address space"),
                     }
                 }

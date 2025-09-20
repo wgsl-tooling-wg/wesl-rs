@@ -14,7 +14,8 @@ serde = { version = "1.0.215", features = ["derive", "rc"], optional = true }
 tokrepr = { workspace = true, optional = true }
 
 [features]
-naga_ext = []
+# See crates/wesl/Cargo.toml
+naga-ext = []
 serde = ["dep:serde"]
 tokrepr = ["dep:tokrepr"]
 

@@ -6,11 +6,11 @@ use wgsl_parse::syntax::{
     Expression, ExpressionNode, FunctionCall, GlobalDeclaration, Ident, ImportContent,
     TranslationUnit, TypeExpression,
 };
+use wgsl_types::idents::{BUILTIN_CONSTRUCTOR_NAMES, BUILTIN_FUNCTION_NAMES};
 
-use crate::builtin::builtin_ident;
+use crate::idents::builtin_ident;
 use crate::visit::Visit;
 use crate::{Diagnostic, Error};
-use wgsl_types::idents::{BUILTIN_CONSTRUCTOR_NAMES, BUILTIN_FUNCTION_NAMES};
 
 /// WESL or WGSL Validation error.
 #[derive(Clone, Debug, thiserror::Error)]
@@ -126,7 +126,7 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
             }
             Some(GlobalDeclaration::TypeAlias(decl)) => {
                 if decl.ty.template_args.is_some() {
-                    return Err(E::NotCallable(ident.to_string()));
+                    // TODO: check args for builtin functions
                 } else {
                     check_call(call, &decl.ty.ident, wesl)?;
                 }

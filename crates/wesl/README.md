@@ -152,7 +152,7 @@ assert_eq!(wgsl_expr, "42u");
 | `generics` | user-defined type-generators and generic functions    | [experimental][generics]  |
 | `package`  | create shader libraries published to `crates.io`      | [experimental][packaging] |
 | `eval`     | execute shader code on the CPU and `@const` attribute | experimental              |
-| `naga_ext` | enable all Naga/WGPU extensions                       | experimental              |
+| `naga-ext` | enable all Naga/WGPU extensions                       | experimental              |
 | `serde`    | derive `Serialize` and `Deserialize` for syntax nodes |                           |
 
 [wesl]: https://wesl-lang.dev

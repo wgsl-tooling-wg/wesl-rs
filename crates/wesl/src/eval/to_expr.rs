@@ -3,11 +3,11 @@ use wgsl_types::{
     ty::{TextureType, Ty, Type},
 };
 
-use super::{BuiltinIdent, SyntaxUtil};
+use super::SyntaxUtil;
 
 use crate::{
-    builtin::builtin_ident,
     eval::{Context, EvalError},
+    idents::{BuiltinIdent, builtin_ident},
 };
 use wgsl_parse::{span::Spanned, syntax::*};
 
@@ -43,11 +43,11 @@ impl ToExpr for LiteralInstance {
             LiteralInstance::U32(lit) => LiteralExpression::U32(*lit),
             LiteralInstance::F32(lit) => LiteralExpression::F32(*lit),
             LiteralInstance::F16(lit) => LiteralExpression::F16(lit.to_f32()),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(lit) => LiteralExpression::I64(*lit),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(lit) => LiteralExpression::U64(*lit),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(lit) => LiteralExpression::F64(*lit),
         }
         .into())
@@ -123,11 +123,11 @@ impl ToExpr for Type {
             Type::U32 => Ok(TypeExpression::new(ident.unwrap())),
             Type::F32 => Ok(TypeExpression::new(ident.unwrap())),
             Type::F16 => Ok(TypeExpression::new(ident.unwrap())),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::I64 => Ok(TypeExpression::new(ident.unwrap())),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::U64 => Ok(TypeExpression::new(ident.unwrap())),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::F64 => Ok(TypeExpression::new(ident.unwrap())),
             Type::Struct(s) => {
                 let decl = ctx
@@ -156,7 +156,7 @@ impl ToExpr for Type {
                 }]);
                 Ok(ty)
             }
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::BindingArray(inner_ty, Some(n)) => {
                 let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![
@@ -170,7 +170,7 @@ impl ToExpr for Type {
                 ]);
                 Ok(ty)
             }
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::BindingArray(inner_ty, None) => {
                 let mut ty = TypeExpression::new(ident.unwrap());
                 ty.template_args = Some(vec![TemplateArg {
@@ -257,10 +257,48 @@ impl ToExpr for Type {
                     TextureType::Depth2DArray => None,
                     TextureType::DepthCube => None,
                     TextureType::DepthCubeArray => None,
+                    #[cfg(feature = "naga-ext")]
+                    TextureType::Sampled1DArray(sampled)
+                    | TextureType::Multisampled2DArray(sampled) => Some(vec![TemplateArg {
+                        expression: Expression::TypeOrIdentifier(TypeExpression::new(
+                            builtin_ident(&sampled.to_string()).unwrap().clone(),
+                        ))
+                        .into(),
+                    }]),
+                    #[cfg(feature = "naga-ext")]
+                    TextureType::Storage1DArray(texel, access) => Some(vec![
+                        TemplateArg {
+                            expression: Expression::TypeOrIdentifier(TypeExpression::new(
+                                builtin_ident(&texel.to_string()).unwrap().clone(),
+                            ))
+                            .into(),
+                        },
+                        TemplateArg {
+                            expression: Expression::TypeOrIdentifier(TypeExpression::new(
+                                builtin_ident(&access.to_string()).unwrap().clone(),
+                            ))
+                            .into(),
+                        },
+                    ]),
                 };
                 Ok(ty)
             }
             Type::Sampler(_) => Ok(TypeExpression::new(ident.unwrap())),
+            #[cfg(feature = "naga-ext")]
+            Type::RayQuery(flags) | Type::AccelerationStructure(flags) => Ok(TypeExpression {
+                path: None,
+                ident: ident.unwrap(),
+                template_args: (*flags == Some(AccelerationStructureFlags::VertexReturn)).then(
+                    || {
+                        vec![TemplateArg {
+                            expression: Expression::TypeOrIdentifier(TypeExpression::new(
+                                builtin_ident("vertex_return").unwrap().clone(),
+                            ))
+                            .into(),
+                        }]
+                    },
+                ),
+            }),
         }
         .map(Expression::from)
     }

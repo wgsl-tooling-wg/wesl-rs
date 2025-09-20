@@ -30,27 +30,14 @@ type E = Error;
 /// Warning: WGSL allows shadowing built-in functions. Check that a user-defined
 /// function does not shadow the built-in one.
 pub fn is_ctor(name: &str) -> bool {
-    matches!(
-        name,
-        "array"
-            | "bool"
-            | "i32"
-            | "u32"
-            | "f32"
-            | "f16"
-            | "mat2x2"
-            | "mat2x3"
-            | "mat2x4"
-            | "mat3x2"
-            | "mat3x3"
-            | "mat3x4"
-            | "mat4x2"
-            | "mat4x3"
-            | "mat4x4"
-            | "vec2"
-            | "vec3"
-            | "vec4"
-    )
+    match name {
+        "array" | "bool" | "i32" | "u32" | "f32" | "f16" | "mat2x2" | "mat2x3" | "mat2x4"
+        | "mat3x2" | "mat3x3" | "mat3x4" | "mat4x2" | "mat4x3" | "mat4x4" | "vec2" | "vec3"
+        | "vec4" => true,
+        #[cfg(feature = "naga-ext")]
+        "i64" | "u64" | "f64" => true,
+        _ => false,
+    }
 }
 
 // ------------
@@ -119,11 +106,11 @@ pub fn i32(a1: &Instance) -> Result<Instance, E> {
                 LiteralInstance::U32(n) => Some(*n as i32),    // reinterpretation of bits
                 LiteralInstance::F32(n) => Some((*n as i32).min(2147483520)), // rounding towards 0 AND representable in f32
                 LiteralInstance::F16(n) => Some((f16::to_f32(*n) as i32).min(65504)), // rounding towards 0 AND representable in f16
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::I64(n) => n.to_i32(), // identity if representable
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::U64(n) => n.to_i32(), // identity if representable
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::F64(n) => Some(*n as i32), // rounding towards 0
             }
             .ok_or(E::ConvOverflow(*l, Type::I32))?;
@@ -147,11 +134,11 @@ pub fn u32(a1: &Instance) -> Result<Instance, E> {
                 LiteralInstance::U32(n) => Some(*n),           // identity operation
                 LiteralInstance::F32(n) => Some((*n as u32).min(4294967040)), // rounding towards 0 AND representable in f32
                 LiteralInstance::F16(n) => Some((f16::to_f32(*n) as u32).min(65504)), // rounding towards 0 AND representable in f16
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::I64(n) => n.to_u32(), // identity if representable
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::U64(n) => n.to_u32(), // identity if representable
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::F64(n) => Some(*n as u32), // rounding towards 0
             }
             .ok_or(E::ConvOverflow(*l, Type::U32))?;
@@ -175,11 +162,11 @@ pub fn f32(a1: &Instance, _stage: ShaderStage) -> Result<Instance, E> {
                 LiteralInstance::U32(n) => Some(*n as f32),    // scalar to float (never overflows)
                 LiteralInstance::F32(n) => Some(*n),           // identity operation
                 LiteralInstance::F16(n) => Some(f16::to_f32(*n)), // exactly representable
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::I64(n) => n.to_f32(), // implicit conversion
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::U64(n) => n.to_f32(), // implicit conversion
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::F64(n) => n.to_f32(), // implicit conversion
             }
             .ok_or(E::ConvOverflow(*l, Type::F32))?;
@@ -241,7 +228,7 @@ pub fn f16(a1: &Instance, stage: ShaderStage) -> Result<Instance, E> {
                     }
                 }
                 LiteralInstance::F16(n) => Some(*n), // identity operation
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::I64(n) => {
                     // scalar to float (can overflow)
                     if stage == ShaderStage::Const {
@@ -251,7 +238,7 @@ pub fn f16(a1: &Instance, stage: ShaderStage) -> Result<Instance, E> {
                         Some(f16::from_f32(*n as f32))
                     }
                 }
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::U64(n) => {
                     // scalar to float (can overflow)
                     if stage == ShaderStage::Const {
@@ -260,7 +247,7 @@ pub fn f16(a1: &Instance, stage: ShaderStage) -> Result<Instance, E> {
                         Some(f16::from_f32(*n as f32))
                     }
                 }
-                #[cfg(feature = "naga_ext")]
+                #[cfg(feature = "naga-ext")]
                 LiteralInstance::F64(n) => {
                     // scalar to float (can overflow)
                     if stage == ShaderStage::Const {
@@ -276,6 +263,27 @@ pub fn f16(a1: &Instance, stage: ShaderStage) -> Result<Instance, E> {
         }
         _ => Err(E::Builtin("f16 constructor expects a scalar argument")),
     }
+}
+
+/// `i64()` constructor (naga extension).
+///
+/// TODO: This built-in is not implemented!
+pub fn i64(_a1: &Instance) -> Result<Instance, E> {
+    Err(E::Todo("i64".to_string()))
+}
+
+/// `u64()` constructor (naga extension).
+///
+/// TODO: This built-in is not implemented!
+pub fn u64(_a1: &Instance) -> Result<Instance, E> {
+    Err(E::Todo("u64".to_string()))
+}
+
+/// `f64()` constructor (naga extension).
+///
+/// TODO: This built-in is not implemented!
+pub fn f64(_a1: &Instance, _stage: ShaderStage) -> Result<Instance, E> {
+    Err(E::Todo("f64".to_string()))
 }
 
 /// `matCxR<T>()` constructor.
@@ -485,6 +493,10 @@ pub fn vec_t(
 pub fn vec(n: usize, args: &[Instance]) -> Result<Instance, E> {
     // overload 1: vec init from single scalar value
     if let [Instance::Literal(l)] = args {
+        let ty = l.ty();
+        if !ty.is_scalar() {
+            return Err(E::Builtin("vec constructor expects scalar arguments"));
+        }
         let val = Instance::Literal(*l);
         let comps = (0..n).map(|_| val.clone()).collect_vec();
         Ok(VecInstance::new(comps).into())
@@ -844,6 +856,18 @@ pub fn type_ctor(name: &str, tplt: Option<&[TpltParam]>, args: &[Type]) -> Resul
         ("vec4", Some(t), []) => Ok(VecTemplate::parse(t)?.ty(4)),
         ("vec4", Some(t), _) => vec_ctor_ty_t(4, VecTemplate::parse(t)?.inner_ty(), args),
         ("vec4", None, _) => vec_ctor_ty(4, args),
+        #[cfg(feature = "naga-ext")]
+        ("i64", None, []) => Ok(Type::I64),
+        #[cfg(feature = "naga-ext")]
+        ("i64", None, [a]) if a.is_scalar() => Ok(Type::I64),
+        #[cfg(feature = "naga-ext")]
+        ("u64", None, []) => Ok(Type::U64),
+        #[cfg(feature = "naga-ext")]
+        ("u64", None, [a]) if a.is_scalar() => Ok(Type::U64),
+        #[cfg(feature = "naga-ext")]
+        ("f64", None, []) => Ok(Type::F64),
+        #[cfg(feature = "naga-ext")]
+        ("f64", None, [a]) if a.is_scalar() => Ok(Type::F64),
         _ => Err(E::Signature(CallSignature {
             name: name.to_string(),
             tplt: tplt.map(|t| t.to_vec()),
@@ -868,17 +892,9 @@ impl Instance {
             Type::U32 => Ok(LiteralInstance::U32(0).into()),
             Type::F32 => Ok(LiteralInstance::F32(0.0).into()),
             Type::F16 => Ok(LiteralInstance::F16(f16::zero()).into()),
-            #[cfg(feature = "naga_ext")]
-            Type::I64 => Ok(LiteralInstance::I64(0).into()),
-            #[cfg(feature = "naga_ext")]
-            Type::U64 => Ok(LiteralInstance::U64(0).into()),
-            #[cfg(feature = "naga_ext")]
-            Type::F64 => Ok(LiteralInstance::F64(0.0).into()),
             Type::Struct(s) => StructInstance::zero_value(s).map(Into::into),
             Type::Array(a_ty, Some(n)) => ArrayInstance::zero_value(*n, a_ty).map(Into::into),
             Type::Array(_, None) => Err(E::NotConstructible(ty.clone())),
-            #[cfg(feature = "naga_ext")]
-            Type::BindingArray(_, _) => Err(E::NotConstructible(ty.clone())),
             Type::Vec(n, v_ty) => VecInstance::zero_value(*n, v_ty).map(Into::into),
             Type::Mat(c, r, m_ty) => MatInstance::zero_value(*c, *r, m_ty).map(Into::into),
             Type::Atomic(_)
@@ -886,6 +902,18 @@ impl Instance {
             | Type::Ref(_, _, _)
             | Type::Texture(_)
             | Type::Sampler(_) => Err(E::NotConstructible(ty.clone())),
+            #[cfg(feature = "naga-ext")]
+            Type::I64 => Ok(LiteralInstance::I64(0).into()),
+            #[cfg(feature = "naga-ext")]
+            Type::U64 => Ok(LiteralInstance::U64(0).into()),
+            #[cfg(feature = "naga-ext")]
+            Type::F64 => Ok(LiteralInstance::F64(0.0).into()),
+            #[cfg(feature = "naga-ext")]
+            Type::BindingArray(_, _) => Err(E::NotConstructible(ty.clone())),
+            #[cfg(feature = "naga-ext")]
+            Type::RayQuery(_) => Err(E::NotConstructible(ty.clone())),
+            #[cfg(feature = "naga-ext")]
+            Type::AccelerationStructure(_) => Err(E::NotConstructible(ty.clone())),
         }
     }
 }
@@ -901,11 +929,11 @@ impl LiteralInstance {
             Type::U32 => Ok(LiteralInstance::U32(0)),
             Type::F32 => Ok(LiteralInstance::F32(0.0)),
             Type::F16 => Ok(LiteralInstance::F16(f16::zero())),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::I64 => Ok(LiteralInstance::I64(0)),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::U64 => Ok(LiteralInstance::U64(0)),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Type::F64 => Ok(LiteralInstance::F64(0.0)),
             _ => Err(E::NotScalar(ty.clone())),
         }

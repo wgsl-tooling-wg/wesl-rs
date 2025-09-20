@@ -162,24 +162,24 @@ impl LiteralInstance {
             Self::I32(lhs) => Ok(lhs.wrapping_neg().into()),
             Self::F32(lhs) => Ok((-lhs).into()),
             Self::F16(lhs) => Ok((-lhs).into()),
+            #[cfg(feature = "naga-ext")]
+            Self::I64(lhs) => Ok(LiteralInstance::I64(lhs.wrapping_neg())),
+            #[cfg(feature = "naga-ext")]
+            Self::F64(lhs) => Ok(LiteralInstance::F64(-lhs)),
             _ => Err(E::Unary(UnaryOperator::Negation, self.ty())),
         }
     }
     pub fn op_or(&self, rhs: &Self) -> Result<Self, E> {
         let err = || E::Binary(BinaryOperator::ShortCircuitOr, self.ty(), rhs.ty());
         match (self, rhs) {
-            (LiteralInstance::Bool(b1), LiteralInstance::Bool(b2)) => {
-                Ok(LiteralInstance::Bool(*b1 || *b2))
-            }
+            (Self::Bool(b1), Self::Bool(b2)) => Ok(Self::Bool(*b1 || *b2)),
             _ => Err(err()),
         }
     }
     pub fn op_and(&self, rhs: &Self) -> Result<Self, E> {
         let err = || E::Binary(BinaryOperator::ShortCircuitAnd, self.ty(), rhs.ty());
         match (self, rhs) {
-            (LiteralInstance::Bool(b1), LiteralInstance::Bool(b2)) => {
-                Ok(LiteralInstance::Bool(*b1 && *b2))
-            }
+            (Self::Bool(b1), Self::Bool(b2)) => Ok(Self::Bool(*b1 && *b2)),
             _ => Err(err()),
         }
     }
@@ -216,6 +216,22 @@ impl LiteralInstance {
                         .then_some(res)
                         .ok_or(E::AddOverflow)
                         .map(Into::into)
+                } else {
+                    Ok(res.into())
+                }
+            }
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, lhs, rhs) => Ok(Self::I64(lhs.wrapping_add(rhs))),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, lhs, rhs) => Ok(Self::U64(lhs.wrapping_add(rhs))),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::F64, lhs, rhs) => {
+                let res = lhs + rhs;
+                if stage == ShaderStage::Const {
+                    res.is_finite()
+                        .then_some(res)
+                        .ok_or(E::AddOverflow)
+                        .map(LiteralInstance::F64)
                 } else {
                     Ok(res.into())
                 }
@@ -260,6 +276,22 @@ impl LiteralInstance {
                     Ok(res.into())
                 }
             }
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, lhs, rhs) => Ok(Self::I64(lhs.wrapping_sub(rhs))),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, lhs, rhs) => Ok(Self::U64(lhs.wrapping_sub(rhs))),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::F64, lhs, rhs) => {
+                let res = lhs - rhs;
+                if stage == ShaderStage::Const {
+                    res.is_finite()
+                        .then_some(res)
+                        .ok_or(E::SubOverflow)
+                        .map(LiteralInstance::F64)
+                } else {
+                    Ok(res.into())
+                }
+            }
             _ => Err(err()),
         }
     }
@@ -300,6 +332,22 @@ impl LiteralInstance {
                     Ok(res.into())
                 }
             }
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, lhs, rhs) => Ok(Self::I64(lhs.wrapping_mul(rhs))),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, lhs, rhs) => Ok(Self::U64(lhs.wrapping_mul(rhs))),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::F64, lhs, rhs) => {
+                let res = lhs * rhs;
+                if stage == ShaderStage::Const {
+                    res.is_finite()
+                        .then_some(res)
+                        .ok_or(E::MulOverflow)
+                        .map(LiteralInstance::F64)
+                } else {
+                    Ok(res.into())
+                }
+            }
             _ => Err(err()),
         }
     }
@@ -331,6 +379,18 @@ impl LiteralInstance {
                     .then_some(res)
                     .ok_or(E::DivByZero)
                     .map(Into::into)
+            }
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, lhs, rhs) => Ok(Self::I64(lhs.wrapping_div(rhs))),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, lhs, rhs) => Ok(Self::U64(lhs.wrapping_div(rhs))),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::F64, lhs, rhs) => {
+                let res = lhs / rhs;
+                res.is_finite()
+                    .then_some(res)
+                    .ok_or(E::DivByZero)
+                    .map(Self::F64)
             }
             _ => Err(err()),
         };
@@ -392,6 +452,34 @@ impl LiteralInstance {
                         .map(Into::into)
                 } else {
                     Ok(res.into())
+                }
+            }
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, lhs, rhs) => {
+                if stage == ShaderStage::Const {
+                    lhs.checked_rem(rhs).ok_or(E::RemZeroDiv).map(Self::I64)
+                } else {
+                    Ok(Self::I64(lhs.checked_rem(rhs).unwrap_or(0)))
+                }
+            }
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, lhs, rhs) => {
+                if stage == ShaderStage::Const {
+                    lhs.checked_rem(rhs).ok_or(E::RemZeroDiv).map(Self::U64)
+                } else {
+                    Ok(Self::U64(lhs.checked_rem(rhs).unwrap_or(0)))
+                }
+            }
+            #[cfg(feature = "naga-ext")]
+            both!(Self::F64, lhs, rhs) => {
+                let res = lhs % rhs;
+                if stage == ShaderStage::Const {
+                    res.is_finite()
+                        .then_some(res)
+                        .ok_or(E::RemZeroDiv)
+                        .map(Self::F64)
+                } else {
+                    Ok(Self::F64(res))
                 }
             }
             _ => Err(err()),
@@ -646,6 +734,12 @@ impl LiteralInstance {
             both!(Self::U32, lhs, rhs) => Ok(lhs == rhs),
             both!(Self::F32, lhs, rhs) => Ok(lhs == rhs),
             both!(Self::F16, lhs, rhs) => Ok(lhs == rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, lhs, rhs) => Ok(lhs == rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, lhs, rhs) => Ok(lhs == rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::F64, lhs, rhs) => Ok(lhs == rhs),
             _ => Err(err()),
         }
     }
@@ -659,6 +753,12 @@ impl LiteralInstance {
             both!(Self::U32, lhs, rhs) => Ok(lhs != rhs),
             both!(Self::F32, lhs, rhs) => Ok(lhs != rhs),
             both!(Self::F16, lhs, rhs) => Ok(lhs != rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, lhs, rhs) => Ok(lhs != rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, lhs, rhs) => Ok(lhs != rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::F64, lhs, rhs) => Ok(lhs != rhs),
             _ => Err(err()),
         }
     }
@@ -672,6 +772,12 @@ impl LiteralInstance {
             both!(Self::U32, lhs, rhs) => Ok(lhs < rhs),
             both!(Self::F32, lhs, rhs) => Ok(lhs < rhs),
             both!(Self::F16, lhs, rhs) => Ok(lhs < rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, lhs, rhs) => Ok(lhs < rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, lhs, rhs) => Ok(lhs < rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::F64, lhs, rhs) => Ok(lhs < rhs),
             _ => Err(err()),
         }
     }
@@ -685,6 +791,12 @@ impl LiteralInstance {
             both!(Self::U32, lhs, rhs) => Ok(lhs <= rhs),
             both!(Self::F32, lhs, rhs) => Ok(lhs <= rhs),
             both!(Self::F16, lhs, rhs) => Ok(lhs <= rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, lhs, rhs) => Ok(lhs <= rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, lhs, rhs) => Ok(lhs <= rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::F64, lhs, rhs) => Ok(lhs <= rhs),
             _ => Err(err()),
         }
     }
@@ -698,6 +810,12 @@ impl LiteralInstance {
             both!(Self::U32, lhs, rhs) => Ok(lhs > rhs),
             both!(Self::F32, lhs, rhs) => Ok(lhs > rhs),
             both!(Self::F16, lhs, rhs) => Ok(lhs > rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, lhs, rhs) => Ok(lhs > rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, lhs, rhs) => Ok(lhs > rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::F64, lhs, rhs) => Ok(lhs > rhs),
             _ => Err(err()),
         }
     }
@@ -711,6 +829,12 @@ impl LiteralInstance {
             both!(Self::U32, lhs, rhs) => Ok(lhs >= rhs),
             both!(Self::F32, lhs, rhs) => Ok(lhs >= rhs),
             both!(Self::F16, lhs, rhs) => Ok(lhs >= rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, lhs, rhs) => Ok(lhs >= rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, lhs, rhs) => Ok(lhs >= rhs),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::F64, lhs, rhs) => Ok(lhs >= rhs),
             _ => Err(err()),
         }
     }
@@ -825,6 +949,10 @@ impl LiteralInstance {
             Self::AbstractInt(n) => Ok(Self::AbstractInt(!n)),
             Self::I32(n) => Ok(Self::I32(!n)),
             Self::U32(n) => Ok(Self::U32(!n)),
+            #[cfg(feature = "naga-ext")]
+            Self::I64(n) => Ok(Self::I64(!n)),
+            #[cfg(feature = "naga-ext")]
+            Self::U64(n) => Ok(Self::U64(!n)),
             _ => Err(E::Unary(UnaryOperator::BitwiseComplement, self.ty())),
         }
     }
@@ -836,6 +964,10 @@ impl LiteralInstance {
             both!(Self::AbstractInt, rhs, lhs) => Ok(Self::AbstractInt(lhs | rhs)),
             both!(Self::I32, rhs, lhs) => Ok(Self::I32(lhs | rhs)),
             both!(Self::U32, rhs, lhs) => Ok(Self::U32(lhs | rhs)),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, rhs, lhs) => Ok(Self::I64(lhs | rhs)),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, rhs, lhs) => Ok(Self::U64(lhs | rhs)),
             _ => Err(err()),
         }
     }
@@ -847,6 +979,10 @@ impl LiteralInstance {
             both!(Self::AbstractInt, rhs, lhs) => Ok(Self::AbstractInt(lhs & rhs)),
             both!(Self::I32, rhs, lhs) => Ok(Self::I32(lhs & rhs)),
             both!(Self::U32, rhs, lhs) => Ok(Self::U32(lhs & rhs)),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, rhs, lhs) => Ok(Self::I64(lhs & rhs)),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, rhs, lhs) => Ok(Self::U64(lhs & rhs)),
             _ => Err(err()),
         }
     }
@@ -856,6 +992,10 @@ impl LiteralInstance {
             both!(Self::AbstractInt, rhs, lhs) => Ok(Self::AbstractInt(lhs ^ rhs)),
             both!(Self::I32, rhs, lhs) => Ok(Self::I32(lhs ^ rhs)),
             both!(Self::U32, rhs, lhs) => Ok(Self::U32(lhs ^ rhs)),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::I64, rhs, lhs) => Ok(Self::I64(lhs ^ rhs)),
+            #[cfg(feature = "naga-ext")]
+            both!(Self::U64, rhs, lhs) => Ok(Self::U64(lhs ^ rhs)),
             _ => Err(err()),
         }
     }
@@ -868,7 +1008,7 @@ impl LiteralInstance {
         // must be 0 in positive expressions and 1 in negative expressions).
         // only abstract types can be shifted by more than the bit width of the operand.
         match self {
-            LiteralInstance::AbstractInt(l) => {
+            Self::AbstractInt(l) => {
                 if r == 0 {
                     // shift by 0 is no-op
                     return Ok(*self);
@@ -884,7 +1024,7 @@ impl LiteralInstance {
                     Ok(l.wrapping_shl(r).into())
                 }
             }
-            LiteralInstance::I32(l) => {
+            Self::I32(l) => {
                 let r = r % 32; // "the number of bits to shift is the value of e2, modulo the bit width of e1"
                 if r == 0 {
                     // shift by 0 is no-op
@@ -900,7 +1040,7 @@ impl LiteralInstance {
                     Ok(l.wrapping_shl(r).into())
                 }
             }
-            LiteralInstance::U32(l) => {
+            Self::U32(l) => {
                 let r = r % 32; // "the number of bits to shift is the value of e2, modulo the bit width of e1"
                 if r == 0 {
                     // shift by 0 is no-op
@@ -914,6 +1054,40 @@ impl LiteralInstance {
                     Ok(l.checked_shl(r).ok_or(E::ShlOverflow(r, *self))?.into())
                 } else {
                     Ok(l.wrapping_shl(r).into())
+                }
+            }
+            #[cfg(feature = "naga-ext")]
+            Self::I64(l) => {
+                let r = r % 64; // "the number of bits to shift is the value of e2, modulo the bit width of e1"
+                if r == 0 {
+                    // shift by 0 is no-op
+                    return Ok(*self);
+                }
+                let msb_mask = (!0u64) << (31 - r);
+                let msb_bits = *l as u64 & msb_mask;
+                if stage && (*l >= 0 && msb_bits != 0 || *l < 0 && msb_bits != msb_mask) {
+                    Err(E::ShlOverflow(r, *self))
+                } else if stage {
+                    Ok(Self::I64(l.checked_shl(r).ok_or(E::ShlOverflow(r, *self))?))
+                } else {
+                    Ok(Self::I64(l.wrapping_shl(r)))
+                }
+            }
+            #[cfg(feature = "naga-ext")]
+            Self::U64(l) => {
+                let r = r % 64; // "the number of bits to shift is the value of e2, modulo the bit width of e1"
+                if r == 0 {
+                    // shift by 0 is no-op
+                    return Ok(*self);
+                }
+                let msb_mask = (!0u64) << (64 - r);
+                let msb_bits = *l & msb_mask;
+                if stage && msb_bits != 0 {
+                    Err(E::ShlOverflow(r, *self))
+                } else if stage {
+                    Ok(Self::U64(l.checked_shl(r).ok_or(E::ShlOverflow(r, *self))?))
+                } else {
+                    Ok(Self::U64(l.wrapping_shl(r)))
                 }
             }
             _ => Err(err()),
@@ -946,6 +1120,18 @@ impl LiteralInstance {
                 // we shr twice because x >> 64 is panic(overflow) and wrapping_shr only allow x >> 63.
                 Ok((l >> 1).wrapping_shr(r - 1).into())
             }
+            #[cfg(feature = "naga-ext")]
+            Self::I64(l) => Ok(if stage {
+                Self::I64(l.checked_shr(r).ok_or(E::ShrOverflow(r, *self))?)
+            } else {
+                Self::I64(l.wrapping_shr(r))
+            }),
+            #[cfg(feature = "naga-ext")]
+            Self::U64(l) => Ok(if stage {
+                Self::U64(l.checked_shr(r).ok_or(E::ShrOverflow(r, *self))?)
+            } else {
+                Self::U64(l.wrapping_shr(r))
+            }),
             _ => Err(E::Binary(BinaryOperator::ShiftRight, self.ty(), rhs.ty())),
         }
     }

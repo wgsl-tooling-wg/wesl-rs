@@ -111,7 +111,7 @@ checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
 [[package]]
 name = "bevy-wgsl"
 version = "0.1.0"
-source = "git+https://github.com/wgsl-tooling-wg/bevy-wgsl?rev=575208586e6fcbd9df21c3b8d90669e67045b3e0#575208586e6fcbd9df21c3b8d90669e67045b3e0"
+source = "git+https://github.com/wgsl-tooling-wg/bevy-wgsl?rev=cd0c5ea86bbb7f189810a1e55a1b3ec911411ee1#cd0c5ea86bbb7f189810a1e55a1b3ec911411ee1"
 dependencies = [
  "wesl",
 ]

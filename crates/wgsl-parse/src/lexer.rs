@@ -154,7 +154,7 @@ fn parse_hex_f16(lex: &mut logos::Lexer<Token>) -> Option<f32> {
     lexical::parse_with_options::<f32, _, HEX_FORMAT>(str, &FLOAT_HEX_OPTIONS).ok()
 }
 
-#[cfg(feature = "naga_ext")]
+#[cfg(feature = "naga-ext")]
 fn parse_dec_i64(lex: &mut logos::Lexer<Token>) -> Option<i64> {
     let options = &lexical::parse_integer_options::STANDARD;
     let str = lex.slice();
@@ -162,7 +162,7 @@ fn parse_dec_i64(lex: &mut logos::Lexer<Token>) -> Option<i64> {
     lexical::parse_with_options::<i64, _, DEC_FORMAT>(str, options).ok()
 }
 
-#[cfg(feature = "naga_ext")]
+#[cfg(feature = "naga-ext")]
 fn parse_hex_i64(lex: &mut logos::Lexer<Token>) -> Option<i64> {
     let options = &lexical::parse_integer_options::STANDARD;
     let str = lex.slice();
@@ -170,7 +170,7 @@ fn parse_hex_i64(lex: &mut logos::Lexer<Token>) -> Option<i64> {
     lexical::parse_with_options::<i64, _, HEX_FORMAT>(str, options).ok()
 }
 
-#[cfg(feature = "naga_ext")]
+#[cfg(feature = "naga-ext")]
 fn parse_dec_u64(lex: &mut logos::Lexer<Token>) -> Option<u64> {
     let options = &lexical::parse_integer_options::STANDARD;
     let str = lex.slice();
@@ -178,7 +178,7 @@ fn parse_dec_u64(lex: &mut logos::Lexer<Token>) -> Option<u64> {
     lexical::parse_with_options::<u64, _, DEC_FORMAT>(str, options).ok()
 }
 
-#[cfg(feature = "naga_ext")]
+#[cfg(feature = "naga-ext")]
 fn parse_hex_u64(lex: &mut logos::Lexer<Token>) -> Option<u64> {
     let options = &lexical::parse_integer_options::STANDARD;
     let str = lex.slice();
@@ -186,7 +186,7 @@ fn parse_hex_u64(lex: &mut logos::Lexer<Token>) -> Option<u64> {
     lexical::parse_with_options::<u64, _, HEX_FORMAT>(str, options).ok()
 }
 
-#[cfg(feature = "naga_ext")]
+#[cfg(feature = "naga-ext")]
 fn parse_dec_f64(lex: &mut logos::Lexer<Token>) -> Option<f64> {
     let options = &lexical::parse_float_options::STANDARD;
     let str = lex.slice();
@@ -194,7 +194,7 @@ fn parse_dec_f64(lex: &mut logos::Lexer<Token>) -> Option<f64> {
     lexical::parse_with_options::<f64, _, DEC_FORMAT>(str, options).ok()
 }
 
-#[cfg(feature = "naga_ext")]
+#[cfg(feature = "naga-ext")]
 fn parse_hex_f64(lex: &mut logos::Lexer<Token>) -> Option<f64> {
     let str = lex.slice();
     // TODO
@@ -203,7 +203,7 @@ fn parse_hex_f64(lex: &mut logos::Lexer<Token>) -> Option<f64> {
     lexical::parse_with_options::<f64, _, HEX_FORMAT>(str, options).ok()
 }
 
-fn parse_line_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
+fn parse_line_comment(lex: &mut logos::Lexer<Token>) {
     let rem = lex.remainder();
     // see blankspace and line breaks: https://www.w3.org/TR/WGSL/#blankspace-and-line-breaks
     let line_end = rem
@@ -212,10 +212,9 @@ fn parse_line_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
         .map(|(i, _)| i)
         .unwrap_or(rem.len());
     lex.bump(line_end);
-    logos::Skip
 }
 
-fn parse_block_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
+fn parse_block_comment(lex: &mut logos::Lexer<Token>) {
     let mut depth = 1;
     while depth > 0 {
         let rem = lex.remainder();
@@ -231,7 +230,6 @@ fn parse_block_comment(lex: &mut logos::Lexer<Token>) -> logos::Skip {
             lex.bump(1);
         }
     }
-    logos::Skip
 }
 
 /// These are not valid WGSL identifiers and will trigger an error if used.
@@ -254,7 +252,7 @@ const RESERVED_WORDS: &[&str] = &[
     "auto",
     "await",
     "become",
-    #[cfg(not(feature = "naga_ext"))]
+    #[cfg(not(feature = "naga-ext"))]
     "binding_array",
     "cast",
     "catch",
@@ -415,15 +413,17 @@ pub struct LexerState {
     error = ParseError)]
 pub enum Token {
     #[token("//", parse_line_comment)]
+    LineComment,
     #[token("/*", parse_block_comment, priority = 2)]
+    BlockComment,
     // the parse_ident function can return either Token::Ident or Token::ReservedWord.
+    // Token::Ignored variant is never produced.
+    // It serves as a placeholder for running parse_ident.
     #[regex(
         r#"([_\p{XID_Start}][\p{XID_Continue}]+)|([\p{XID_Start}])"#,
         parse_ident,
         priority = 1
     )]
-    // Token::Ignored variant is never produced.
-    // It serves as a placeholder for above logos callbacks.
     Ignored,
     // syntactic tokens
     // https://www.w3.org/TR/WGSL/#syntactic-tokens
@@ -612,17 +612,17 @@ pub enum Token {
     #[regex(r#"0[xX]\.[\da-fA-F]+[pP][+-]?\d+h"#, parse_hex_f16)]
     #[regex(r#"0[xX][\da-fA-F]+[pP][+-]?\d+h"#, parse_hex_f16)]
     F16(f32),
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     #[regex(r#"(0|[1-9]\d*)li"#, parse_dec_i64)]
     #[regex(r#"0[xX][\da-fA-F]+li"#, parse_hex_i64)]
     // hex
     I64(i64),
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     #[regex(r#"(0|[1-9]\d*)lu"#, parse_dec_u64)]
     #[regex(r#"0[xX][\da-fA-F]+lu"#, parse_hex_u64)]
     // hex
     U64(u64),
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     #[regex(r#"(\d+\.\d*|\.\d+)([eE][+-]?\d+)?lf"#, parse_dec_f64)]
     #[regex(r#"\d+([eE][+-]?\d+)?lf"#, parse_dec_f64)]
     #[regex(r#"0[xX][\da-fA-F]+\.[\da-fA-F]*[pP][+-]?\d+lf"#, parse_hex_f64)]
@@ -656,6 +656,13 @@ pub enum Token {
 }
 
 impl Token {
+    pub fn is_trivia(&self) -> bool {
+        matches!(
+            self,
+            Token::LineComment | Token::BlockComment | Token::Ignored
+        )
+    }
+
     #[allow(unused)]
     pub fn is_symbol(&self) -> bool {
         matches!(
@@ -760,6 +767,8 @@ impl Display for Token {
     /// This display implementation is used for error messages.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Token::LineComment => f.write_str("// line comment"),
+            Token::BlockComment => f.write_str("/* block comment */"),
             Token::Ignored => unreachable!(),
             Token::SymAnd => f.write_str("&"),
             Token::SymAndAnd => f.write_str("&&"),
@@ -841,11 +850,11 @@ impl Display for Token {
             Token::U32(n) => write!(f, "{n}u"),
             Token::F32(n) => write!(f, "{n}f"),
             Token::F16(n) => write!(f, "{n}h"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Token::I64(n) => write!(f, "{n}li"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Token::U64(n) => write!(f, "{n}lu"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Token::F64(n) => write!(f, "{n}lf"),
             Token::TemplateArgsStart => f.write_str("start of template"),
             Token::TemplateArgsEnd => f.write_str("end of template"),
@@ -880,7 +889,9 @@ pub struct Lexer<'s> {
 impl<'s> Lexer<'s> {
     pub fn new(source: &'s str) -> Self {
         let mut token_stream = Token::lexer_with_extras(source, LexerState::default()).spanned();
-        let next_token = token_stream.next();
+        let next_token =
+            token_stream.find(|(tok, _)| tok.as_ref().is_ok_and(|tok| !tok.is_trivia()));
+
         Self {
             source,
             token_stream,
@@ -900,7 +911,9 @@ impl<'s> Lexer<'s> {
                 let span2 = span1.start + 1..span1.end;
                 Some((Ok(tok), span2))
             }
-            None => self.token_stream.next(),
+            None => self
+                .token_stream
+                .find(|(tok, _)| tok.as_ref().is_ok_and(|tok| !tok.is_trivia())),
         };
 
         (tok1, tok2)

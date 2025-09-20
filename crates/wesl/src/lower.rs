@@ -26,7 +26,7 @@ pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
 
     for attrs in Visit::<Attributes>::visit_mut(wesl) {
         attrs.retain(|attr| {
-            !matches!(attr.node(), 
+            !matches!(attr.node(),
             Attribute::Custom(CustomAttribute { name, .. }) if name == "generic")
         })
     }
@@ -48,7 +48,8 @@ pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
         {
             let wesl2 = wesl.clone();
             let mut ctx = Context::new(&wesl2);
-            wesl.exec(&mut ctx)?; // populate the ctx with module-scope declarations
+            wesl.exec(&mut ctx) // populate the ctx with module-scope declarations
+                .map_err(|e| Diagnostic::from(e).with_ctx(&ctx))?;
             wesl.lower(&mut ctx)
                 .map_err(|e| Diagnostic::from(e).with_ctx(&ctx))?;
         }

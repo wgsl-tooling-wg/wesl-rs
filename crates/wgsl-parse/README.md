@@ -20,7 +20,7 @@ It supports WESL language extensions guarded by feature flags.
 
 | name       | description                                                |
 |------------|------------------------------------------------------------|
-| `naga_ext` | enable all Naga/WGPU extensions (experimental)             |
+| `naga-ext` | enable all Naga/WGPU extensions (experimental)             |
 | `serde`    | derive `Serialize` and `Deserialize` for syntax tree nodes |
 | `tokrepr`  | derive `TokRepr` for syntax tree nodes                     |
 

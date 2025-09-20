@@ -140,9 +140,8 @@ fn main() {
                 });
 
             include_paths.into_iter().map(move |shader_path| {
-                let case = std::fs::read_to_string(&shader_path).expect("failed to read test file");
                 libtest_mimic::Trial::test(format!("{name}::{shader_path:?}"), move || {
-                    validation_case(&case)
+                    validation_case(shader_path)
                 })
             })
         })
@@ -156,6 +155,35 @@ fn main() {
             .map(|e| {
                 let name = format!("bevy::{:?}", e.file_name());
                 libtest_mimic::Trial::test(name, move || bevy_case(e.path()))
+            })
+    });
+
+    tests.extend({
+        let in_entries = std::fs::read_dir("wgpu/in")
+            .expect("missing dir `wgpu/in`")
+            .map(|f| (f, "in"));
+        let out_entries = std::fs::read_dir("wgpu/out")
+            .expect("missing dir `wgpu/out`")
+            .map(|f| (f, "out"));
+        in_entries
+            .chain(out_entries)
+            .filter_map(|(e, d)| e.ok().map(|e| (e, d)))
+            .filter(|(e, _)| e.path().extension() == Some(OsStr::new("wgsl")))
+            .map(|(e, d)| {
+                let filename = e.file_name();
+                let name = format!("wgpu::{d}::{filename:?}");
+                libtest_mimic::Trial::test(name, move || validation_case(e.path()))
+                    .with_ignored_flag(
+                        [
+                            "lexical-scopes.wgsl",     // https://github.com/gfx-rs/wgpu/issues/8235
+                            "msl-vpt-formats-x1.wgsl", // https://github.com/gfx-rs/wgpu/issues/8225
+                            "msl-vpt-formats-x2.wgsl", // https://github.com/gfx-rs/wgpu/issues/8225
+                            "msl-vpt-formats-x3.wgsl", // https://github.com/gfx-rs/wgpu/issues/8225
+                            "msl-vpt-formats-x4.wgsl", // https://github.com/gfx-rs/wgpu/issues/8225
+                        ]
+                        .iter()
+                        .any(|f| filename.to_str() == Some(f)),
+                    )
             })
     });
 
@@ -341,7 +369,8 @@ pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
     Ok(())
 }
 
-pub fn validation_case(input: &str) -> Result<(), libtest_mimic::Failed> {
+pub fn validation_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
+    let input = std::fs::read_to_string(path).expect("failed to read test file");
     let mut resolver = VirtualResolver::new();
     let root = ModulePath::from_str("package::main")?;
     resolver.add_module(root.clone(), input.into());
@@ -392,16 +421,6 @@ pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
         compiler.set_feature("PREPASS_FRAGMENT", true); // water_material needs it
         compiler.set_feature("PREPASS_PIPELINE", true); // water_material needs it
         compiler.set_feature("NORMAL_PREPASS_OR_DEFERRED_PREPASS", true); // water_material needs it
-
-        compiler
-            .compile(&ModulePath::new(PathOrigin::Absolute, vec![name.clone()]))
-            .inspect_err(|e| {
-                println!(
-                    "{}",
-                    wesl::Diagnostic::from(e.clone()).detail.output.unwrap()
-                )
-            })
-            .ok();
     }
     compiler.compile(&ModulePath::new(PathOrigin::Absolute, vec![name]))?;
     Ok(())

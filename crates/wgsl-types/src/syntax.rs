@@ -26,7 +26,7 @@ pub enum AddressSpace {
     Uniform,
     Storage,
     Handle, // the handle address space cannot be spelled in WGSL.
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     PushConstant,
 }
 
@@ -39,7 +39,7 @@ impl AddressSpace {
             AddressSpace::Uniform => AccessMode::Read,
             AddressSpace::Storage => AccessMode::Read,
             AddressSpace::Handle => AccessMode::Read,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             AddressSpace::PushConstant => AccessMode::Read,
         }
     }
@@ -55,6 +55,8 @@ pub enum AccessMode {
     Read,
     Write,
     ReadWrite,
+    #[cfg(feature = "naga-ext")]
+    Atomic,
 }
 
 /// Texel format enumeration.
@@ -81,54 +83,63 @@ pub enum TexelFormat {
     Rgba32Sint,
     Rgba32Float,
     Bgra8Unorm,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     R8Unorm,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     R8Snorm,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     R8Uint,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     R8Sint,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     R16Unorm,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     R16Snorm,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     R16Uint,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     R16Sint,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     R16Float,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rg8Unorm,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rg8Snorm,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rg8Uint,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rg8Sint,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rg16Unorm,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rg16Snorm,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rg16Uint,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rg16Sint,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rg16Float,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rgb10a2Uint,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rgb10a2Unorm,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rg11b10Float,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     R64Uint,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rgba16Unorm,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     Rgba16Snorm,
+}
+
+/// Acceleration structure flags (naga extension)
+#[cfg(feature = "naga-ext")]
+#[cfg_attr(feature = "tokrepr", derive(TokRepr))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AccelerationStructureFlags {
+    VertexReturn,
 }
 
 /// One of the predeclared enumerants.
@@ -139,16 +150,23 @@ pub enum Enumerant {
     AccessMode(AccessMode),
     AddressSpace(AddressSpace),
     TexelFormat(TexelFormat),
+    #[cfg(feature = "naga-ext")]
+    AccelerationStructureFlags(AccelerationStructureFlags),
 }
 
 impl FromStr for Enumerant {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        AccessMode::from_str(s)
+        let res = AccessMode::from_str(s)
             .map(Enumerant::AccessMode)
             .or_else(|()| AddressSpace::from_str(s).map(Enumerant::AddressSpace))
-            .or_else(|()| TexelFormat::from_str(s).map(Enumerant::TexelFormat))
+            .or_else(|()| TexelFormat::from_str(s).map(Enumerant::TexelFormat));
+        #[cfg(feature = "naga-ext")]
+        let res = res.or_else(|()| {
+            AccelerationStructureFlags::from_str(s).map(Enumerant::AccelerationStructureFlags)
+        });
+        res
     }
 }
 
@@ -181,9 +199,13 @@ pub enum BuiltinValue {
     NumWorkgroups,
     SubgroupInvocationId, // requires WGSL extension subgroups
     SubgroupSize,         // requires WGSL extension subgroups
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
+    SubgroupId, // requires WGSL extension subgroups
+    #[cfg(feature = "naga-ext")]
+    NumSubgroups, // requires WGSL extension subgroups
+    #[cfg(feature = "naga-ext")]
     PrimitiveIndex,
-    #[cfg(feature = "naga_ext")]
+    #[cfg(feature = "naga-ext")]
     ViewIndex,
 }
 
@@ -233,7 +255,7 @@ pub enum InterpolationSampling {
 }
 
 /// Naga extension: Conservative Depth.
-#[cfg(feature = "naga_ext")]
+#[cfg(feature = "naga-ext")]
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -380,53 +402,53 @@ impl TexelFormat {
             TexelFormat::Rgba32Sint => SampledType::I32,
             TexelFormat::Rgba32Float => SampledType::F32,
             TexelFormat::Bgra8Unorm => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R8Unorm => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R8Snorm => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R8Uint => SampledType::U32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R8Sint => SampledType::I32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Unorm => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Snorm => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Uint => SampledType::U32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Sint => SampledType::I32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Float => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg8Unorm => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg8Snorm => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg8Uint => SampledType::U32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg8Sint => SampledType::I32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Unorm => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Snorm => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Uint => SampledType::U32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Sint => SampledType::I32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Float => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rgb10a2Uint => SampledType::U32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rgb10a2Unorm => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg11b10Float => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R64Uint => SampledType::U32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rgba16Unorm => SampledType::F32,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rgba16Snorm => SampledType::F32,
         }
     }
@@ -450,53 +472,53 @@ impl TexelFormat {
             TexelFormat::Rgba32Sint => 4,
             TexelFormat::Rgba32Float => 4,
             TexelFormat::Bgra8Unorm => 4,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R8Unorm => 1,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R8Snorm => 1,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R8Uint => 1,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R8Sint => 1,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Unorm => 1,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Snorm => 1,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Uint => 1,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Sint => 1,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Float => 1,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg8Unorm => 2,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg8Snorm => 2,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg8Uint => 2,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg8Sint => 2,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Unorm => 2,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Snorm => 2,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Uint => 2,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Sint => 2,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Float => 2,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rgb10a2Uint => 4,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rgb10a2Unorm => 4,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg11b10Float => 3,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R64Uint => 1,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rgba16Unorm => 4,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rgba16Snorm => 4,
         }
     }
@@ -516,7 +538,7 @@ impl FromStr for AddressSpace {
             "workgroup" => Ok(Self::Workgroup),
             "uniform" => Ok(Self::Uniform),
             "storage" => Ok(Self::Storage),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "push_constant" => Ok(Self::PushConstant),
             // "WGSL predeclares an enumerant for each address space, except for the handle address space."
             // "handle" => Ok(Self::Handle),
@@ -533,6 +555,8 @@ impl FromStr for AccessMode {
             "read" => Ok(Self::Read),
             "write" => Ok(Self::Write),
             "read_write" => Ok(Self::ReadWrite),
+            #[cfg(feature = "naga-ext")]
+            "atomic" => Ok(Self::Atomic),
             _ => Err(()),
         }
     }
@@ -560,54 +584,66 @@ impl FromStr for TexelFormat {
             "rgba32sint" => Ok(Self::Rgba32Sint),
             "rgba32float" => Ok(Self::Rgba32Float),
             "bgra8unorm" => Ok(Self::Bgra8Unorm),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "r8unorm" => Ok(Self::R8Unorm),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "r8snorm" => Ok(Self::R8Snorm),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "r8uint" => Ok(Self::R8Uint),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "r8sint" => Ok(Self::R8Sint),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "r16unorm" => Ok(Self::R16Unorm),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "r16snorm" => Ok(Self::R16Snorm),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "r16uint" => Ok(Self::R16Uint),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "r16sint" => Ok(Self::R16Sint),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "r16float" => Ok(Self::R16Float),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rg8unorm" => Ok(Self::Rg8Unorm),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rg8snorm" => Ok(Self::Rg8Snorm),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rg8uint" => Ok(Self::Rg8Uint),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rg8sint" => Ok(Self::Rg8Sint),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rg16unorm" => Ok(Self::Rg16Unorm),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rg16snorm" => Ok(Self::Rg16Snorm),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rg16uint" => Ok(Self::Rg16Uint),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rg16sint" => Ok(Self::Rg16Sint),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rg16float" => Ok(Self::Rg16Float),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rgb10a2uint" => Ok(Self::Rgb10a2Uint),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rgb10a2unorm" => Ok(Self::Rgb10a2Unorm),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rg11b10float" => Ok(Self::Rg11b10Float),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "r64uint" => Ok(Self::R64Uint),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rgba16unorm" => Ok(Self::Rgba16Unorm),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "rgba16snorm" => Ok(Self::Rgba16Snorm),
+            _ => Err(()),
+        }
+    }
+}
+
+#[cfg(feature = "naga-ext")]
+impl FromStr for AccelerationStructureFlags {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "vertex_return" => Ok(Self::VertexReturn),
             _ => Err(()),
         }
     }
@@ -647,9 +683,13 @@ impl FromStr for BuiltinValue {
             "num_workgroups" => Ok(Self::NumWorkgroups),
             "subgroup_invocation_id" => Ok(Self::SubgroupInvocationId),
             "subgroup_size" => Ok(Self::SubgroupSize),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
+            "subgroup_id" => Ok(Self::SubgroupId),
+            #[cfg(feature = "naga-ext")]
+            "num_subgroups" => Ok(Self::NumSubgroups),
+            #[cfg(feature = "naga-ext")]
             "primitive_index" => Ok(Self::PrimitiveIndex),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             "view_index" => Ok(Self::ViewIndex),
             _ => Err(()),
         }
@@ -684,7 +724,7 @@ impl FromStr for InterpolationSampling {
     }
 }
 
-#[cfg(feature = "naga_ext")]
+#[cfg(feature = "naga-ext")]
 impl FromStr for ConservativeDepth {
     type Err = ();
 
@@ -724,7 +764,7 @@ impl Display for AddressSpace {
             Self::Uniform => write!(f, "uniform"),
             Self::Storage => write!(f, "storage"),
             Self::Handle => write!(f, "handle"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Self::PushConstant => write!(f, "push_constant"),
         }
     }
@@ -736,6 +776,8 @@ impl Display for AccessMode {
             Self::Read => write!(f, "read"),
             Self::Write => write!(f, "write"),
             Self::ReadWrite => write!(f, "read_write"),
+            #[cfg(feature = "naga-ext")]
+            Self::Atomic => write!(f, "atomic"),
         }
     }
 }
@@ -760,54 +802,63 @@ impl Display for TexelFormat {
             TexelFormat::Rgba32Sint => write!(f, "rgba32sint"),
             TexelFormat::Rgba32Float => write!(f, "rgba32float"),
             TexelFormat::Bgra8Unorm => write!(f, "bgra8unorm"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R8Unorm => write!(f, "r8unorm"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R8Snorm => write!(f, "r8snorm"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R8Uint => write!(f, "r8uint"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R8Sint => write!(f, "r8sint"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Unorm => write!(f, "r16unorm"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Snorm => write!(f, "r16snorm"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Uint => write!(f, "r16uint"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Sint => write!(f, "r16sint"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R16Float => write!(f, "r16float"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg8Unorm => write!(f, "rg8unorm"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg8Snorm => write!(f, "rg8snorm"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg8Uint => write!(f, "rg8uint"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg8Sint => write!(f, "rg8sint"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Unorm => write!(f, "rg16unorm"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Snorm => write!(f, "rg16snorm"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Uint => write!(f, "rg16uint"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Sint => write!(f, "rg16sint"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg16Float => write!(f, "rg16float"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rgb10a2Uint => write!(f, "rgb10a2uint"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rgb10a2Unorm => write!(f, "rgb10a2unorm"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rg11b10Float => write!(f, "rg11b10float"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::R64Uint => write!(f, "r64uint"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rgba16Unorm => write!(f, "rgba16unorm"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             TexelFormat::Rgba16Snorm => write!(f, "rgba16snorm"),
+        }
+    }
+}
+
+#[cfg(feature = "naga-ext")]
+impl Display for AccelerationStructureFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::VertexReturn => write!(f, "vertex_return"),
         }
     }
 }
@@ -830,9 +881,13 @@ impl Display for BuiltinValue {
             Self::NumWorkgroups => write!(f, "num_workgroups"),
             Self::SubgroupInvocationId => write!(f, "subgroup_invocation_id"),
             Self::SubgroupSize => write!(f, "subgroup_size"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
+            Self::SubgroupId => write!(f, "subgroup_id"),
+            #[cfg(feature = "naga-ext")]
+            Self::NumSubgroups => write!(f, "num_subgroups"),
+            #[cfg(feature = "naga-ext")]
             Self::PrimitiveIndex => write!(f, "primitive_index"),
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             Self::ViewIndex => write!(f, "view_index"),
         }
     }
@@ -915,7 +970,7 @@ impl Display for AssignmentOperator {
     }
 }
 
-#[cfg(feature = "naga_ext")]
+#[cfg(feature = "naga-ext")]
 impl Display for ConservativeDepth {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

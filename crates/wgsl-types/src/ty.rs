@@ -2,14 +2,7 @@
 
 use std::str::FromStr;
 
-use crate::{
-    Error, Instance,
-    inst::{
-        ArrayInstance, AtomicInstance, LiteralInstance, MatInstance, PtrInstance, RefInstance,
-        StructInstance, VecInstance,
-    },
-    syntax::{AccessMode, AddressSpace, SampledType, TexelFormat},
-};
+use crate::{Error, Instance, inst::*, syntax::*};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StructMemberType {
@@ -66,6 +59,12 @@ pub enum TextureType {
     Depth2DArray,
     DepthCube,
     DepthCubeArray,
+    #[cfg(feature = "naga-ext")]
+    Sampled1DArray(SampledType),
+    #[cfg(feature = "naga-ext")]
+    Storage1DArray(TexelFormat, AccessMode),
+    #[cfg(feature = "naga-ext")]
+    Multisampled2DArray(SampledType),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -93,6 +92,10 @@ impl TextureType {
             | Self::Storage2DArray(_, _)
             | Self::External => TextureDimensions::D2,
             Self::Sampled3D(_) | Self::Storage3D(_, _) => TextureDimensions::D3,
+            #[cfg(feature = "naga-ext")]
+            Self::Sampled1DArray(_) | Self::Storage1DArray(_, _) => TextureDimensions::D1,
+            #[cfg(feature = "naga-ext")]
+            Self::Multisampled2DArray(_) => TextureDimensions::D2,
         }
     }
     pub fn sampled_type(&self) -> Option<SampledType> {
@@ -114,6 +117,12 @@ impl TextureType {
             TextureType::Depth2DArray => None,
             TextureType::DepthCube => None,
             TextureType::DepthCubeArray => None,
+            #[cfg(feature = "naga-ext")]
+            TextureType::Sampled1DArray(st) => Some(*st),
+            #[cfg(feature = "naga-ext")]
+            TextureType::Storage1DArray(_, _) => None,
+            #[cfg(feature = "naga-ext")]
+            TextureType::Multisampled2DArray(st) => Some(*st),
         }
     }
     pub fn channel_type(&self) -> SampledType {
@@ -135,6 +144,12 @@ impl TextureType {
             TextureType::Depth2DArray => SampledType::F32,
             TextureType::DepthCube => SampledType::F32,
             TextureType::DepthCubeArray => SampledType::F32,
+            #[cfg(feature = "naga-ext")]
+            TextureType::Sampled1DArray(st) => *st,
+            #[cfg(feature = "naga-ext")]
+            TextureType::Storage1DArray(f, _) => f.channel_type(),
+            #[cfg(feature = "naga-ext")]
+            TextureType::Multisampled2DArray(st) => *st,
         }
     }
     pub fn is_depth(&self) -> bool {
@@ -147,30 +162,50 @@ impl TextureType {
         )
     }
     pub fn is_storage(&self) -> bool {
-        matches!(
-            self,
+        match self {
             TextureType::Storage1D(_, _)
-                | TextureType::Storage2D(_, _)
-                | TextureType::Storage2DArray(_, _)
-                | TextureType::Storage3D(_, _)
-        )
+            | TextureType::Storage2D(_, _)
+            | TextureType::Storage2DArray(_, _)
+            | TextureType::Storage3D(_, _) => true,
+            #[cfg(feature = "naga-ext")]
+            TextureType::Storage1DArray(_, _) => true,
+            _ => false,
+        }
     }
     pub fn is_sampled(&self) -> bool {
-        matches!(
-            self,
+        match self {
             TextureType::Sampled1D(_)
-                | TextureType::Sampled2D(_)
-                | TextureType::Sampled2DArray(_)
-                | TextureType::Sampled3D(_)
-                | TextureType::SampledCube(_)
-                | TextureType::SampledCubeArray(_)
-        )
+            | TextureType::Sampled2D(_)
+            | TextureType::Sampled2DArray(_)
+            | TextureType::Sampled3D(_)
+            | TextureType::SampledCube(_)
+            | TextureType::SampledCubeArray(_) => true,
+            #[cfg(feature = "naga-ext")]
+            TextureType::Sampled1DArray(_) => true,
+            _ => false,
+        }
+    }
+    pub fn is_arrayed(&self) -> bool {
+        match self {
+            TextureType::Sampled2DArray(_)
+            | TextureType::SampledCubeArray(_)
+            | TextureType::Storage2DArray(_, _)
+            | TextureType::Depth2DArray
+            | TextureType::DepthCubeArray => true,
+            #[cfg(feature = "naga-ext")]
+            TextureType::Sampled1DArray(_)
+            | TextureType::Storage1DArray(_, _)
+            | TextureType::Multisampled2DArray(_) => true,
+            _ => false,
+        }
     }
     pub fn is_multisampled(&self) -> bool {
-        matches!(
-            self,
-            TextureType::Multisampled2D(_) | TextureType::DepthMultisampled2D
-        )
+        match self {
+            TextureType::Multisampled2D(_) | TextureType::DepthMultisampled2D => true,
+            #[cfg(feature = "naga-ext")]
+            TextureType::Multisampled2DArray(_) => true,
+            _ => false,
+        }
     }
 }
 
@@ -225,16 +260,8 @@ pub enum Type {
     U32,
     F32,
     F16,
-    #[cfg(feature = "naga_ext")]
-    I64,
-    #[cfg(feature = "naga_ext")]
-    U64,
-    #[cfg(feature = "naga_ext")]
-    F64,
     Struct(Box<StructType>),
     Array(Box<Type>, Option<usize>),
-    #[cfg(feature = "naga_ext")]
-    BindingArray(Box<Type>, Option<usize>),
     Vec(u8, Box<Type>),
     Mat(u8, u8, Box<Type>),
     Atomic(Box<Type>),
@@ -242,39 +269,70 @@ pub enum Type {
     Ref(AddressSpace, Box<Type>, AccessMode),
     Texture(TextureType),
     Sampler(SamplerType),
+    #[cfg(feature = "naga-ext")]
+    I64,
+    #[cfg(feature = "naga-ext")]
+    U64,
+    #[cfg(feature = "naga-ext")]
+    F64,
+    #[cfg(feature = "naga-ext")]
+    BindingArray(Box<Type>, Option<usize>),
+    #[cfg(feature = "naga-ext")]
+    RayQuery(Option<AccelerationStructureFlags>),
+    #[cfg(feature = "naga-ext")]
+    AccelerationStructure(Option<AccelerationStructureFlags>),
 }
 
 impl Type {
     /// Reference: <https://www.w3.org/TR/WGSL/#scalar>
     pub fn is_scalar(&self) -> bool {
-        matches!(
-            self,
+        match self {
             Type::Bool
-                | Type::AbstractInt
-                | Type::AbstractFloat
-                | Type::I32
-                | Type::U32
-                | Type::F32
-                | Type::F16
-        )
+            | Type::AbstractInt
+            | Type::AbstractFloat
+            | Type::I32
+            | Type::U32
+            | Type::F32
+            | Type::F16 => true,
+            #[cfg(feature = "naga-ext")]
+            Type::I64 | Type::U64 | Type::F64 => true,
+            _ => false,
+        }
     }
 
     /// Reference: <https://www.w3.org/TR/WGSL/#numeric-scalar>
     pub fn is_numeric(&self) -> bool {
-        matches!(
-            self,
-            Type::AbstractInt | Type::AbstractFloat | Type::I32 | Type::U32 | Type::F32 | Type::F16
-        )
+        match self {
+            Type::AbstractInt
+            | Type::AbstractFloat
+            | Type::I32
+            | Type::U32
+            | Type::F32
+            | Type::F16 => true,
+            #[cfg(feature = "naga-ext")]
+            Type::I64 | Type::U64 | Type::F64 => true,
+            _ => false,
+        }
     }
 
     /// Reference: <https://www.w3.org/TR/WGSL/#integer-scalar>
     pub fn is_integer(&self) -> bool {
-        matches!(self, Type::AbstractInt | Type::I32 | Type::U32)
+        match self {
+            Type::AbstractInt | Type::I32 | Type::U32 => true,
+            #[cfg(feature = "naga-ext")]
+            Type::I64 | Type::U64 => true,
+            _ => false,
+        }
     }
 
     /// Reference: <https://www.w3.org/TR/WGSL/#floating-point-types>
     pub fn is_float(&self) -> bool {
-        matches!(self, Type::AbstractFloat | Type::F32 | Type::F16)
+        match self {
+            Type::AbstractFloat | Type::F32 | Type::F16 => true,
+            #[cfg(feature = "naga-ext")]
+            Type::F64 => true,
+            _ => false,
+        }
     }
 
     /// Reference: <https://www.w3.org/TR/WGSL/#abstract-types>
@@ -294,21 +352,26 @@ impl Type {
     /// Reference: <https://www.w3.org/TR/WGSL/#storable-types>
     pub fn is_storable(&self) -> bool {
         self.is_concrete()
-            && matches!(
-                self,
+            && match self {
                 Type::Bool
-                    | Type::I32
-                    | Type::U32
-                    | Type::F32
-                    | Type::F16
-                    | Type::Struct(_)
-                    | Type::Array(_, _)
-                    | Type::Vec(_, _)
-                    | Type::Mat(_, _, _)
-                    | Type::Atomic(_)
-            )
+                | Type::I32
+                | Type::U32
+                | Type::F32
+                | Type::F16
+                | Type::Struct(_)
+                | Type::Array(_, _)
+                | Type::Vec(_, _)
+                | Type::Mat(_, _, _)
+                | Type::Atomic(_) => true,
+                #[cfg(feature = "naga-ext")]
+                Type::I64 | Type::U64 | Type::F64 => true,
+                _ => false,
+            }
     }
 
+    pub fn is_array(&self) -> bool {
+        matches!(self, Type::Array(_, _))
+    }
     pub fn is_vec(&self) -> bool {
         matches!(self, Type::Vec(_, _))
     }
@@ -320,6 +383,18 @@ impl Type {
     }
     pub fn is_f32(&self) -> bool {
         matches!(self, Type::F32)
+    }
+    #[cfg(feature = "naga-ext")]
+    pub fn is_i64(&self) -> bool {
+        matches!(self, Type::I64)
+    }
+    #[cfg(feature = "naga-ext")]
+    pub fn is_u64(&self) -> bool {
+        matches!(self, Type::U64)
+    }
+    #[cfg(feature = "naga-ext")]
+    pub fn is_f64(&self) -> bool {
+        matches!(self, Type::F64)
     }
     pub fn is_bool(&self) -> bool {
         matches!(self, Type::Bool)
@@ -379,16 +454,8 @@ impl Ty for Type {
             Type::U32 => self.clone(),
             Type::F32 => self.clone(),
             Type::F16 => self.clone(),
-            #[cfg(feature = "naga_ext")]
-            Type::I64 => self.clone(),
-            #[cfg(feature = "naga_ext")]
-            Type::U64 => self.clone(),
-            #[cfg(feature = "naga_ext")]
-            Type::F64 => self.clone(),
             Type::Struct(_) => self.clone(),
             Type::Array(ty, _) => ty.ty(),
-            #[cfg(feature = "naga_ext")]
-            Type::BindingArray(ty, _) => ty.ty(),
             Type::Vec(_, ty) => ty.ty(),
             Type::Mat(_, _, ty) => ty.ty(),
             Type::Atomic(ty) => ty.ty(),
@@ -396,6 +463,18 @@ impl Ty for Type {
             Type::Ref(_, ty, _) => ty.ty(),
             Type::Texture(_) => self.clone(),
             Type::Sampler(_) => self.clone(),
+            #[cfg(feature = "naga-ext")]
+            Type::I64 => self.clone(),
+            #[cfg(feature = "naga-ext")]
+            Type::U64 => self.clone(),
+            #[cfg(feature = "naga-ext")]
+            Type::F64 => self.clone(),
+            #[cfg(feature = "naga-ext")]
+            Type::BindingArray(ty, _) => ty.ty(),
+            #[cfg(feature = "naga-ext")]
+            Type::RayQuery(_) => self.clone(),
+            #[cfg(feature = "naga-ext")]
+            Type::AccelerationStructure(_) => self.clone(),
         }
     }
 }
@@ -439,11 +518,11 @@ impl Ty for LiteralInstance {
             LiteralInstance::U32(_) => Type::U32,
             LiteralInstance::F32(_) => Type::F32,
             LiteralInstance::F16(_) => Type::F16,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::I64(_) => Type::I64,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::U64(_) => Type::U64,
-            #[cfg(feature = "naga_ext")]
+            #[cfg(feature = "naga-ext")]
             LiteralInstance::F64(_) => Type::F64,
         }
     }

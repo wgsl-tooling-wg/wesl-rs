@@ -117,6 +117,14 @@ extern {
         "as" => Token::KwAs,
         #[cfg(feature = "imports")]
         "import" => Token::KwImport,
+
+        // naga extensions
+        #[cfg(feature = "naga-ext")]
+        TokI64 => Token::I64(<i64>),
+        #[cfg(feature = "naga-ext")]
+        TokU64 => Token::U64(<u64>),
+        #[cfg(feature = "naga-ext")]
+        TokF64 => Token::F64(<f64>),
     }
 }
 
@@ -210,6 +218,12 @@ pub Literal: LiteralExpression = {
     TokU32           => LiteralExpression::U32(<>),
     TokF32           => LiteralExpression::F32(<>),
     TokF16           => LiteralExpression::F16(<>),
+    #[cfg(feature = "naga-ext")]
+    TokI64 => LiteralExpression::I64(<>),
+    #[cfg(feature = "naga-ext")]
+    TokU64 => LiteralExpression::U64(<>),
+    #[cfg(feature = "naga-ext")]
+    TokF64 => LiteralExpression::F64(<>),
     BoolLiteral,
 };
 
@@ -545,7 +559,7 @@ LhsExpression: Expression = {
         operator: UnaryOperator::AddressOf, operand
     }),
  };
- 
+
 CoreLhsExpression: Expression = {
     Ident => Expression::TypeOrIdentifier(<>.into()),
     "(" <Spanned<LhsExpression>> ")" => Expression::Parenthesized(ParenthesizedExpression {
@@ -565,7 +579,7 @@ MultiplicativeOperator: BinaryOperator = {
     "/" => BinaryOperator::Division,
     "%" => BinaryOperator::Remainder,
 };
- 
+
 AdditiveExpression: Expression = {
     MultiplicativeExpression,
     <left: Spanned<AdditiveExpression>> <operator: AdditiveOperator> <right: Spanned<MultiplicativeExpression>> => Expression::Binary(BinaryExpression {
@@ -626,14 +640,14 @@ ShortCircuitAndExpression: Expression = {
         operator: BinaryOperator::ShortCircuitAnd, left, right
     }),
  };
- 
+
 ShortCircuitOrExpression: Expression = {
     RelationalExpression,
     <left: Spanned<ShortCircuitOrExpression>> "||" <right: Spanned<RelationalExpression>> => Expression::Binary(BinaryExpression {
         operator: BinaryOperator::ShortCircuitOr, left, right
     }),
  };
- 
+
 BinaryOrExpression: Expression = {
     UnaryExpression,
     <left: Spanned<BinaryOrExpression>> "|" <right: Spanned<UnaryExpression>> => Expression::Binary(BinaryExpression {
