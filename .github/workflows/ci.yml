@@ -216,13 +216,13 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
 
+      # cargo-udeps requires this toolchain at runtime
       - name: Install nightly toolchain
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.NIGHTLY_TOOLCHAIN }}
 
-      - name: Installs cargo-udeps
-        run: cargo install --force cargo-udeps
-
-      - name: Run cargo udeps
+      - name: Install cargo-udeps
+        uses: taiki-e/install-action@cargo-udeps
+      - name: Run cargo-udeps
         run: cargo udeps
