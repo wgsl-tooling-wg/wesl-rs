@@ -550,6 +550,11 @@ impl<R: Resolver> Wesl<R> {
         self.options.keep = None;
         self
     }
+
+    /// Get a reference to the current [`Resolver`].
+    pub fn resolver(&self) -> &R {
+        &self.resolver
+    }
 }
 
 /// The result of [`Wesl::compile`].
