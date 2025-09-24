@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashMap, path::PathBuf};
 
-use wgsl_parse::syntax::TypeExpression;
+use wgsl_parse::syntax::{TranslationUnit, TypeExpression};
 
 use crate::{Mangler, ModulePath, ResolveError, Resolver};
 
@@ -149,6 +149,12 @@ impl Resolver for SourceMapper<'_> {
             res.clone().into(),
         );
         Ok(res)
+    }
+    fn resolve_module(&self, path: &ModulePath) -> Result<TranslationUnit, ResolveError> {
+        // TODO: Hack to ensure source is added to sourcemap. This does lead to double resolving.
+        self.resolve_source(path)?;
+
+        self.resolver.resolve_module(path)
     }
     fn display_name(&self, path: &ModulePath) -> Option<String> {
         self.resolver.display_name(path)
