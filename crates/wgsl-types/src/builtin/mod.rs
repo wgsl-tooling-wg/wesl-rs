@@ -37,8 +37,11 @@ use itertools::Itertools;
 use crate::{
     CallSignature, Error, Instance, ShaderStage,
     syntax::{BinaryOperator, UnaryOperator},
-    tplt::{ArrayTemplate, BitcastTemplate, MatTemplate, TpltParam, VecTemplate},
-    ty::{Ty, Type},
+    tplt::{
+        ArrayTemplate, AtomicTemplate, BitcastTemplate, MatTemplate, PtrTemplate, TextureTemplate,
+        TpltParam, VecTemplate,
+    },
+    ty::{SamplerType, TextureType, Ty, Type},
 };
 
 type E = Error;
@@ -332,5 +335,127 @@ pub fn call_unary_op(operator: UnaryOperator, operand: &Instance) -> Result<Inst
         UnaryOperator::BitwiseComplement => operand.op_bitnot(),
         UnaryOperator::AddressOf => operand.op_ref(),
         UnaryOperator::Indirection => operand.op_deref(),
+    }
+}
+
+/// Constructs a builtin type.
+///
+/// Includes all builtin types such as `vec3<f32>`,
+/// but does not include their predeclared aliases (`vec3f`).
+pub fn builtin_type(name: &str, tplt: Option<&[TpltParam]>) -> Result<Type, E> {
+    if let Some(t) = tplt {
+        match name {
+            "array" => Ok(ArrayTemplate::parse(t)?.ty()),
+            #[cfg(feature = "naga-ext")]
+            "binding_array" => Ok(crate::tplt::BindingArrayTemplate::parse(t)?.ty()),
+            "vec2" => Ok(VecTemplate::parse(t)?.ty(2)),
+            "vec3" => Ok(VecTemplate::parse(t)?.ty(3)),
+            "vec4" => Ok(VecTemplate::parse(t)?.ty(4)),
+            "mat2x2" => Ok(MatTemplate::parse(t)?.ty(2, 2)),
+            "mat2x3" => Ok(MatTemplate::parse(t)?.ty(2, 3)),
+            "mat2x4" => Ok(MatTemplate::parse(t)?.ty(2, 4)),
+            "mat3x2" => Ok(MatTemplate::parse(t)?.ty(3, 2)),
+            "mat3x3" => Ok(MatTemplate::parse(t)?.ty(3, 3)),
+            "mat3x4" => Ok(MatTemplate::parse(t)?.ty(3, 4)),
+            "mat4x2" => Ok(MatTemplate::parse(t)?.ty(4, 2)),
+            "mat4x3" => Ok(MatTemplate::parse(t)?.ty(4, 3)),
+            "mat4x4" => Ok(MatTemplate::parse(t)?.ty(4, 4)),
+            "ptr" => Ok(PtrTemplate::parse(t)?.ty()),
+            "atomic" => Ok(AtomicTemplate::parse(t)?.ty()),
+            "texture_1d"
+            | "texture_2d"
+            | "texture_2d_array"
+            | "texture_3d"
+            | "texture_cube"
+            | "texture_cube_array"
+            | "texture_multisampled_2d"
+            | "texture_storage_1d"
+            | "texture_storage_2d"
+            | "texture_storage_2d_array"
+            | "texture_storage_3d" => Ok(Type::Texture(TextureTemplate::parse(name, t)?.ty())),
+
+            #[cfg(feature = "naga-ext")]
+            "texture_1d_array" | "texture_storage_1d_array" | "texture_multisampled_2d_array" => {
+                Ok(Type::Texture(TextureTemplate::parse(name, t)?.ty()))
+            }
+            #[cfg(feature = "naga-ext")]
+            "ray_query" => Ok(Type::RayQuery(None)),
+            #[cfg(feature = "naga-ext")]
+            "acceleration_structure" => Ok(Type::AccelerationStructure(Some(
+                crate::syntax::AccelerationStructureFlags::VertexReturn,
+            ))),
+
+            _ => Err(E::UnexpectedTemplate(name.to_string())),
+        }
+    }
+    // builtin types without a template
+    else {
+        match name {
+            "bool" => Ok(Type::Bool),
+            "__AbstractInt" => Ok(Type::AbstractInt),
+            "__AbstractFloat" => Ok(Type::AbstractFloat),
+            "i32" => Ok(Type::I32),
+            "u32" => Ok(Type::U32),
+            "f32" => Ok(Type::F32),
+            "f16" => Ok(Type::F16),
+            "texture_depth_multisampled_2d" => Ok(Type::Texture(TextureType::DepthMultisampled2D)),
+            "texture_external" => Ok(Type::Texture(TextureType::External)),
+            "texture_depth_2d" => Ok(Type::Texture(TextureType::Depth2D)),
+            "texture_depth_2d_array" => Ok(Type::Texture(TextureType::Depth2DArray)),
+            "texture_depth_cube" => Ok(Type::Texture(TextureType::DepthCube)),
+            "texture_depth_cube_array" => Ok(Type::Texture(TextureType::DepthCubeArray)),
+            "sampler" => Ok(Type::Sampler(SamplerType::Sampler)),
+            "sampler_comparison" => Ok(Type::Sampler(SamplerType::SamplerComparison)),
+
+            #[cfg(feature = "naga-ext")]
+            "i64" => Ok(Type::I64),
+            #[cfg(feature = "naga-ext")]
+            "u64" => Ok(Type::U64),
+            #[cfg(feature = "naga-ext")]
+            "f64" => Ok(Type::F64),
+            #[cfg(feature = "naga-ext")]
+            "ray_query" => Ok(Type::RayQuery(Default::default())),
+            #[cfg(feature = "naga-ext")]
+            "acceleration_structure" => Ok(Type::AccelerationStructure(Default::default())),
+
+            // Better error messages
+            "array" => Err(E::MissingTemplate("array")),
+            "binding_array" => Err(E::MissingTemplate("binding_array")),
+            "vec2" => Err(E::MissingTemplate("vec2")),
+            "vec3" => Err(E::MissingTemplate("vec3")),
+            "vec4" => Err(E::MissingTemplate("vec4")),
+            "mat2x2" => Err(E::MissingTemplate("mat2x2")),
+            "mat2x3" => Err(E::MissingTemplate("mat2x3")),
+            "mat2x4" => Err(E::MissingTemplate("mat2x4")),
+            "mat3x2" => Err(E::MissingTemplate("mat3x2")),
+            "mat3x3" => Err(E::MissingTemplate("mat3x3")),
+            "mat3x4" => Err(E::MissingTemplate("mat3x4")),
+            "mat4x2" => Err(E::MissingTemplate("mat4x2")),
+            "mat4x3" => Err(E::MissingTemplate("mat4x3")),
+            "mat4x4" => Err(E::MissingTemplate("mat4x4")),
+            "ptr" => Err(E::MissingTemplate("ptr")),
+            "atomic" => Err(E::MissingTemplate("atomic")),
+            "texture_1d" => Err(E::MissingTemplate("texture_1d")),
+            "texture_2d" => Err(E::MissingTemplate("texture_2d")),
+            "texture_2d_array" => Err(E::MissingTemplate("texture_2d_array")),
+            "texture_3d" => Err(E::MissingTemplate("texture_3d")),
+            "texture_cube" => Err(E::MissingTemplate("texture_cube")),
+            "texture_cube_array" => Err(E::MissingTemplate("texture_cube_array")),
+            "texture_multisampled_2d" => Err(E::MissingTemplate("texture_multisampled_2d")),
+            "texture_storage_1d" => Err(E::MissingTemplate("texture_storage_1d")),
+            "texture_storage_2d" => Err(E::MissingTemplate("texture_storage_2d")),
+            "texture_storage_2d_array" => Err(E::MissingTemplate("texture_storage_2d_array")),
+            "texture_storage_3d" => Err(E::MissingTemplate("texture_storage_3d")),
+            #[cfg(feature = "naga-ext")]
+            "texture_1d_array" => Err(E::MissingTemplate("texture_1d_array")),
+            #[cfg(feature = "naga-ext")]
+            "texture_storage_1d_array" => Err(E::MissingTemplate("texture_storage_1d_array")),
+            #[cfg(feature = "naga-ext")]
+            "texture_multisampled_2d_array" => {
+                Err(E::MissingTemplate("texture_multisampled_2d_array"))
+            }
+
+            _ => Err(E::UnknownType(name.to_string())),
+        }
     }
 }

@@ -3,16 +3,17 @@ use std::str::FromStr;
 use crate::Eval;
 
 use super::{
-    ATTR_INTRINSIC, ArrayTemplate, AtomicTemplate, Context, Convert, EvalAttrs, EvalError, Exec,
-    MatTemplate, PtrTemplate, SamplerType, ScopeKind, StructType, SyntaxUtil, TextureTemplate,
-    TextureType, Ty, Type, VecTemplate, check_swizzle, convert_ty, is_ctor, type_builtin_fn,
-    type_ctor, with_stage,
+    ATTR_INTRINSIC, Context, Convert, EvalAttrs, EvalError, Exec, ScopeKind, StructType,
+    SyntaxUtil, Ty, Type, check_swizzle, convert_ty, is_ctor, type_builtin_fn, type_ctor,
+    with_stage,
 };
 
 type E = EvalError;
 
 use wgsl_parse::{Decorated, span::Spanned, syntax::*};
-use wgsl_types::{ShaderStage, syntax::Enumerant, tplt::TpltParam, ty::StructMemberType};
+use wgsl_types::{
+    ShaderStage, builtin::builtin_type, syntax::Enumerant, tplt::TpltParam, ty::StructMemberType,
+};
 
 pub fn eval_tplt_arg(tplt: &TemplateArg, ctx: &mut Context) -> Result<TpltParam, E> {
     with_stage!(ctx, ShaderStage::Const, {
@@ -133,103 +134,15 @@ pub fn ty_eval_ty(expr: &TypeExpression, ctx: &mut Context) -> Result<Type, E> {
     }
 
     // for now, only builtin types can be type-generators (have a template)
+
     if let Some(tplt) = &ty.template_args {
         let tplt = tplt
             .iter()
             .map(|arg| eval_tplt_arg(arg, ctx))
             .collect::<Result<Vec<_>, _>>()?;
-        match name {
-            "array" => {
-                let tplt = ArrayTemplate::parse(&tplt)?;
-                Ok(tplt.ty())
-            }
-            #[cfg(feature = "naga-ext")]
-            "binding_array" => {
-                let tplt = super::BindingArrayTemplate::parse(&tplt)?;
-                Ok(tplt.ty())
-            }
-            "vec2" | "vec3" | "vec4" => {
-                let tplt = VecTemplate::parse(&tplt)?;
-                let n = name.chars().nth(3).unwrap().to_digit(10).unwrap() as u8;
-                Ok(tplt.ty(n))
-            }
-            "mat2x2" | "mat2x3" | "mat2x4" | "mat3x2" | "mat3x3" | "mat3x4" | "mat4x2"
-            | "mat4x3" | "mat4x4" => {
-                let tplt = MatTemplate::parse(&tplt)?;
-                let c = name.chars().nth(3).unwrap().to_digit(10).unwrap() as u8;
-                let r = name.chars().nth(5).unwrap().to_digit(10).unwrap() as u8;
-                Ok(tplt.ty(c, r))
-            }
-            "ptr" => {
-                let tplt = PtrTemplate::parse(&tplt)?;
-                Ok(tplt.ty())
-            }
-            "atomic" => {
-                let tplt = AtomicTemplate::parse(&tplt)?;
-                Ok(tplt.ty())
-            }
-            name @ ("texture_1d"
-            | "texture_2d"
-            | "texture_2d_array"
-            | "texture_3d"
-            | "texture_cube"
-            | "texture_cube_array"
-            | "texture_multisampled_2d"
-            | "texture_storage_1d"
-            | "texture_storage_2d"
-            | "texture_storage_2d_array"
-            | "texture_storage_3d") => {
-                let tplt = TextureTemplate::parse(name, &tplt)?;
-                Ok(Type::Texture(tplt.ty()))
-            }
-
-            #[cfg(feature = "naga-ext")]
-            "texture_1d_array" | "texture_storage_1d_array" | "texture_multisampled_2d_array" => {
-                let tplt = TextureTemplate::parse(name, &tplt)?;
-                Ok(Type::Texture(tplt.ty()))
-            }
-            #[cfg(feature = "naga-ext")]
-            "ray_query" => Ok(Type::RayQuery(None)),
-            #[cfg(feature = "naga-ext")]
-            "acceleration_structure" => Ok(Type::AccelerationStructure(Some(
-                wgsl_types::syntax::AccelerationStructureFlags::VertexReturn,
-            ))),
-
-            _ => Err(E::UnexpectedTemplate(name.to_string())),
-        }
-    }
-    // builtin types without a template
-    else {
-        match name {
-            "bool" => Ok(Type::Bool),
-            "__AbstractInt" => Ok(Type::AbstractInt),
-            "__AbstractFloat" => Ok(Type::AbstractFloat),
-            "i32" => Ok(Type::I32),
-            "u32" => Ok(Type::U32),
-            "f32" => Ok(Type::F32),
-            "f16" => Ok(Type::F16),
-            "texture_depth_multisampled_2d" => Ok(Type::Texture(TextureType::DepthMultisampled2D)),
-            "texture_external" => Ok(Type::Texture(TextureType::External)),
-            "texture_depth_2d" => Ok(Type::Texture(TextureType::Depth2D)),
-            "texture_depth_2d_array" => Ok(Type::Texture(TextureType::Depth2DArray)),
-            "texture_depth_cube" => Ok(Type::Texture(TextureType::DepthCube)),
-            "texture_depth_cube_array" => Ok(Type::Texture(TextureType::DepthCubeArray)),
-            "sampler" => Ok(Type::Sampler(SamplerType::Sampler)),
-            "sampler_comparison" => Ok(Type::Sampler(SamplerType::SamplerComparison)),
-
-            #[cfg(feature = "naga-ext")]
-            "i64" => Ok(Type::I64),
-            #[cfg(feature = "naga-ext")]
-            "u64" => Ok(Type::U64),
-            #[cfg(feature = "naga-ext")]
-            "f64" => Ok(Type::F64),
-            #[cfg(feature = "naga-ext")]
-            "ray_query" => Ok(Type::RayQuery(Default::default())),
-            #[cfg(feature = "naga-ext")]
-            "acceleration_structure" => Ok(Type::AccelerationStructure(Default::default())),
-
-            _ => Err(E::UnknownType(name.to_string())),
-        }
+        Ok(builtin_type(name, Some(&tplt))?)
+    } else {
+        Ok(builtin_type(name, None)?)
     }
 }
 
