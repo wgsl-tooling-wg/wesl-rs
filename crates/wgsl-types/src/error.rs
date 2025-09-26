@@ -13,6 +13,9 @@ pub enum Error {
     NotScalar(Type),
     NotConstructible(Type),
     SampledType(Type),
+    UnknownType(String),
+    UnexpectedTemplate(String),
+    MissingTemplate(&'static str),
 
     // references
     WriteRefType(Type, Type),
@@ -61,6 +64,13 @@ impl std::fmt::Display for Error {
                 fmt,
                 "invalid sampled type, expected `i32`, `u32` or `f32`, got `{ty}`"
             ),
+            Error::UnknownType(ty) => {
+                write!(fmt, "unknown type `{ty}`")
+            }
+            Error::UnexpectedTemplate(ty) => {
+                write!(fmt, "type `{ty}` does not take any template arguments")
+            }
+            Error::MissingTemplate(ty) => write!(fmt, "missing template arguments for type `{ty}`"),
             Error::WriteRefType(new_ty, ty) => {
                 write!(fmt, "cannot write a `{new_ty}` to a reference to `{ty}`")
             }
