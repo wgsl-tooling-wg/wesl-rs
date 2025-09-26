@@ -35,7 +35,7 @@ impl From<StructType> for Type {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum TextureType {
     // sampled
     Sampled1D(SampledType),
@@ -232,7 +232,7 @@ impl From<SampledType> for Type {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SamplerType {
     Sampler,
     SamplerComparison,
