@@ -18,7 +18,7 @@ use tokrepr::TokRepr;
 /// Reference: <https://www.w3.org/TR/WGSL/#address-spaces>
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AddressSpace {
     Function,
     Private,
@@ -50,7 +50,7 @@ impl AddressSpace {
 /// Reference: <https://www.w3.org/TR/WGSL/#access-mode>
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AccessMode {
     Read,
     Write,
@@ -64,7 +64,7 @@ pub enum AccessMode {
 /// Reference: <https://www.w3.org/TR/WGSL/#texel-format>
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TexelFormat {
     Rgba8Unorm,
     Rgba8Snorm,
@@ -137,7 +137,7 @@ pub enum TexelFormat {
 #[cfg(feature = "naga-ext")]
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum AccelerationStructureFlags {
     VertexReturn,
 }
@@ -145,7 +145,7 @@ pub enum AccelerationStructureFlags {
 /// One of the predeclared enumerants.
 ///
 /// Reference: <https://www.w3.org/TR/WGSL/#predeclared-enumerants>
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Enumerant {
     AccessMode(AccessMode),
     AddressSpace(AddressSpace),
@@ -375,7 +375,7 @@ impl AccessMode {
 
 #[cfg_attr(feature = "tokrepr", derive(TokRepr))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum SampledType {
     I32,
     U32,
