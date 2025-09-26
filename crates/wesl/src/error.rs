@@ -146,7 +146,9 @@ impl<E: std::error::Error> Diagnostic<E> {
     /// Provide the source code from which the error was emitted.
     /// You should also provide the span with [`Self::with_span`].
     pub fn with_source(mut self, source: String) -> Self {
-        self.detail.source = Some(source);
+        if self.detail.source.is_none() {
+            self.detail.source = Some(source);
+        }
         self
     }
     /// Provide the span (chunk of source code) where the error originated.
