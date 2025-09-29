@@ -54,47 +54,6 @@ const RESERVED_MOD_NAMES: &[&str] = &[
     "package",
     "as",
     "import",
-    // Rust keywords
-    // TODO: This is a limitation of the current `wesl-rs` codegen.
-    "as",
-    "async",
-    "await",
-    "break",
-    "const",
-    "continue",
-    "crate",
-    "dyn",
-    "else",
-    "enum",
-    "extern",
-    "false",
-    "fn",
-    "for",
-    "if",
-    "impl",
-    "in",
-    "let",
-    "loop",
-    "match",
-    "mod",
-    "move",
-    "mut",
-    "pub",
-    "ref",
-    "return",
-    "Self",
-    "self",
-    "static",
-    "struct",
-    "super",
-    "trait",
-    "true",
-    "type",
-    "union",
-    "unsafe",
-    "use",
-    "where",
-    "while",
 ];
 
 /// A builder that generates code for WESL packages.
@@ -296,13 +255,13 @@ impl PkgBuilder {
 
 impl Module {
     fn codegen(&self) -> proc_macro2::TokenStream {
-        let mod_ident = format_ident!("{}", self.name);
+        let mod_ident = format_ident!("r#{}", self.name);
         let name = &self.name;
         let source = &self.source;
 
         let submodules = self.submodules.iter().map(|submod| {
             let name = &submod.name;
-            let ident = format_ident!("{}", name);
+            let ident = format_ident!("r#{}", name);
             quote! { &#ident::MODULE }
         });
 
@@ -351,8 +310,8 @@ impl Pkg {
     /// You probably want to use [`Self::build_artifact`] instead.
     pub fn codegen(&self) -> String {
         let deps = self.dependencies.iter().map(|dep| {
-            let crate_name = format_ident!("{}", dep.crate_name);
-            let mod_name = format_ident!("{}", dep.root.name);
+            let crate_name = format_ident!("r#{}", dep.crate_name);
+            let mod_name = format_ident!("r#{}", dep.root.name);
             quote! { &#crate_name::#mod_name::PACKAGE }
         });
 
@@ -362,7 +321,7 @@ impl Pkg {
 
         let submodules = self.root.submodules.iter().map(|submod| {
             let name = &submod.name;
-            let ident = format_ident!("{}", name);
+            let ident = format_ident!("r#{}", name);
             quote! { &#ident::MODULE }
         });
 
