@@ -22,6 +22,7 @@ wgsl-parse = { workspace = true }
 
 [features]
 default = ["naga"]
+naga = ["dep:naga", "wesl/naga-ext"]
 
 [lints]
 workspace = true
