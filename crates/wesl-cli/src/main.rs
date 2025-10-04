@@ -423,10 +423,10 @@ fn run_compile(
                 .or(path.parent())
                 .ok_or(CliError::FileNotFound)?;
             let name = path
-                .file_name()
+                .file_stem()
                 .ok_or(CliError::FileNotFound)?
                 .to_string_lossy()
-                .to_string();
+                .to_string(); // TODO: we should validate that the file name is valid for WESL modules.
             let path = ModulePath::new(PathOrigin::Absolute, vec![name]);
             let resolver = StandardResolver::new(base);
 
@@ -435,7 +435,7 @@ fn run_compile(
         }
         FileOrSource::Source(source) => {
             let base = std::env::current_dir().unwrap();
-            let name = "command-line";
+            let name = "stdin";
             let mut router = Router::new();
             let mut resolver = VirtualResolver::new();
             let path = ModulePath::new(PathOrigin::Absolute, vec![name.to_string()]);

@@ -1,5 +1,5 @@
 use wgsl_parse::{
-    Decorated,
+    SyntaxNode,
     syntax::{Attribute, AttributeNode, BuiltinValue, Expression},
 };
 use wgsl_types::{
@@ -12,7 +12,7 @@ use super::{Context, Eval, EvalError, with_stage};
 
 type E = EvalError;
 
-pub trait EvalAttrs: Decorated {
+pub trait EvalAttrs: SyntaxNode {
     fn attr_align(&self, ctx: &mut Context) -> Result<Option<u32>, E> {
         attr_align(self.attributes(), ctx).transpose()
     }
@@ -42,7 +42,7 @@ pub trait EvalAttrs: Decorated {
     }
 }
 
-impl<T: Decorated> EvalAttrs for T {}
+impl<T: SyntaxNode> EvalAttrs for T {}
 fn eval_positive_integer(expr: &Expression, ctx: &mut Context) -> Result<u32, E> {
     let inst = with_stage!(ctx, ShaderStage::Const, { expr.eval_value(ctx) })?;
     let integer = match inst {

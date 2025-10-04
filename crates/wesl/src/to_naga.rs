@@ -7,7 +7,7 @@ use itertools::Itertools;
 use naga::{Arena, SpecialTypes, UniqueArena};
 use thiserror::Error;
 
-use wgsl_parse::{Decorated, span::Span, syntax::*};
+use wgsl_parse::{SyntaxNode, span::Span, syntax::*};
 
 use crate::{
     EvalError, Exec,

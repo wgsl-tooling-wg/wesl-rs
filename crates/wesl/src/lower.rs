@@ -41,7 +41,7 @@ pub fn lower(wesl: &mut TranslationUnit) -> Result<(), Error> {
     {
         use crate::Diagnostic;
         use crate::eval::{Context, Exec, Lower, mark_functions_const};
-        use wgsl_parse::Decorated;
+        use wgsl_parse::SyntaxNode;
         mark_functions_const(wesl);
 
         // we want to drop wesl2 at the end of the block for idents use_count

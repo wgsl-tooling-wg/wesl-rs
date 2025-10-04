@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::Diagnostic;
 use thiserror::Error;
-use wgsl_parse::{Decorated, span::Spanned, syntax::*};
+use wgsl_parse::{SyntaxNode, span::Spanned, syntax::*};
 
 /// Conditional translation error.
 #[derive(Clone, Debug, Error)]
@@ -61,7 +61,11 @@ impl From<bool> for Feature {
 const EXPR_TRUE: Expression = Expression::Literal(LiteralExpression::Bool(true));
 const EXPR_FALSE: Expression = Expression::Literal(LiteralExpression::Bool(false));
 
-pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E> {
+fn eval_attr(expr: &ExpressionNode, features: &Features) -> Result<Expression, E> {
+    eval_attr_impl(expr, features).map_err(|e| Diagnostic::from(e).with_span(expr.span()).into())
+}
+
+fn eval_attr_impl(expr: &Expression, features: &Features) -> Result<Expression, E> {
     fn eval_rec(expr: &ExpressionNode, features: &Features) -> Result<Expression, E> {
         eval_attr(expr, features).map_err(|e| Diagnostic::from(e).with_span(expr.span()).into())
     }
@@ -192,7 +196,22 @@ struct PrevEval {
 /// * turn elifs into ifs when previous node was deleted.
 /// * turn elifs into elses when it evaluates to true.
 fn eval_if_attr(
-    node: &mut impl Decorated,
+    node: &mut impl SyntaxNode,
+    prev: &mut PrevEval,
+    features: &Features,
+) -> Result<(), E> {
+    let span = node.span();
+    eval_if_attr_impl(node, prev, features).map_err(|e| {
+        if let Some(span) = span {
+            Diagnostic::from(e).with_span(span).into()
+        } else {
+            e
+        }
+    })
+}
+
+fn eval_if_attr_impl(
+    node: &mut impl SyntaxNode,
     prev: &mut PrevEval,
     features: &Features,
 ) -> Result<(), E> {
@@ -264,7 +283,7 @@ fn eval_if_attr(
 }
 
 fn eval_opt_attr(
-    opt_node: &mut Option<impl Decorated>,
+    opt_node: &mut Option<impl SyntaxNode>,
     prev: &mut PrevEval,
     features: &Features,
 ) -> Result<(), E> {
@@ -277,7 +296,7 @@ fn eval_opt_attr(
     Ok(())
 }
 
-fn eval_if_attrs(nodes: &mut Vec<impl Decorated>, features: &Features) -> Result<PrevEval, E> {
+fn eval_if_attrs(nodes: &mut Vec<impl SyntaxNode>, features: &Features) -> Result<PrevEval, E> {
     let mut prev = PrevEval {
         has_if: false,
         is_true: false,
@@ -288,7 +307,7 @@ fn eval_if_attrs(nodes: &mut Vec<impl Decorated>, features: &Features) -> Result
     // remove the nodes for which the attr evaluate to false.
     nodes.retain_mut(|node| {
         let res = eval_if_attr(node, &mut prev, features);
-        if let Err(e) = res {
+        if let (Err(e), None) = (res, &err) {
             err = Some(e);
         }
         !prev.removed // keep the node if attr is unresolved or true.

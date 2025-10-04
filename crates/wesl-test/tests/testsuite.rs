@@ -387,7 +387,7 @@ pub fn validation_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
 pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
     let base = path.parent().ok_or("file not found")?;
     let name = path
-        .file_name()
+        .file_stem()
         .ok_or("file not found")?
         .to_string_lossy()
         .to_string();
@@ -417,7 +417,7 @@ pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
         .set_feature("CLUSTERED_DECALS_ARE_USABLE", true) // custom_clustered_decal needs it
         .set_feature("VERTEX_UVS_A", true) // texture_binding_array needs it
         .set_feature("VERTEX_OUTPUT_INSTANCE_INDEX", true); // extended_material needs it
-    if name == "water_material.wgsl" {
+    if name == "water_material" {
         compiler.set_feature("PREPASS_FRAGMENT", true); // water_material needs it
         compiler.set_feature("PREPASS_PIPELINE", true); // water_material needs it
         compiler.set_feature("NORMAL_PREPASS_OR_DEFERRED_PREPASS", true); // water_material needs it

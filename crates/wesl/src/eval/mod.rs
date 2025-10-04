@@ -102,7 +102,7 @@ impl<T> Scope<T> {
     /// variables in a 'transparent' scope have the same scope as the parent scope.
     /// this is useful for 'for' loops and function calls which have the same
     /// end-of-scope for initializer and formal parameters as the body.
-    /// When The transparent scope ends, its declarations are dropped.
+    /// When the transparent scope ends, its declarations are dropped.
     ///
     /// see <https://github.com/gpuweb/gpuweb/issues/5024>
     pub fn make_transparent(&mut self) {
