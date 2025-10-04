@@ -61,7 +61,11 @@ impl From<bool> for Feature {
 const EXPR_TRUE: Expression = Expression::Literal(LiteralExpression::Bool(true));
 const EXPR_FALSE: Expression = Expression::Literal(LiteralExpression::Bool(false));
 
-pub fn eval_attr(expr: &Expression, features: &Features) -> Result<Expression, E> {
+fn eval_attr(expr: &ExpressionNode, features: &Features) -> Result<Expression, E> {
+    eval_attr_impl(expr, features).map_err(|e| Diagnostic::from(e).with_span(expr.span()).into())
+}
+
+fn eval_attr_impl(expr: &Expression, features: &Features) -> Result<Expression, E> {
     fn eval_rec(expr: &ExpressionNode, features: &Features) -> Result<Expression, E> {
         eval_attr(expr, features).map_err(|e| Diagnostic::from(e).with_span(expr.span()).into())
     }
@@ -192,6 +196,21 @@ struct PrevEval {
 /// * turn elifs into ifs when previous node was deleted.
 /// * turn elifs into elses when it evaluates to true.
 fn eval_if_attr(
+    node: &mut impl SyntaxNode,
+    prev: &mut PrevEval,
+    features: &Features,
+) -> Result<(), E> {
+    let span = node.span();
+    eval_if_attr_impl(node, prev, features).map_err(|e| {
+        if let Some(span) = span {
+            Diagnostic::from(e).with_span(span).into()
+        } else {
+            e
+        }
+    })
+}
+
+fn eval_if_attr_impl(
     node: &mut impl SyntaxNode,
     prev: &mut PrevEval,
     features: &Features,
