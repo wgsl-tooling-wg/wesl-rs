@@ -100,7 +100,6 @@ pub fn replace_calls(wesl: &mut TranslationUnit) -> Result<(), E> {
         .global_declarations
         .iter()
         .filter_map(|decl| decl.ident())
-        .cloned()
         .collect_vec();
     for expr in Visit::<ExpressionNode>::visit_mut(wesl) {
         if let Expression::FunctionCall(f) = expr.node_mut() {

@@ -5,9 +5,12 @@ use std::{
 };
 
 use itertools::Itertools;
-use wgsl_parse::syntax::{
-    GlobalDeclaration, Ident, ImportContent, ImportStatement, ModulePath, PathOrigin,
-    TranslationUnit, TypeExpression,
+use wgsl_parse::{
+    SyntaxNode,
+    syntax::{
+        GlobalDeclaration, Ident, ImportContent, ImportStatement, ModulePath, PathOrigin,
+        TranslationUnit, TypeExpression,
+    },
 };
 
 use crate::{Diagnostic, Error, Mangler, ResolveError, Resolver, SyntaxUtil, visit::Visit};
@@ -54,7 +57,7 @@ impl Module {
             .global_declarations
             .iter()
             .enumerate()
-            .filter_map(|(i, decl)| decl.ident().map(|id| (id.clone(), i)))
+            .filter_map(|(i, decl)| decl.ident().map(|id| (id, i)))
             .collect::<HashMap<_, _>>();
         let imports = flatten_imports(&source.imports, &path)?;
 
@@ -473,8 +476,8 @@ pub(crate) fn mangle_decls<'a>(
 ) {
     wgsl.global_declarations
         .iter_mut()
-        .filter_map(|decl| decl.ident_mut())
-        .for_each(|ident| {
+        .filter_map(|decl| decl.ident())
+        .for_each(|mut ident| {
             let new_name = mangler.mangle(path, &ident.name());
             ident.rename(new_name.clone());
         })
@@ -574,7 +577,7 @@ impl Resolutions {
                             decl.is_const_assert()
                                 || decl
                                     .ident()
-                                    .is_some_and(|id| module.treated_idents.borrow().contains(id))
+                                    .is_some_and(|id| module.treated_idents.borrow().contains(&id))
                         })
                         .cloned(),
                 );

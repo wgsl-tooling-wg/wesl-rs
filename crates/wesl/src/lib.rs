@@ -53,7 +53,10 @@ use std::collections::HashMap;
 use std::{collections::HashSet, fmt::Display, path::Path};
 
 use strip::strip_except;
-use wgsl_parse::syntax::{Ident, TranslationUnit};
+use wgsl_parse::{
+    SyntaxNode,
+    syntax::{Ident, TranslationUnit},
+};
 
 /// Compilation options. Used in [`compile`] and [`Wesl::set_options`].
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -810,7 +813,7 @@ fn keep_idents(
                     let ident = decl.ident()?;
                     keep.iter()
                         .any(|name| name == &*ident.name())
-                        .then_some(ident.clone())
+                        .then_some(ident)
                 })
                 .collect()
         } else {
@@ -822,7 +825,6 @@ fn keep_idents(
         wesl.global_declarations
             .iter()
             .filter_map(|decl| decl.ident())
-            .cloned()
             .collect()
     }
 }

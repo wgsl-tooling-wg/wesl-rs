@@ -1,8 +1,10 @@
+//! [`SyntaxUtil`] is an extension trait for [`TranslationUnit`].
+
 use std::{borrow::Cow, collections::HashMap, iter::Iterator};
 
 use crate::{idents::builtin_ident, visit::Visit};
 use wesl_macros::query_mut;
-use wgsl_parse::syntax::*;
+use wgsl_parse::{SyntaxNode, syntax::*};
 
 /// was that not in the std at some point???
 type BoxedIterator<'a, T> = Box<dyn Iterator<Item = T> + 'a>;
@@ -74,7 +76,7 @@ impl SyntaxUtil for TranslationUnit {
             self.global_declarations
                 .iter()
                 .filter_map(|decl| decl.ident())
-                .map(|id| (id.to_string(), id.clone()))
+                .map(|id| (id.to_string(), id))
                 .chain(flatten_imports(&self.imports).map(|id| (id.to_string(), id)))
                 .collect::<HashMap<_, _>>(),
         );

@@ -142,8 +142,9 @@ impl Exec for TranslationUnit {
                 match flow {
                     Flow::Next => (),
                     Flow::Break | Flow::Continue | Flow::Return(_) => {
-                        decl.ident()
-                            .inspect(|&ident| ctx.set_err_decl_ctx(ident.to_string()));
+                        if let Some(ident) = decl.ident() {
+                            ctx.set_err_decl_ctx(ident.to_string());
+                        }
                         return Err(E::FlowInModule(flow));
                     }
                 }
@@ -170,8 +171,9 @@ impl Exec for GlobalDeclaration {
             _ => Ok(Flow::Next),
         }
         .inspect_err(|_| {
-            self.ident()
-                .inspect(|&ident| ctx.set_err_decl_ctx(ident.to_string()));
+            if let Some(ident) = self.ident() {
+                ctx.set_err_decl_ctx(ident.to_string());
+            }
         })
     }
 }

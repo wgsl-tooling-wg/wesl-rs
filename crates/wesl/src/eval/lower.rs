@@ -584,8 +584,9 @@ impl Lower for TranslationUnit {
                 GlobalDeclaration::ConstAssert(_) => Ok(()), // handled by TranslationUnit::exec()
             }
             .inspect_err(|_| {
-                decl.ident()
-                    .inspect(|&ident| ctx.set_err_decl_ctx(ident.to_string()));
+                if let Some(ident) = decl.ident() {
+                    ctx.set_err_decl_ctx(ident.to_string())
+                }
             })?;
         }
         self.global_declarations.retain(|decl| match decl.node() {
