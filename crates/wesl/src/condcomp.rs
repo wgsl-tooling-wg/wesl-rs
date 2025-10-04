@@ -307,7 +307,7 @@ fn eval_if_attrs(nodes: &mut Vec<impl SyntaxNode>, features: &Features) -> Resul
     // remove the nodes for which the attr evaluate to false.
     nodes.retain_mut(|node| {
         let res = eval_if_attr(node, &mut prev, features);
-        if let Err(e) = res {
+        if let (Err(e), None) = (res, &err) {
             err = Some(e);
         }
         !prev.removed // keep the node if attr is unresolved or true.
