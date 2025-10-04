@@ -1,10 +1,14 @@
 //! [`SyntaxUtil`] is an extension trait for [`TranslationUnit`].
 
-use std::{borrow::Cow, collections::HashMap, iter::Iterator};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, hash_map::Entry},
+    iter::Iterator,
+};
 
 use crate::{idents::builtin_ident, visit::Visit};
 use wesl_macros::query_mut;
-use wgsl_parse::{SyntaxNode, syntax::*};
+use wgsl_parse::syntax::*;
 
 /// was that not in the std at some point???
 type BoxedIterator<'a, T> = Box<dyn Iterator<Item = T> + 'a>;
@@ -49,37 +53,36 @@ impl SyntaxUtil for TranslationUnit {
             })
     }
 
-    /// make all identifiers that point to the same declaration refer to the same string.
+    /// Make all identifiers that point to the same declaration refer to the same string.
     ///
-    /// retarget local references to the local declaration ident and global
+    /// Retarget local references to the local declaration ident and global
     /// references to the global declaration ident. It does this by keeping track of the
     /// local declarations scope.
+    ///
+    /// Same-scope declarations with the same name will have the same identifier.
+    /// Note: this can be valid code only with `@if` conditional declarations.
     fn retarget_idents(&mut self) {
         // keep track of declarations in a scope.
         type Scope<'a> = Cow<'a, HashMap<String, Ident>>;
 
-        fn flatten_imports(imports: &[ImportStatement]) -> impl Iterator<Item = Ident> + '_ {
-            fn rec(content: &ImportContent) -> impl Iterator<Item = Ident> + '_ {
-                match &content {
+        fn flatten_imports(
+            imports: &mut [ImportStatement],
+        ) -> impl Iterator<Item = &mut Ident> + '_ {
+            fn rec(content: &mut ImportContent) -> impl Iterator<Item = &mut Ident> + '_ {
+                match content {
                     ImportContent::Item(item) => {
-                        std::iter::once(item.rename.as_ref().unwrap_or(&item.ident).clone()).boxed()
+                        std::iter::once(item.rename.as_mut().unwrap_or(&mut item.ident)).boxed()
                     }
-                    ImportContent::Collection(coll) => {
-                        coll.iter().flat_map(|import| rec(&import.content)).boxed()
-                    }
+                    ImportContent::Collection(coll) => coll
+                        .iter_mut()
+                        .flat_map(|import| rec(&mut import.content))
+                        .boxed(),
                 }
             }
-            imports.iter().flat_map(|import| rec(&import.content))
+            imports
+                .iter_mut()
+                .flat_map(|import| rec(&mut import.content))
         }
-
-        let scope: Scope = Cow::Owned(
-            self.global_declarations
-                .iter()
-                .filter_map(|decl| decl.ident())
-                .map(|id| (id.to_string(), id))
-                .chain(flatten_imports(&self.imports).map(|id| (id.to_string(), id)))
-                .collect::<HashMap<_, _>>(),
-        );
 
         fn retarget_ty(ty: &mut TypeExpression, scope: &Scope) {
             if let Some((_, id)) = scope
@@ -95,6 +98,17 @@ impl SyntaxUtil for TranslationUnit {
             }
             query_mut!(ty.template_args.[].[].expression.(x => Visit::<TypeExpression>::visit_mut(&mut **x)))
                 .for_each(|ty| retarget_ty(ty, scope));
+        }
+
+        fn scope_insert(ident: &mut Ident, scope: &mut Scope) {
+            match scope.to_mut().entry(ident.to_string()) {
+                Entry::Occupied(entry) => {
+                    *ident = entry.get().clone();
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(ident.clone());
+                }
+            }
         }
 
         // retarget local references to the local declaration ident and global
@@ -283,10 +297,31 @@ impl SyntaxUtil for TranslationUnit {
                         initializer.[].(x => Visit::<TypeExpression>::visit_mut(&mut **x)),
                     })
                     .for_each(|ty| retarget_ty(ty, &scope));
-                    scope.to_mut().insert(s.ident.to_string(), s.ident.clone());
+                    scope_insert(&mut s.ident, &mut scope);
                 }
             });
             scope
+        }
+
+        let mut scope = Cow::Owned(HashMap::new());
+
+        for ident in flatten_imports(&mut self.imports) {
+            scope_insert(ident, &mut scope);
+        }
+
+        for decl in &mut self.global_declarations {
+            let ident = match decl.node_mut() {
+                GlobalDeclaration::Void => None,
+                GlobalDeclaration::Declaration(decl) => Some(&mut decl.ident),
+                GlobalDeclaration::TypeAlias(decl) => Some(&mut decl.ident),
+                GlobalDeclaration::Struct(decl) => Some(&mut decl.ident),
+                GlobalDeclaration::Function(decl) => Some(&mut decl.ident),
+                GlobalDeclaration::ConstAssert(_) => None,
+            };
+
+            if let Some(ident) = ident {
+                scope_insert(ident, &mut scope);
+            }
         }
 
         for decl in &mut self.global_declarations {
