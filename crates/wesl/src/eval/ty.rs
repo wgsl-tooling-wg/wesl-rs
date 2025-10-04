@@ -10,7 +10,7 @@ use super::{
 
 type E = EvalError;
 
-use wgsl_parse::{Decorated, span::Spanned, syntax::*};
+use wgsl_parse::{SyntaxNode, span::Spanned, syntax::*};
 use wgsl_types::{
     ShaderStage, builtin::builtin_type, syntax::Enumerant, tplt::TpltParam, ty::StructMemberType,
 };

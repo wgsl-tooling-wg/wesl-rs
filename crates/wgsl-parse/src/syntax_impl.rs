@@ -515,7 +515,11 @@ impl GlobalDeclaration {
 }
 
 /// A trait implemented on all types that can be prefixed by attributes.
-pub trait Decorated {
+pub trait SyntaxNode {
+    /// Get the span of a syntax node.
+    fn span(&self) -> Option<Span> {
+        None
+    }
     /// List all attributes (`@name`) of a syntax node.
     fn attributes(&self) -> &[AttributeNode];
     /// List all attributes (`@name`) of a syntax node.
@@ -530,7 +534,11 @@ pub trait Decorated {
         F: FnMut(&mut Attribute) -> bool;
 }
 
-impl<T: Decorated> Decorated for Spanned<T> {
+impl<T: SyntaxNode> SyntaxNode for Spanned<T> {
+    fn span(&self) -> Option<Span> {
+        Some(self.span())
+    }
+
     fn attributes(&self) -> &[AttributeNode] {
         self.node().attributes()
     }
@@ -549,7 +557,7 @@ impl<T: Decorated> Decorated for Spanned<T> {
 
 macro_rules! impl_decorated_struct {
     ($ty:ty) => {
-        impl Decorated for $ty {
+        impl SyntaxNode for $ty {
             fn attributes(&self) -> &[AttributeNode] {
                 &self.attributes
             }
@@ -570,7 +578,7 @@ macro_rules! impl_decorated_struct {
 impl_decorated_struct!(ImportStatement);
 
 #[cfg(feature = "attributes")]
-impl Decorated for GlobalDirective {
+impl SyntaxNode for GlobalDirective {
     fn attributes(&self) -> &[AttributeNode] {
         match self {
             GlobalDirective::Diagnostic(directive) => &directive.attributes,
@@ -609,7 +617,7 @@ impl_decorated_struct!(EnableDirective);
 impl_decorated_struct!(RequiresDirective);
 
 #[cfg(feature = "attributes")]
-impl Decorated for GlobalDeclaration {
+impl SyntaxNode for GlobalDeclaration {
     fn attributes(&self) -> &[AttributeNode] {
         match self {
             GlobalDeclaration::Void => &[],
@@ -665,7 +673,7 @@ impl_decorated_struct!(FormalParameter);
 impl_decorated_struct!(ConstAssert);
 
 #[cfg(feature = "attributes")]
-impl Decorated for Statement {
+impl SyntaxNode for Statement {
     fn attributes(&self) -> &[AttributeNode] {
         match self {
             Statement::Void => &[],

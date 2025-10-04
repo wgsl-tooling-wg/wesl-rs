@@ -2,7 +2,7 @@ mod mangle;
 
 use itertools::Itertools;
 use thiserror::Error;
-use wgsl_parse::{Decorated, span::Spanned, syntax::*};
+use wgsl_parse::{SyntaxNode, span::Spanned, syntax::*};
 
 use crate::visit::Visit;
 
@@ -129,7 +129,7 @@ pub fn replace_calls(wesl: &mut TranslationUnit) -> Result<(), E> {
     Ok(())
 }
 
-fn eval_ty_attr(opt_node: &mut Option<impl Decorated>, ty: &TypeConstraint) -> Result<(), E> {
+fn eval_ty_attr(opt_node: &mut Option<impl SyntaxNode>, ty: &TypeConstraint) -> Result<(), E> {
     if let Some(node) = opt_node {
         let vars = node
             .attributes_mut()
@@ -152,7 +152,7 @@ fn eval_ty_attr(opt_node: &mut Option<impl Decorated>, ty: &TypeConstraint) -> R
     Ok(())
 }
 
-fn eval_ty_attrs(nodes: &mut Vec<impl Decorated>, ty: &TypeConstraint) -> Result<(), E> {
+fn eval_ty_attrs(nodes: &mut Vec<impl SyntaxNode>, ty: &TypeConstraint) -> Result<(), E> {
     let retains = nodes
         .iter()
         .map(|node| {

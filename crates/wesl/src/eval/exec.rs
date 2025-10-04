@@ -16,7 +16,7 @@ use super::{
     eval_tplt_arg, ty_eval_ty,
 };
 
-use wgsl_parse::{Decorated, span::Spanned, syntax::*};
+use wgsl_parse::{SyntaxNode, span::Spanned, syntax::*};
 
 type E = EvalError;
 

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use wesl_macros::query;
-use wgsl_parse::Decorated;
+use wgsl_parse::SyntaxNode;
 use wgsl_parse::syntax::{
     Expression, ExpressionNode, FunctionCall, GlobalDeclaration, Ident, ImportContent,
     TranslationUnit, TypeExpression,

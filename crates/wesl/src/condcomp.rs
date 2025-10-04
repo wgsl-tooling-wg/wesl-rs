@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::Diagnostic;
 use thiserror::Error;
-use wgsl_parse::{Decorated, span::Spanned, syntax::*};
+use wgsl_parse::{SyntaxNode, span::Spanned, syntax::*};
 
 /// Conditional translation error.
 #[derive(Clone, Debug, Error)]
@@ -192,7 +192,7 @@ struct PrevEval {
 /// * turn elifs into ifs when previous node was deleted.
 /// * turn elifs into elses when it evaluates to true.
 fn eval_if_attr(
-    node: &mut impl Decorated,
+    node: &mut impl SyntaxNode,
     prev: &mut PrevEval,
     features: &Features,
 ) -> Result<(), E> {
@@ -264,7 +264,7 @@ fn eval_if_attr(
 }
 
 fn eval_opt_attr(
-    opt_node: &mut Option<impl Decorated>,
+    opt_node: &mut Option<impl SyntaxNode>,
     prev: &mut PrevEval,
     features: &Features,
 ) -> Result<(), E> {
@@ -277,7 +277,7 @@ fn eval_opt_attr(
     Ok(())
 }
 
-fn eval_if_attrs(nodes: &mut Vec<impl Decorated>, features: &Features) -> Result<PrevEval, E> {
+fn eval_if_attrs(nodes: &mut Vec<impl SyntaxNode>, features: &Features) -> Result<PrevEval, E> {
     let mut prev = PrevEval {
         has_if: false,
         is_true: false,
