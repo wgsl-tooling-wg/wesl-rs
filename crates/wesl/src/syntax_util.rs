@@ -1,9 +1,9 @@
 //! [`SyntaxUtil`] is an extension trait for [`TranslationUnit`].
 
 use std::{
-    borrow::Cow,
     collections::{HashMap, hash_map::Entry},
     iter::Iterator,
+    rc::Rc,
 };
 
 use crate::{idents::builtin_ident, visit::Visit};
@@ -62,8 +62,53 @@ impl SyntaxUtil for TranslationUnit {
     /// Same-scope declarations with the same name will have the same identifier.
     /// Note: this can be valid code only with `@if` conditional declarations.
     fn retarget_idents(&mut self) {
-        // keep track of declarations in a scope.
-        type Scope<'a> = Cow<'a, HashMap<String, Ident>>;
+        struct ScopeInner {
+            local: HashMap<String, Ident>,
+            parent: Option<Rc<ScopeInner>>,
+        }
+
+        struct Scope(Rc<ScopeInner>);
+
+        impl ScopeInner {
+            fn iter(&self) -> impl Iterator<Item = (&String, &Ident)> {
+                self.local
+                    .iter()
+                    .chain(self.parent.iter().flat_map(|parent| parent.iter().boxed()))
+            }
+        }
+
+        impl Scope {
+            fn new() -> Scope {
+                Scope(Rc::new(ScopeInner {
+                    local: HashMap::new(),
+                    parent: None,
+                }))
+            }
+
+            fn push(&self) -> Scope {
+                Scope(Rc::new(ScopeInner {
+                    local: HashMap::new(),
+                    parent: Some(self.0.clone()),
+                }))
+            }
+
+            fn iter(&self) -> impl Iterator<Item = (&String, &Ident)> {
+                self.0.iter()
+            }
+
+            // insert in scope; or if already present, retarget the ident.
+            fn insert(&mut self, ident: &mut Ident) {
+                let inner = Rc::get_mut(&mut self.0).expect("cannot insert: scope use-count > 1");
+                match inner.local.entry(ident.to_string()) {
+                    Entry::Occupied(entry) => {
+                        *ident = entry.get().clone();
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(ident.clone());
+                    }
+                }
+            }
+        }
 
         fn flatten_imports(
             imports: &mut [ImportStatement],
@@ -100,30 +145,19 @@ impl SyntaxUtil for TranslationUnit {
                 .for_each(|ty| retarget_ty(ty, scope));
         }
 
-        fn scope_insert(ident: &mut Ident, scope: &mut Scope) {
-            match scope.to_mut().entry(ident.to_string()) {
-                Entry::Occupied(entry) => {
-                    *ident = entry.get().clone();
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert(ident.clone());
-                }
-            }
-        }
-
         // retarget local references to the local declaration ident and global
         // references to the global declaration ident. It does this by keeping track of the
         // local declarations scope.
         fn retarget_stats<'a>(
             stats: impl IntoIterator<Item = &'a mut StatementNode>,
-            mut scope: Scope<'a>,
-        ) -> Scope<'a> {
+            mut scope: Scope,
+        ) -> Scope {
             stats.into_iter().for_each(|stmt| match stmt.node_mut() {
                 Statement::Void => (),
                 Statement::Compound(s) => {
                     query_mut!(s.attributes.[].(x => x.visit_mut()))
                         .for_each(|ty| retarget_ty(ty, &scope));
-                    retarget_stats(&mut s.statements, scope.clone());
+                    retarget_stats(&mut s.statements, scope.push());
                 }
                 Statement::Assignment(s) => {
                     query_mut!(s.{
@@ -172,12 +206,12 @@ impl SyntaxUtil for TranslationUnit {
                         },
                     })
                     .for_each(|ty| retarget_ty(ty, &scope));
-                    retarget_stats(&mut s.if_clause.body.statements, scope.clone());
+                    retarget_stats(&mut s.if_clause.body.statements, scope.push());
                     for clause in &mut s.else_if_clauses {
-                        retarget_stats(&mut clause.body.statements, scope.clone());
+                        retarget_stats(&mut clause.body.statements, scope.push());
                     }
                     if let Some(clause) = &mut s.else_clause {
-                        retarget_stats(&mut clause.body.statements, scope.clone());
+                        retarget_stats(&mut clause.body.statements, scope.push());
                     }
                 }
                 Statement::Switch(s) => {
@@ -197,7 +231,7 @@ impl SyntaxUtil for TranslationUnit {
                     })
                     .for_each(|ty| retarget_ty(ty, &scope));
                     for clause in &mut s.clauses {
-                        retarget_stats(&mut clause.body.statements, scope.clone());
+                        retarget_stats(&mut clause.body.statements, scope.push());
                     }
                 }
                 Statement::Loop(s) => {
@@ -207,7 +241,7 @@ impl SyntaxUtil for TranslationUnit {
                         body.attributes.[].(x => x.visit_mut()),
                     })
                     .for_each(|ty| retarget_ty(ty, &scope));
-                    let scope = retarget_stats(&mut s.body.statements, scope.clone());
+                    let scope = retarget_stats(&mut s.body.statements, scope.push());
                     // continuing, if present, must be the last statement of the loop body
                     // and therefore has access to the scope at the end of the body.
                     if let Some(s) = &mut s.continuing {
@@ -217,7 +251,7 @@ impl SyntaxUtil for TranslationUnit {
                             body.attributes.[].(x => x.visit_mut()),
                         })
                         .for_each(|ty| retarget_ty(ty, &scope));
-                        let scope = retarget_stats(&mut s.body.statements, scope.clone());
+                        let scope = retarget_stats(&mut s.body.statements, scope.push());
                         // break-if, if present, must be the last statement of the continuing body
                         // and therefore has access to the scope at the end of the body.
                         if let Some(s) = &mut s.break_if {
@@ -234,16 +268,16 @@ impl SyntaxUtil for TranslationUnit {
                     query_mut!(s.attributes.[].(x => x.visit_mut()))
                         .for_each(|ty| retarget_ty(ty, &scope));
                     let scope = if let Some(init) = &mut s.initializer {
-                        retarget_stats([init], scope.clone())
+                        retarget_stats([init], scope.push())
                     } else {
-                        scope.clone()
+                        scope.push()
                     };
                     query_mut!(s.condition.[].(x => Visit::<TypeExpression>::visit_mut(&mut **x)))
                         .for_each(|ty| retarget_ty(ty, &scope));
                     query_mut!(s.body.attributes.[].(x => x.visit_mut()))
                         .for_each(|ty| retarget_ty(ty, &scope));
                     if let Some(update) = &mut s.update {
-                        retarget_stats([update], scope.clone());
+                        retarget_stats([update], scope.push());
                     }
                     retarget_stats(&mut s.body.statements, scope);
                 }
@@ -255,7 +289,7 @@ impl SyntaxUtil for TranslationUnit {
                         body.attributes.[].(x => x.visit_mut()),
                     })
                     .for_each(|ty| retarget_ty(ty, &scope));
-                    retarget_stats(&mut s.body.statements, scope.clone());
+                    retarget_stats(&mut s.body.statements, scope.push());
                 }
                 Statement::Break(s) => {
                     query_mut!(s.attributes.[].(x => x.visit_mut()))
@@ -297,16 +331,16 @@ impl SyntaxUtil for TranslationUnit {
                         initializer.[].(x => Visit::<TypeExpression>::visit_mut(&mut **x)),
                     })
                     .for_each(|ty| retarget_ty(ty, &scope));
-                    scope_insert(&mut s.ident, &mut scope);
+                    scope.insert(&mut s.ident);
                 }
             });
             scope
         }
 
-        let mut scope = Cow::Owned(HashMap::new());
+        let mut scope = Scope::new();
 
         for ident in flatten_imports(&mut self.imports) {
-            scope_insert(ident, &mut scope);
+            scope.insert(ident);
         }
 
         for decl in &mut self.global_declarations {
@@ -320,7 +354,7 @@ impl SyntaxUtil for TranslationUnit {
             };
 
             if let Some(ident) = ident {
-                scope_insert(ident, &mut scope);
+                scope.insert(ident);
             }
         }
 
@@ -339,15 +373,14 @@ impl SyntaxUtil for TranslationUnit {
                 GlobalDeclaration::Function(d) => {
                     #[cfg(feature = "generics")]
                     let scope = {
-                        let mut scope = scope.clone();
-                        scope
-                            .to_mut()
-                            .extend(d.attributes.iter().filter_map(|attr| match attr.node() {
-                                Attribute::Type(attr) => {
-                                    Some((attr.ident.to_string(), attr.ident.clone()))
-                                }
+                        let mut scope = scope.push();
+                        d.attributes
+                            .iter_mut()
+                            .filter_map(|attr| match attr.node_mut() {
+                                Attribute::Type(attr) => Some(&mut attr.ident),
                                 _ => None,
-                            }));
+                            })
+                            .for_each(|ident| scope.insert(ident));
                         scope
                     };
                     let d2 = &mut *d; // COMBAK: not sure why this is needed?
@@ -364,12 +397,10 @@ impl SyntaxUtil for TranslationUnit {
                         }
                     })
                     .for_each(|ty| retarget_ty(ty, &scope));
-                    let mut scope = scope.clone();
-                    scope.to_mut().extend(
-                        d.parameters
-                            .iter()
-                            .map(|param| (param.ident.to_string(), param.ident.clone())),
-                    );
+                    let mut scope = scope.push();
+                    d.parameters
+                        .iter_mut()
+                        .for_each(|param| scope.insert(&mut param.ident));
                     retarget_stats(&mut d.body.statements, scope);
                 }
                 GlobalDeclaration::ConstAssert(d) => {
