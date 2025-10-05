@@ -410,3 +410,86 @@ impl SyntaxUtil for TranslationUnit {
         }
     }
 }
+
+/// Check that retarget_ident handles shadowing correctly.
+///
+/// Procedure: we strip the ident digits, call retarget_idents and then rename idents
+/// with a unique digit. We should end up back with the test code, assuming the iterator
+/// order is predictable (is should be a depth-first search).
+#[test]
+fn test_retarget_idents() {
+    use std::collections::HashSet;
+
+    let source = r#"
+        import        i0;
+        import        i::{i0, i0, j};
+        const_assert  i0+c1+v2+a3+s4; // due to hoisting, all global decls idents should be visible
+        const         c1: c1 = i0+c1+v2+a3+s4;
+        var<private>  v2: v2 = i0+c1+v2+a3+s4;
+        alias         a3 = a3;
+        struct        s4 { m: m5 }
+
+        fn f18(p: p6) {
+            let x7 = i0+c1+v2+a3+s4;
+            let x7 = x7;
+
+            // shadowing with local declarations
+            let i8 = i0+c1+v2+a3+s4;
+            let c9 = i8+c1+v2+a3+s4;
+            let v10 = i8+c9+v2+a3+s4;
+            let a11 = i8+c9+v10+a3+s4;
+            let s12 = i8+c9+v10+a11+s4;
+            let x7 = i8+c9+v10+a11+s12; // x is in the same scope as previous x: should have same ident
+
+            {
+                let x13 = i8+c9+v10+a11+s12 +x7; // different x
+                let x13 = x13;
+
+                for (let x14 = x13; x14; x14++) {
+                    let x14: x14 = x14; // in for loops, the initializer cannot be shadowed
+                }
+
+                loop {
+                    var x15 = x13;
+                    const y17 = x15;
+                    continuing {
+                        let x16 = x15;
+                        break if x16 + y17;
+                    }
+                }
+            }
+
+            switch x7 {
+                case x7, f18, g19 { x7 = x7; }
+            }
+        }
+
+        fn f18() {} // f is in the same scope as previous f: should have same ident
+        fn g19() {}
+    "#;
+
+    let wgsl: TranslationUnit = source.parse().expect("parse failure");
+    let source_stripped = source.replace(|c: char| c.is_ascii_digit(), "");
+    let mut wgsl_stripped: TranslationUnit = source_stripped.parse().expect("parse failure");
+    wgsl_stripped.retarget_idents();
+
+    let mut idents = HashSet::new();
+    let mut ordered_idents = Vec::new();
+    // the test assumes that Visit is in depth-first order so the ident order is predictable.
+    for ty in Visit::<TypeExpression>::visit(&wgsl_stripped) {
+        let inserted = idents.insert(ty.ident.clone());
+        if inserted {
+            ordered_idents.push(ty.ident.clone());
+        }
+    }
+
+    for (i, ident) in ordered_idents.iter().enumerate() {
+        println!("ident #{i}: {ident}, count: {}", ident.use_count() - 2);
+        ident.clone().rename(format!("{ident}{i}"));
+    }
+
+    println!("=== expectation ===\n{wgsl}");
+    println!("=== test output ===\n{wgsl_stripped}");
+
+    assert_eq!(wgsl.to_string(), wgsl_stripped.to_string())
+}

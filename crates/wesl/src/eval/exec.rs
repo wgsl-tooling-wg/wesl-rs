@@ -448,7 +448,7 @@ impl Exec for LoopStatement {
 impl Exec for ContinuingStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         with_scope!(ctx, {
-            // we track scope manually because the continuing statement is actually
+            // we track scope manually because the break-if statement is actually
             // part of the body block.
             let flow = compound_exec(&self.body, ctx, CompoundScope::Leaking)?;
             match flow {
