@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use wesl_macros::query;
-use wgsl_parse::Decorated;
+use wgsl_parse::SyntaxNode;
 use wgsl_parse::syntax::{
     Expression, ExpressionNode, FunctionCall, GlobalDeclaration, Ident, ImportContent,
     TranslationUnit, TypeExpression,
@@ -102,7 +102,7 @@ fn check_function_calls(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
         let decl = wesl
             .global_declarations
             .iter()
-            .find(|decl| decl.ident().is_some_and(|id| id == ident))
+            .find(|decl| decl.ident().is_some_and(|id| &id == ident))
             .map(|decl| decl.node());
 
         match decl {
@@ -222,7 +222,7 @@ fn check_duplicate_decl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
             continue;
         }
         if let Some(id) = decl.ident() {
-            check_ident(id, &mut unique)?;
+            check_ident(&id, &mut unique)?;
         }
     }
     Ok(())
@@ -242,7 +242,7 @@ fn check_cycles(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
                 if let Some(decl) = wesl
                     .global_declarations
                     .iter()
-                    .find(|decl| decl.ident() == Some(&ty.ident))
+                    .find(|decl| decl.ident().as_ref() == Some(&ty.ident))
                 {
                     check_decl(id, decl, unique, wesl)?;
                 }
@@ -253,7 +253,7 @@ fn check_cycles(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
     for decl in &wesl.global_declarations {
         if let Some(id) = decl.ident() {
             let mut unique = HashSet::new();
-            check_decl(id, decl, &mut unique, wesl)
+            check_decl(&id, decl, &mut unique, wesl)
                 .map_err(|e| Diagnostic::from(e).with_declaration(id.to_string()))?;
         }
     }

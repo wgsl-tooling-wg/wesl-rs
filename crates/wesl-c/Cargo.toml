@@ -15,6 +15,7 @@ wesl = { workspace = true }
 [features]
 eval = ["wesl/eval"]
 generics = ["wesl/generics"]
+naga = ["wesl/naga-ext"]
 
 [lints]
 workspace = true

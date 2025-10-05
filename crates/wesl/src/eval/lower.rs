@@ -1,5 +1,5 @@
 use std::iter::zip;
-use wgsl_parse::{Decorated, span::Spanned, syntax::*};
+use wgsl_parse::{SyntaxNode, span::Spanned, syntax::*};
 use wgsl_types::ty::{Ty, Type};
 
 use crate::eval::{ATTR_INTRINSIC, Context, Eval, EvalError, Exec, ty_eval_ty};
@@ -584,8 +584,9 @@ impl Lower for TranslationUnit {
                 GlobalDeclaration::ConstAssert(_) => Ok(()), // handled by TranslationUnit::exec()
             }
             .inspect_err(|_| {
-                decl.ident()
-                    .inspect(|&ident| ctx.set_err_decl_ctx(ident.to_string()));
+                if let Some(ident) = decl.ident() {
+                    ctx.set_err_decl_ctx(ident.to_string())
+                }
             })?;
         }
         self.global_declarations.retain(|decl| match decl.node() {

@@ -4,8 +4,7 @@ use tokrepr::TokRepr;
 use tokrepr::proc_macro2::TokenStream;
 use tokrepr::quote::{format_ident, quote};
 
-use crate::syntax::*;
-use crate::{span::Spanned, syntax::Ident};
+use crate::{SyntaxNode, span::Spanned, syntax::*};
 
 /// named nodes are those that have an identifier. We use this trait to conditionally
 /// implement TokRepr for Spanned<NamedNode>, which allows code injection in `quote_*!`
@@ -16,7 +15,7 @@ trait NamedNode {
 
 impl NamedNode for GlobalDeclaration {
     fn name(&self) -> Option<String> {
-        self.ident().map(ToString::to_string)
+        self.ident().map(|id| id.to_string())
     }
 }
 

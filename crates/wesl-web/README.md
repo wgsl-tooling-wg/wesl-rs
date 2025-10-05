@@ -11,7 +11,7 @@ how to use.
 You need [`wasm-pack`][wasm-pack] installed.
 
 * release `wasm-pack build . --release --target web --out-dir path/to/out/wesl-web`
-* development `wasm-pack build . --dev --target web --out-dir path/to/out/wesl-web --features debug`
+* development `wasm-pack build . --dev --target web --out-dir path/to/out/wesl-web --features debug,naga`
 That's for `wesl-playground`. you can switch the `--target` to `node` or `deno` depending on your
 use-case. Read the [`wasm-pack` book][wasm-pack-book] for more.
 

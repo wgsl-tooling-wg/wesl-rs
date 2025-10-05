@@ -1,6 +1,6 @@
 use super::{Scope, SyntaxUtil};
 use itertools::Itertools;
-use wgsl_parse::{Decorated, span::Spanned, syntax::*};
+use wgsl_parse::{SyntaxNode, span::Spanned, syntax::*};
 use wgsl_types::builtin::is_ctor;
 
 macro_rules! with_scope {

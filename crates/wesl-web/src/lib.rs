@@ -39,6 +39,29 @@ pub enum Command {
     Dump(DumpOptions),
 }
 
+#[derive(Tsify, Clone, Debug, Default, Serialize, Deserialize)]
+#[tsify(into_wasm_abi, from_wasm_abi)]
+#[serde(rename_all = "lowercase")]
+pub enum Feature {
+    Enable,
+    Disable,
+    // for simplicity in the CLI the default is Disable, but I guess in the playground it's nicer to keep.
+    #[default]
+    Keep,
+    Error,
+}
+
+impl From<Feature> for wesl::Feature {
+    fn from(feature: Feature) -> Self {
+        match feature {
+            Feature::Enable => wesl::Feature::Enable,
+            Feature::Disable => wesl::Feature::Disable,
+            Feature::Keep => wesl::Feature::Keep,
+            Feature::Error => wesl::Feature::Error,
+        }
+    }
+}
+
 #[derive(Tsify, Clone, Debug, Serialize, Deserialize)]
 #[tsify(into_wasm_abi, from_wasm_abi)]
 pub struct CompileOptions {
@@ -60,8 +83,10 @@ pub struct CompileOptions {
     pub keep: Option<Vec<String>>,
     pub keep_root: bool,
     pub mangle_root: bool,
-    #[tsify(type = "{ [name: string]: boolean }")]
-    pub features: HashMap<String, bool>,
+    #[tsify(type = "{ [name: string]: Feature }")]
+    pub features: HashMap<String, Feature>,
+    #[serde(default)]
+    pub features_default: Feature,
 }
 
 #[derive(Tsify, Clone, Copy, Debug, Serialize, Deserialize)]
@@ -193,7 +218,7 @@ fn run_compile(args: CompileOptions) -> Result<CompileResult, wesl::Error> {
             mangle_root: args.mangle_root,
             keep: args.keep,
             features: wesl::Features {
-                default: wesl::Feature::Disable,
+                default: args.features_default.into(),
                 flags: args
                     .features
                     .into_iter()

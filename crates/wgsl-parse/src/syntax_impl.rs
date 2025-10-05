@@ -489,48 +489,50 @@ impl_transitive_from!(u32 => LiteralExpression => Expression);
 impl_transitive_from!(f32 => LiteralExpression => Expression);
 impl_transitive_from!(Ident => TypeExpression => Expression);
 
-impl GlobalDeclaration {
-    /// Get the name of the declaration, if it has one.
-    pub fn ident(&self) -> Option<&Ident> {
-        match self {
-            GlobalDeclaration::Void => None,
-            GlobalDeclaration::Declaration(decl) => Some(&decl.ident),
-            GlobalDeclaration::TypeAlias(decl) => Some(&decl.ident),
-            GlobalDeclaration::Struct(decl) => Some(&decl.ident),
-            GlobalDeclaration::Function(decl) => Some(&decl.ident),
-            GlobalDeclaration::ConstAssert(_) => None,
-        }
+/// Trait implemented for all syntax node types.
+///
+/// This trait is useful for generic implementations over different syntax node types.
+/// Node types that do not have a span, an ident, or attributes return `None`.
+pub trait SyntaxNode {
+    /// Span of a syntax node.
+    fn span(&self) -> Option<Span> {
+        None
     }
-    /// Get the name of the declaration, if it has one.
-    pub fn ident_mut(&mut self) -> Option<&mut Ident> {
-        match self {
-            GlobalDeclaration::Void => None,
-            GlobalDeclaration::Declaration(decl) => Some(&mut decl.ident),
-            GlobalDeclaration::TypeAlias(decl) => Some(&mut decl.ident),
-            GlobalDeclaration::Struct(decl) => Some(&mut decl.ident),
-            GlobalDeclaration::Function(decl) => Some(&mut decl.ident),
-            GlobalDeclaration::ConstAssert(_) => None,
-        }
-    }
-}
 
-/// A trait implemented on all types that can be prefixed by attributes.
-pub trait Decorated {
-    /// List all attributes (`@name`) of a syntax node.
-    fn attributes(&self) -> &[AttributeNode];
-    /// List all attributes (`@name`) of a syntax node.
-    fn attributes_mut(&mut self) -> &mut [AttributeNode];
-    /// Remove attributes with predicate.
+    /// Identifier, if the syntax node is a declaration.
+    fn ident(&self) -> Option<Ident> {
+        None
+    }
+
+    /// List all attributes of a syntax node.
+    fn attributes(&self) -> &[AttributeNode] {
+        &[]
+    }
+    /// List all attributes of a syntax node.
+    fn attributes_mut(&mut self) -> &mut [AttributeNode] {
+        &mut []
+    }
+    /// Whether the node contains an attribute.
     fn contains_attribute(&self, attribute: &Attribute) -> bool {
         self.attributes().iter().any(|v| v.node() == attribute)
     }
     /// Remove attributes with predicate.
-    fn retain_attributes_mut<F>(&mut self, f: F)
+    fn retain_attributes_mut<F>(&mut self, _predicate: F)
     where
-        F: FnMut(&mut Attribute) -> bool;
+        F: FnMut(&mut Attribute) -> bool,
+    {
+    }
 }
 
-impl<T: Decorated> Decorated for Spanned<T> {
+impl<T: SyntaxNode> SyntaxNode for Spanned<T> {
+    fn span(&self) -> Option<Span> {
+        Some(self.span())
+    }
+
+    fn ident(&self) -> Option<Ident> {
+        self.node().ident()
+    }
+
     fn attributes(&self) -> &[AttributeNode] {
         self.node().attributes()
     }
@@ -547,242 +549,284 @@ impl<T: Decorated> Decorated for Spanned<T> {
     }
 }
 
-macro_rules! impl_decorated_struct {
-    ($ty:ty) => {
-        impl Decorated for $ty {
-            fn attributes(&self) -> &[AttributeNode] {
-                &self.attributes
+macro_rules! impl_attrs_struct {
+    () => {
+        fn attributes(&self) -> &[AttributeNode] {
+            &self.attributes
+        }
+        fn attributes_mut(&mut self) -> &mut [AttributeNode] {
+            &mut self.attributes
+        }
+        fn retain_attributes_mut<F>(&mut self, mut f: F)
+        where
+            F: FnMut(&mut Attribute) -> bool,
+        {
+            self.attributes.retain_mut(|v| f(v))
+        }
+    };
+}
+
+macro_rules! impl_attrs_enum {
+    ($($variant: path),* $(,)?) => {
+        fn attributes(&self) -> &[AttributeNode] {
+            match self {
+                $(
+                    $variant(x) => &x.attributes,
+                )*
+                #[allow(unreachable_patterns)]
+                _ => &[]
             }
-            fn attributes_mut(&mut self) -> &mut [AttributeNode] {
-                &mut self.attributes
+        }
+        fn attributes_mut(&mut self) -> &mut [AttributeNode] {
+            match self {
+                $(
+                    $variant(x) => &mut x.attributes,
+                )*
+                #[allow(unreachable_patterns)]
+                _ => &mut []
             }
-            fn retain_attributes_mut<F>(&mut self, mut f: F)
-            where
-                F: FnMut(&mut Attribute) -> bool,
-            {
-                self.attributes.retain_mut(|v| f(v))
+        }
+        fn retain_attributes_mut<F>(&mut self, mut f: F)
+        where
+            F: FnMut(&mut Attribute) -> bool,
+        {
+            match self {
+                $(
+                    $variant(x) => x.attributes.retain_mut(|v| f(v)),
+                )*
+                #[allow(unreachable_patterns)]
+                _ => {}
             }
         }
     };
 }
 
-#[cfg(all(feature = "imports", feature = "attributes"))]
-impl_decorated_struct!(ImportStatement);
+#[cfg(feature = "imports")]
+impl SyntaxNode for ImportStatement {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl Decorated for GlobalDirective {
-    fn attributes(&self) -> &[AttributeNode] {
-        match self {
-            GlobalDirective::Diagnostic(directive) => &directive.attributes,
-            GlobalDirective::Enable(directive) => &directive.attributes,
-            GlobalDirective::Requires(directive) => &directive.attributes,
-        }
-    }
-
-    fn attributes_mut(&mut self) -> &mut [AttributeNode] {
-        match self {
-            GlobalDirective::Diagnostic(directive) => &mut directive.attributes,
-            GlobalDirective::Enable(directive) => &mut directive.attributes,
-            GlobalDirective::Requires(directive) => &mut directive.attributes,
-        }
-    }
-
-    fn retain_attributes_mut<F>(&mut self, mut f: F)
-    where
-        F: FnMut(&mut Attribute) -> bool,
-    {
-        match self {
-            GlobalDirective::Diagnostic(directive) => directive.attributes.retain_mut(|v| f(v)),
-            GlobalDirective::Enable(directive) => directive.attributes.retain_mut(|v| f(v)),
-            GlobalDirective::Requires(directive) => directive.attributes.retain_mut(|v| f(v)),
-        }
+impl SyntaxNode for GlobalDirective {
+    #[cfg(feature = "attributes")]
+    impl_attrs_enum! {
+        GlobalDirective::Diagnostic,
+        GlobalDirective::Enable,
+        GlobalDirective::Requires
     }
 }
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(DiagnosticDirective);
+impl SyntaxNode for DiagnosticDirective {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(EnableDirective);
+impl SyntaxNode for EnableDirective {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(RequiresDirective);
+impl SyntaxNode for RequiresDirective {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl Decorated for GlobalDeclaration {
-    fn attributes(&self) -> &[AttributeNode] {
+impl SyntaxNode for GlobalDeclaration {
+    fn ident(&self) -> Option<Ident> {
         match self {
-            GlobalDeclaration::Void => &[],
-            GlobalDeclaration::Declaration(decl) => &decl.attributes,
-            GlobalDeclaration::TypeAlias(decl) => &decl.attributes,
-            GlobalDeclaration::Struct(decl) => &decl.attributes,
-            GlobalDeclaration::Function(decl) => &decl.attributes,
-            GlobalDeclaration::ConstAssert(decl) => &decl.attributes,
+            GlobalDeclaration::Void => None,
+            GlobalDeclaration::Declaration(decl) => Some(decl.ident.clone()),
+            GlobalDeclaration::TypeAlias(decl) => Some(decl.ident.clone()),
+            GlobalDeclaration::Struct(decl) => Some(decl.ident.clone()),
+            GlobalDeclaration::Function(decl) => Some(decl.ident.clone()),
+            GlobalDeclaration::ConstAssert(_) => None,
         }
     }
 
-    fn attributes_mut(&mut self) -> &mut [AttributeNode] {
-        match self {
-            GlobalDeclaration::Void => &mut [],
-            GlobalDeclaration::Declaration(decl) => &mut decl.attributes,
-            GlobalDeclaration::TypeAlias(decl) => &mut decl.attributes,
-            GlobalDeclaration::Struct(decl) => &mut decl.attributes,
-            GlobalDeclaration::Function(decl) => &mut decl.attributes,
-            GlobalDeclaration::ConstAssert(decl) => &mut decl.attributes,
-        }
-    }
-
-    fn retain_attributes_mut<F>(&mut self, mut f: F)
-    where
-        F: FnMut(&mut Attribute) -> bool,
-    {
-        match self {
-            GlobalDeclaration::Void => {}
-            GlobalDeclaration::Declaration(decl) => decl.attributes.retain_mut(|v| f(v)),
-            GlobalDeclaration::TypeAlias(decl) => decl.attributes.retain_mut(|v| f(v)),
-            GlobalDeclaration::Struct(decl) => decl.attributes.retain_mut(|v| f(v)),
-            GlobalDeclaration::Function(decl) => decl.attributes.retain_mut(|v| f(v)),
-            GlobalDeclaration::ConstAssert(decl) => decl.attributes.retain_mut(|v| f(v)),
-        }
+    #[cfg(feature = "attributes")]
+    impl_attrs_enum! {
+        GlobalDeclaration::Declaration,
+        GlobalDeclaration::TypeAlias,
+        GlobalDeclaration::Struct,
+        GlobalDeclaration::Function,
+        GlobalDeclaration::ConstAssert,
     }
 }
 
-impl_decorated_struct!(Declaration);
-
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(TypeAlias);
-
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(Struct);
-
-impl_decorated_struct!(StructMember);
-
-impl_decorated_struct!(Function);
-
-impl_decorated_struct!(FormalParameter);
-
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(ConstAssert);
-
-#[cfg(feature = "attributes")]
-impl Decorated for Statement {
-    fn attributes(&self) -> &[AttributeNode] {
-        match self {
-            Statement::Void => &[],
-            Statement::Compound(stmt) => &stmt.attributes,
-            Statement::Assignment(stmt) => &stmt.attributes,
-            Statement::Increment(stmt) => &stmt.attributes,
-            Statement::Decrement(stmt) => &stmt.attributes,
-            Statement::If(stmt) => &stmt.attributes,
-            Statement::Switch(stmt) => &stmt.attributes,
-            Statement::Loop(stmt) => &stmt.attributes,
-            Statement::For(stmt) => &stmt.attributes,
-            Statement::While(stmt) => &stmt.attributes,
-            Statement::Break(stmt) => &stmt.attributes,
-            Statement::Continue(stmt) => &stmt.attributes,
-            Statement::Return(stmt) => &stmt.attributes,
-            Statement::Discard(stmt) => &stmt.attributes,
-            Statement::FunctionCall(stmt) => &stmt.attributes,
-            Statement::ConstAssert(stmt) => &stmt.attributes,
-            Statement::Declaration(stmt) => &stmt.attributes,
-        }
+impl SyntaxNode for Declaration {
+    fn ident(&self) -> Option<Ident> {
+        Some(self.ident.clone())
     }
 
-    fn attributes_mut(&mut self) -> &mut [AttributeNode] {
-        match self {
-            Statement::Void => &mut [],
-            Statement::Compound(stmt) => &mut stmt.attributes,
-            Statement::Assignment(stmt) => &mut stmt.attributes,
-            Statement::Increment(stmt) => &mut stmt.attributes,
-            Statement::Decrement(stmt) => &mut stmt.attributes,
-            Statement::If(stmt) => &mut stmt.attributes,
-            Statement::Switch(stmt) => &mut stmt.attributes,
-            Statement::Loop(stmt) => &mut stmt.attributes,
-            Statement::For(stmt) => &mut stmt.attributes,
-            Statement::While(stmt) => &mut stmt.attributes,
-            Statement::Break(stmt) => &mut stmt.attributes,
-            Statement::Continue(stmt) => &mut stmt.attributes,
-            Statement::Return(stmt) => &mut stmt.attributes,
-            Statement::Discard(stmt) => &mut stmt.attributes,
-            Statement::FunctionCall(stmt) => &mut stmt.attributes,
-            Statement::ConstAssert(stmt) => &mut stmt.attributes,
-            Statement::Declaration(stmt) => &mut stmt.attributes,
-        }
+    impl_attrs_struct! {}
+}
+
+impl SyntaxNode for TypeAlias {
+    fn ident(&self) -> Option<Ident> {
+        Some(self.ident.clone())
     }
 
-    fn retain_attributes_mut<F>(&mut self, mut f: F)
-    where
-        F: FnMut(&mut Attribute) -> bool,
-    {
-        match self {
-            Statement::Void => {}
-            Statement::Compound(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::Assignment(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::Increment(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::Decrement(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::If(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::Switch(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::Loop(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::For(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::While(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::Break(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::Continue(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::Return(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::Discard(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::FunctionCall(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::ConstAssert(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-            Statement::Declaration(stmt) => stmt.attributes.retain_mut(|v| f(v)),
-        }
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
+
+impl SyntaxNode for Struct {
+    fn ident(&self) -> Option<Ident> {
+        Some(self.ident.clone())
+    }
+
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
+
+impl SyntaxNode for StructMember {
+    fn ident(&self) -> Option<Ident> {
+        Some(self.ident.clone())
+    }
+
+    impl_attrs_struct! {}
+}
+
+impl SyntaxNode for Function {
+    fn ident(&self) -> Option<Ident> {
+        Some(self.ident.clone())
+    }
+
+    impl_attrs_struct! {}
+}
+
+impl SyntaxNode for FormalParameter {
+    fn ident(&self) -> Option<Ident> {
+        Some(self.ident.clone())
+    }
+
+    impl_attrs_struct! {}
+}
+
+impl SyntaxNode for ConstAssert {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
+
+impl SyntaxNode for Expression {}
+impl SyntaxNode for LiteralExpression {}
+impl SyntaxNode for ParenthesizedExpression {}
+impl SyntaxNode for NamedComponentExpression {}
+impl SyntaxNode for IndexingExpression {}
+impl SyntaxNode for UnaryExpression {}
+impl SyntaxNode for BinaryExpression {}
+impl SyntaxNode for FunctionCall {}
+impl SyntaxNode for TypeExpression {}
+
+impl SyntaxNode for Statement {
+    #[cfg(feature = "attributes")]
+    impl_attrs_enum! {
+        Statement::Compound,
+        Statement::Assignment,
+        Statement::Increment,
+        Statement::Decrement,
+        Statement::If,
+        Statement::Switch,
+        Statement::Loop,
+        Statement::For,
+        Statement::While,
+        Statement::Break,
+        Statement::Continue,
+        Statement::Return,
+        Statement::Discard,
+        Statement::FunctionCall,
+        Statement::ConstAssert,
+        Statement::Declaration,
     }
 }
 
-impl_decorated_struct!(CompoundStatement);
+impl SyntaxNode for CompoundStatement {
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(AssignmentStatement);
+impl SyntaxNode for AssignmentStatement {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(IncrementStatement);
+impl SyntaxNode for IncrementStatement {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(DecrementStatement);
+impl SyntaxNode for DecrementStatement {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-impl_decorated_struct!(IfStatement);
+impl SyntaxNode for IfStatement {
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(ElseIfClause);
+impl SyntaxNode for IfClause {}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(ElseClause);
+impl SyntaxNode for ElseIfClause {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-impl_decorated_struct!(SwitchStatement);
+impl SyntaxNode for ElseClause {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(SwitchClause);
+impl SyntaxNode for SwitchStatement {
+    impl_attrs_struct! {}
+}
 
-impl_decorated_struct!(LoopStatement);
+impl SyntaxNode for SwitchClause {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(ContinuingStatement);
+impl SyntaxNode for LoopStatement {
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(BreakIfStatement);
+impl SyntaxNode for ContinuingStatement {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-impl_decorated_struct!(ForStatement);
+impl SyntaxNode for BreakIfStatement {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-impl_decorated_struct!(WhileStatement);
+impl SyntaxNode for ForStatement {
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(BreakStatement);
+impl SyntaxNode for WhileStatement {
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(ContinueStatement);
+impl SyntaxNode for BreakStatement {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(ReturnStatement);
+impl SyntaxNode for ContinueStatement {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(DiscardStatement);
+impl SyntaxNode for ReturnStatement {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
 
-#[cfg(feature = "attributes")]
-impl_decorated_struct!(FunctionCallStatement);
+impl SyntaxNode for DiscardStatement {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}
+
+impl SyntaxNode for FunctionCallStatement {
+    #[cfg(feature = "attributes")]
+    impl_attrs_struct! {}
+}

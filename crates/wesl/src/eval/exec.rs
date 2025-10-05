@@ -16,7 +16,7 @@ use super::{
     eval_tplt_arg, ty_eval_ty,
 };
 
-use wgsl_parse::{Decorated, span::Spanned, syntax::*};
+use wgsl_parse::{SyntaxNode, span::Spanned, syntax::*};
 
 type E = EvalError;
 
@@ -142,8 +142,9 @@ impl Exec for TranslationUnit {
                 match flow {
                     Flow::Next => (),
                     Flow::Break | Flow::Continue | Flow::Return(_) => {
-                        decl.ident()
-                            .inspect(|&ident| ctx.set_err_decl_ctx(ident.to_string()));
+                        if let Some(ident) = decl.ident() {
+                            ctx.set_err_decl_ctx(ident.to_string());
+                        }
                         return Err(E::FlowInModule(flow));
                     }
                 }
@@ -170,8 +171,9 @@ impl Exec for GlobalDeclaration {
             _ => Ok(Flow::Next),
         }
         .inspect_err(|_| {
-            self.ident()
-                .inspect(|&ident| ctx.set_err_decl_ctx(ident.to_string()));
+            if let Some(ident) = self.ident() {
+                ctx.set_err_decl_ctx(ident.to_string());
+            }
         })
     }
 }
@@ -446,7 +448,7 @@ impl Exec for LoopStatement {
 impl Exec for ContinuingStatement {
     fn exec(&self, ctx: &mut Context) -> Result<Flow, E> {
         with_scope!(ctx, {
-            // we track scope manually because the continuing statement is actually
+            // we track scope manually because the break-if statement is actually
             // part of the body block.
             let flow = compound_exec(&self.body, ctx, CompoundScope::Leaking)?;
             match flow {
