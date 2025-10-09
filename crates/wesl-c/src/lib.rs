@@ -1,13 +1,15 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::missing_safety_doc)]
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::ops::Deref;
 use std::os::raw::{c_char, c_uint, c_void};
 use std::ptr;
 
-use wesl::{ModulePath, ResolveError, VirtualResolver, Wesl};
+use wesl::syntax::TranslationUnit;
+use wesl::{ModulePath, ResolveError, Resolver, VirtualResolver, Wesl};
 
 #[cfg(feature = "eval")]
 use wesl::{
@@ -27,7 +29,9 @@ pub struct WeslCompiler {
     compiler: Wesl<wesl::NoResolver>,
 }
 
-pub struct WeslTranslationUnit {}
+pub struct WeslTranslationUnit {
+    unit: TranslationUnit,
+}
 
 fn map_mangler_kind(value: native::WeslManglerKind) -> Option<wesl::ManglerKind> {
     match value {
@@ -313,14 +317,65 @@ impl<T> Deref for FreeGuard<T> {
     }
 }
 
+impl FreeGuard<i8> {
+    unsafe fn c_str(&self) -> &CStr {
+        unsafe { CStr::from_ptr(self.data) }
+    }
+}
+
+fn mod_path_to_cstring(path: &ModulePath) -> CString {
+    let path = path.to_string();
+
+    CString::new(path).expect("Module path contained nul bytes!")
+}
+
+unsafe fn resolver_path_to_string<T, F: FnOnce(Cow<'_, str>) -> T>(
+    path: &ModulePath,
+    transform: F,
+    get_func: native::WeslResolveStringFunction,
+    free_func: native::WeslResolveFreeStringFunction,
+    userdata: *mut c_void,
+) -> Option<T> {
+    let get_func = get_func?;
+    let free_func = free_func?;
+
+    let cstring = mod_path_to_cstring(path);
+
+    let result = unsafe { get_func(cstring.as_ptr(), userdata) };
+
+    if result.is_null() {
+        return None;
+    }
+
+    let result = FreeGuard {
+        data: result,
+        free_function: free_func,
+        free_userdata: userdata,
+    };
+
+    let result_cstr = unsafe { result.c_str() };
+    let result_str = result_cstr.to_string_lossy();
+
+    let ret_result = transform(result_str);
+
+    Some(ret_result)
+}
+
+/// Helper type to call the base `resolve_module` implementation.
+struct ProxyResolver<'a, T>(&'a T);
+
+impl<T: Resolver> wesl::Resolver for ProxyResolver<'_, T> {
+    fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<Cow<'a, str>, ResolveError> {
+        self.0.resolve_source(path)
+    }
+}
+
 impl wesl::Resolver for CustomResolver {
     fn resolve_source<'a>(
         &'a self,
         path: &ModulePath,
     ) -> Result<std::borrow::Cow<'a, str>, ResolveError> {
-        let path = path.to_string();
-
-        let cstring = CString::new(path).expect("Module path contained nul bytes!");
+        let cstring = mod_path_to_cstring(path);
 
         let result = unsafe {
             self.options.resolve_source.unwrap()(cstring.as_ptr(), self.options.userdata)
@@ -329,21 +384,20 @@ impl wesl::Resolver for CustomResolver {
         if result.is_null() {
             return Err(ResolveError::Error(
                 wesl::Error::Custom("No value returned from resolver".into()).into(),
-            ))
+            ));
         }
 
-        let result = unsafe {
-            FreeGuard {
-                data: &*result,
-                free_function: self.options.resolve_source_free.unwrap(),
-                free_userdata: self.options.userdata,
-            }
+        let result = FreeGuard {
+            data: result,
+            free_function: self.options.resolve_source_free.unwrap(),
+            free_userdata: self.options.userdata,
         };
 
         if !result.success {
+            // TODO: Better error reporting.
             return Err(ResolveError::Error(
                 wesl::Error::Custom("Custom resolver failed".into()).into(),
-            ))
+            ));
         }
 
         let result_cstr = unsafe { CStr::from_ptr(result.source) };
@@ -356,27 +410,80 @@ impl wesl::Resolver for CustomResolver {
         Ok(result_str.to_owned().into())
     }
 
-    /*
-    TODO: IMPLEMENT
-    fn resolve_module(&self, path: &wesl::ModulePath) -> Result<wesl::syntax::TranslationUnit, wesl::ResolveError> {
-        let source = self.resolve_source(path)?;
-        let wesl: wesl::syntax::TranslationUnit = source.parse().map_err(|e| {
-            wesl::Diagnostic::from(e)
-                .with_module_path(path.clone(), self.display_name(path))
-                .with_source(source.to_string())
-        })?;
-        Ok(wesl)
-    }
-    */
+    fn resolve_module(
+        &self,
+        path: &wesl::ModulePath,
+    ) -> Result<wesl::syntax::TranslationUnit, wesl::ResolveError> {
+        let Some(resolve) = self.options.resolve_module else {
+            // Call base implementation since we don't have one.
+            return ProxyResolver(self).resolve_module(path);
+        };
 
-    // TODO: IMPLEMENT
-    fn display_name(&self, _path: &ModulePath) -> Option<String> {
-        None
+        let resolve_free = self.options.resolve_module_free.unwrap();
+        let cstring = mod_path_to_cstring(path);
+
+        let result = unsafe { resolve(cstring.as_ptr(), self.options.userdata) };
+
+        let result = FreeGuard {
+            data: result,
+            free_function: resolve_free,
+            free_userdata: self.options.userdata,
+        };
+
+        if !result.success {
+            // TODO: Better error reporting.
+            return Err(ResolveError::Error(
+                wesl::Error::Custom("Custom resolver failed".into()).into(),
+            ));
+        }
+
+        let unit = unsafe { &*result.module };
+        Ok(unit.unit.clone())
     }
 
-    fn fs_path(&self, _path: &ModulePath) -> Option<std::path::PathBuf> {
-        None
+    fn display_name(&self, path: &ModulePath) -> Option<String> {
+        unsafe {
+            resolver_path_to_string(
+                path,
+                |str| str.into_owned(),
+                self.options.display_name,
+                self.options.free_display_name,
+                self.options.userdata,
+            )
+        }
     }
+
+    fn fs_path(&self, path: &ModulePath) -> Option<std::path::PathBuf> {
+        unsafe {
+            resolver_path_to_string(
+                path,
+                |str| str.deref().into(),
+                self.options.display_name,
+                self.options.free_display_name,
+                self.options.userdata,
+            )
+        }
+    }
+}
+
+fn validate_resolver_options(options: &native::WeslResolverOptions) -> Result<(), &'static str> {
+    if options.resolve_source.is_none() || options.resolve_source_free.is_none() {
+        return Err("resolve_source and resolve_source_free must be provided");
+    }
+
+    if options.resolve_module.is_none() ^ options.resolve_module_free.is_none() {
+        return Err("resolve_module and resolve_module_free must both be provide if either is");
+    }
+
+    if options.fs_path.is_none() ^ options.free_fs_path.is_none() {
+        return Err("fs_path and free_fs_path must both be provide if either is");
+    }
+
+    if options.display_name.is_none() ^ options.free_display_name.is_none() {
+        return Err("display_name and free_display_name must both be provide if either is");
+    }
+
+    Ok(())
 }
 
 #[unsafe(no_mangle)]
@@ -413,9 +520,16 @@ pub unsafe extern "C" fn wesl_compile(
 
             Box::new(resolver)
         }
-        (true, false) => Box::new(CustomResolver {
-            options: unsafe { *opts.resolver },
-        }),
+        (true, false) => {
+            let resolver_options = unsafe { &*opts.resolver };
+            if let Err(msg) = validate_resolver_options(resolver_options) {
+                return result_from_str(msg);
+            }
+
+            Box::new(CustomResolver {
+                options: *resolver_options,
+            })
+        }
         (false, false) => {
             return result_from_str("Files and custom resolver cannot be specified at once");
         }
@@ -463,6 +577,42 @@ pub unsafe extern "C" fn wesl_compile(
             success: false,
             data: ptr::null(),
             error: wesl_error_to_c(e),
+        },
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wesl_parse(source: *const c_char) -> native::WeslParseResult {
+    if source.is_null() {
+        return native::WeslParseResult {
+            success: false,
+            data: ptr::null_mut(),
+            error: error_from_str("Invalid parameters"),
+        };
+    };
+
+    let cstr = unsafe { CStr::from_ptr(source) };
+    let Ok(str) = cstr.to_str() else {
+        return native::WeslParseResult {
+            success: false,
+            data: ptr::null_mut(),
+            error: error_from_str("Source is not valid UTF-8"),
+        };
+    };
+
+    match str.parse::<TranslationUnit>() {
+        Ok(unit) => {
+            let ptr = Box::into_raw(Box::new(WeslTranslationUnit { unit }));
+            native::WeslParseResult {
+                success: true,
+                data: ptr,
+                error: NO_ERROR,
+            }
+        }
+        Err(e) => native::WeslParseResult {
+            success: false,
+            data: ptr::null_mut(),
+            error: wesl_error_to_c(wesl::Error::ParseError(e)),
         },
     }
 }
@@ -778,6 +928,29 @@ pub unsafe extern "C" fn wesl_free_string(ptr: *const c_char) {
     }
 }
 
+unsafe fn free_error(error: &native::WeslError) {
+    unsafe {
+        if !error.source.is_null() {
+            wesl_free_string(error.source);
+        }
+
+        if !error.message.is_null() {
+            wesl_free_string(error.message);
+        }
+
+        if !error.diagnostics.is_null() {
+            let diag = &*error.diagnostics;
+            if !diag.file.is_null() {
+                wesl_free_string(diag.file);
+            }
+            if !diag.title.is_null() {
+                wesl_free_string(diag.title);
+            }
+            let _ = Box::from_raw(error.diagnostics as *mut native::WeslDiagnostic);
+        }
+    }
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn wesl_free_result(result: *mut native::WeslResult) {
     if !result.is_null() {
@@ -786,25 +959,6 @@ pub unsafe extern "C" fn wesl_free_result(result: *mut native::WeslResult) {
 
             if !result.data.is_null() {
                 wesl_free_string(result.data);
-            }
-
-            if !result.error.source.is_null() {
-                wesl_free_string(result.error.source);
-            }
-
-            if !result.error.message.is_null() {
-                wesl_free_string(result.error.message);
-            }
-
-            if !result.error.diagnostics.is_null() {
-                let diag = &*result.error.diagnostics;
-                if !diag.file.is_null() {
-                    wesl_free_string(diag.file);
-                }
-                if !diag.title.is_null() {
-                    wesl_free_string(diag.title);
-                }
-                let _ = Box::from_raw(result.error.diagnostics as *mut native::WeslDiagnostic);
             }
         }
     }
@@ -838,25 +992,26 @@ pub unsafe extern "C" fn wesl_free_exec_result(result: *mut native::WeslExecResu
                 let _ = Box::from_raw(result.resources as *mut native::WeslBindingArray);
             }
 
-            if !result.error.source.is_null() {
-                wesl_free_string(result.error.source);
-            }
-
-            if !result.error.message.is_null() {
-                wesl_free_string(result.error.message);
-            }
-
-            if !result.error.diagnostics.is_null() {
-                let diag = &*result.error.diagnostics;
-                if !diag.file.is_null() {
-                    wesl_free_string(diag.file);
-                }
-                if !diag.title.is_null() {
-                    wesl_free_string(diag.title);
-                }
-                let _ = Box::from_raw(result.error.diagnostics as *mut native::WeslDiagnostic);
-            }
+            free_error(&result.error);
         }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wesl_free_parse_result(result: *mut native::WeslParseResult) {
+    if !result.is_null() {
+        unsafe {
+            let result = &*result;
+
+            free_error(&result.error);
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn wesl_free_translation_unit(unit: *mut WeslTranslationUnit) {
+    if !unit.is_null() {
+        let _ = unsafe { Box::from_raw(unit) };
     }
 }
 

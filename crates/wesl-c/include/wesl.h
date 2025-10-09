@@ -190,6 +190,10 @@ WeslExecResult wesl_exec(
 void wesl_free_string(const char* ptr);
 void wesl_free_result(WeslResult* result);
 void wesl_free_exec_result(WeslExecResult* result);
+
+// Free a WeslParseResult filled by wesl_parse.
+// This does NOT free the WeslTranslationUnit* inside the result, if the parsing succeeded!
+void wesl_free_parse_result(WeslParseResult* result);
 void wesl_free_translation_unit(WeslTranslationUnit* unit);
 
 // -- utility
