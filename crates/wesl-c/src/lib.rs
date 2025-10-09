@@ -318,7 +318,6 @@ impl wesl::Resolver for CustomResolver {
         &'a self,
         path: &ModulePath,
     ) -> Result<std::borrow::Cow<'a, str>, ResolveError> {
-        println!("RESOLVING: {path:?}, {path}");
         let path = path.to_string();
 
         let cstring = CString::new(path).expect("Module path contained nul bytes!");
