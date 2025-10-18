@@ -235,20 +235,25 @@ fn check_cycles(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
         unique: &mut HashSet<Ident>,
         wesl: &TranslationUnit,
     ) -> Result<(), E> {
-        for ty in Visit::<TypeExpression>::visit(decl) {
-            if ty.ident == *id {
-                return Err(E::Cycle(id.to_string(), decl.ident().unwrap().to_string()));
+        let mut res = Ok(());
+
+        Visit::<TypeExpression>::visit_rec(decl, &mut |ty| {
+            if res.is_err() {
+                return;
+            } else if ty.ident == *id {
+                res = Err(E::Cycle(id.to_string(), decl.ident().unwrap().to_string()));
             } else if unique.insert(ty.ident.clone()) {
                 if let Some(decl) = wesl
                     .global_declarations
                     .iter()
                     .find(|decl| decl.ident().as_ref() == Some(&ty.ident))
                 {
-                    check_decl(id, decl, unique, wesl)?;
+                    res = check_decl(id, decl, unique, wesl);
                 }
             }
-        }
-        Ok(())
+        });
+
+        res
     }
     for decl in &wesl.global_declarations {
         if let Some(id) = decl.ident() {

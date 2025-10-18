@@ -6,7 +6,9 @@
 
 use std::{ffi::OsStr, path::PathBuf, process::Command, str::FromStr};
 
-use wesl::{CompileOptions, EscapeMangler, NoMangler, VirtualResolver, syntax::*, validate_wesl};
+use wesl::{
+    CompileOptions, EscapeMangler, NoMangler, SyntaxUtil, VirtualResolver, syntax::*, validate_wesl,
+};
 use wesl_test::schemas::*;
 
 fn eprint_test(case: &Test) {
@@ -52,6 +54,7 @@ fn main() {
         "spec-tests/idents.json",
         "spec-tests/lit-type-inference.json",
         "spec-tests/imports.json",
+        "spec-tests/circular.json",
     ];
     for path in spec_tests {
         tests.extend({
@@ -308,7 +311,8 @@ fn json_case(case: &Test) -> Result<(), libtest_mimic::Failed> {
             }
         }
         TestKind::Context => {
-            let wesl = case.code.parse::<TranslationUnit>()?;
+            let mut wesl = case.code.parse::<TranslationUnit>()?;
+            wesl.retarget_idents();
             let valid = validate_wesl(&wesl);
             match (valid, case.expect) {
                 (Err(_), Expectation::Fail) | (Ok(()), Expectation::Pass) => Ok(()),
