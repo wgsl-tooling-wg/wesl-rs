@@ -81,8 +81,9 @@ pub struct CompileOptions {
     /// pipeline-overridable constants are kept. See [`Self::keep`] and
     /// [`Self::keep_root`] to control what gets stripped.
     ///
-    /// Stripping can have side-effects in rare cases, refer to the WESL docs to learn
-    /// more.
+    /// Stripping can have side-effects: modules are loaded only if statically accessed,
+    /// and `const_assert` statements are not always preserved.
+    /// Refer to the WESL docs to learn more.
     pub strip: bool,
     /// Enable lowering/polyfills. This transforms the output code in various ways.
     ///
@@ -98,8 +99,9 @@ pub struct CompileOptions {
     ///
     /// The "lazy" import algorithm will only read a submodule is one of its item is used
     /// by the entrypoints or `keep` declarations (recursively via static usage analysis).
+    /// In contrast, the "eager" import algorithm will follow all import paths.
     ///
-    /// In contrast, the "eager" import algorithm will follow all import statements.
+    /// "lazy" is automatically disabled when stripping is disabled.
     pub lazy: bool,
     /// Enable mangling of declarations in the root module.
     ///
@@ -852,7 +854,7 @@ fn compile_pre_assembly(
     resolutions.push_module(module);
 
     if opts.imports {
-        if opts.lazy {
+        if opts.strip && opts.lazy {
             import::resolve_lazy(&keep, &mut resolutions, &resolver)?
         } else {
             import::resolve_eager(&mut resolutions, &resolver)?
