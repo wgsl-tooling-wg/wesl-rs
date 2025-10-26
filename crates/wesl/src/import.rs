@@ -120,6 +120,9 @@ fn err_with_module(e: Error, module: &Module, resolver: &impl Resolver) -> Error
 /// It is "lazy" because external modules are loaded only if used by the `keep` declarations
 /// or module-scope `const_assert`s.
 ///
+/// This approach is only valid when stripping is enabled. Otherwise, unused declarations
+/// may refer to declarations in unused modules, and mangling will panic.
+///
 /// "used": used declarations in the root module are the `keep` parameter. Used declarations
 /// in other modules are those reached by `keep` declarations, recursively.
 /// Module-scope `const_assert`s are always included.
@@ -279,6 +282,7 @@ pub fn resolve_lazy<'a>(
     Ok(())
 }
 
+/// Load all [`Module`]s referenced by the root module.
 pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) -> Result<(), Error> {
     fn resolve_ty(
         module: &Module,
@@ -486,7 +490,9 @@ pub(crate) fn mangle_decls<'a>(
 impl Resolutions {
     /// Retarget identifiers to point at the corresponding declaration.
     ///
-    /// Panics if a module is already borrowed.
+    /// Panics
+    /// * if an identifier has no corresponding declaration.
+    /// * if a module is already borrowed.
     pub(crate) fn retarget(&mut self) {
         fn find_ext_ident(
             modules: &Modules,
@@ -530,19 +536,24 @@ impl Resolutions {
 
                 // if the import path points to a local decl
                 if ext_path == module.path {
-                    let ext_id = module
+                    let local_id = module
                         .idents
                         .iter()
                         .find(|(id, _)| *id.name() == *ext_id.name())
                         .map(|(id, _)| id.clone())
-                        .expect("external declaration not found");
+                        .expect("missing local declaration");
                     ty.path = None;
-                    ty.ident = ext_id;
+                    ty.ident = local_id;
                 }
                 // get the ident of the external declaration pointed to by the type
                 else if let Some(ext_id) = find_ext_ident(&self.modules, &ext_path, &ext_id) {
                     ty.path = None;
                     ty.ident = ext_id;
+                }
+                // the ident has no declaration
+                else {
+                    eprintln!("could not find declaration for ident {ext_path}::{ext_id}");
+                    panic!("missing declaration");
                 }
             });
         }
