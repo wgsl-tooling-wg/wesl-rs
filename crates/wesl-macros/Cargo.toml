@@ -18,11 +18,15 @@ proc-macro2 = "1.0.86"
 quote = "1.0.37"
 syn = "2.0.77"
 token_stream_flatten = { version = "0.1.0", optional = true }
-wgsl-parse = { workspace = true, features = ["tokrepr", "wesl"] }
+wgsl-parse = { workspace = true, features = ["wesl"] }
 
 [features]
 query = []
-quote = ["dep:proc-macro-error2", "dep:token_stream_flatten"]
+quote = [
+  "dep:proc-macro-error2",
+  "dep:token_stream_flatten",
+  "wgsl-parse/tokrepr"
+]
 
 [lints]
 workspace = true
