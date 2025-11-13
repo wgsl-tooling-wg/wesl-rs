@@ -6,7 +6,9 @@
 
 use std::{ffi::OsStr, path::PathBuf, process::Command, str::FromStr};
 
-use wesl::{CompileOptions, EscapeMangler, NoMangler, VirtualResolver, syntax::*, validate_wesl};
+use wesl::{
+    CompileOptions, EscapeMangler, NoMangler, SyntaxUtil, VirtualResolver, syntax::*, validate_wesl,
+};
 use wesl_test::schemas::*;
 
 fn eprint_test(case: &Test) {
@@ -65,6 +67,13 @@ fn main() {
                 })
                 .with_ignored_flag(ignored)
             })
+        });
+    }
+
+    let coverage_tests = ["spec-tests/ctor_coverage.wgsl"];
+    for path in coverage_tests {
+        tests.push({
+            libtest_mimic::Trial::test(path, move || validation_case(PathBuf::from(path)))
         });
     }
 
@@ -308,7 +317,8 @@ fn json_case(case: &Test) -> Result<(), libtest_mimic::Failed> {
             }
         }
         TestKind::Context => {
-            let wesl = case.code.parse::<TranslationUnit>()?;
+            let mut wesl = case.code.parse::<TranslationUnit>()?;
+            wesl.retarget_idents();
             let valid = validate_wesl(&wesl);
             match (valid, case.expect) {
                 (Err(_), Expectation::Fail) | (Ok(()), Expectation::Pass) => Ok(()),
