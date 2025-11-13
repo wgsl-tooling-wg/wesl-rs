@@ -54,6 +54,7 @@ fn main() {
         "spec-tests/idents.json",
         "spec-tests/lit-type-inference.json",
         "spec-tests/imports.json",
+        "spec-tests/types.json",
     ];
     for path in spec_tests {
         tests.extend({
@@ -316,10 +317,14 @@ fn json_case(case: &Test) -> Result<(), libtest_mimic::Failed> {
                 }
             }
         }
-        TestKind::Context => {
+        TestKind::Context { lower } => {
             let mut wesl = case.code.parse::<TranslationUnit>()?;
             wesl.retarget_idents();
-            let valid = validate_wesl(&wesl);
+            let mut valid = validate_wesl(&wesl);
+            if *lower && valid.is_ok() {
+                valid = wesl::lower(&mut wesl).map_err(wesl::Diagnostic::from);
+                println!("wesl: {wesl}");
+            }
             match (valid, case.expect) {
                 (Err(_), Expectation::Fail) | (Ok(()), Expectation::Pass) => Ok(()),
                 (Ok(()), Expectation::Fail) => Err("expected Fail, got Pass".into()),
