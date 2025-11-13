@@ -381,7 +381,7 @@ pub fn mat(c: usize, r: usize, args: &[Instance]) -> Result<Instance, E> {
 
         if inner_ty.is_abstract_int() {
             // force conversion from AbstractInt to a float type
-            inner_ty = Type::AbstractInt;
+            inner_ty = Type::F32;
         } else if !inner_ty.is_float() {
             return Err(E::Builtin(
                 "matrix constructor expects float or vector of float arguments",
@@ -676,9 +676,12 @@ fn mat_ctor_ty(c: u8, r: u8, args: &[Type]) -> Result<Type, E> {
         Ok(ty.clone())
     } else {
         let ty = convert_all_ty(args).ok_or(E::Builtin("matrix components are incompatible"))?;
-        let inner_ty = ty.inner_ty();
+        let mut inner_ty = ty.inner_ty();
 
-        if !inner_ty.is_float() && !inner_ty.is_abstract_int() {
+        if inner_ty.is_abstract_int() {
+            // force conversion from AbstractInt to a float type
+            inner_ty = Type::F32;
+        } else if !inner_ty.is_float() {
             return Err(E::Builtin(
                 "matrix constructor expects float or vector of float arguments",
             ));

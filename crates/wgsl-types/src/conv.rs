@@ -28,6 +28,11 @@ pub trait Convert: Sized + Clone + Ty {
     ///
     /// E.g. `array<u32>.convert_inner_to(f32)` becomes `array<f32>`.
     ///
+    /// Identical to [`Convert::convert_to`] if the type has no inner type.
+    /// Does not check that the resulting type exists, e.g. `i32` is not a valid inner type for
+    /// matrix types.
+    ///
+    ///
     /// See [`Ty::inner_ty`]
     /// See [`Convert::convert_to`]
     fn convert_inner_to(&self, ty: &Type) -> Option<Self> {
@@ -77,7 +82,7 @@ impl Type {
             Self::AbstractFloat => Type::F32,
             Self::Array(ty, n) => Type::Array(ty.concretize().into(), *n),
             Self::Vec(n, ty) => Type::Vec(*n, ty.concretize().into()),
-            Self::Mat(c, r, ty) => Type::Mat(*c, *r, ty.concretize().into()),
+            Self::Mat(c, r, ty) if ty.is_abstract() => Type::Mat(*c, *r, Type::F32.into()),
             _ => self.clone(),
         }
     }
