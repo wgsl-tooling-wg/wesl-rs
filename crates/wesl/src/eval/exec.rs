@@ -104,6 +104,19 @@ macro_rules! module_scope {
         body
     }};
 }
+
+macro_rules! function_scope {
+    ($ctx:expr, $body:tt) => {{
+        assert!(!$ctx.scope.is_root());
+        let kind = $ctx.kind;
+        $ctx.kind = ScopeKind::Function;
+        #[allow(clippy::redundant_closure_call)]
+        let body = (|| $body)();
+        $ctx.kind = kind;
+        body
+    }};
+}
+
 pub(super) use with_scope;
 pub(super) use with_stage;
 
@@ -653,9 +666,11 @@ fn exec_fn(
             }
         }
 
-        // the arguments must be in the same scope as the function body.
-        let flow = compound_exec(&decl.body, ctx, CompoundScope::Transparent)
-            .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))?;
+        let flow = function_scope!(ctx, {
+            // the arguments must be in the same scope as the function body.
+            compound_exec(&decl.body, ctx, CompoundScope::Transparent)
+                .inspect_err(|_| ctx.set_err_decl_ctx(fn_name.clone()))
+        })?;
 
         Ok(flow)
     })?;
@@ -977,7 +992,7 @@ impl Exec for Declaration {
                     Some((a_s, None)) => (a_s, a_s.default_access_mode()),
                     None => (AddressSpace::Handle, AccessMode::Read),
                 };
-                if ctx.stage == ShaderStage::Const {
+                if ctx.stage == ShaderStage::Const && ctx.kind == ScopeKind::Module {
                     Instance::Deferred(Type::Ref(a_s, Box::new(ty), a_m))
                 } else {
                     match a_s {

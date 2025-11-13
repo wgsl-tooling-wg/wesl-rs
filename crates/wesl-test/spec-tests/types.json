@@ -19,7 +19,7 @@
         "name": "mat-i32-assign",
         "desc": "matrix type must be float",
         "kind": "context",
-        "code": "@fragment fn f() { var m = mat2x2(1, 0, 0, 0); m[0][0] = 1i; }",
+        "code": "const m = f(); @const fn f() -> mat2x2f { var m = mat2x2(1, 0, 0, 0); m[0][0] = 1i; return m; }",
         "lower": true,
         "expect": "fail"
     },
@@ -27,7 +27,7 @@
         "name": "mat-assign-vec-abstractint",
         "desc": "matrix type must be float",
         "kind": "context",
-        "code": "@fragment fn f() { var m = mat2x2<f32>(); m[0] = vec2(1, 0); }",
+        "code": "const m = f(); @const fn f() -> mat2x2f { var m = mat2x2f(); m[0] = vec2(1, 0); return m; }",
         "lower": true,
         "expect": "pass"
     }
