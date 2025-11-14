@@ -433,6 +433,10 @@ impl Display for FunctionCall {
 
 impl Display for TypeExpression {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if let Some(path) = &self.path {
+            write!(f, "{path}::")?;
+        }
+
         let name = &self.ident;
         let tplt = fmt_template(&self.template_args);
         write!(f, "{name}{tplt}")
