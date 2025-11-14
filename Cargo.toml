@@ -11,9 +11,9 @@ members = [
   "crates/wesl-web",
   "crates/wgsl-parse",
   "crates/wgsl-types",
+  "examples/buildrs_wesl",
   "examples/random_wgsl",
   "examples/runtime_wesl",
-  "examples/wesl-consumer",
 ]
 
 [workspace.package]

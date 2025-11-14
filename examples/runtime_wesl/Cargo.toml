@@ -10,6 +10,7 @@ license.workspace = true
 publish = false
 
 [dependencies]
+random_wgsl = { path = "../random_wgsl" }
 wesl = { workspace = true }
 
 [lints]

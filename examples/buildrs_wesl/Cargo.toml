@@ -1,5 +1,5 @@
 [package]
-name = "wesl-consumer"
+name = "package_wesl"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,16 +8,10 @@ license.workspace = true
 publish = false
 
 [dependencies]
-random_wgsl = { path = "../random_wgsl" }
-wesl = { workspace = true }
 
 [build-dependencies]
 random_wgsl = { path = "../random_wgsl" }
 wesl = { workspace = true, features = ["quote"] }
-
-[features]
-# use WESL at build-time (in build.rs) instead of run-time (in main.rs)
-build-time = []
 
 [lints]
 workspace = true
