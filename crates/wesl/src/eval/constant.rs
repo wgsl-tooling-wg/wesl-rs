@@ -15,7 +15,7 @@ macro_rules! with_scope {
 
 pub(crate) fn mark_functions_const(wesl: &mut TranslationUnit) {
     let mut locals = Locals::new();
-    let mark_const = wesl
+    let is_const = wesl
         .global_declarations
         .iter()
         .map(|decl| {
@@ -30,9 +30,9 @@ pub(crate) fn mark_functions_const(wesl: &mut TranslationUnit) {
             false
         })
         .collect_vec();
-    for (decl, mark_const) in wesl.global_declarations.iter_mut().zip(mark_const) {
+    for (decl, is_const) in wesl.global_declarations.iter_mut().zip(is_const) {
         if let GlobalDeclaration::Function(decl) = decl.node_mut() {
-            if mark_const {
+            if is_const && !decl.contains_attribute(&Attribute::Const) {
                 decl.attributes.push(Attribute::Const.into())
             }
         }
