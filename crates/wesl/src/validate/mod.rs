@@ -238,17 +238,17 @@ fn check_cycles(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>> {
         let mut res = Ok(());
 
         Visit::<TypeExpression>::visit_rec(decl, &mut |ty| {
-            if res.is_err() {
-                return;
-            } else if ty.ident == *id {
-                res = Err(E::Cycle(id.to_string(), decl.ident().unwrap().to_string()));
-            } else if unique.insert(ty.ident.clone()) {
-                if let Some(decl) = wesl
-                    .global_declarations
-                    .iter()
-                    .find(|decl| decl.ident().as_ref() == Some(&ty.ident))
-                {
-                    res = check_decl(id, decl, unique, wesl);
+            if res.is_ok() {
+                if ty.ident == *id {
+                    res = Err(E::Cycle(id.to_string(), decl.ident().unwrap().to_string()));
+                } else if unique.insert(ty.ident.clone()) {
+                    if let Some(decl) = wesl
+                        .global_declarations
+                        .iter()
+                        .find(|decl| decl.ident().as_ref() == Some(&ty.ident))
+                    {
+                        res = check_decl(id, decl, unique, wesl);
+                    }
                 }
             }
         });
