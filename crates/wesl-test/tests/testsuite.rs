@@ -54,6 +54,7 @@ fn main() {
         "spec-tests/idents.json",
         "spec-tests/lit-type-inference.json",
         "spec-tests/imports.json",
+        "spec-tests/circular.json",
         "spec-tests/types.json",
     ];
     for path in spec_tests {
