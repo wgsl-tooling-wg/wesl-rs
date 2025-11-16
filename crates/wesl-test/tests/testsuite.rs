@@ -280,8 +280,7 @@ fn parse_git_version_output(output: &str) -> GitVersion {
     let [major, minor, patch] = <[u8; 3]>::try_from(
         raw_version
             .splitn(3, '.')
-            .enumerate()
-            .map(|(_idx, s)| s.parse().expect("failed to parse version number"))
+            .map(|s| s.parse().expect("failed to parse version number"))
             .collect::<Vec<_>>(),
     )
     .expect("less than 3 version numbers found");
