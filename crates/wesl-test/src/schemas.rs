@@ -135,7 +135,10 @@ pub enum TestKind {
         eval: String,
         result: Option<String>, // must be None when expect is Fail, must be Some when expect is Pass
     },
-    Context,
+    Context {
+        #[serde(default)]
+        lower: bool,
+    },
 }
 
 impl fmt::Display for TestKind {
@@ -143,7 +146,7 @@ impl fmt::Display for TestKind {
         match self {
             TestKind::Syntax { .. } => f.write_str("Syntax"),
             TestKind::Eval { .. } => f.write_str("Eval"),
-            TestKind::Context => f.write_str("Context"),
+            TestKind::Context { .. } => f.write_str("Context"),
         }
     }
 }

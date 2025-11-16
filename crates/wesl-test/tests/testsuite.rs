@@ -55,6 +55,7 @@ fn main() {
         "spec-tests/lit-type-inference.json",
         "spec-tests/imports.json",
         "spec-tests/circular.json",
+        "spec-tests/types.json",
     ];
     for path in spec_tests {
         tests.extend({
@@ -68,6 +69,13 @@ fn main() {
                 })
                 .with_ignored_flag(ignored)
             })
+        });
+    }
+
+    let coverage_tests = ["spec-tests/ctor_coverage.wgsl"];
+    for path in coverage_tests {
+        tests.push({
+            libtest_mimic::Trial::test(path, move || validation_case(PathBuf::from(path)))
         });
     }
 
@@ -310,10 +318,14 @@ fn json_case(case: &Test) -> Result<(), libtest_mimic::Failed> {
                 }
             }
         }
-        TestKind::Context => {
+        TestKind::Context { lower } => {
             let mut wesl = case.code.parse::<TranslationUnit>()?;
             wesl.retarget_idents();
-            let valid = validate_wesl(&wesl);
+            let mut valid = validate_wesl(&wesl);
+            if *lower && valid.is_ok() {
+                valid = wesl::lower(&mut wesl).map_err(wesl::Diagnostic::from);
+                println!("wesl: {wesl}");
+            }
             match (valid, case.expect) {
                 (Err(_), Expectation::Fail) | (Ok(()), Expectation::Pass) => Ok(()),
                 (Ok(()), Expectation::Fail) => Err("expected Fail, got Pass".into()),

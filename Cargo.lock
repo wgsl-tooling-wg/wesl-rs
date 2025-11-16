@@ -693,6 +693,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4895175b425cb1f87721b59f0f286c2092bd4af812243672510e1ac53e2e0ad"
 
 [[package]]
+name = "package_wesl"
+version = "0.2.0"
+dependencies = [
+ "random_wgsl",
+ "wesl",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -824,6 +832,14 @@ name = "regex-syntax"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "caf4aa5b0f434c91fe5c7f1ecb6a5ece2130b02ad2a590589dda5146df959001"
+
+[[package]]
+name = "runtime_wesl"
+version = "0.2.0"
+dependencies = [
+ "random_wgsl",
+ "wesl",
+]
 
 [[package]]
 name = "rustc-hash"
@@ -1260,14 +1276,6 @@ dependencies = [
  "thiserror 2.0.16",
  "wesl",
  "wgsl-parse",
-]
-
-[[package]]
-name = "wesl-consumer"
-version = "0.2.0"
-dependencies = [
- "random_wgsl",
- "wesl",
 ]
 
 [[package]]
