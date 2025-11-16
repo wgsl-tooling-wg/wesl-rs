@@ -190,6 +190,14 @@ impl<'a> VirtualResolver<'a> {
         self.files.insert(path, file);
     }
 
+    /// Resolve imports of `path` with the given [`TranslationUnit`].
+    ///
+    /// The path must not be relative.
+    pub fn add_translation_unit(&mut self, path: ModulePath, translation_unit: TranslationUnit) {
+        self.files
+            .insert(path, Cow::Owned(translation_unit.to_string()));
+    }
+
     /// Get a module registered with [`Self::add_module`].
     pub fn get_module(&self, path: &ModulePath) -> Result<&str, ResolveError> {
         let source = self

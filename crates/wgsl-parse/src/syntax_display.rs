@@ -433,6 +433,11 @@ impl Display for FunctionCall {
 
 impl Display for TypeExpression {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        #[cfg(feature = "imports")]
+        if let Some(path) = &self.path {
+            write!(f, "{path}::")?;
+        }
+
         let name = &self.ident;
         let tplt = fmt_template(&self.template_args);
         write!(f, "{name}{tplt}")
@@ -718,5 +723,40 @@ impl Display for FunctionCallStatement {
         write!(f, "{}", fmt_attrs(&self.attributes, false))?;
         let call = &self.call;
         write!(f, "{call};")
+    }
+}
+
+#[cfg(test)]
+mod test {
+    #[cfg(feature = "imports")]
+    use crate::syntax::ModulePath;
+    use crate::syntax::{Ident, TypeExpression};
+
+    #[test]
+    fn type_expression_display() {
+        let expr = TypeExpression {
+            #[cfg(feature = "imports")]
+            path: None,
+            ident: Ident::new("foo".into()),
+            template_args: None,
+        };
+
+        assert_eq!(expr.to_string(), "foo");
+
+        let expr = TypeExpression {
+            #[cfg(feature = "imports")]
+            path: Some(ModulePath::new(
+                crate::syntax::PathOrigin::Absolute,
+                vec!["bar".into(), "qux".into()],
+            )),
+            ident: Ident::new("foo".into()),
+            template_args: None,
+        };
+
+        if cfg!(feature = "imports") {
+            assert_eq!(expr.to_string(), "package::bar::qux::foo");
+        } else {
+            assert_eq!(expr.to_string(), "foo");
+        }
     }
 }
