@@ -380,11 +380,11 @@ fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::
 
             let git_checkout = Command::new("git")
                 .args(["checkout", "--quiet", revision.as_str()])
-                .current_dir(cwd)
+                .current_dir(&base_dir)
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::inherit())
                 .spawn()
-                .expect("failed to execute git clone")
+                .expect("failed to execute git checkout")
                 .wait()
                 .expect("failed to wait on git");
 
