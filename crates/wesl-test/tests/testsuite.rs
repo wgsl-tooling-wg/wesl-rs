@@ -4,7 +4,7 @@
 //! These tests are run with `harness = false` in `Cargo.toml`, because they rely on the
 //! `libtest_mimic` custom harness to generate tests at runtime based on the JSON files.
 
-use std::{ffi::OsStr, path::PathBuf, process::Command, str::FromStr};
+use std::{cmp::Ordering, ffi::OsStr, path::PathBuf, process::Command, str::FromStr};
 
 use wesl::{
     CompileOptions, EscapeMangler, NoMangler, SyntaxUtil, VirtualResolver, syntax::*, validate_wesl,
@@ -201,6 +201,98 @@ fn main() {
     libtest_mimic::run(&args, tests).exit();
 }
 
+fn git_version_at_least(version: [u8; 3]) -> bool {
+    // Modeled after https://github.com/gfx-rs/wgpu/blob/c0a580d6f0343a725b3defa8be4fdf0a9691eaad/xtask/src/cts.rs#L130
+    let output = Command::new("git")
+        .arg("--version")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("failed to execute git --version")
+        .wait_with_output()
+        .expect("failed to wait on git");
+
+    let Some(code) = output.status.code() else {
+        panic!("`git --version` failed to return an exit code; interrupt via signal, maybe?")
+    };
+
+    assert_eq!(code, 0, "`git --version` returned a nonzero exit code");
+
+    let output = String::from_utf8(output.stdout)
+        .expect("`git --version` did not have the expected structure");
+
+    let parsed = parse_git_version_output(&output);
+    let expected = GitVersion::new(version);
+    parsed >= expected
+}
+
+#[derive(PartialEq, Eq)]
+pub struct GitVersion {
+    major: u8,
+    minor: u8,
+    patch: u8,
+}
+
+impl GitVersion {
+    pub fn new(parts: [u8; 3]) -> Self {
+        GitVersion {
+            major: parts[0],
+            minor: parts[1],
+            patch: parts[2],
+        }
+    }
+}
+
+impl PartialOrd for GitVersion {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for GitVersion {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.major
+            .cmp(&other.major)
+            .then(self.minor.cmp(&other.minor))
+            .then(self.patch.cmp(&other.patch))
+    }
+}
+
+fn parse_git_version_output(output: &str) -> GitVersion {
+    // Modeled after https://github.com/gfx-rs/wgpu/blob/c0a580d6f0343a725b3defa8be4fdf0a9691eaad/xtask/src/cts.rs#L154
+    const PREFIX: &str = "git version ";
+
+    let raw_version = output.strip_prefix(PREFIX).unwrap();
+
+    // There should always be a newline at the end, but we don't care if it's missing.
+    let raw_version = raw_version.trim();
+
+    // Git for Windows suffixes the version with ".windows.<n>". Strip it if present.
+    let raw_version = raw_version
+        .split_once(".windows")
+        .map_or(raw_version, |(before, _after)| before);
+
+    // Git for macOS suffixes the version number with " (Apple Git-<n>)". Strip it if present.
+    let raw_version = raw_version
+        .split_once(" ")
+        .map_or(raw_version, |(before, _after)| before);
+
+    let [major, minor, patch] = <[u8; 3]>::try_from(
+        raw_version
+            .splitn(3, '.')
+            .enumerate()
+            .map(|(_idx, s)| s.parse().expect("failed to parse version number"))
+            .collect::<Vec<_>>(),
+    )
+    .expect("less than 3 version numbers found");
+
+    GitVersion {
+        major,
+        minor,
+        patch,
+    }
+}
+
 fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::Result<()> {
     // Modeled after https://github.com/gfx-rs/wgpu/blob/c0a580d6f0343a725b3defa8be4fdf0a9691eaad/xtask/src/cts.rs
     let Some(WgslGitSrc { url, revision }) = &bulk_test.git else {
@@ -222,7 +314,7 @@ fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::
 
         if !commit_exists {
             let git_fetch = Command::new("git")
-                .args(["fetch", "--quiet"])
+                .args(["fetch", "--quiet", "--unshallow"])
                 .current_dir(&base_dir)
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::inherit())
@@ -249,25 +341,56 @@ fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::
             panic!("Git checkout failed");
         }
     } else {
-        let git_clone = Command::new("git")
-            .args([
-                "clone",
-                "--depth=1",
-                url,
-                "--revision",
-                revision,
-                &bulk_test.base_dir,
-            ])
-            .current_dir(cwd)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::inherit())
-            .spawn()
-            .expect("failed to execute git clone")
-            .wait()
-            .expect("failed to wait on git");
+        // The --revision flag is not supported by git versions below 2.49.0
+        if git_version_at_least([2, 49, 0]) {
+            let git_clone = Command::new("git")
+                .args([
+                    "clone",
+                    "--depth=1",
+                    url,
+                    "--revision",
+                    revision,
+                    &bulk_test.base_dir,
+                ])
+                .current_dir(cwd)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::inherit())
+                .spawn()
+                .expect("failed to execute git clone")
+                .wait()
+                .expect("failed to wait on git");
 
-        if !git_clone.success() {
-            panic!("Git clone failed");
+            if !git_clone.success() {
+                panic!("Git clone failed");
+            }
+        } else {
+            let git_clone = Command::new("git")
+                .args(["clone", url, &bulk_test.base_dir])
+                .current_dir(cwd)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::inherit())
+                .spawn()
+                .expect("failed to execute git clone")
+                .wait()
+                .expect("failed to wait on git");
+
+            if !git_clone.success() {
+                panic!("Git clone failed");
+            }
+
+            let git_checkout = Command::new("git")
+                .args(["checkout", "--quiet", revision.as_str()])
+                .current_dir(cwd)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::inherit())
+                .spawn()
+                .expect("failed to execute git clone")
+                .wait()
+                .expect("failed to wait on git");
+
+            if !git_checkout.success() {
+                panic!("Git checkout {:?} failed", revision);
+            }
         }
     }
 
