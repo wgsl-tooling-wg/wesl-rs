@@ -725,3 +725,38 @@ impl Display for FunctionCallStatement {
         write!(f, "{call};")
     }
 }
+
+#[cfg(test)]
+mod test {
+    #[cfg(feature = "imports")]
+    use crate::syntax::ModulePath;
+    use crate::syntax::{Ident, TypeExpression};
+
+    #[test]
+    fn type_expression_display() {
+        let expr = TypeExpression {
+            #[cfg(feature = "imports")]
+            path: None,
+            ident: Ident::new("foo".into()),
+            template_args: None,
+        };
+
+        assert_eq!(expr.to_string(), "foo");
+
+        let expr = TypeExpression {
+            #[cfg(feature = "imports")]
+            path: Some(ModulePath::new(
+                crate::syntax::PathOrigin::Absolute,
+                vec!["bar".into(), "qux".into()],
+            )),
+            ident: Ident::new("foo".into()),
+            template_args: None,
+        };
+
+        if cfg!(feature = "imports") {
+            assert_eq!(expr.to_string(), "package::bar::qux::foo");
+        } else {
+            assert_eq!(expr.to_string(), "foo");
+        }
+    }
+}
