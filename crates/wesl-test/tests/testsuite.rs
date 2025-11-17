@@ -313,7 +313,7 @@ fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::
 
         if !commit_exists {
             let git_fetch = Command::new("git")
-                .args(["fetch", "--quiet", "--unshallow"])
+                .args(["fetch", "--quiet", "--depth", "1", "origin", revision])
                 .current_dir(&base_dir)
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::inherit())
@@ -364,7 +364,14 @@ fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::
             }
         } else {
             let git_clone = Command::new("git")
-                .args(["clone", url, &bulk_test.base_dir])
+                .args([
+                    "clone",
+                    url,
+                    "--no-checkout",
+                    "--depth",
+                    "1",
+                    &bulk_test.base_dir,
+                ])
                 .current_dir(cwd)
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::inherit())
@@ -377,8 +384,21 @@ fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::
                 panic!("Git clone failed");
             }
 
+            let git_fetch = Command::new("git")
+                .args(["fetch", "--quiet", "--depth", "1", "origin", revision])
+                .current_dir(&base_dir)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::inherit())
+                .spawn()
+                .expect("failed to execute git fetch")
+                .wait()
+                .expect("failed to wait on git");
+            if !git_fetch.success() {
+                panic!("Git fetch failed");
+            }
+
             let git_checkout = Command::new("git")
-                .args(["checkout", "--quiet", revision.as_str()])
+                .args(["checkout", "--quiet", revision])
                 .current_dir(&base_dir)
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::inherit())
