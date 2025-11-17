@@ -222,7 +222,7 @@ fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::
 
         if !commit_exists {
             let git_fetch = Command::new("git")
-                .args(["fetch", "--quiet"])
+                .args(["fetch", "--quiet", "--depth", "1", "origin", revision])
                 .current_dir(&base_dir)
                 .stdout(std::process::Stdio::null())
                 .stderr(std::process::Stdio::inherit())
@@ -249,13 +249,14 @@ fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::
             panic!("Git checkout failed");
         }
     } else {
+        // Note: The --revision flag is not supported by git versions below 2.49.0 (so we don't use it)
         let git_clone = Command::new("git")
             .args([
                 "clone",
-                "--depth=1",
                 url,
-                "--revision",
-                revision,
+                "--no-checkout",
+                "--depth",
+                "1",
                 &bulk_test.base_dir,
             ])
             .current_dir(cwd)
@@ -268,6 +269,33 @@ fn fetch_bulk_test(bulk_test: &WgslBulkTest, cwd: &std::path::Path) -> std::io::
 
         if !git_clone.success() {
             panic!("Git clone failed");
+        }
+
+        let git_fetch = Command::new("git")
+            .args(["fetch", "--quiet", "--depth", "1", "origin", revision])
+            .current_dir(&base_dir)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .expect("failed to execute git fetch")
+            .wait()
+            .expect("failed to wait on git");
+        if !git_fetch.success() {
+            panic!("Git fetch failed");
+        }
+
+        let git_checkout = Command::new("git")
+            .args(["checkout", "--quiet", revision])
+            .current_dir(&base_dir)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::inherit())
+            .spawn()
+            .expect("failed to execute git checkout")
+            .wait()
+            .expect("failed to wait on git");
+
+        if !git_checkout.success() {
+            panic!("Git checkout {:?} failed", revision);
         }
     }
 
