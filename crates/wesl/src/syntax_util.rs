@@ -426,7 +426,7 @@ fn test_retarget_idents() {
         const_assert  i0+c1+v2+a3+s4; // due to hoisting, all global decls idents should be visible
         const         c1: c1 = i0+c1+v2+a3+s4;
         var<private>  v2: v2 = i0+c1+v2+a3+s4;
-        alias         a3 = a3;
+        alias         a3 = a3<i0, c1, v2, a3>;
         struct        s4 { m: m5 }
 
         fn f18(p: p6) {
