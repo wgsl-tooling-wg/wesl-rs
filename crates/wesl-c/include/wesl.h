@@ -11,6 +11,7 @@ extern "C" {
 
 // -- handles
 typedef struct WeslCompiler WeslCompiler;
+typedef struct WeslTranslationUnit WeslTranslationUnit;
 
 // -- enums
 typedef enum WeslManglerKind {
@@ -45,6 +46,35 @@ typedef struct WeslBinding {
     size_t data_len;
 } WeslBinding;
 
+typedef struct WeslResolveSourceResult {
+    bool success;
+    const char* source;
+} WeslResolveSourceResult;
+
+typedef struct WeslResolveModuleResult {
+    bool success;
+    WeslTranslationUnit* module;
+} WeslResolveModuleResult;
+
+typedef const WeslResolveSourceResult* (*WeslResolveSourceFunction)(const char* path, void* userdata);
+typedef const WeslResolveModuleResult* (*WeslResolveModuleFunction)(const char* path, void* userdata);
+typedef void (*WeslResolveSourceFreeFunction)(const WeslResolveSourceResult* result, void* userdata);
+typedef void (*WeslResolveModuleFreeFunction)(const WeslResolveModuleResult* result, void* userdata);
+typedef const char* (*WeslResolveStringFunction)(const char* path, void* userdata);
+typedef void (*WeslResolveFreeStringFunction)(const char* string, void* userdata);
+
+typedef struct WeslResolverOptions {
+    void* userdata;
+    WeslResolveSourceFunction resolve_source;
+    WeslResolveSourceFreeFunction resolve_source_free;
+    WeslResolveModuleFunction resolve_module;
+    WeslResolveModuleFreeFunction resolve_module_free;
+    WeslResolveStringFunction display_name;
+    WeslResolveFreeStringFunction free_display_name;
+    WeslResolveStringFunction fs_path;
+    WeslResolveFreeStringFunction free_fs_path;
+} WeslResolverOptions;
+
 typedef struct WeslCompileOptions {
     WeslManglerKind mangler;
     bool sourcemap;
@@ -58,6 +88,7 @@ typedef struct WeslCompileOptions {
     bool lazy;
     bool keep_root;
     bool mangle_root;
+    WeslResolverOptions* resolver;
 } WeslCompileOptions;
 
 typedef struct WeslStringMap {
@@ -102,6 +133,12 @@ typedef struct WeslResult {
     WeslError error;
 } WeslResult;
 
+typedef struct WeslParseResult {
+    bool success;
+    WeslTranslationUnit* data;
+    WeslError error;
+} WeslParseResult;
+
 typedef struct WeslExecOptions {
     WeslCompileOptions compile;
     const char* entrypoint;
@@ -127,6 +164,10 @@ WeslResult wesl_compile(
     const WeslBoolMap* features
 );
 
+WeslParseResult wesl_parse(
+    const char* source
+);
+
 WeslResult wesl_eval(
     const WeslStringMap* files,
     const char* root,
@@ -149,6 +190,11 @@ WeslExecResult wesl_exec(
 void wesl_free_string(const char* ptr);
 void wesl_free_result(WeslResult* result);
 void wesl_free_exec_result(WeslExecResult* result);
+
+// Free a WeslParseResult filled by wesl_parse.
+// This does NOT free the WeslTranslationUnit* inside the result, if the parsing succeeded!
+void wesl_free_parse_result(WeslParseResult* result);
+void wesl_free_translation_unit(WeslTranslationUnit* unit);
 
 // -- utility
 
