@@ -1,2 +1,1 @@
-wesl::wesl_pkg!(random);
-pub use random::*;
+wesl::wesl_pkg!(pub random);
