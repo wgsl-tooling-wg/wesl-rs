@@ -1,1 +1,1 @@
-wesl::wesl_pkg!(d);
+wesl::wesl_pkg!(pub d);
