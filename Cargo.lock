@@ -698,6 +698,7 @@ version = "0.2.0"
 dependencies = [
  "random_wgsl",
  "wesl",
+ "wesl-quote",
 ]
 
 [[package]]
@@ -1256,6 +1257,7 @@ dependencies = [
  "quote",
  "thiserror 2.0.16",
  "wesl-macros",
+ "wesl-quote",
  "wgsl-parse",
  "wgsl-types",
 ]
@@ -1280,6 +1282,16 @@ dependencies = [
 
 [[package]]
 name = "wesl-macros"
+version = "0.2.0"
+dependencies = [
+ "itertools",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "wesl-quote"
 version = "0.2.0"
 dependencies = [
  "itertools",

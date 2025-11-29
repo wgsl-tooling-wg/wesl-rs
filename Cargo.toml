@@ -6,7 +6,7 @@ members = [
   "crates/wesl",
   "crates/wesl-c",
   "crates/wesl-cli",
-  "crates/wesl-macros",
+  "crates/wesl-macros", "crates/wesl-quote",
   "crates/wesl-test",
   "crates/wesl-web",
   "crates/wgsl-parse",
@@ -30,6 +30,7 @@ wesl = { path = "crates/wesl", version = "0.2.0" }
 wesl-macros = { path = "crates/wesl-macros", version = "0.2.0" }
 wgsl-parse = { path = "crates/wgsl-parse", version = "0.2.0" }
 wgsl-types = { path = "crates/wgsl-types", version = "0.2.0" }
+wesl-quote = { path = "crates/wesl-quote", version = "0.2.0" }
 
 [workspace.lints.clippy]
 # TODO: change eventually
