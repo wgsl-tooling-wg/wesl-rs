@@ -285,7 +285,9 @@ pub fn type_builtin_fn(
         ("atomicLoad", None, [Type::Ptr(_, t, _)]) if matches!(**t, Type::Atomic(_)) => {
             Ok(Some(*t.clone().unwrap_atomic()))
         }
-        ("atomicStore", None, [Type::Ptr(_, t, _)]) if matches!(**t, Type::Atomic(_)) => Ok(None),
+        ("atomicStore", None, [Type::Ptr(_, t, _), ..]) if matches!(**t, Type::Atomic(_)) => {
+            Ok(None)
+        }
         ("atomicAdd", None, [Type::Ptr(_, t, _), _]) if matches!(**t, Type::Atomic(_)) => {
             Ok(Some(*t.clone().unwrap_atomic()))
         }
