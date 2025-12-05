@@ -12,7 +12,6 @@ publish = false
 [build-dependencies]
 random_wgsl = { path = "../random_wgsl" }
 wesl = { workspace = true }
-wesl-quote = { workspace = true }
 
 [lints]
 workspace = true

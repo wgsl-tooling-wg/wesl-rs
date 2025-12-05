@@ -698,7 +698,6 @@ version = "0.2.0"
 dependencies = [
  "random_wgsl",
  "wesl",
- "wesl-quote",
 ]
 
 [[package]]
