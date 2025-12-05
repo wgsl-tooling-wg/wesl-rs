@@ -1,6 +1,6 @@
 use std::sync::LazyLock;
 
-use wesl_macros::{quote_expression, quote_module};
+use wesl_quote::{quote_expression, quote_module};
 use wgsl_parse::syntax::*;
 
 use crate::idents::builtin_ident;

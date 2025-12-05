@@ -29,11 +29,12 @@ proc-macro2 = { version = "1.0.93", optional = true }  # dep for feature 'packag
 quote = { version = "1.0.38", optional = true }  # dep for feature 'package'
 thiserror = "2.0.11"
 wesl-macros = { workspace = true, features = ["query"] }
+wesl-quote = { workspace = true, optional = true }  # dep for feature 'eval'
 wgsl-parse = { workspace = true, features = ["wesl"] }
 wgsl-types = { workspace = true }
 
 [features]
-eval = ["quote"]
+eval = ["dep:wesl-quote"]
 generics = ["wgsl-parse/generics"]
 # Allow naga/wgpu extensions.
 # They are not well-documented, the best I could find is this:
@@ -54,7 +55,6 @@ generics = ["wgsl-parse/generics"]
 # * `subgroupBallot()` with no argument (defaults to `true`)
 naga-ext = ["wgsl-parse/naga-ext", "wgsl-types/naga-ext"]
 package = ["dep:proc-macro2", "dep:quote"]
-quote = ["wesl-macros/quote"]
 serde = ["wgsl-parse/serde"]
 
 [lints]
