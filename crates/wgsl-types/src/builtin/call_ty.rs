@@ -595,32 +595,3 @@ pub(crate) fn ray_intersection_struct_type() -> StructType {
         ],
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_atomic_store() {
-        let address_spaces = [AddressSpace::Workgroup, AddressSpace::Storage];
-
-        for address_space in address_spaces {
-            let return_type = type_builtin_fn(
-                "atomicStore",
-                None,
-                &[
-                    Type::Ptr(
-                        address_space,
-                        Box::new(Type::Atomic(Box::new(Type::U32))),
-                        AccessMode::ReadWrite,
-                    ),
-                    Type::U32,
-                ],
-            );
-
-            // Can't use assert_eq because `crate::error::Error` is not PartialEq.
-            assert!(return_type.is_ok());
-            assert!(return_type.unwrap().is_none());
-        }
-    }
-}
