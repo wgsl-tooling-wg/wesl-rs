@@ -52,6 +52,7 @@ fn main() {
 
     let spec_tests = [
         "spec-tests/idents.json",
+        "spec-tests/literals.json",
         "spec-tests/lit-type-inference.json",
         "spec-tests/imports.json",
         "spec-tests/circular.json",
