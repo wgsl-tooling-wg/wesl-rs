@@ -5,7 +5,7 @@ use std::{
     convert::Infallible,
     error::Error,
     fs::{self, File},
-    io::{Read, Write},
+    io::{IsTerminal, Read, Write},
     path::PathBuf,
     str::FromStr,
 };
@@ -532,6 +532,10 @@ fn main() {
 
 fn file_or_source(path: Option<PathBuf>) -> Option<FileOrSource> {
     path.map(FileOrSource::File).or_else(|| {
+        // we don't read from stdin in case the input is a TTY.
+        if std::io::stdin().is_terminal() {
+            return None;
+        }
         let mut buf = String::new();
         std::io::stdin()
             .read_to_string(&mut buf)
