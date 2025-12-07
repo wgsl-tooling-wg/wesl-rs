@@ -16,6 +16,15 @@ members = [
   "examples/random_wgsl",
   "examples/runtime_wesl",
 ]
+default-members = [
+  "crates/wesl",
+  "crates/wesl-c",
+  "crates/wesl-cli",
+  "crates/wesl-macros",
+  "crates/wesl-quote",
+  "crates/wgsl-parse",
+  "crates/wgsl-types",
+]
 
 [workspace.package]
 version = "0.3.0"

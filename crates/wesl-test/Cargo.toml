@@ -3,6 +3,7 @@ name = "wesl-test"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+description = "Test suite for the WESL compiler"
 repository.workspace = true
 license.workspace = true
 

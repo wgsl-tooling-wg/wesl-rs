@@ -4,7 +4,6 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 description = "Write WESL code inline with quote macros"
-documentation = "https://docs.rs/wesl-quote"
 repository.workspace = true
 license.workspace = true
 

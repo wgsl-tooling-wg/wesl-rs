@@ -1,8 +1,9 @@
 [package]
-name = "package_wesl"
+name = "buildrs_wesl"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+description = "Running WESL at build-time"
 repository.workspace = true
 license.workspace = true
 publish = false

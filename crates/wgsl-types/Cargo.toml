@@ -3,6 +3,7 @@ name = "wgsl-types"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+description = "Type-checking of WGSL types and builtins"
 repository.workspace = true
 license.workspace = true
 
