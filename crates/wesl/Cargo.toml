@@ -3,8 +3,7 @@ name = "wesl"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-description = "The WESL rust compiler"
-documentation = "https://docs.rs/wesl"
+description = "The WESL compiler"
 repository.workspace = true
 license.workspace = true
 

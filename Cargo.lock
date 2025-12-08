@@ -67,7 +67,7 @@ version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e231f6134f61b71076a3eab506c379d4f36122f2af15a9ff04415ea4c3339e2"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys",
 ]
 
 [[package]]
@@ -78,7 +78,7 @@ checksum = "3e0633414522a32ffaac8ac6cc8f748e090c5717661fddeea04219e2344f5f2a"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.60.2",
+ "windows-sys",
 ]
 
 [[package]]
@@ -111,7 +111,7 @@ checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
 [[package]]
 name = "bevy-wgsl"
 version = "0.1.0"
-source = "git+https://github.com/wgsl-tooling-wg/bevy-wgsl?rev=5ed0b02042dee10ea392e87f7a8b848b234724be#5ed0b02042dee10ea392e87f7a8b848b234724be"
+source = "git+https://github.com/wgsl-tooling-wg/bevy-wgsl?rev=84977ff025eaf8d92e56a9c35b815fae70eb4af0#84977ff025eaf8d92e56a9c35b815fae70eb4af0"
 dependencies = [
  "wesl",
 ]
@@ -144,6 +144,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
 dependencies = [
  "generic-array",
+]
+
+[[package]]
+name = "buildrs_wesl"
+version = "0.3.0"
+dependencies = [
+ "random_wgsl",
+ "wesl",
 ]
 
 [[package]]
@@ -382,12 +390,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "hashbrown"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5419bdc4f6a9207fbeba6d11b604d481addf78ecd10c11ad51e76c2f6482748d"
-
-[[package]]
 name = "heck"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -406,7 +408,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b0f83760fb341a774ed326568e19f5a863af4a952def8c39f9ab92fd95b88e5"
 dependencies = [
  "equivalent",
- "hashbrown 0.16.0",
+ "hashbrown",
 ]
 
 [[package]]
@@ -646,7 +648,7 @@ dependencies = [
  "cfg_aliases",
  "codespan-reporting",
  "half",
- "hashbrown 0.15.5",
+ "hashbrown",
  "hexf-parse",
  "indexmap",
  "libm",
@@ -685,14 +687,6 @@ name = "once_cell_polyfill"
 version = "1.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a4895175b425cb1f87721b59f0f286c2092bd4af812243672510e1ac53e2e0ad"
-
-[[package]]
-name = "package_wesl"
-version = "0.2.0"
-dependencies = [
- "random_wgsl",
- "wesl",
-]
 
 [[package]]
 name = "parking_lot"
@@ -784,7 +778,7 @@ dependencies = [
 
 [[package]]
 name = "random_wgsl"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "wesl",
 ]
@@ -829,7 +823,7 @@ checksum = "caf4aa5b0f434c91fe5c7f1ecb6a5ece2130b02ad2a590589dda5146df959001"
 
 [[package]]
 name = "runtime_wesl"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "random_wgsl",
  "wesl",
@@ -1021,7 +1015,7 @@ version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2111ef44dae28680ae9752bb89409e7310ca33a8c621ebe7b106cf5c928b3ac0"
 dependencies = [
- "windows-sys 0.61.0",
+ "windows-sys",
 ]
 
 [[package]]
@@ -1239,7 +1233,7 @@ dependencies = [
 
 [[package]]
 name = "wesl"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "annotate-snippets",
  "derive_more",
@@ -1257,14 +1251,14 @@ dependencies = [
 
 [[package]]
 name = "wesl-c"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "wesl",
 ]
 
 [[package]]
 name = "wesl-cli"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "clap",
  "naga",
@@ -1275,7 +1269,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-macros"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -1285,7 +1279,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-quote"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "itertools",
  "proc-macro-error2",
@@ -1298,7 +1292,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-test"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bevy-wgsl",
  "libtest-mimic",
@@ -1311,7 +1305,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-web"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "ansi-to-html",
  "console_error_panic_hook",
@@ -1329,7 +1323,7 @@ dependencies = [
 
 [[package]]
 name = "wgsl-parse"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "annotate-snippets",
  "derive_more",
@@ -1346,7 +1340,7 @@ dependencies = [
 
 [[package]]
 name = "wgsl-types"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "half",
  "itertools",
@@ -1361,7 +1355,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.0",
+ "windows-sys",
 ]
 
 [[package]]
@@ -1371,27 +1365,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e6ad25900d524eaabdbbb96d20b4311e1e7ae1699af4fb28c17ae66c80d798a"
 
 [[package]]
-name = "windows-link"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45e46c0661abb7180e7b9c281db115305d49ca1709ab8242adf09666d2173c65"
-
-[[package]]
 name = "windows-sys"
 version = "0.60.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2f500e4d28234f72040990ec9d39e3a6b950f9f22d3dba18416c35882612bcb"
 dependencies = [
  "windows-targets 0.53.3",
-]
-
-[[package]]
-name = "windows-sys"
-version = "0.61.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e201184e40b2ede64bc2ea34968b28e33622acdbbf37104f0e4a33f7abe657aa"
-dependencies = [
- "windows-link 0.2.0",
 ]
 
 [[package]]
@@ -1416,7 +1395,7 @@ version = "0.53.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d5fe6031c4041849d7c496a8ded650796e7b6ecc19df1a431c1a363342e5dc91"
 dependencies = [
- "windows-link 0.1.3",
+ "windows-link",
  "windows_aarch64_gnullvm 0.53.0",
  "windows_aarch64_msvc 0.53.0",
  "windows_i686_gnu 0.53.0",

@@ -3,6 +3,7 @@ name = "wesl-c"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+description = "C bindings for the WESL compiler"
 repository.workspace = true
 license.workspace = true
 

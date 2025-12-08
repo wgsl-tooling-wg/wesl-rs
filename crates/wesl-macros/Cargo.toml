@@ -3,8 +3,7 @@ name = "wesl-macros"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-description = "Macros for the WESL rust compiler"
-documentation = "https://docs.rs/wesl-macros"
+description = "Macros for the WESL compiler"
 repository.workspace = true
 license.workspace = true
 
