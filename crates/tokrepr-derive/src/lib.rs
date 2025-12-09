@@ -1,6 +1,6 @@
-//! Derive macro for tokrepr.
+//! Derive macro for [tokrepr].
 //!
-//!
+//! [tokrepr]: https://docs.rs/tokrepr
 
 use itertools::Itertools;
 use proc_macro2::TokenStream;

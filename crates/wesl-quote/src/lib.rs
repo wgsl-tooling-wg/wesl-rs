@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 mod quote_macro;
 
 use proc_macro_error2::proc_macro_error;

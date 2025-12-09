@@ -17,7 +17,13 @@ lalrpop_mod!(
     wgsl_recognize
 );
 
-pub use wgsl::*;
+#[cfg(feature = "imports")]
+pub use wgsl::ImportStatementParser;
+
+pub use wgsl::{
+    ExpressionParser, GlobalDeclParser, GlobalDirectiveParser, LiteralParser, StatementParser,
+    TranslationUnitParser, TryTemplateListParser,
+};
 
 /// Parse a string into a syntax tree ([`TranslationUnit`]).
 ///

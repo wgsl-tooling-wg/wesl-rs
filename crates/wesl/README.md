@@ -102,7 +102,7 @@ assert_eq!(wgsl_expr, "42u");
 | `serde`    | derive `Serialize` and `Deserialize` for syntax nodes |                           |
 
 [wesl]: https://wesl-lang.dev
-[wesl-quote]: https://crates.io/crates/wesl-quote
+[wesl-quote]: https://docs.rs/wesl-quote
 [cli]: https://crates.io/crates/wesl-cli
 [generics]: https://github.com/k2d222/wesl-spec/blob/generics/Generics.md
 [packaging]: https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Packaging.md

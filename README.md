@@ -18,18 +18,18 @@
       alt="documentation web site"
       /></a>
   <a href="https://discord.gg/5UhkaSu4dt">
-    <img 
+    <img
       src="https://img.shields.io/discord/1275293995152703488?style=for-the-badge&label=Discord"
       alt="wesl discord"
     /></a>
   <a href="https://crates.io/crates/wesl">
-    <img 
+    <img
       src="https://img.shields.io/crates/v/wesl?style=for-the-badge"
       alt="crates.io wesl crate"
     /></a>
   <a href="https://docs.rs/wesl">
     <img
-      src="https://img.shields.io/docsrs/wesl?style=for-the-badge" 
+      src="https://img.shields.io/docsrs/wesl?style=for-the-badge"
       alt="docs.rs wesl crate"
     /></a>
 </p>
