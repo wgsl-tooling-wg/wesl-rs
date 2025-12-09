@@ -22,7 +22,7 @@ It supports WESL language extensions guarded by feature flags.
 |------------|------------------------------------------------------------|
 | `naga-ext` | enable all Naga/WGPU extensions (experimental)             |
 | `serde`    | derive `Serialize` and `Deserialize` for syntax tree nodes |
-| `tokrepr`  | derive `TokRepr` for syntax tree nodes                     |
+| `tokrepr`  | derive [`TokRepr`][tokrepr] for syntax tree nodes                     |
 
 ## Parsing and Stringification
 
@@ -46,3 +46,4 @@ println!("{module}");
 [imports]: https://wesl-lang.dev/spec/Imports
 [condcomp]: https://wesl-lang.dev/spec/ConditionalTranslation
 [generics]: https://github.com/k2d222/wesl-spec/blob/generics/Generics.md
+[tokrepr]: https://docs.rs/tokrepr

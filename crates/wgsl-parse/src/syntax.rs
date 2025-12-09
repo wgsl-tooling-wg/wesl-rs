@@ -1,8 +1,6 @@
 //! A syntax tree for WGSL and WESL files. The root of the tree is [`TranslationUnit`].
 //!
-//! Following the spec at this date:
-//! [2024-07-31](https://www.w3.org/TR/2024/WD-WGSL-20240731/).
-//! The syntax tree closely mirrors WGSL structure while allowing language extensions.
+//! The syntax tree closely mirrors WGSL spec syntax while allowing language extensions.
 //!
 //! ## Strictness
 //!
@@ -13,8 +11,7 @@
 //!
 //! ## WESL Extensions
 //!
-//! With the `imports`, `generics`, `attributes` and `condcomp` one can selectively allow
-//! parsing WESL Extensions. Read more at <https://github.com/wgsl-tooling-wg/wesl-spec>.
+//! WESL extensions are enabled with the `imports`, `generics`, `attributes` and `condcomp`. Read more about WESL at <https://wesl-lang.dev>.
 //!
 //! ## Design considerations
 //!
