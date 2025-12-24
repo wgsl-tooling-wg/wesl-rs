@@ -25,12 +25,6 @@ struct ImportedItem {
     public: bool,
 }
 
-#[derive(Clone, Debug, Default)]
-struct FlattenedImports {
-    idents: Imports,
-    wildcards: Vec<ModulePath>,
-}
-
 /// Error produced during import resolution.
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum ImportError {
@@ -54,7 +48,7 @@ pub(crate) struct Module {
     pub(crate) path: ModulePath,
     idents: HashMap<Ident, usize>,        // lookup (ident, decl_index)
     used_idents: RefCell<HashSet<Ident>>, // used idents that have already been usage-analyzed
-    imports: FlattenedImports,
+    imports: Imports,
 }
 
 impl Module {
@@ -80,10 +74,7 @@ impl Module {
         self.idents.iter().find(|(id, _)| *id.name() == name)
     }
     fn find_import(&self, name: &str) -> Option<(&Ident, &ImportedItem)> {
-        self.imports
-            .idents
-            .iter()
-            .find(|(id, _)| *id.name() == name)
+        self.imports.iter().find(|(id, _)| *id.name() == name)
     }
 }
 
@@ -144,14 +135,14 @@ fn load_module<R: Resolver>(
 
     let mut source = resolver.resolve_module(path)?;
 
-    let imports = flatten_imports(&source.imports, path)?;
+    let wildcards = flatten_wildcards(&source.imports, path)?;
 
     // load wildcard imports.
     // we add an import statement containing all items after loading the ext module.
     // this guarantees that it behaves identically as importing all items.
     // in particular, `retarget_idents` will be able to track the used external idents.
     // it's hacky, but it works alright.
-    for path in &imports.wildcards {
+    for path in &wildcards {
         let ext_mod = load_module(path, resolutions, resolver, onload)?;
         source.imports.push(ImportStatement {
             attributes: vec![],
@@ -264,9 +255,9 @@ pub fn resolve_lazy<'a>(
         }
 
         let (ext_path, ext_id) = if let Some(path) = &ty.path {
-            let path = resolve_inline_path(path, &module.path, &module.imports.idents);
+            let path = resolve_inline_path(path, &module.path, &module.imports);
             (path, ty.ident.clone())
-        } else if let Some(item) = module.imports.idents.get(&ty.ident) {
+        } else if let Some(item) = module.imports.get(&ty.ident) {
             (item.path.clone(), item.ident.clone())
         } else {
             // points to a local decl, we stop here.
@@ -341,9 +332,9 @@ pub fn resolve_eager(root_module: Module, resolver: &impl Resolver) -> Result<Re
         }
 
         let (ext_path, ext_id) = if let Some(path) = &ty.path {
-            let res = resolve_inline_path(path, &module.path, &module.imports.idents);
+            let res = resolve_inline_path(path, &module.path, &module.imports);
             (res, ty.ident.clone())
-        } else if let Some(item) = module.imports.idents.get(&ty.ident) {
+        } else if let Some(item) = module.imports.get(&ty.ident) {
             (item.path.clone(), item.ident.clone())
         } else {
             // points to a local decl, we stop here.
@@ -383,7 +374,7 @@ pub fn resolve_eager(root_module: Module, resolver: &impl Resolver) -> Result<Re
         resolver: &impl Resolver,
     ) -> Result<(), Error> {
         // resolve all module imports
-        for item in module.imports.idents.values() {
+        for item in module.imports.values() {
             load_module(&item.path, resolutions, resolver, &resolve_module)?;
         }
 
@@ -405,22 +396,18 @@ pub fn resolve_eager(root_module: Module, resolver: &impl Resolver) -> Result<Re
     Ok(resolutions)
 }
 
-/// Flatten imports to a list of module paths.
-// TODO: split into flatten_imports / flatten_wildcards which are not used at the same time.
-fn flatten_imports(
-    imports: &[ImportStatement],
-    parent_path: &ModulePath,
-) -> Result<FlattenedImports, E> {
+/// Flatten imports to a list.
+fn flatten_imports(imports: &[ImportStatement], path: &ModulePath) -> Result<Imports, E> {
     fn rec(
         content: &ImportContent,
         path: ModulePath,
         public: bool,
-        res: &mut FlattenedImports,
+        res: &mut Imports,
     ) -> Result<(), E> {
         match content {
             ImportContent::Item(item) => {
                 let ident = item.rename.as_ref().unwrap_or(&item.ident).clone();
-                res.idents.insert(
+                res.insert(
                     ident,
                     ImportedItem {
                         path,
@@ -431,24 +418,22 @@ fn flatten_imports(
             }
             ImportContent::Collection(coll) => {
                 for import in coll {
-                    let path = path.clone().join(import.path.clone());
+                    let path = path.clone().join(import.path.iter().cloned());
                     rec(&import.content, path, public, res)?;
                 }
             }
-            ImportContent::Wildcard => {
-                res.wildcards.push(path);
-            }
+            ImportContent::Wildcard => {}
         }
         Ok(())
     }
 
-    let mut res = FlattenedImports::default();
+    let mut res = Imports::default();
 
     for import in imports {
         let public = import.attributes.iter().any(|attr| attr.is_publish());
         match &import.path {
             Some(import_path) => {
-                let path = parent_path.join_path(import_path);
+                let path = path.join_path(import_path);
                 rec(&import.content, path, public, &mut res)?;
             }
             None => {
@@ -471,16 +456,66 @@ fn flatten_imports(
                                     );
                                     rec(&import.content, path, public, &mut res)?;
                                 }
-                                None => {
-                                    // `import {foo}`, this does nothing, same as above.
-                                }
+                                None => {} // `import {foo}`, this does nothing, same as above.
                             }
                         }
                     }
-                    ImportContent::Wildcard => {
-                        // TODO
-                        // `import *`, this should be invalid? We just ignore it for now.
+                    ImportContent::Wildcard => {}
+                }
+            }
+        }
+    }
+    Ok(res)
+}
+
+// flatten wildcard imports into a list of module path
+fn flatten_wildcards(imports: &[ImportStatement], path: &ModulePath) -> Result<Vec<ModulePath>, E> {
+    fn rec(content: &ImportContent, path: ModulePath, res: &mut Vec<ModulePath>) -> Result<(), E> {
+        match content {
+            ImportContent::Item(_) => {}
+            ImportContent::Collection(coll) => {
+                for import in coll {
+                    let path = path.clone().join(import.path.iter().cloned());
+                    rec(&import.content, path, res)?;
+                }
+            }
+            ImportContent::Wildcard => {
+                res.push(path);
+            }
+        }
+        Ok(())
+    }
+
+    let mut res = Vec::new();
+
+    for import in imports {
+        match &import.path {
+            Some(import_path) => {
+                let path = path.join_path(import_path);
+                rec(&import.content, path, &mut res)?;
+            }
+            None => {
+                // this covers `import {foo::*, ..};`.
+                // COMBAK: this edge-case smells
+                match &import.content {
+                    ImportContent::Item(_) => {}
+                    ImportContent::Collection(coll) => {
+                        for import in coll {
+                            let mut components = import.path.iter().cloned();
+                            match components.next() {
+                                Some(pkg_name) => {
+                                    // `import {foo::*}`, foo becomes the package name.
+                                    let path = ModulePath::new(
+                                        PathOrigin::Package(pkg_name),
+                                        components.collect_vec(),
+                                    );
+                                    rec(&import.content, path, &mut res)?;
+                                }
+                                None => {} // `import {foo}`, this does nothing, same as above.
+                            }
+                        }
                     }
+                    ImportContent::Wildcard => {} // TODO: `import *`, this should be invalid? We just ignore it for now.
                 }
             }
         }
@@ -557,7 +592,6 @@ impl Resolutions {
                     // or it could be a re-exported import with `@publish`
                     module
                         .imports
-                        .idents
                         .iter()
                         .find(|(id, _)| *id.name() == *src_id.name())
                         .and_then(|(_, item)| find_ext_ident(modules, &item.path, &item.ident))
@@ -569,9 +603,9 @@ impl Resolutions {
             let module = &mut *module;
             Visit::<TypeExpression>::visit_rec_mut(&mut module.source, &mut |ty| {
                 let (ext_path, ext_id) = if let Some(path) = &ty.path {
-                    let res = resolve_inline_path(path, &module.path, &module.imports.idents);
+                    let res = resolve_inline_path(path, &module.path, &module.imports);
                     (res, ty.ident.clone())
-                } else if let Some(item) = module.imports.idents.get(&ty.ident) {
+                } else if let Some(item) = module.imports.get(&ty.ident) {
                     (item.path.clone(), item.ident.clone())
                 } else {
                     // points to a local decl, we stop here.
