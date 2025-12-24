@@ -78,12 +78,14 @@ pub(crate) struct Resolutions {
 }
 
 impl Resolutions {
-    /// Warning: you *must* call `push_module` right after this.
-    pub(crate) fn new() -> Self {
-        Resolutions {
+    pub(crate) fn new(root_module: Module) -> Self {
+        let mut resol = Resolutions {
             modules: Default::default(),
             order: Default::default(),
-        }
+        };
+
+        resol.push_module(root_module);
+        resol
     }
     pub(crate) fn root_module(&self) -> Rc<RefCell<Module>> {
         self.modules.get(self.root_path()).unwrap().clone() // safety: new() requires push_module
@@ -132,9 +134,9 @@ fn err_with_module(e: Error, module: &Module, resolver: &impl Resolver) -> Error
 /// See also: [`resolve_eager`]
 pub fn resolve_lazy<'a>(
     keep: impl IntoIterator<Item = &'a Ident>,
-    resolutions: &mut Resolutions,
+    root_module: Module,
     resolver: &impl Resolver,
-) -> Result<(), Error> {
+) -> Result<Resolutions, Error> {
     fn load_module(
         path: &ModulePath,
         resolutions: &mut Resolutions,
@@ -265,25 +267,26 @@ pub fn resolve_lazy<'a>(
         Ok(())
     }
 
-    let path = resolutions.root_path().clone();
-    let module = load_module(&path, resolutions, resolver)?;
+    let path = root_module.path.clone();
+    let mut resolutions = Resolutions::new(root_module);
+    let module = load_module(&path, &mut resolutions, resolver)?;
 
     {
         let module = module.borrow();
-        resolve_module(&module, resolutions, resolver)?;
+        resolve_module(&module, &mut resolutions, resolver)?;
 
         for id in keep {
-            resolve_ident(&module, id, resolutions, resolver)
+            resolve_ident(&module, id, &mut resolutions, resolver)
                 .map_err(|e| err_with_module(e, &module, resolver))?;
         }
     }
 
     resolutions.retarget();
-    Ok(())
+    Ok(resolutions)
 }
 
 /// Load all [`Module`]s referenced by the root module.
-pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) -> Result<(), Error> {
+pub fn resolve_eager(root_module: Module, resolver: &impl Resolver) -> Result<Resolutions, Error> {
     fn resolve_ty(
         module: &Module,
         ty: &TypeExpression,
@@ -363,14 +366,15 @@ pub fn resolve_eager(resolutions: &mut Resolutions, resolver: &impl Resolver) ->
         Ok(())
     }
 
+    let mut resolutions = Resolutions::new(root_module);
     let module = resolutions.root_module();
     {
         let module = module.borrow();
-        resolve_module(&module, resolutions, resolver)
+        resolve_module(&module, &mut resolutions, resolver)
             .map_err(|e| err_with_module(e, &module, resolver))?;
     }
     resolutions.retarget();
-    Ok(())
+    Ok(resolutions)
 }
 
 /// Flatten imports to a list of module paths.

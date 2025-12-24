@@ -849,17 +849,17 @@ fn compile_pre_assembly(
     wesl.retarget_idents();
     let keep = keep_idents(&wesl, &opts.keep, opts.keep_root, opts.strip);
 
-    let mut resolutions = import::Resolutions::new();
-    let module = import::Module::new(wesl, root.clone())?;
-    resolutions.push_module(module);
+    let root_module = import::Module::new(wesl, root.clone())?;
 
-    if opts.imports {
+    let resolutions = if opts.imports {
         if opts.strip && opts.lazy {
-            import::resolve_lazy(&keep, &mut resolutions, &resolver)?
+            import::resolve_lazy(&keep, root_module, &resolver)?
         } else {
-            import::resolve_eager(&mut resolutions, &resolver)?
+            import::resolve_eager(root_module, &resolver)?
         }
-    }
+    } else {
+        import::Resolutions::new(root_module)
+    };
 
     if opts.validate {
         for module in resolutions.modules() {
