@@ -19,5 +19,8 @@ syn = "2.0.77"
 token_stream_flatten = { version = "0.1.0" }
 wgsl-parse = { workspace = true, features = ["tokrepr", "wesl"] }
 
+[dev-dependencies]
+wesl = { workspace = true } # for unit tests
+
 [lints]
 workspace = true
