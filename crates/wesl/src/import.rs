@@ -8,22 +8,28 @@ use itertools::Itertools;
 use wgsl_parse::{
     SyntaxNode,
     syntax::{
-        GlobalDeclaration, Ident, ImportContent, ImportStatement, ModulePath, PathOrigin,
-        TranslationUnit, TypeExpression,
+        GlobalDeclaration, Ident, Import, ImportContent, ImportItem, ImportStatement, ModulePath,
+        PathOrigin, TranslationUnit, TypeExpression,
     },
 };
 
 use crate::{Diagnostic, Error, Mangler, ResolveError, Resolver, SyntaxUtil, visit::Visit};
 
+type Imports = HashMap<Ident, ImportedItem>;
+type Modules = HashMap<ModulePath, Rc<RefCell<Module>>>;
+
 #[derive(Clone, Debug)]
-struct ImportItem {
+struct ImportedItem {
     path: ModulePath,
     ident: Ident, // this is the ident's original name before `as` renaming.
     public: bool,
 }
 
-type Imports = HashMap<Ident, ImportItem>;
-type Modules = HashMap<ModulePath, Rc<RefCell<Module>>>;
+#[derive(Clone, Debug, Default)]
+struct FlattenedImports {
+    idents: Imports,
+    wildcards: Vec<ModulePath>,
+}
 
 /// Error produced during import resolution.
 #[derive(Clone, Debug, thiserror::Error)]
@@ -46,9 +52,9 @@ type E = ImportError;
 pub(crate) struct Module {
     pub(crate) source: TranslationUnit,
     pub(crate) path: ModulePath,
-    idents: HashMap<Ident, usize>, // lookup (ident, decl_index)
-    treated_idents: RefCell<HashSet<Ident>>, // used idents that have already been usage-analyzed
-    imports: Imports,
+    idents: HashMap<Ident, usize>,        // lookup (ident, decl_index)
+    used_idents: RefCell<HashSet<Ident>>, // used idents that have already been usage-analyzed
+    imports: FlattenedImports,
 }
 
 impl Module {
@@ -65,9 +71,19 @@ impl Module {
             source,
             path,
             idents,
-            treated_idents: Default::default(),
+            used_idents: Default::default(),
             imports,
         })
+    }
+
+    fn find_decl(&self, name: &str) -> Option<(&Ident, &usize)> {
+        self.idents.iter().find(|(id, _)| *id.name() == name)
+    }
+    fn find_import(&self, name: &str) -> Option<(&Ident, &ImportedItem)> {
+        self.imports
+            .idents
+            .iter()
+            .find(|(id, _)| *id.name() == name)
     }
 }
 
@@ -115,6 +131,61 @@ fn err_with_module(e: Error, module: &Module, resolver: &impl Resolver) -> Error
     )
 }
 
+/// get or load a module with the resolver, while resolving idents and wildcard imports
+fn load_module<R: Resolver>(
+    path: &ModulePath,
+    resolutions: &mut Resolutions,
+    resolver: &R,
+    onload: &impl Fn(&Module, &mut Resolutions, &R) -> Result<(), Error>,
+) -> Result<Rc<RefCell<Module>>, Error> {
+    if let Some(module) = resolutions.modules.get(path) {
+        return Ok(module.clone());
+    }
+
+    let mut source = resolver.resolve_module(path)?;
+
+    let imports = flatten_imports(&source.imports, path)?;
+
+    // load wildcard imports.
+    // we add an import statement containing all items after loading the ext module.
+    // this guarantees that it behaves identically as importing all items.
+    // in particular, `retarget_idents` will be able to track the used external idents.
+    // it's hacky, but it works alright.
+    for path in &imports.wildcards {
+        let ext_mod = load_module(path, resolutions, resolver, onload)?;
+        source.imports.push(ImportStatement {
+            attributes: vec![],
+            path: Some(path.clone()),
+            content: ImportContent::Collection(
+                ext_mod
+                    .borrow()
+                    .idents
+                    .keys()
+                    .map(|id| Import {
+                        path: vec![],
+                        content: ImportContent::Item(ImportItem {
+                            ident: id.clone(),
+                            rename: None,
+                        }),
+                    })
+                    .collect(),
+            ),
+        });
+    }
+
+    source.retarget_idents();
+    let module = Module::new(source, path.clone())?;
+    let module = resolutions.push_module(module);
+
+    {
+        let module = module.borrow();
+        onload(&module, resolutions, resolver)
+            .map_err(|e| err_with_module(e, &module, resolver))?;
+    }
+
+    Ok(module)
+}
+
 // XXX: it's quite messy.
 /// Load all modules "used" transitively by the root module. Make external idents point at
 /// the right declaration in the external module.
@@ -137,25 +208,6 @@ pub fn resolve_lazy<'a>(
     root_module: Module,
     resolver: &impl Resolver,
 ) -> Result<Resolutions, Error> {
-    fn load_module(
-        path: &ModulePath,
-        resolutions: &mut Resolutions,
-        resolver: &impl Resolver,
-    ) -> Result<Rc<RefCell<Module>>, Error> {
-        let module = if let Some(module) = resolutions.modules.get(path) {
-            module.clone()
-        } else {
-            let mut source = resolver.resolve_module(path)?;
-            source.retarget_idents();
-            let module = Module::new(source, path.clone())?;
-            let module = resolutions.push_module(module);
-            resolve_module(&module.borrow(), resolutions, resolver)?;
-            module
-        };
-
-        Ok(module)
-    }
-
     fn resolve_module(
         module: &Module,
         resolutions: &mut Resolutions,
@@ -170,8 +222,7 @@ pub fn resolve_lazy<'a>(
             .filter(|decl| decl.is_const_assert());
 
         for decl in const_asserts {
-            resolve_decl(module, decl, resolutions, resolver)
-                .map_err(|e| err_with_module(e, module, resolver))?;
+            resolve_decl(&module, decl, resolutions, resolver)?;
         }
 
         Ok(())
@@ -179,36 +230,25 @@ pub fn resolve_lazy<'a>(
 
     fn resolve_ident(
         module: &Module,
-        name: &Ident,
+        ident: &Ident,
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
     ) -> Result<(), Error> {
-        if let Some((ident, n)) = module
-            .idents
-            .iter()
-            .find(|(id, _)| *id.name() == *name.name())
-        {
-            if module.treated_idents.borrow().contains(ident) {
-                return Ok(());
-            } else {
-                module.treated_idents.borrow_mut().insert(ident.clone());
-            }
+        if let Some((_, n)) = module.find_decl(&ident.name()) {
             let decl = module.source.global_declarations.get(*n).unwrap();
             resolve_decl(module, decl, resolutions, resolver)
-        } else if let Some((_, item)) = module
-            .imports
-            .iter()
-            .find(|(id, _)| *id.name() == *name.name())
-        {
+        } else if let Some((_, item)) = module.find_import(&ident.name()) {
             if item.public {
-                // load the external module for this external ident
-                let ext_mod = load_module(&item.path, resolutions, resolver)?;
-                resolve_ident(&ext_mod.borrow(), &item.ident, resolutions, resolver)
+                // load the external module for this imported item
+                let ext_mod = load_module(&item.path, resolutions, resolver, &resolve_module)?;
+                let ext_mod = ext_mod.borrow();
+                resolve_ident(&ext_mod, &item.ident, resolutions, resolver)
+                    .map_err(|e| err_with_module(e, &ext_mod, resolver))
             } else {
-                Err(E::Private(name.to_string(), module.path.clone()).into())
+                Err(E::Private(ident.to_string(), module.path.clone()).into())
             }
         } else {
-            Err(E::MissingDecl(module.path.clone(), name.to_string()).into())
+            Err(E::MissingDecl(module.path.clone(), ident.to_string()).into())
         }
     }
 
@@ -224,20 +264,15 @@ pub fn resolve_lazy<'a>(
         }
 
         let (ext_path, ext_id) = if let Some(path) = &ty.path {
-            let path = resolve_inline_path(path, &module.path, &module.imports);
+            let path = resolve_inline_path(path, &module.path, &module.imports.idents);
             (path, ty.ident.clone())
-        } else if let Some(item) = module.imports.get(&ty.ident) {
+        } else if let Some(item) = module.imports.idents.get(&ty.ident) {
             (item.path.clone(), item.ident.clone())
         } else {
             // points to a local decl, we stop here.
             if let Some(n) = module.idents.get(&ty.ident) {
                 let decl = module.source.global_declarations.get(*n).unwrap();
-                if module.treated_idents.borrow().contains(&ty.ident) {
-                    return Ok(());
-                } else {
-                    module.treated_idents.borrow_mut().insert(ty.ident.clone());
-                    return resolve_decl(module, decl, resolutions, resolver);
-                }
+                return resolve_decl(module, decl, resolutions, resolver);
             } else {
                 return Ok(());
             };
@@ -248,10 +283,11 @@ pub fn resolve_lazy<'a>(
             return resolve_ident(module, &ext_id, resolutions, resolver);
         }
 
-        // load the external module for this external ident
-        let ext_mod = load_module(&ext_path, resolutions, resolver)?;
-        resolve_ident(&ext_mod.borrow(), &ext_id, resolutions, resolver)?;
-        Ok(())
+        // load the external module for this imported item
+        let ext_mod = load_module(&ext_path, resolutions, resolver, &resolve_module)?;
+        let ext_mod = ext_mod.borrow();
+        resolve_ident(&ext_mod, &ext_id, resolutions, resolver)
+            .map_err(|e| err_with_module(e, &ext_mod, resolver))
     }
 
     fn resolve_decl(
@@ -260,6 +296,13 @@ pub fn resolve_lazy<'a>(
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
     ) -> Result<(), Error> {
+        if let Some(ident) = decl.ident() {
+            if module.used_idents.borrow().contains(&ident) {
+                return Ok(());
+            }
+            module.used_idents.borrow_mut().insert(ident);
+        }
+
         for ty in Visit::<TypeExpression>::visit(decl) {
             resolve_ty(module, ty, resolutions, resolver)?;
         }
@@ -267,13 +310,13 @@ pub fn resolve_lazy<'a>(
         Ok(())
     }
 
-    let path = root_module.path.clone();
     let mut resolutions = Resolutions::new(root_module);
-    let module = load_module(&path, &mut resolutions, resolver)?;
+    let module = resolutions.root_module();
 
     {
         let module = module.borrow();
-        resolve_module(&module, &mut resolutions, resolver)?;
+        resolve_module(&module, &mut resolutions, resolver)
+            .map_err(|e| err_with_module(e, &module, resolver))?;
 
         for id in keep {
             resolve_ident(&module, id, &mut resolutions, resolver)
@@ -298,9 +341,9 @@ pub fn resolve_eager(root_module: Module, resolver: &impl Resolver) -> Result<Re
         }
 
         let (ext_path, ext_id) = if let Some(path) = &ty.path {
-            let res = resolve_inline_path(path, &module.path, &module.imports);
+            let res = resolve_inline_path(path, &module.path, &module.imports.idents);
             (res, ty.ident.clone())
-        } else if let Some(item) = module.imports.get(&ty.ident) {
+        } else if let Some(item) = module.imports.idents.get(&ty.ident) {
             (item.path.clone(), item.ident.clone())
         } else {
             // points to a local decl, we stop here.
@@ -316,53 +359,38 @@ pub fn resolve_eager(root_module: Module, resolver: &impl Resolver) -> Result<Re
             }
         }
 
-        // load the external module for this external ident
-        let ext_mod = if let Some(module) = resolutions.modules.get(&ext_path) {
-            module.clone()
-        } else {
-            let mut source = resolver.resolve_module(&ext_path)?;
-            source.retarget_idents();
-            let module = resolutions.push_module(Module::new(source, ext_path.clone())?);
-            resolve_module(&module.borrow(), resolutions, resolver)?;
-            module
-        };
-
+        // load the external module for this imported item
+        let ext_mod = load_module(&ext_path, resolutions, resolver, &resolve_module)?;
         let ext_mod = ext_mod.borrow();
-        // get the ident of the external declaration pointed to by the type
-        if !ext_mod.idents.keys().any(|id| *id.name() == *ext_id.name())
-            // TODO private err msg
-            && !ext_mod
-                .imports
-                .iter()
-                .any(|(id, item)| item.public && *id.name() == *ext_id.name())
-        {
-            return Err(err_with_module(
-                E::MissingDecl(ext_path.clone(), ext_id.to_string()).into(),
-                module,
-                resolver,
-            ));
+
+        // check if the imported item exists
+        if ext_mod.find_decl(&ext_id.name()).is_none() {
+            if let Some((_, item)) = ext_mod.find_import(&ext_id.name()) {
+                if !item.public {
+                    return Err(E::Private(ext_id.to_string(), ext_path.clone()).into());
+                }
+            } else {
+                return Err(E::MissingDecl(ext_path.clone(), ext_id.to_string()).into());
+            }
         }
+
         Ok(())
     }
+
     fn resolve_module(
         module: &Module,
         resolutions: &mut Resolutions,
         resolver: &impl Resolver,
     ) -> Result<(), Error> {
-        for item in module.imports.values() {
-            if !resolutions.modules.contains_key(&item.path) {
-                let mut source = resolver.resolve_module(&item.path)?;
-                source.retarget_idents();
-                let module = resolutions.push_module(Module::new(source, item.path.clone())?);
-                let module = module.borrow();
-                resolve_module(&module, resolutions, resolver)
-                    .map_err(|e| err_with_module(e, &module, resolver))?;
-            }
+        // resolve all module imports
+        for item in module.imports.idents.values() {
+            load_module(&item.path, resolutions, resolver, &resolve_module)?;
         }
 
         for ty in Visit::<TypeExpression>::visit(&module.source) {
-            resolve_ty(module, ty, resolutions, resolver)?;
+            resolve_ty(&module, ty, resolutions, resolver)?;
         }
+
         Ok(())
     }
 
@@ -378,19 +406,23 @@ pub fn resolve_eager(root_module: Module, resolver: &impl Resolver) -> Result<Re
 }
 
 /// Flatten imports to a list of module paths.
-fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Result<Imports, E> {
+// TODO: split into flatten_imports / flatten_wildcards which are not used at the same time.
+fn flatten_imports(
+    imports: &[ImportStatement],
+    parent_path: &ModulePath,
+) -> Result<FlattenedImports, E> {
     fn rec(
         content: &ImportContent,
         path: ModulePath,
         public: bool,
-        res: &mut Imports,
+        res: &mut FlattenedImports,
     ) -> Result<(), E> {
         match content {
             ImportContent::Item(item) => {
                 let ident = item.rename.as_ref().unwrap_or(&item.ident).clone();
-                res.insert(
+                res.idents.insert(
                     ident,
-                    ImportItem {
+                    ImportedItem {
                         path,
                         ident: item.ident.clone(),
                         public,
@@ -404,13 +436,13 @@ fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Res
                 }
             }
             ImportContent::Wildcard => {
-                todo!()
+                res.wildcards.push(path);
             }
         }
         Ok(())
     }
 
-    let mut res = Imports::new();
+    let mut res = FlattenedImports::default();
 
     for import in imports {
         let public = import.attributes.iter().any(|attr| attr.is_publish());
@@ -445,7 +477,10 @@ fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Res
                             }
                         }
                     }
-                    ImportContent::Wildcard => todo!(),
+                    ImportContent::Wildcard => {
+                        // TODO
+                        // `import *`, this should be invalid? We just ignore it for now.
+                    }
                 }
             }
         }
@@ -522,6 +557,7 @@ impl Resolutions {
                     // or it could be a re-exported import with `@publish`
                     module
                         .imports
+                        .idents
                         .iter()
                         .find(|(id, _)| *id.name() == *src_id.name())
                         .and_then(|(_, item)| find_ext_ident(modules, &item.path, &item.ident))
@@ -533,9 +569,9 @@ impl Resolutions {
             let module = &mut *module;
             Visit::<TypeExpression>::visit_rec_mut(&mut module.source, &mut |ty| {
                 let (ext_path, ext_id) = if let Some(path) = &ty.path {
-                    let res = resolve_inline_path(path, &module.path, &module.imports);
+                    let res = resolve_inline_path(path, &module.path, &module.imports.idents);
                     (res, ty.ident.clone())
-                } else if let Some(item) = module.imports.get(&ty.ident) {
+                } else if let Some(item) = module.imports.idents.get(&ty.ident) {
                     (item.path.clone(), item.ident.clone())
                 } else {
                     // points to a local decl, we stop here.
@@ -596,7 +632,7 @@ impl Resolutions {
                             decl.is_const_assert()
                                 || decl
                                     .ident()
-                                    .is_some_and(|id| module.treated_idents.borrow().contains(&id))
+                                    .is_some_and(|id| module.used_idents.borrow().contains(&id))
                         })
                         .cloned(),
                 );
