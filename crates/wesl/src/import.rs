@@ -52,22 +52,22 @@ pub(crate) struct Module {
 }
 
 impl Module {
-    pub(crate) fn new(source: TranslationUnit, path: ModulePath) -> Result<Self, E> {
+    fn new(source: TranslationUnit, path: ModulePath) -> Self {
         let idents = source
             .global_declarations
             .iter()
             .enumerate()
             .filter_map(|(i, decl)| decl.ident().map(|id| (id, i)))
             .collect::<HashMap<_, _>>();
-        let imports = flatten_imports(&source.imports, &path)?;
+        let imports = flatten_imports(&source.imports, &path);
 
-        Ok(Self {
+        Self {
             source,
             path,
             idents,
             used_idents: Default::default(),
             imports,
-        })
+        }
     }
 
     fn find_decl(&self, name: &str) -> Option<(&Ident, &usize)> {
@@ -85,13 +85,13 @@ pub(crate) struct Resolutions {
 }
 
 impl Resolutions {
-    pub(crate) fn new(root_module: Module) -> Self {
+    pub(crate) fn new(source: TranslationUnit, path: ModulePath) -> Self {
         let mut resol = Resolutions {
             modules: Default::default(),
             order: Default::default(),
         };
 
-        resol.push_module(root_module);
+        resol.push_module(Module::new(source, path));
         resol
     }
     pub(crate) fn root_module(&self) -> Rc<RefCell<Module>> {
@@ -122,7 +122,12 @@ fn err_with_module(e: Error, module: &Module, resolver: &impl Resolver) -> Error
     )
 }
 
-/// get or load a module with the resolver, while resolving idents and wildcard imports
+/// get or load a module with the resolver, and resolves idents and wildcard imports.
+///
+/// creates an import statement containing all items in wildcard-imported modules.
+/// this guarantees identical behavior as importing all items.
+/// in particular, `retarget_idents` will be able to track the used external idents.
+/// it's hacky, but it works alright.
 fn load_module<R: Resolver>(
     path: &ModulePath,
     resolutions: &mut Resolutions,
@@ -135,13 +140,8 @@ fn load_module<R: Resolver>(
 
     let mut source = resolver.resolve_module(path)?;
 
-    let wildcards = flatten_wildcards(&source.imports, path)?;
+    let wildcards = flatten_wildcards(&source.imports, path);
 
-    // load wildcard imports.
-    // we add an import statement containing all items after loading the ext module.
-    // this guarantees that it behaves identically as importing all items.
-    // in particular, `retarget_idents` will be able to track the used external idents.
-    // it's hacky, but it works alright.
     for path in &wildcards {
         let ext_mod = load_module(path, resolutions, resolver, onload)?;
         source.imports.push(ImportStatement {
@@ -165,7 +165,7 @@ fn load_module<R: Resolver>(
     }
 
     source.retarget_idents();
-    let module = Module::new(source, path.clone())?;
+    let module = Module::new(source, path.clone());
     let module = resolutions.push_module(module);
 
     {
@@ -196,7 +196,8 @@ fn load_module<R: Resolver>(
 /// See also: [`resolve_eager`]
 pub fn resolve_lazy<'a>(
     keep: impl IntoIterator<Item = &'a Ident>,
-    root_module: Module,
+    source: TranslationUnit,
+    path: ModulePath,
     resolver: &impl Resolver,
 ) -> Result<Resolutions, Error> {
     fn resolve_module(
@@ -301,7 +302,7 @@ pub fn resolve_lazy<'a>(
         Ok(())
     }
 
-    let mut resolutions = Resolutions::new(root_module);
+    let mut resolutions = Resolutions::new(source, path);
     let module = resolutions.root_module();
 
     {
@@ -320,7 +321,11 @@ pub fn resolve_lazy<'a>(
 }
 
 /// Load all [`Module`]s referenced by the root module.
-pub fn resolve_eager(root_module: Module, resolver: &impl Resolver) -> Result<Resolutions, Error> {
+pub fn resolve_eager(
+    source: TranslationUnit,
+    path: ModulePath,
+    resolver: &impl Resolver,
+) -> Result<Resolutions, Error> {
     fn resolve_ty(
         module: &Module,
         ty: &TypeExpression,
@@ -385,7 +390,7 @@ pub fn resolve_eager(root_module: Module, resolver: &impl Resolver) -> Result<Re
         Ok(())
     }
 
-    let mut resolutions = Resolutions::new(root_module);
+    let mut resolutions = Resolutions::new(source, path);
     let module = resolutions.root_module();
     {
         let module = module.borrow();
@@ -397,13 +402,8 @@ pub fn resolve_eager(root_module: Module, resolver: &impl Resolver) -> Result<Re
 }
 
 /// Flatten imports to a list.
-fn flatten_imports(imports: &[ImportStatement], path: &ModulePath) -> Result<Imports, E> {
-    fn rec(
-        content: &ImportContent,
-        path: ModulePath,
-        public: bool,
-        res: &mut Imports,
-    ) -> Result<(), E> {
+fn flatten_imports(imports: &[ImportStatement], path: &ModulePath) -> Imports {
+    fn rec(content: &ImportContent, path: ModulePath, public: bool, res: &mut Imports) {
         match content {
             ImportContent::Item(item) => {
                 let ident = item.rename.as_ref().unwrap_or(&item.ident).clone();
@@ -419,12 +419,11 @@ fn flatten_imports(imports: &[ImportStatement], path: &ModulePath) -> Result<Imp
             ImportContent::Collection(coll) => {
                 for import in coll {
                     let path = path.clone().join(import.path.iter().cloned());
-                    rec(&import.content, path, public, res)?;
+                    rec(&import.content, path, public, res);
                 }
             }
             ImportContent::Wildcard => {}
         }
-        Ok(())
     }
 
     let mut res = Imports::default();
@@ -434,7 +433,7 @@ fn flatten_imports(imports: &[ImportStatement], path: &ModulePath) -> Result<Imp
         match &import.path {
             Some(import_path) => {
                 let path = path.join_path(import_path);
-                rec(&import.content, path, public, &mut res)?;
+                rec(&import.content, path, public, &mut res);
             }
             None => {
                 // this covers two cases: `import foo;` and `import {foo, ..};`.
@@ -454,7 +453,7 @@ fn flatten_imports(imports: &[ImportStatement], path: &ModulePath) -> Result<Imp
                                         PathOrigin::Package(pkg_name),
                                         components.collect_vec(),
                                     );
-                                    rec(&import.content, path, public, &mut res)?;
+                                    rec(&import.content, path, public, &mut res);
                                 }
                                 None => {} // `import {foo}`, this does nothing, same as above.
                             }
@@ -465,25 +464,25 @@ fn flatten_imports(imports: &[ImportStatement], path: &ModulePath) -> Result<Imp
             }
         }
     }
-    Ok(res)
+
+    res
 }
 
 // flatten wildcard imports into a list of module path
-fn flatten_wildcards(imports: &[ImportStatement], path: &ModulePath) -> Result<Vec<ModulePath>, E> {
-    fn rec(content: &ImportContent, path: ModulePath, res: &mut Vec<ModulePath>) -> Result<(), E> {
+fn flatten_wildcards(imports: &[ImportStatement], path: &ModulePath) -> Vec<ModulePath> {
+    fn rec(content: &ImportContent, path: ModulePath, res: &mut Vec<ModulePath>) {
         match content {
             ImportContent::Item(_) => {}
             ImportContent::Collection(coll) => {
                 for import in coll {
                     let path = path.clone().join(import.path.iter().cloned());
-                    rec(&import.content, path, res)?;
+                    rec(&import.content, path, res);
                 }
             }
             ImportContent::Wildcard => {
                 res.push(path);
             }
         }
-        Ok(())
     }
 
     let mut res = Vec::new();
@@ -492,7 +491,7 @@ fn flatten_wildcards(imports: &[ImportStatement], path: &ModulePath) -> Result<V
         match &import.path {
             Some(import_path) => {
                 let path = path.join_path(import_path);
-                rec(&import.content, path, &mut res)?;
+                rec(&import.content, path, &mut res);
             }
             None => {
                 // this covers `import {foo::*, ..};`.
@@ -509,7 +508,7 @@ fn flatten_wildcards(imports: &[ImportStatement], path: &ModulePath) -> Result<V
                                         PathOrigin::Package(pkg_name),
                                         components.collect_vec(),
                                     );
-                                    rec(&import.content, path, &mut res)?;
+                                    rec(&import.content, path, &mut res);
                                 }
                                 None => {} // `import {foo}`, this does nothing, same as above.
                             }
@@ -520,7 +519,8 @@ fn flatten_wildcards(imports: &[ImportStatement], path: &ModulePath) -> Result<V
             }
         }
     }
-    Ok(res)
+
+    res
 }
 
 /// Finds the normalized module path for an inline import.

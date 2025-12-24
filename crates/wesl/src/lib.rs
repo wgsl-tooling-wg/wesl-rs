@@ -845,20 +845,17 @@ fn compile_pre_assembly(
         Box::new(resolver)
     };
 
-    let mut wesl = resolver.resolve_module(root)?;
-    wesl.retarget_idents();
+    let wesl = resolver.resolve_module(root)?;
     let keep = keep_idents(&wesl, &opts.keep, opts.keep_root, opts.strip);
-
-    let root_module = import::Module::new(wesl, root.clone())?;
 
     let resolutions = if opts.imports {
         if opts.strip && opts.lazy {
-            import::resolve_lazy(&keep, root_module, &resolver)?
+            import::resolve_lazy(&keep, wesl, root.clone(), &resolver)?
         } else {
-            import::resolve_eager(root_module, &resolver)?
+            import::resolve_eager(wesl, root.clone(), &resolver)?
         }
     } else {
-        import::Resolutions::new(root_module)
+        import::Resolutions::new(wesl, root.clone())
     };
 
     if opts.validate {
