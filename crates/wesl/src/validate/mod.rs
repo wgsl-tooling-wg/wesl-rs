@@ -196,6 +196,7 @@ fn check_duplicate_decl(wesl: &TranslationUnit) -> Result<(), Diagnostic<Error>>
                     check_import_content(&item.content, unique)?;
                 }
             }
+            ImportContent::Wildcard => {}
         }
         Ok(())
     }

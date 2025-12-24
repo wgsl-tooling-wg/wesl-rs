@@ -116,6 +116,9 @@ impl Display for ImportContent {
                 let coll = coll.iter().format(", ");
                 write!(f, "{{ {coll} }}")
             }
+            ImportContent::Wildcard => {
+                write!(f, "*")
+            }
         }
     }
 }

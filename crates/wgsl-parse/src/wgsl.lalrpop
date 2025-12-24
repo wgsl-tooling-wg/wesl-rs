@@ -1110,12 +1110,16 @@ Import: Import = {
     <path: (<PathIdent> "::")+> <coll: ImportCollection> => Import {
         path, content: ImportContent::Collection(coll)
     },
+    <path: (<PathIdent> "::")+> "*" => Import {
+        path, content: ImportContent::Wildcard
+    },
 };
 
 #[cfg(feature = "imports")]
 ImportContent: ImportContent = {
     ImportItem => ImportContent::Item(<>),
     ImportCollection => ImportContent::Collection(<>),
+    "*" => ImportContent::Wildcard,
 };
 
 #[cfg(feature = "imports")]

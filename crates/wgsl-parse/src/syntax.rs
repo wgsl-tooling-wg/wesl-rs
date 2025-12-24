@@ -144,6 +144,7 @@ pub struct Import {
 pub enum ImportContent {
     Item(ImportItem),
     Collection(Vec<Import>),
+    Wildcard,
 }
 
 #[cfg(feature = "imports")]

@@ -399,6 +399,9 @@ fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Res
                     rec(&import.content, path, public, res)?;
                 }
             }
+            ImportContent::Wildcard => {
+                todo!()
+            }
         }
         Ok(())
     }
@@ -438,6 +441,7 @@ fn flatten_imports(imports: &[ImportStatement], parent_path: &ModulePath) -> Res
                             }
                         }
                     }
+                    ImportContent::Wildcard => todo!(),
                 }
             }
         }

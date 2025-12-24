@@ -122,6 +122,7 @@ impl SyntaxUtil for TranslationUnit {
                         .iter_mut()
                         .flat_map(|import| rec(&mut import.content))
                         .boxed(),
+                    ImportContent::Wildcard => std::iter::empty().boxed(),
                 }
             }
             imports
