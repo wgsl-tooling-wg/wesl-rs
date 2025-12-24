@@ -59,14 +59,13 @@ impl Module {
             .enumerate()
             .filter_map(|(i, decl)| decl.ident().map(|id| (id, i)))
             .collect::<HashMap<_, _>>();
-        let imports = flatten_imports(&source.imports, &path);
 
         Self {
             source,
             path,
             idents,
             used_idents: Default::default(),
-            imports,
+            imports: Default::default(),
         }
     }
 
@@ -86,14 +85,17 @@ pub(crate) struct Resolutions {
 
 impl Resolutions {
     pub(crate) fn new(source: TranslationUnit, path: ModulePath) -> Self {
-        let mut resol = Resolutions {
-            modules: Default::default(),
-            order: Default::default(),
-        };
-
+        let mut resol = Self::new_uninit();
         resol.push_module(Module::new(source, path));
         resol
     }
+    pub fn new_uninit() -> Self {
+        Resolutions {
+            modules: Default::default(),
+            order: Default::default(),
+        }
+    }
+    #[allow(unused)]
     pub(crate) fn root_module(&self) -> Rc<RefCell<Module>> {
         self.modules.get(self.root_path()).unwrap().clone() // safety: new() requires push_module
     }
@@ -122,12 +124,6 @@ fn err_with_module(e: Error, module: &Module, resolver: &impl Resolver) -> Error
     )
 }
 
-/// get or load a module with the resolver, and resolves idents and wildcard imports.
-///
-/// creates an import statement containing all items in wildcard-imported modules.
-/// this guarantees identical behavior as importing all items.
-/// in particular, `retarget_idents` will be able to track the used external idents.
-/// it's hacky, but it works alright.
 fn load_module<R: Resolver>(
     path: &ModulePath,
     resolutions: &mut Resolutions,
@@ -138,13 +134,30 @@ fn load_module<R: Resolver>(
         return Ok(module.clone());
     }
 
-    let mut source = resolver.resolve_module(path)?;
+    let source = resolver.resolve_module(path)?;
+    load_module_source(source, path, resolutions, resolver, onload)
+}
 
-    let wildcards = flatten_wildcards(&source.imports, path);
+/// get or load a module with the resolver, and resolves idents and wildcard imports.
+///
+/// creates an import statement containing all items in wildcard-imported modules.
+/// this guarantees identical behavior as importing all items.
+/// in particular, `retarget_idents` will be able to track the used external idents.
+/// it's hacky, but it works alright.
+fn load_module_source<R: Resolver>(
+    source: TranslationUnit,
+    path: &ModulePath,
+    resolutions: &mut Resolutions,
+    resolver: &R,
+    onload: &impl Fn(&Module, &mut Resolutions, &R) -> Result<(), Error>,
+) -> Result<Rc<RefCell<Module>>, Error> {
+    let wildcards = flatten_wildcards(&source.imports, &path);
+    let module = Module::new(source, path.clone());
+    let module = resolutions.push_module(module);
 
     for path in &wildcards {
         let ext_mod = load_module(path, resolutions, resolver, onload)?;
-        source.imports.push(ImportStatement {
+        module.borrow_mut().source.imports.push(ImportStatement {
             attributes: vec![],
             path: Some(path.clone()),
             content: ImportContent::Collection(
@@ -164,9 +177,12 @@ fn load_module<R: Resolver>(
         });
     }
 
-    source.retarget_idents();
-    let module = Module::new(source, path.clone());
-    let module = resolutions.push_module(module);
+    let imports = flatten_imports(&module.borrow().source.imports, path);
+    {
+        let mut module = module.borrow_mut();
+        module.imports = imports;
+        module.source.retarget_idents();
+    }
 
     {
         let module = module.borrow();
@@ -197,7 +213,7 @@ fn load_module<R: Resolver>(
 pub fn resolve_lazy<'a>(
     keep: impl IntoIterator<Item = &'a Ident>,
     source: TranslationUnit,
-    path: ModulePath,
+    path: &ModulePath,
     resolver: &impl Resolver,
 ) -> Result<Resolutions, Error> {
     fn resolve_module(
@@ -302,14 +318,11 @@ pub fn resolve_lazy<'a>(
         Ok(())
     }
 
-    let mut resolutions = Resolutions::new(source, path);
-    let module = resolutions.root_module();
+    let mut resolutions = Resolutions::new_uninit();
+    let module = load_module_source(source, &path, &mut resolutions, resolver, &resolve_module)?;
 
     {
         let module = module.borrow();
-        resolve_module(&module, &mut resolutions, resolver)
-            .map_err(|e| err_with_module(e, &module, resolver))?;
-
         for id in keep {
             resolve_ident(&module, id, &mut resolutions, resolver)
                 .map_err(|e| err_with_module(e, &module, resolver))?;
@@ -323,7 +336,7 @@ pub fn resolve_lazy<'a>(
 /// Load all [`Module`]s referenced by the root module.
 pub fn resolve_eager(
     source: TranslationUnit,
-    path: ModulePath,
+    path: &ModulePath,
     resolver: &impl Resolver,
 ) -> Result<Resolutions, Error> {
     fn resolve_ty(
@@ -390,13 +403,8 @@ pub fn resolve_eager(
         Ok(())
     }
 
-    let mut resolutions = Resolutions::new(source, path);
-    let module = resolutions.root_module();
-    {
-        let module = module.borrow();
-        resolve_module(&module, &mut resolutions, resolver)
-            .map_err(|e| err_with_module(e, &module, resolver))?;
-    }
+    let mut resolutions = Resolutions::new_uninit();
+    load_module_source(source, &path, &mut resolutions, resolver, &resolve_module)?;
     resolutions.retarget();
     Ok(resolutions)
 }
@@ -584,16 +592,12 @@ impl Resolutions {
             let module = module.borrow();
 
             module
-                .idents
-                .iter()
-                .find(|(id, _)| *id.name() == *src_id.name())
+                .find_decl(&src_id.name())
                 .map(|(id, _)| id.clone())
                 .or_else(|| {
                     // or it could be a re-exported import with `@publish`
                     module
-                        .imports
-                        .iter()
-                        .find(|(id, _)| *id.name() == *src_id.name())
+                        .find_import(&src_id.name())
                         .and_then(|(_, item)| find_ext_ident(modules, &item.path, &item.ident))
                 })
         }
