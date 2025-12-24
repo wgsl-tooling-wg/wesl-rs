@@ -1287,6 +1287,7 @@ dependencies = [
  "quote",
  "syn",
  "token_stream_flatten",
+ "wesl",
  "wgsl-parse",
 ]
 
