@@ -1,0 +1,30 @@
+[
+    {
+        "name": "strip-unused-declaration",
+        "weslSrc": {
+            "./main.wgsl": "import package::m1::foo; fn main() { foo(); }",
+            "./m1.wgsl": "fn foo() { } fn bar() { }"
+        },
+        "expectedWgsl": "fn main() { foo(); } fn foo() { }",
+        "underscoreWgsl": "fn main() { package_m1_foo(); } fn package_m1_foo() { }"
+    },
+    {
+        "name": "strip-unused-module",
+        "weslSrc": {
+            "./main.wgsl": "import package::m1::foo; fn main() { foo(); }",
+            "./m1.wgsl": "import package::m2::bar; fn foo() { } fn unused() { bar(); }",
+            "./m2.wgsl": "const_assert false; fn bar() { }"
+        },
+        "expectedWgsl": "fn main() { foo(); } fn foo() { }",
+        "underscoreWgsl": "fn main() { package_m1_foo(); } fn package_m1_foo() { }"
+    },
+    {
+        "name": "keep-const-asserts",
+        "weslSrc": {
+            "./main.wgsl": "import package::m1::foo; fn main() { foo(); }",
+            "./m1.wgsl": "const_assert true; fn foo() { } fn bar() { }"
+        },
+        "expectedWgsl": "fn main() { foo(); } fn foo() { }",
+        "underscoreWgsl": "fn main() { package_m1_foo(); } const_assert true; fn package_m1_foo() { }"
+    }
+]

@@ -95,33 +95,24 @@ fn main() {
         })
     });
 
-    tests.extend({
-        let file = std::fs::read_to_string("wesl-testsuite/src/test-cases-json/importCases.json")
-            .expect("failed to read test file");
-        let json: Vec<WgslTestSrc> =
-            serde_json::from_str(&file).expect("failed to parse json file");
-        json.into_iter().map(|case| {
-            let name = format!("importCases.json::{}", case.name);
-            libtest_mimic::Trial::test(name, move || {
-                testsuite_case(&case).inspect_err(|_| eprint_wgsl_test(&case))
+    let testsuite_tests = [
+        "wesl-testsuite/src/test-cases-json/importCases.json",
+        "wesl-testsuite/src/test-cases-json/conditionalTranslationCases.json",
+        "spec-tests/dead-code.json",
+    ];
+    for path in testsuite_tests {
+        tests.extend({
+            let file = std::fs::read_to_string(path).expect("failed to read test file");
+            let json: Vec<WgslTestSrc> =
+                serde_json::from_str(&file).expect("failed to parse json file");
+            json.into_iter().map(|case| {
+                let name = format!("importCases.json::{}", case.name);
+                libtest_mimic::Trial::test(name, move || {
+                    testsuite_case(&case).inspect_err(|_| eprint_wgsl_test(&case))
+                })
             })
-        })
-    });
-
-    tests.extend({
-        let file = std::fs::read_to_string(
-            "wesl-testsuite/src/test-cases-json/conditionalTranslationCases.json",
-        )
-        .expect("failed to read test file");
-        let json: Vec<WgslTestSrc> =
-            serde_json::from_str(&file).expect("failed to parse json file");
-        json.into_iter().map(|case| {
-            let name = format!("conditionalTranslationCases.json::{}", case.name);
-            libtest_mimic::Trial::test(name, move || {
-                testsuite_case(&case).inspect_err(|_| eprint_wgsl_test(&case))
-            })
-        })
-    });
+        });
+    }
 
     tests.extend({
         let file = std::fs::read_to_string("wesl-testsuite/src/test-cases-json/bulkTests.json")
@@ -165,7 +156,7 @@ fn main() {
             .filter_map(|e| e.ok())
             .filter(|e| e.path().extension() == Some(OsStr::new("wgsl")))
             .map(|e| {
-                let name = format!("bevy::{:?}", e.file_name());
+                let name = format!("bevy::{}", e.file_name().display());
                 libtest_mimic::Trial::test(name, move || bevy_case(e.path()))
             })
     });
@@ -183,7 +174,7 @@ fn main() {
             .filter(|(e, _)| e.path().extension() == Some(OsStr::new("wgsl")))
             .map(|(e, d)| {
                 let filename = e.file_name();
-                let name = format!("wgpu::{d}::{filename:?}");
+                let name = format!("wgpu::{d}::{}", filename.display());
                 libtest_mimic::Trial::test(name, move || validation_case(e.path()))
                     .with_ignored_flag(
                         [
@@ -397,6 +388,7 @@ pub fn testsuite_case(case: &WgslTestSrc) -> Result<(), libtest_mimic::Failed> {
 
     let root_module = ModulePath::from_str("package::main")?;
     let compile_options = CompileOptions {
+        lazy: !case.requires.iter().any(|r| r == "eager"),
         keep_root: true,
         ..Default::default()
     };
