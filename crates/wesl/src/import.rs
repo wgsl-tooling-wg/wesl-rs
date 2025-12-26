@@ -247,7 +247,7 @@ fn resolve_ty<R: Resolver>(
     let ext_mod = ext_mod.borrow();
 
     // and ensure the declaration's dependencies are resolved too
-    resolve_decl(&ext_mod, &ext_id, resolutions, resolver, onload)
+    resolve_decl(&ext_mod, ext_id, resolutions, resolver, onload)
         .map_err(|e| err_with_module(e, &ext_mod, resolver))
 }
 
@@ -289,7 +289,7 @@ pub fn resolve_lazy<'a>(
 
         for decl in const_asserts {
             for ty in Visit::<TypeExpression>::visit(decl.node()) {
-                resolve_ty(&module, ty, resolutions, resolver, &resolve_module)?;
+                resolve_ty(module, ty, resolutions, resolver, &resolve_module)?;
             }
         }
 
@@ -298,7 +298,7 @@ pub fn resolve_lazy<'a>(
 
     let mut resolutions = Resolutions::new_uninit();
     let module =
-        load_module_with_source(source, &path, &mut resolutions, resolver, &resolve_module)?;
+        load_module_with_source(source, path, &mut resolutions, resolver, &resolve_module)?;
 
     {
         let module = module.borrow();
@@ -330,10 +330,10 @@ pub fn resolve_eager(
 
         for decl in &module.source.global_declarations {
             if let Some(ident) = decl.ident() {
-                resolve_decl(&module, &ident, resolutions, resolver, &resolve_module)?;
+                resolve_decl(module, &ident, resolutions, resolver, &resolve_module)?;
             } else {
                 for ty in Visit::<TypeExpression>::visit(decl.node()) {
-                    resolve_ty(&module, ty, resolutions, resolver, &resolve_module)?;
+                    resolve_ty(module, ty, resolutions, resolver, &resolve_module)?;
                 }
             }
         }
@@ -342,7 +342,7 @@ pub fn resolve_eager(
     }
 
     let mut resolutions = Resolutions::new_uninit();
-    load_module_with_source(source, &path, &mut resolutions, resolver, &resolve_module)?;
+    load_module_with_source(source, path, &mut resolutions, resolver, &resolve_module)?;
 
     resolutions.retarget()?;
     Ok(resolutions)
@@ -392,16 +392,13 @@ fn flatten_imports(imports: &[ImportStatement], path: &ModulePath) -> Imports {
                     ImportContent::Collection(coll) => {
                         for import in coll {
                             let mut components = import.path.iter().cloned();
-                            match components.next() {
-                                Some(pkg_name) => {
-                                    // `import {foo::bar}`, foo becomes the package name.
-                                    let path = ModulePath::new(
-                                        PathOrigin::Package(pkg_name),
-                                        components.collect_vec(),
-                                    );
-                                    rec(&import.content, path, public, &mut res);
-                                }
-                                None => {} // `import {foo}`, this does nothing, same as above.
+                            if let Some(pkg_name) = components.next() {
+                                // `import {foo::bar}`, foo becomes the package name.
+                                let path = ModulePath::new(
+                                    PathOrigin::Package(pkg_name),
+                                    components.collect_vec(),
+                                );
+                                rec(&import.content, path, public, &mut res);
                             }
                         }
                     }
@@ -496,11 +493,11 @@ impl Resolutions {
         ) -> Result<(), Error> {
             // first the recursive call
             for ty in Visit::<TypeExpression>::visit_mut(ty) {
-                retarget_ty(&modules, &module_path, &module_imports, &module_idents, ty)?;
+                retarget_ty(modules, module_path, module_imports, module_idents, ty)?;
             }
 
             let (ext_path, ext_id) = if let Some(path) = &ty.path {
-                let res = resolve_inline_path(path, &module_path, &module_imports);
+                let res = resolve_inline_path(path, module_path, module_imports);
                 (res, &ty.ident)
             } else if let Some(item) = module_imports.get(&ty.ident) {
                 (item.path.clone(), &item.ident)
@@ -521,7 +518,7 @@ impl Resolutions {
                 ty.ident = local_id;
             }
             // get the ident of the external declaration pointed to by the type
-            else if let Some(ext_id) = find_ext_ident(modules, &ext_path, &ext_id) {
+            else if let Some(ext_id) = find_ext_ident(modules, &ext_path, ext_id) {
                 ty.path = None;
                 ty.ident = ext_id;
             }
