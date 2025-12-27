@@ -148,7 +148,7 @@ dependencies = [
 
 [[package]]
 name = "buildrs_wesl"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "random_wgsl",
  "wesl",
@@ -778,7 +778,7 @@ dependencies = [
 
 [[package]]
 name = "random_wgsl"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "wesl",
 ]
@@ -823,7 +823,7 @@ checksum = "caf4aa5b0f434c91fe5c7f1ecb6a5ece2130b02ad2a590589dda5146df959001"
 
 [[package]]
 name = "runtime_wesl"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "random_wgsl",
  "wesl",
@@ -1233,7 +1233,7 @@ dependencies = [
 
 [[package]]
 name = "wesl"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "annotate-snippets",
  "derive_more",
@@ -1251,14 +1251,14 @@ dependencies = [
 
 [[package]]
 name = "wesl-c"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "wesl",
 ]
 
 [[package]]
 name = "wesl-cli"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "clap",
  "naga",
@@ -1269,7 +1269,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-macros"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -1279,7 +1279,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-quote"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "itertools",
  "proc-macro-error2",
@@ -1293,7 +1293,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-test"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "bevy-wgsl",
  "libtest-mimic",
@@ -1306,7 +1306,7 @@ dependencies = [
 
 [[package]]
 name = "wesl-web"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "ansi-to-html",
  "console_error_panic_hook",
@@ -1324,7 +1324,7 @@ dependencies = [
 
 [[package]]
 name = "wgsl-parse"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "annotate-snippets",
  "derive_more",
@@ -1341,7 +1341,7 @@ dependencies = [
 
 [[package]]
 name = "wgsl-types"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "half",
  "itertools",
