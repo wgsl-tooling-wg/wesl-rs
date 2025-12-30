@@ -13,6 +13,9 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 wesl = { workspace = true }
 
+[build-dependencies]
+bindgen = "0.72"
+
 [features]
 eval = ["wesl/eval"]
 generics = ["wesl/generics"]
