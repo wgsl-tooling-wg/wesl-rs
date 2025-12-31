@@ -1,14 +1,14 @@
-struct PushConstants {
+struct Immediates {
     example: f32,
 }
 
-var<push_constant> c: PushConstants;
+var<immediate> i: Immediates;
 
 fn main_1() {
     return;
 }
 
-@fragment 
+@fragment
 fn main() {
     main_1();
     return;
