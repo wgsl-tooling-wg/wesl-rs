@@ -109,14 +109,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a8241f3ebb85c056b509d4327ad0358fbbba6ffb340bf388f26350aeda225b1"
 
 [[package]]
-name = "bevy-wgsl"
-version = "0.1.0"
-source = "git+https://github.com/wgsl-tooling-wg/bevy-wgsl?rev=84977ff025eaf8d92e56a9c35b815fae70eb4af0#84977ff025eaf8d92e56a9c35b815fae70eb4af0"
-dependencies = [
- "wesl",
-]
-
-[[package]]
 name = "bit-set"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1301,7 +1293,6 @@ dependencies = [
 name = "wesl-test"
 version = "0.3.1"
 dependencies = [
- "bevy-wgsl",
  "libtest-mimic",
  "regex",
  "serde",

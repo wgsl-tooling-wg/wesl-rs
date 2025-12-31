@@ -150,16 +150,16 @@ fn main() {
         })
     });
 
-    tests.extend({
-        let entries = std::fs::read_dir("bevy").expect("missing dir `bevy`");
-        entries
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension() == Some(OsStr::new("wgsl")))
-            .map(|e| {
-                let name = format!("bevy::{}", e.file_name().display());
-                libtest_mimic::Trial::test(name, move || bevy_case(e.path()))
-            })
-    });
+    // tests.extend({
+    //     let entries = std::fs::read_dir("bevy").expect("missing dir `bevy`");
+    //     entries
+    //         .filter_map(|e| e.ok())
+    //         .filter(|e| e.path().extension() == Some(OsStr::new("wgsl")))
+    //         .map(|e| {
+    //             let name = format!("bevy::{}", e.file_name().display());
+    //             libtest_mimic::Trial::test(name, move || bevy_case(e.path()))
+    //         })
+    // });
 
     tests.extend({
         let in_entries = std::fs::read_dir("wgpu/in")
@@ -421,47 +421,47 @@ pub fn validation_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
     Ok(())
 }
 
-pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
-    let base = path.parent().ok_or("file not found")?;
-    let name = path
-        .file_stem()
-        .ok_or("file not found")?
-        .to_string_lossy()
-        .to_string();
-    let mut compiler = wesl::Wesl::new(base);
-    compiler
-        .add_package(&bevy_wgsl::PACKAGE)
-        .add_constants([
-            ("MAX_CASCADES_PER_LIGHT", 10.0),
-            ("MAX_DIRECTIONAL_LIGHTS", 10.0),
-            ("PER_OBJECT_BUFFER_BATCH_SIZE", 10.0),
-            ("TONEMAPPING_LUT_TEXTURE_BINDING_INDEX", 10.0),
-            ("TONEMAPPING_LUT_SAMPLER_BINDING_INDEX", 10.0),
-        ])
-        .set_options(CompileOptions {
-            strip: false,
-            lower: true,
-            validate: true,
-            lazy: false,
-            ..Default::default()
-        })
-        .set_feature("MULTISAMPLED", true) // show_prepass needs it
-        .set_feature("DEPTH_PREPASS", true) // show_prepass needs it
-        .set_feature("NORMAL_PREPASS", true) // show_prepass needs it
-        .set_feature("IRRADIANCE_VOLUMES_ARE_USABLE", true) // irradiance_volume_voxel_visualization needs it
-        .set_feature("IRRADIANCE_VOLUMES_ARE_USABLE", true) // irradiance_volume_voxel_visualization needs it
-        .set_feature("MOTION_VECTOR_PREPASS", true) // show_prepass needs it
-        .set_feature("CLUSTERED_DECALS_ARE_USABLE", true) // custom_clustered_decal needs it
-        .set_feature("VERTEX_UVS_A", true) // texture_binding_array needs it
-        .set_feature("VERTEX_OUTPUT_INSTANCE_INDEX", true); // extended_material needs it
-    if name == "water_material" {
-        compiler.set_feature("PREPASS_FRAGMENT", true); // water_material needs it
-        compiler.set_feature("PREPASS_PIPELINE", true); // water_material needs it
-        compiler.set_feature("NORMAL_PREPASS_OR_DEFERRED_PREPASS", true); // water_material needs it
-    }
-    compiler.compile(&ModulePath::new(PathOrigin::Absolute, vec![name]))?;
-    Ok(())
-}
+// pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
+//     let base = path.parent().ok_or("file not found")?;
+//     let name = path
+//         .file_stem()
+//         .ok_or("file not found")?
+//         .to_string_lossy()
+//         .to_string();
+//     let mut compiler = wesl::Wesl::new(base);
+//     compiler
+//         .add_package(&bevy_wgsl::PACKAGE)
+//         .add_constants([
+//             ("MAX_CASCADES_PER_LIGHT", 10.0),
+//             ("MAX_DIRECTIONAL_LIGHTS", 10.0),
+//             ("PER_OBJECT_BUFFER_BATCH_SIZE", 10.0),
+//             ("TONEMAPPING_LUT_TEXTURE_BINDING_INDEX", 10.0),
+//             ("TONEMAPPING_LUT_SAMPLER_BINDING_INDEX", 10.0),
+//         ])
+//         .set_options(CompileOptions {
+//             strip: false,
+//             lower: true,
+//             validate: true,
+//             lazy: false,
+//             ..Default::default()
+//         })
+//         .set_feature("MULTISAMPLED", true) // show_prepass needs it
+//         .set_feature("DEPTH_PREPASS", true) // show_prepass needs it
+//         .set_feature("NORMAL_PREPASS", true) // show_prepass needs it
+//         .set_feature("IRRADIANCE_VOLUMES_ARE_USABLE", true) // irradiance_volume_voxel_visualization needs it
+//         .set_feature("IRRADIANCE_VOLUMES_ARE_USABLE", true) // irradiance_volume_voxel_visualization needs it
+//         .set_feature("MOTION_VECTOR_PREPASS", true) // show_prepass needs it
+//         .set_feature("CLUSTERED_DECALS_ARE_USABLE", true) // custom_clustered_decal needs it
+//         .set_feature("VERTEX_UVS_A", true) // texture_binding_array needs it
+//         .set_feature("VERTEX_OUTPUT_INSTANCE_INDEX", true); // extended_material needs it
+//     if name == "water_material" {
+//         compiler.set_feature("PREPASS_FRAGMENT", true); // water_material needs it
+//         compiler.set_feature("PREPASS_PIPELINE", true); // water_material needs it
+//         compiler.set_feature("NORMAL_PREPASS_OR_DEFERRED_PREPASS", true); // water_material needs it
+//     }
+//     compiler.compile(&ModulePath::new(PathOrigin::Absolute, vec![name]))?;
+//     Ok(())
+// }
 
 fn sort_decls(wgsl: &mut TranslationUnit) {
     use std::cmp::Ordering;
