@@ -27,7 +27,7 @@ pub enum AddressSpace {
     Storage,
     Handle, // the handle address space cannot be spelled in WGSL.
     #[cfg(feature = "naga-ext")]
-    PushConstant,
+    Immediate,
 }
 
 impl AddressSpace {
@@ -40,7 +40,7 @@ impl AddressSpace {
             AddressSpace::Storage => AccessMode::Read,
             AddressSpace::Handle => AccessMode::Read,
             #[cfg(feature = "naga-ext")]
-            AddressSpace::PushConstant => AccessMode::Read,
+            AddressSpace::Immediate => AccessMode::Read,
         }
     }
 }
@@ -539,7 +539,7 @@ impl FromStr for AddressSpace {
             "uniform" => Ok(Self::Uniform),
             "storage" => Ok(Self::Storage),
             #[cfg(feature = "naga-ext")]
-            "push_constant" => Ok(Self::PushConstant),
+            "immediate" => Ok(Self::Immediate),
             // "WGSL predeclares an enumerant for each address space, except for the handle address space."
             // "handle" => Ok(Self::Handle),
             _ => Err(()),
@@ -765,7 +765,7 @@ impl Display for AddressSpace {
             Self::Storage => write!(f, "storage"),
             Self::Handle => write!(f, "handle"),
             #[cfg(feature = "naga-ext")]
-            Self::PushConstant => write!(f, "push_constant"),
+            Self::Immediate => write!(f, "immediate"),
         }
     }
 }

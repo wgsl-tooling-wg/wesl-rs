@@ -206,8 +206,8 @@ impl PtrTemplate {
                         unreachable!("handle address space cannot be spelled")
                     }
                     #[cfg(feature = "naga-ext")]
-                    (AddressSpace::PushConstant, _) => {
-                        todo!("push_constant")
+                    (AddressSpace::Immediate, _) => {
+                        todo!("immediate")
                     }
                 };
                 Ok(PtrTemplate { space, ty, access })
