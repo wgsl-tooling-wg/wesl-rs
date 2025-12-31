@@ -46,7 +46,7 @@ generics = ["wgsl-parse/generics"]
 # * 64-bit types: i64/u64/f64 and li, lu, lf literal suffixes
 # * extra builtins: `subgroup_id`, `num_subgroups`, `primitive_index`, `view_index`
 # * extra texel formats: see `TexelFormat`
-# * `push_constant` address space
+# * `immediate` address space
 # * `atomic` access mode for textures
 # * ray queries API (built-in functions, constants and struct types)
 # * `atomic<f32>`
