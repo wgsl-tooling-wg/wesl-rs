@@ -1,6 +1,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 
+mod lelwel;
+
 pub mod error;
 pub mod lexer;
 pub mod parser;

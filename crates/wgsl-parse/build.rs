@@ -7,4 +7,6 @@ fn main() {
         .emit_rerun_directives(true)
         .process()
         .unwrap();
+
+    lelwel::build("src/lelwel/wesl.llw");
 }
