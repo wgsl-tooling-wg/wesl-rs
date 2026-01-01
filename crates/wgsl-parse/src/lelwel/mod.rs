@@ -7,91 +7,93 @@ mod syntax_kind;
 
 use std::fmt::{self, Debug, Write as _};
 
-pub use edition::Edition;
+// pub use edition::Edition;
 pub use parser::{Diagnostic, parse_entrypoint};
-use rowan::GreenNode;
+// use rowan::GreenNode;
 
-pub struct Parse {
-    green_node: GreenNode,
-    errors: Vec<Diagnostic>,
-}
-impl fmt::Debug for Parse {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("Parse")
-            .field("green_node", &self.green_node)
-            .field("errors", &self.errors)
-            .finish()
-    }
-}
+// pub struct parse {
+//     green_node: greennode,
+//     errors: vec<diagnostic>,
+// }
+// impl fmt::debug for parse {
+//     fn fmt(&self, formatter: &mut fmt::formatter<'_>) -> fmt::result {
+//         formatter
+//             .debug_struct("parse")
+//             .field("green_node", &self.green_node)
+//             .field("errors", &self.errors)
+//             .finish()
+//     }
+// }
 
-impl PartialEq for Parse {
-    fn eq(&self, other: &Self) -> bool {
-        self.green_node == other.green_node
-    }
-}
+// impl PartialEq for Parse {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.green_node == other.green_node
+//     }
+// }
 
-impl Eq for Parse {}
+// impl Eq for Parse {}
 
-impl Parse {
-    #[must_use]
-    pub fn debug_tree(&self) -> String {
-        let mut buffer = String::new();
+// impl Parse {
+//     #[must_use]
+//     pub fn debug_tree(&self) -> String {
+//         let mut buffer = String::new();
 
-        let tree = format!("{:#?}", self.syntax());
+//         let tree = format!("{:#?}", self.syntax());
 
-        // We cut off the last byte because formatting the SyntaxNode adds on a newline at the end.
-        buffer.push_str(&tree[0..tree.len() - 1]);
+//         // We cut off the last byte because formatting the SyntaxNode adds on a newline at the end.
+//         buffer.push_str(&tree[0..tree.len() - 1]);
 
-        if !self.errors.is_empty() {
-            buffer.push('\n');
-        }
-        for diagnostic in &self.errors {
-            write!(buffer, "\n{diagnostic}").unwrap();
-        }
-        buffer
-    }
+//         if !self.errors.is_empty() {
+//             buffer.push('\n');
+//         }
+//         for diagnostic in &self.errors {
+//             write!(buffer, "\n{diagnostic}").unwrap();
+//         }
+//         buffer
+//     }
 
-    #[must_use]
-    pub fn syntax(&self) -> rowan::SyntaxNode<WeslLanguage> {
-        rowan::SyntaxNode::new_root(self.green_node.clone())
-    }
+//     #[must_use]
+//     pub fn syntax(&self) -> rowan::SyntaxNode<WeslLanguage> {
+//         rowan::SyntaxNode::new_root(self.green_node.clone())
+//     }
 
-    #[must_use]
-    pub fn errors(&self) -> &[Diagnostic] {
-        &self.errors
-    }
+//     #[must_use]
+//     pub fn errors(&self) -> &[Diagnostic] {
+//         &self.errors
+//     }
 
-    #[must_use]
-    pub fn into_parts(self) -> (GreenNode, Vec<Diagnostic>) {
-        (self.green_node, self.errors)
-    }
-}
+//     #[must_use]
+//     pub fn into_parts(self) -> (GreenNode, Vec<Diagnostic>) {
+//         (self.green_node, self.errors)
+//     }
+// }
 
 pub use syntax_kind::SyntaxKind;
 
-pub type SyntaxNode = rowan::SyntaxNode<WeslLanguage>;
-pub type SyntaxToken = rowan::SyntaxToken<WeslLanguage>;
-pub type SyntaxElement = rowan::SyntaxElement<WeslLanguage>;
-pub type SyntaxNodeChildren = rowan::SyntaxNodeChildren<WeslLanguage>;
-pub type SyntaxElementChildren = rowan::SyntaxElementChildren<WeslLanguage>;
-pub type PreorderWithTokens = rowan::api::PreorderWithTokens<WeslLanguage>;
+use crate::syntax::TranslationUnit;
 
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub enum WeslLanguage {}
+// pub type SyntaxNode = rowan::SyntaxNode<WeslLanguage>;
+// pub type SyntaxToken = rowan::SyntaxToken<WeslLanguage>;
+// pub type SyntaxElement = rowan::SyntaxElement<WeslLanguage>;
+// pub type SyntaxNodeChildren = rowan::SyntaxNodeChildren<WeslLanguage>;
+// pub type SyntaxElementChildren = rowan::SyntaxElementChildren<WeslLanguage>;
+// pub type PreorderWithTokens = rowan::api::PreorderWithTokens<WeslLanguage>;
 
-impl rowan::Language for WeslLanguage {
-    type Kind = SyntaxKind;
+// #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+// pub enum WeslLanguage {}
 
-    fn kind_from_raw(raw: rowan::SyntaxKind) -> Self::Kind {
-        debug_assert!(raw.0 <= SyntaxKind::Error.as_u16());
-        SyntaxKind::from_u16(raw.0)
-    }
+// impl rowan::Language for WeslLanguage {
+//     type Kind = SyntaxKind;
 
-    fn kind_to_raw(kind: Self::Kind) -> rowan::SyntaxKind {
-        kind.into()
-    }
-}
+//     fn kind_from_raw(raw: rowan::SyntaxKind) -> Self::Kind {
+//         debug_assert!(raw.0 <= SyntaxKind::Error.as_u16());
+//         SyntaxKind::from_u16(raw.0)
+//     }
+
+//     fn kind_to_raw(kind: Self::Kind) -> rowan::SyntaxKind {
+//         kind.into()
+//     }
+// }
 
 #[derive(Copy, PartialEq, Eq, Clone, Hash, Debug)]
 pub enum ParseEntryPoint {
@@ -103,27 +105,27 @@ pub enum ParseEntryPoint {
 }
 
 #[must_use]
-pub fn parse_file(input: &str) -> Parse {
+pub fn parse_file(input: &str) -> TranslationUnit {
     parse_entrypoint(input, ParseEntryPoint::File)
 }
 
-#[cfg(test)]
-fn check_entrypoint(
-    input: &str,
-    entry_point: ParseEntryPoint,
-    expected_tree: &expect_test::Expect,
-) {
-    use rowan::TextSize;
+// #[cfg(test)]
+// fn check_entrypoint(
+//     input: &str,
+//     entry_point: ParseEntryPoint,
+//     expected_tree: &expect_test::Expect,
+// ) {
+//     use rowan::TextSize;
 
-    let parse = crate::parser::parse_entrypoint(input, entry_point);
-    assert_eq!(parse.syntax().text_range().start(), TextSize::new(0));
-    assert_eq!(
-        parse.syntax().text_range().end(),
-        TextSize::try_from(input.len()).unwrap(),
-        "Syntax tree should cover entire file"
-    );
-    expected_tree.assert_eq(&parse.debug_tree());
-}
+//     let parse = crate::parser::parse_entrypoint(input, entry_point);
+//     assert_eq!(parse.syntax().text_range().start(), TextSize::new(0));
+//     assert_eq!(
+//         parse.syntax().text_range().end(),
+//         TextSize::try_from(input.len()).unwrap(),
+//         "Syntax tree should cover entire file"
+//     );
+//     expected_tree.assert_eq(&parse.debug_tree());
+// }
 
 #[cfg(test)]
 mod tests;

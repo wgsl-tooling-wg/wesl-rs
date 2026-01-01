@@ -238,35 +238,35 @@ pub enum SyntaxKind {
     Error,
 }
 
-impl From<SyntaxKind> for rowan::SyntaxKind {
-    fn from(kind: SyntaxKind) -> Self {
-        Self(kind.as_u16())
-    }
-}
+// impl From<SyntaxKind> for rowan::SyntaxKind {
+//     fn from(kind: SyntaxKind) -> Self {
+//         Self(kind.as_u16())
+//     }
+// }
 
-impl From<rowan::SyntaxKind> for SyntaxKind {
-    fn from(kind: rowan::SyntaxKind) -> Self {
-        let max_element = Self::Error.as_u16();
-        assert!(kind.0 < max_element);
-        Self::from_u16(kind.0)
-    }
-}
+// impl From<rowan::SyntaxKind> for SyntaxKind {
+//     fn from(kind: rowan::SyntaxKind) -> Self {
+//         let max_element = Self::Error.as_u16();
+//         assert!(kind.0 < max_element);
+//         Self::from_u16(kind.0)
+//     }
+// }
 
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub(crate) enum WeslLanguage {}
 
-impl rowan::Language for WeslLanguage {
-    type Kind = SyntaxKind;
+// impl rowan::Language for WeslLanguage {
+//     type Kind = SyntaxKind;
 
-    fn kind_from_raw(raw: rowan::SyntaxKind) -> Self::Kind {
-        assert!(raw.0 <= SyntaxKind::Error.as_u16());
-        SyntaxKind::from_u16(raw.0)
-    }
+//     fn kind_from_raw(raw: rowan::SyntaxKind) -> Self::Kind {
+//         assert!(raw.0 <= SyntaxKind::Error.as_u16());
+//         SyntaxKind::from_u16(raw.0)
+//     }
 
-    fn kind_to_raw(kind: Self::Kind) -> rowan::SyntaxKind {
-        kind.into()
-    }
-}
+//     fn kind_to_raw(kind: Self::Kind) -> rowan::SyntaxKind {
+//         kind.into()
+//     }
+// }
 
 impl SyntaxKind {
     #[must_use]

@@ -28,10 +28,12 @@
 use std::fmt;
 
 use logos::Logos as _;
-use rowan::GreenNodeBuilder;
+// use rowan::GreenNodeBuilder;
+
+use crate::syntax::TranslationUnit;
 
 use super::lexer::Token;
-use crate::{Parse, ParseEntryPoint, cst_builder::CstBuilder, lexer::lex_with_templates};
+use super::{ParseEntryPoint, cst_builder::CstBuilder, lexer::lex_with_templates};
 
 include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 
@@ -42,7 +44,7 @@ pub struct Context<'a> {
 
 pub struct Diagnostic {
     pub message: String,
-    pub range: rowan::TextRange,
+    pub range: Span,
 }
 
 impl fmt::Debug for Diagnostic {
@@ -59,21 +61,19 @@ impl fmt::Display for Diagnostic {
         write!(
             f,
             "error at {}..{}: {}",
-            u32::from(self.range.start()),
-            u32::from(self.range.end()),
-            self.message
+            self.range.start, self.range.end, self.message
         )
     }
 }
 
-pub(crate) fn to_range(span: Span) -> rowan::TextRange {
-    let start = rowan::TextSize::try_from(span.start).unwrap();
-    let end = rowan::TextSize::try_from(span.end).unwrap();
-    rowan::TextRange::new(start, end)
-}
+// pub(crate) fn to_range(span: Span) -> rowan::TextRange {
+//     let start = rowan::TextSize::try_from(span.start).unwrap();
+//     let end = rowan::TextSize::try_from(span.end).unwrap();
+//     rowan::TextRange::new(start, end)
+// }
 
 #[must_use]
-pub fn parse_entrypoint(input: &str, entrypoint: ParseEntryPoint) -> Parse {
+pub fn parse_entrypoint(input: &str, entrypoint: ParseEntryPoint) -> TranslationUnit {
     let mut diagnostics = Vec::new();
     let parsed = match entrypoint {
         ParseEntryPoint::File => Parser::new(input, &mut diagnostics).parse(&mut diagnostics),
@@ -90,16 +90,16 @@ pub fn parse_entrypoint(input: &str, entrypoint: ParseEntryPoint) -> Parse {
             Parser::new(input, &mut diagnostics).parse_attribute(&mut diagnostics)
         }
     };
-    let green_node = CstBuilder {
-        builder: GreenNodeBuilder::new(),
+    CstBuilder {
+        // builder: GreenNodeBuilder::new(),
         token_start_index: 0,
         cst: parsed,
     }
-    .build();
-    Parse {
-        green_node,
-        errors: diagnostics,
-    }
+    .build()
+    // Parse {
+    //     green_node,
+    //     errors: diagnostics,
+    // }
 }
 
 impl Cst<'_> {
@@ -137,7 +137,7 @@ impl<'source> ParserCallbacks<'source> for Parser<'source> {
     fn create_diagnostic(&self, span: Span, message: String) -> Self::Diagnostic {
         Diagnostic {
             message,
-            range: to_range(span),
+            range: span,
         }
     }
 

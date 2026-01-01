@@ -1,7 +1,7 @@
 use std::ops::Range;
 
+// use super::parser::to_range;
 use super::parser::{Diagnostic, Span};
-use crate::parser::to_range;
 
 #[expect(
     clippy::upper_case_acronyms,
@@ -260,7 +260,7 @@ pub fn lex_with_templates(
         } else {
             diagnostics.push(Diagnostic {
                 message: "unexpected tokens".to_owned(),
-                range: to_range(span.clone()),
+                range: span.clone(),
             });
             (Token::Error, span)
         }
@@ -432,9 +432,7 @@ mod tests {
             _ = writeln!(
                 tokens_with_spans,
                 "Error: {}@{}..{}",
-                diagnostic.message,
-                u32::from(diagnostic.range.start()),
-                u32::from(diagnostic.range.end())
+                diagnostic.message, diagnostic.range.start, diagnostic.range.end
             );
         }
         expect.assert_eq(&tokens_with_spans);
