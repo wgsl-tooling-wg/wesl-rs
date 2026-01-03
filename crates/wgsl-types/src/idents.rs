@@ -173,7 +173,7 @@ pub const BUILTIN_ENUMERANT_NAMES: &[&str] = &[
     "uniform",
     "storage",
     #[cfg(feature = "naga-ext")]
-    "push_constant",
+    "immediate",
     // : texel format
     "rgba8unorm",
     "rgba8snorm",
