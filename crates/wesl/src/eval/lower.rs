@@ -336,16 +336,21 @@ impl Lower for Statement {
                     };
                 }
 
-                // remove the whole statement if the first clause is true
+                // if the first clause is true, replace the statement with the body
                 if *stmt.if_clause.expression == EXPR_TRUE {
                     assign_clause!(self, stmt.if_clause.body);
-                } else if *stmt.if_clause.expression == EXPR_FALSE {
+                }
+                // if the clause is false, replace with the body of the `else` branch or the first
+                // `else if`. if neither exist, replace the entire statement with void.
+                else if *stmt.if_clause.expression == EXPR_FALSE {
                     if let Some(clause) = stmt.else_if_clauses.first() {
                         if *clause.expression == EXPR_TRUE {
                             assign_clause!(self, clause.body);
                         }
                     } else if let Some(clause) = &stmt.else_clause {
                         assign_clause!(self, clause.body);
+                    } else {
+                        *self = Statement::Void;
                     }
                 }
             }
