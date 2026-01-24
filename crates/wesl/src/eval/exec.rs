@@ -1064,7 +1064,7 @@ impl Exec for Declaration {
                         }
                         AddressSpace::Handle => todo!("handle address space"),
                         #[cfg(feature = "naga-ext")]
-                        AddressSpace::PushConstant => todo!("push_constant address space"),
+                        AddressSpace::Immediate => todo!("immediate address space"),
                     }
                 }
             }
