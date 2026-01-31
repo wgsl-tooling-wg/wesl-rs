@@ -7,6 +7,8 @@ pub mod eval;
 mod generics;
 #[cfg(feature = "package")]
 mod package;
+#[cfg(feature = "package")]
+mod wesl_toml;
 
 mod condcomp;
 mod error;
@@ -28,7 +30,9 @@ pub use eval::{Eval, EvalError, Exec, Inputs, exec_entrypoint};
 pub use generics::GenericsError;
 
 #[cfg(feature = "package")]
-pub use package::{Module, Pkg, PkgBuilder};
+pub use package::{Module, Pkg, PkgBuilder, ScanDirectoryError};
+#[cfg(feature = "package")]
+pub use wesl_toml::{DependencyConfig, DependencySpec, PackageConfig, ScanTomlError, WeslToml};
 
 pub use condcomp::{CondCompError, Feature, Features};
 pub use error::{Diagnostic, Error};
