@@ -167,11 +167,16 @@ impl ModulePath {
                 match &self.origin {
                     PathOrigin::Absolute | PathOrigin::Relative(_) => suffix.clone(),
                     PathOrigin::Package(self_pkg) => {
-                        // Importing a sub-package. This is a hack: we rename the package to
-                        // parent/child, which cannot be spelled in code.
-                        let origin = PathOrigin::Package(format!("{self_pkg}/{suffix_pkg}"));
-                        let components = suffix.components.clone();
-                        Self { origin, components }
+                        if self_pkg == suffix_pkg {
+                            // Same package - just use the suffix path directly
+                            suffix.clone()
+                        } else {
+                            // Importing a sub-package. This is a hack: we rename the package to
+                            // parent/child, which cannot be spelled in code.
+                            let origin = PathOrigin::Package(format!("{self_pkg}/{suffix_pkg}"));
+                            let components = suffix.components.clone();
+                            Self { origin, components }
+                        }
                     }
                 }
             }
