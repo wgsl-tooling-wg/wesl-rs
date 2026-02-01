@@ -215,6 +215,7 @@ fn test_module_path_join() {
         ("pkg::m1::m2", "self::foo", "pkg::m1::m2::foo"),
         ("pkg::m1::m2", "super::foo", "pkg::m1::foo"),
         ("pkg::m1", "super::super::foo", "pkg::foo"),
+        ("lygia::m1", "lygia::math", "lygia::math"),
         ("super", "super::foo", "super::super::foo"),
         ("super::m1::m2::m3", "super::super::m4", "super::m1::m4"),
         ("super", "self::foo", "super::foo"),
