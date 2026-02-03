@@ -15,7 +15,7 @@ use crate::package::{Module, RESERVED_MOD_NAMES, is_mod_ident};
 /// Parsed wesl.toml configuration.
 #[derive(Debug)]
 pub struct WeslToml {
-    /// Package configuration (merged from root and [package] section).
+    /// Package configuration.
     pub package: PackageConfig,
     /// The [dependencies] section.
     pub dependencies: DependencyConfig,
@@ -103,8 +103,6 @@ pub enum ScanTomlError {
     TomlNotFound(PathBuf),
     #[error("Failed to parse wesl.toml: {0}")]
     TomlParse(#[from] toml::de::Error),
-    #[error("`{0}` specified both at root and under [package]")]
-    ConflictingKey(String),
     #[error("missing required field `edition`")]
     MissingEdition,
     #[error("Invalid glob pattern `{0}`: {1}")]
@@ -119,31 +117,19 @@ pub enum ScanTomlError {
     ConflictingFiles(String, Vec<PathBuf>),
 }
 
-// Raw deserialization types that allow fields at root or under [package]
+// Raw deserialization type for wesl.toml
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct RawWeslToml {
-    // Root-level package fields (Option<T> is already optional in serde)
+    // Package fields at root level (Option<T> is already optional in serde)
     edition: Option<String>,
     package_manager: Option<String>,
     root: Option<String>,
     include: Option<Vec<String>>,
     exclude: Option<Vec<String>>,
-    // [package] section
-    package: Option<RawPackageSection>,
     // [dependencies] section
     #[serde(default)]
     dependencies: DependencyConfig,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct RawPackageSection {
-    edition: Option<String>,
-    package_manager: Option<String>,
-    root: Option<String>,
-    include: Option<Vec<String>>,
-    exclude: Option<Vec<String>>,
 }
 
 impl WeslToml {
@@ -154,40 +140,19 @@ impl WeslToml {
     }
 
     /// Parse a wesl.toml from string content.
-    ///
-    /// Package fields can be specified at the root level or under `[package]`.
-    /// Specifying the same field in both places is an error.
     pub fn parse_str(content: &str) -> Result<Self, ScanTomlError> {
         let raw: RawWeslToml = toml::from_str(content).map_err(ScanTomlError::TomlParse)?;
-        let pkg = raw.package.as_ref();
 
-        macro_rules! merge {
-            ($field:ident) => {
-                match (&raw.$field, pkg.and_then(|p| p.$field.as_ref())) {
-                    (Some(_), Some(_)) => {
-                        return Err(ScanTomlError::ConflictingKey(
-                            stringify!($field).replace('_', "-"),
-                        ))
-                    }
-                    (Some(v), None) => Some(v.clone()),
-                    (None, Some(v)) => Some(v.clone()),
-                    (None, None) => None,
-                }
-            };
-        }
-
-        let edition = merge!(edition).ok_or(ScanTomlError::MissingEdition)?;
-        let package_manager = merge!(package_manager);
-        let root = merge!(root).unwrap_or_else(|| "./shaders/".to_string());
-        let include = merge!(include);
-        let exclude = merge!(exclude).unwrap_or_default();
+        let edition = raw.edition.ok_or(ScanTomlError::MissingEdition)?;
+        let root = raw.root.unwrap_or_else(|| "./shaders/".to_string());
+        let exclude = raw.exclude.unwrap_or_default();
 
         Ok(WeslToml {
             package: PackageConfig {
                 edition,
-                package_manager,
+                package_manager: raw.package_manager,
                 root,
-                include,
+                include: raw.include,
                 exclude,
             },
             dependencies: raw.dependencies,
@@ -429,25 +394,15 @@ mod tests {
 
     #[test]
     fn test_config_parsing() {
-        // Fields under [package]
-        let under_pkg = WeslToml::parse_str("[package]\nedition = \"2026_pre\"").unwrap();
-        assert_eq!(under_pkg.package.edition, "2026_pre");
-        assert_eq!(under_pkg.package.root, "./shaders/");
+        // Basic config with defaults
+        let basic = WeslToml::parse_str("edition = \"2026_pre\"").unwrap();
+        assert_eq!(basic.package.edition, "2026_pre");
+        assert_eq!(basic.package.root, "./shaders/");
 
-        // Fields at root level (no [package] section needed)
-        let at_root = WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./src/\"").unwrap();
-        assert_eq!(at_root.package.edition, "2026_pre");
-        assert_eq!(at_root.package.root, "./src/");
-
-        // Mixed: some at root, some under [package]
-        let mixed =
-            WeslToml::parse_str("edition = \"2026_pre\"\n\n[package]\nroot = \"./mix/\"").unwrap();
-        assert_eq!(mixed.package.edition, "2026_pre");
-        assert_eq!(mixed.package.root, "./mix/");
-
-        // Conflict: same key in both places
-        let conflict = WeslToml::parse_str("edition = \"v1\"\n\n[package]\nedition = \"v2\"");
-        assert!(matches!(conflict, Err(ScanTomlError::ConflictingKey(_))));
+        // Config with custom root
+        let with_root = WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./src/\"").unwrap();
+        assert_eq!(with_root.package.edition, "2026_pre");
+        assert_eq!(with_root.package.root, "./src/");
 
         // Missing edition
         let missing = WeslToml::parse_str("root = \"./shaders/\"");
@@ -473,8 +428,7 @@ mod tests {
         fs::write(base.join("shaders/utils/math.wesl"), "fn add() {}").unwrap();
 
         let config =
-            WeslToml::parse_str("[package]\nedition = \"2026_pre\"\nroot = \"./shaders/\"")
-                .unwrap();
+            WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./shaders/\"").unwrap();
         let result = scan_from_config("my_pkg", base, &config).unwrap();
 
         assert_eq!(result.module.name, "my_pkg");
@@ -508,8 +462,7 @@ mod tests {
         fs::write(base.join("shaders/main.wgsl"), "// wgsl").unwrap();
 
         let config =
-            WeslToml::parse_str("[package]\nedition = \"2026_pre\"\nroot = \"./shaders/\"")
-                .unwrap();
+            WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./shaders/\"").unwrap();
         let result = scan_from_config("my_pkg", base, &config);
 
         assert!(matches!(result, Err(ScanTomlError::ConflictingFiles(_, _))));
