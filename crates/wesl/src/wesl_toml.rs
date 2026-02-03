@@ -201,6 +201,7 @@ fn collect_glob_filtered(
     let mut paths = HashSet::new();
 
     for pattern in patterns {
+        // Join with base_dir so glob resolves relative to wesl.toml, not cwd
         let pattern_path = pattern
             .strip_prefix("./")
             .map_or_else(|| base_dir.join(pattern), |s| base_dir.join(s));
@@ -209,7 +210,10 @@ fn collect_glob_filtered(
         let glob_iter =
             glob::glob(&pattern_str).map_err(|e| ScanTomlError::InvalidGlob(pattern.clone(), e))?;
 
-        paths.extend(glob_iter.flatten().filter(|p| filter(p)));
+        for path in glob_iter.flatten().filter(|p| filter(p)) {
+            let canonical = path.canonicalize().unwrap_or(path);
+            paths.insert(canonical);
+        }
     }
 
     Ok(paths)
@@ -477,5 +481,23 @@ mod tests {
         // Should only have main, not the test/fixture
         assert_eq!(result.module.submodules.len(), 1);
         assert_eq!(result.module.submodules[0].name, "main");
+    }
+
+    #[test]
+    fn test_overlapping_patterns_deduplicated() {
+        // Overlapping patterns that resolve to the same files should be deduplicated
+        let base = fixtures_dir().join("basic");
+        let config = WeslToml::parse_str(
+            r#"
+            edition = "2026_pre"
+            root = "./shaders/"
+            include = ["./shaders/**/*.wesl", "./shaders/../shaders/**/*.wesl"]
+            "#,
+        )
+        .unwrap();
+        let result = scan_from_config("my_pkg", &base, &config).unwrap();
+
+        // Should still be 2 modules (main + utils), not duplicated
+        assert_eq!(result.module.submodules.len(), 2);
     }
 }
