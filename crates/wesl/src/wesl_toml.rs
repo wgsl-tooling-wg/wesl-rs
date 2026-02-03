@@ -123,19 +123,13 @@ pub enum ScanTomlError {
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct RawWeslToml {
-    // Root-level package fields
-    #[serde(default)]
+    // Root-level package fields (Option<T> is already optional in serde)
     edition: Option<String>,
-    #[serde(default)]
     package_manager: Option<String>,
-    #[serde(default)]
     root: Option<String>,
-    #[serde(default)]
     include: Option<Vec<String>>,
-    #[serde(default)]
     exclude: Option<Vec<String>>,
     // [package] section
-    #[serde(default)]
     package: Option<RawPackageSection>,
     // [dependencies] section
     #[serde(default)]
@@ -145,15 +139,10 @@ struct RawWeslToml {
 #[derive(Deserialize)]
 #[serde(rename_all = "kebab-case")]
 struct RawPackageSection {
-    #[serde(default)]
     edition: Option<String>,
-    #[serde(default)]
     package_manager: Option<String>,
-    #[serde(default)]
     root: Option<String>,
-    #[serde(default)]
     include: Option<Vec<String>>,
-    #[serde(default)]
     exclude: Option<Vec<String>>,
 }
 
