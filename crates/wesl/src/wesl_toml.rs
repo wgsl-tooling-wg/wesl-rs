@@ -390,7 +390,11 @@ fn build_module_tree(root_name: &str, entries: Vec<FileEntry>) -> Result<Module,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
+    use std::path::Path;
+
+    fn fixtures_dir() -> &'static Path {
+        Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/wesl_toml"))
+    }
 
     #[test]
     fn test_config_parsing() {
@@ -420,16 +424,10 @@ mod tests {
 
     #[test]
     fn test_scan_from_config() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base = temp_dir.path();
-
-        fs::create_dir_all(base.join("shaders/utils")).unwrap();
-        fs::write(base.join("shaders/main.wesl"), "// main").unwrap();
-        fs::write(base.join("shaders/utils/math.wesl"), "fn add() {}").unwrap();
-
+        let base = fixtures_dir().join("basic");
         let config =
             WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./shaders/\"").unwrap();
-        let result = scan_from_config("my_pkg", base, &config).unwrap();
+        let result = scan_from_config("my_pkg", &base, &config).unwrap();
 
         assert_eq!(result.module.name, "my_pkg");
         assert_eq!(result.module.submodules.len(), 2);
@@ -441,7 +439,7 @@ mod tests {
             .iter()
             .find(|m| m.name == "main")
             .unwrap();
-        assert_eq!(main_mod.source, "// main");
+        assert_eq!(main_mod.source.trim(), "// main");
 
         let utils = result
             .module
@@ -454,30 +452,17 @@ mod tests {
 
     #[test]
     fn test_conflicting_files_error() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base = temp_dir.path();
-
-        fs::create_dir_all(base.join("shaders")).unwrap();
-        fs::write(base.join("shaders/main.wesl"), "// wesl").unwrap();
-        fs::write(base.join("shaders/main.wgsl"), "// wgsl").unwrap();
-
+        let base = fixtures_dir().join("conflict");
         let config =
             WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./shaders/\"").unwrap();
-        let result = scan_from_config("my_pkg", base, &config);
+        let result = scan_from_config("my_pkg", &base, &config);
 
         assert!(matches!(result, Err(ScanTomlError::ConflictingFiles(_, _))));
     }
 
     #[test]
     fn test_exclude_directory() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base = temp_dir.path();
-
-        fs::create_dir_all(base.join("shaders/test")).unwrap();
-        fs::write(base.join("shaders/main.wesl"), "// main").unwrap();
-        fs::write(base.join("shaders/test/fixture.wesl"), "// fixture").unwrap();
-
-        // Exclude the test directory
+        let base = fixtures_dir().join("exclude");
         let config = WeslToml::parse_str(
             r#"
             edition = "2026_pre"
@@ -487,7 +472,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = scan_from_config("my_pkg", base, &config).unwrap();
+        let result = scan_from_config("my_pkg", &base, &config).unwrap();
 
         // Should only have main, not the test/fixture
         assert_eq!(result.module.submodules.len(), 1);
