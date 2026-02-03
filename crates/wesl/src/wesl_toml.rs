@@ -399,7 +399,10 @@ mod tests {
     use std::path::Path;
 
     fn fixtures_dir() -> &'static Path {
-        Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/wesl_toml"))
+        Path::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/fixtures/wesl_toml"
+        ))
     }
 
     #[test]
@@ -437,8 +440,7 @@ mod tests {
     #[test]
     fn test_scan_from_config() {
         let base = fixtures_dir().join("basic");
-        let config =
-            WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./shaders/\"").unwrap();
+        let config = WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./shaders/\"").unwrap();
         let result = scan_from_config("my_pkg", &base, &config).unwrap();
 
         assert_eq!(result.module.name, "my_pkg");
@@ -465,8 +467,7 @@ mod tests {
     #[test]
     fn test_conflicting_files_error() {
         let base = fixtures_dir().join("conflict");
-        let config =
-            WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./shaders/\"").unwrap();
+        let config = WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./shaders/\"").unwrap();
         let result = scan_from_config("my_pkg", &base, &config);
 
         assert!(matches!(result, Err(ScanTomlError::ConflictingFiles(_, _))));
