@@ -145,7 +145,9 @@ impl WeslToml {
 
         let edition = raw.edition.ok_or(ScanTomlError::MissingEdition)?;
         let root = raw.root.unwrap_or_else(|| "./shaders/".to_string());
-        let exclude = raw.exclude.unwrap_or_default();
+        let exclude = raw
+            .exclude
+            .unwrap_or_else(|| vec!["**/node_modules".to_string()]);
 
         Ok(WeslToml {
             package: PackageConfig {
@@ -406,11 +408,17 @@ mod tests {
         let basic = WeslToml::parse_str("edition = \"2026_pre\"").unwrap();
         assert_eq!(basic.package.edition, "2026_pre");
         assert_eq!(basic.package.root, "./shaders/");
+        // Default exclude should be node_modules
+        assert_eq!(basic.package.exclude, vec!["**/node_modules"]);
 
         // Config with custom root
         let with_root = WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./src/\"").unwrap();
         assert_eq!(with_root.package.edition, "2026_pre");
         assert_eq!(with_root.package.root, "./src/");
+
+        // Explicit empty exclude overrides default
+        let no_exclude = WeslToml::parse_str("edition = \"2026_pre\"\nexclude = []").unwrap();
+        assert!(no_exclude.package.exclude.is_empty());
 
         // Missing edition
         let missing = WeslToml::parse_str("root = \"./shaders/\"");
