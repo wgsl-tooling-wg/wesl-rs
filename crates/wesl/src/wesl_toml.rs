@@ -164,15 +164,13 @@ pub enum DependencySpec {
     Path(String),
 }
 
-/// A single dependency specification.
+/// Intermediate data type for serialization / deserialization
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DependencySpecProxy {
-    /// Package name (for renaming): `mydep = { package = "actual_name" }`
     Package { package: String },
-    /// Local path: `mydep = { path = "../lib" }`
     Path { path: String },
-    /// Auto: `mydep = { }`
+    // note, this one has to come last so the other two take priority.
     Auto {},
 }
 
@@ -239,8 +237,6 @@ pub enum ScanTomlError {
     TomlNotFound(PathBuf),
     #[error("Failed to parse wesl.toml: {0}")]
     TomlParse(#[from] toml::de::Error),
-    #[error("missing required field `edition`")]
-    MissingEdition,
     #[error("expected dependencies = \"auto\"")]
     ExpectedAuto,
     #[error("Invalid glob pattern `{0}`: {1}")]
