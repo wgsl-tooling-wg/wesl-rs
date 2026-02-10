@@ -32,7 +32,7 @@ pub use generics::GenericsError;
 #[cfg(feature = "package")]
 pub use package::{Module, Pkg, PkgBuilder, ScanDirectoryError};
 #[cfg(feature = "package")]
-pub use wesl_toml::{DependencyConfig, DependencySpec, PackageConfig, ScanTomlError, WeslToml};
+pub use wesl_toml::{ScanTomlError, WeslToml};
 
 pub use condcomp::{CondCompError, Feature, Features};
 pub use error::{Diagnostic, Error};

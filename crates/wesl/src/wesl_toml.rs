@@ -2,62 +2,198 @@
 //!
 //! This module handles reading wesl.toml configuration files and building
 //! module hierarchies from glob patterns.
+//!
+//! ```toml
+//! # Version of WESL used in this project.
+//! edition = "2026_pre"
+//!
+//! # Optional, can be auto-inferred from the existence of a package manager file.
+//! # Inclusion of this field is encouraged.
+//! package-manager = "npm"
+//!
+//! # Where are the shaders located. This is the path of `package::`.
+//! root = "./shaders"
+//!
+//! # Optional
+//! include = [ "shaders/**/*.wesl", "shaders/**/*.wgsl" ]
+//!
+//! # Optional.
+//! # Some projects have large folders that we shouldn't react to.
+//! exclude = [ "**/test" ]
+//!
+//! # Lists all used dependencies
+//! [dependencies]
+//! # Shorthand for `foolib = { package = "foolib" }`
+//! foolib = {}
+//! # Can be used for renaming packages. Now bevy in my code is called "cute_bevy".
+//! cute_bevy = { package = "bevy" }
+//! # File path to a folder with a wesl.toml. Simplest kind of dependency.
+//! mylib = { path = "../mylib" }
+//! ```
+
+//!
 
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::package::{Module, RESERVED_MOD_NAMES, is_mod_ident};
 
 /// Parsed wesl.toml configuration.
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WeslToml {
     /// Package configuration.
-    pub package: PackageConfig,
-    /// The [dependencies] section.
-    pub dependencies: DependencyConfig,
+    #[serde(flatten)]
+    package: PackageConfig,
+    /// The `[dependencies]` section.
+    #[serde(default)]
+    dependencies: DependenciesConfig,
 }
 
 /// Package configuration fields.
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PackageConfig {
     /// WESL edition (required).
-    pub edition: String,
+    edition: WeslEdition,
     /// Package manager: "npm" or "cargo". Auto-detected if not specified.
-    pub package_manager: Option<String>,
+    // TODO: auto-detect is not implemented, it just defaults to cargo.
+    #[serde(default)]
+    package_manager: PackageManager,
     /// Root folder for package:: syntax. Default: "./shaders/"
-    pub root: String,
+    #[serde(default = "default_root")]
+    root: PathBuf,
     /// Glob patterns for files to include. Default: all .wesl/.wgsl in root.
-    pub include: Option<Vec<String>>,
+    #[serde(default = "default_include")]
+    include: Vec<String>,
     /// Glob patterns for files to exclude. Default: empty.
-    pub exclude: Vec<String>,
+    #[serde(default = "default_exclude")]
+    exclude: Vec<String>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(rename = "snake_case")]
+pub enum WeslEdition {
+    #[serde(rename = "2026_pre")]
+    Unstable2026,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PackageManager {
+    // TODO: the spec says: "can be inferred from the existence of certain files"
+    #[default]
+    Cargo,
+    Npm,
+}
+
+fn default_root() -> PathBuf {
+    PathBuf::from("./shaders/")
+}
+fn default_include() -> Vec<String> {
+    vec!["**/*.wesl".to_string(), "**/*.wgsl".to_string()]
+}
+fn default_exclude() -> Vec<String> {
+    vec!["**/node_modules/".to_string()]
 }
 
 /// The [dependencies] section of wesl.toml.
-#[derive(Debug, Default, Deserialize)]
-#[serde(untagged)]
-pub enum DependencyConfig {
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[serde(
+    untagged,
+    try_from = "DependenciesConfigProxy",
+    into = "DependenciesConfigProxy"
+)]
+pub enum DependenciesConfig {
     /// No dependencies specified.
     #[default]
     None,
     /// Automatic dependency detection: `dependencies = "auto"`
+    Auto,
+    /// Explicit dependency table.
+    Manual(HashMap<String, DependencySpec>),
+}
+
+/// Intermediate data type for serialization / deserialization
+#[derive(Serialize, Deserialize)]
+#[serde(untagged)]
+enum DependenciesConfigProxy {
+    None,
     Auto(String),
-    /// Explicit dependency map.
-    Map(HashMap<String, DependencySpec>),
+    Manual(HashMap<String, DependencySpec>),
+}
+
+impl TryFrom<DependenciesConfigProxy> for DependenciesConfig {
+    type Error = ScanTomlError;
+
+    fn try_from(cfg: DependenciesConfigProxy) -> Result<Self, Self::Error> {
+        match cfg {
+            DependenciesConfigProxy::None => Ok(DependenciesConfig::None),
+            DependenciesConfigProxy::Auto(s) if s == "auto" => Ok(DependenciesConfig::Auto),
+            DependenciesConfigProxy::Auto(_) => Err(ScanTomlError::ExpectedAuto),
+            DependenciesConfigProxy::Manual(map) => Ok(DependenciesConfig::Manual(map)),
+        }
+    }
+}
+
+impl From<DependenciesConfig> for DependenciesConfigProxy {
+    fn from(dep: DependenciesConfig) -> Self {
+        match dep {
+            DependenciesConfig::None => DependenciesConfigProxy::None,
+            DependenciesConfig::Auto => DependenciesConfigProxy::Auto("auto".into()),
+            DependenciesConfig::Manual(map) => DependenciesConfigProxy::Manual(map),
+        }
+    }
 }
 
 /// A single dependency specification.
-#[derive(Debug, Deserialize)]
-pub struct DependencySpec {
-    /// Package name (for renaming): `{ package = "actual_name" }`
-    #[serde(default)]
-    pub package: Option<String>,
-    /// Local path: `{ path = "../lib" }`
-    #[serde(default)]
-    pub path: Option<String>,
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(
+    untagged,
+    try_from = "DependencySpecProxy",
+    into = "DependencySpecProxy"
+)]
+pub enum DependencySpec {
+    /// Auto: `mydep = { }`
+    Auto,
+    /// Package name (for renaming): `mydep = { package = "actual_name" }`
+    Package(String),
+    /// Local path: `mydep = { path = "../lib" }`
+    Path(String),
+}
+
+/// A single dependency specification.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum DependencySpecProxy {
+    /// Package name (for renaming): `mydep = { package = "actual_name" }`
+    Package { package: String },
+    /// Local path: `mydep = { path = "../lib" }`
+    Path { path: String },
+    /// Auto: `mydep = { }`
+    Auto {},
+}
+
+impl From<DependencySpecProxy> for DependencySpec {
+    fn from(cfg: DependencySpecProxy) -> Self {
+        match cfg {
+            DependencySpecProxy::Auto {} => DependencySpec::Auto,
+            DependencySpecProxy::Package { package } => DependencySpec::Package(package),
+            DependencySpecProxy::Path { path } => DependencySpec::Path(path),
+        }
+    }
+}
+
+impl From<DependencySpec> for DependencySpecProxy {
+    fn from(dep: DependencySpec) -> Self {
+        match dep {
+            DependencySpec::Auto => DependencySpecProxy::Auto {},
+            DependencySpec::Package(package) => DependencySpecProxy::Package { package },
+            DependencySpec::Path(path) => DependencySpecProxy::Path { path },
+        }
+    }
 }
 
 /// Warning emitted during file scanning (non-fatal).
@@ -105,6 +241,8 @@ pub enum ScanTomlError {
     TomlParse(#[from] toml::de::Error),
     #[error("missing required field `edition`")]
     MissingEdition,
+    #[error("expected dependencies = \"auto\"")]
+    ExpectedAuto,
     #[error("Invalid glob pattern `{0}`: {1}")]
     InvalidGlob(String, glob::PatternError),
     #[error("File `{0}` is outside root `{1}`")]
@@ -117,21 +255,6 @@ pub enum ScanTomlError {
     ConflictingFiles(String, Vec<PathBuf>),
 }
 
-// Raw deserialization type for wesl.toml
-#[derive(Deserialize)]
-#[serde(rename_all = "kebab-case")]
-struct RawWeslToml {
-    // Package fields at root level (Option<T> is already optional in serde)
-    edition: Option<String>,
-    package_manager: Option<String>,
-    root: Option<String>,
-    include: Option<Vec<String>>,
-    exclude: Option<Vec<String>>,
-    // [dependencies] section
-    #[serde(default)]
-    dependencies: DependencyConfig,
-}
-
 impl WeslToml {
     /// Parse a wesl.toml file from a path.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, ScanTomlError> {
@@ -141,24 +264,7 @@ impl WeslToml {
 
     /// Parse a wesl.toml from string content.
     pub fn parse_str(content: &str) -> Result<Self, ScanTomlError> {
-        let raw: RawWeslToml = toml::from_str(content).map_err(ScanTomlError::TomlParse)?;
-
-        let edition = raw.edition.ok_or(ScanTomlError::MissingEdition)?;
-        let root = raw.root.unwrap_or_else(|| "./shaders/".to_string());
-        let exclude = raw
-            .exclude
-            .unwrap_or_else(|| vec!["**/node_modules".to_string()]);
-
-        Ok(WeslToml {
-            package: PackageConfig {
-                edition,
-                package_manager: raw.package_manager,
-                root,
-                include: raw.include,
-                exclude,
-            },
-            dependencies: raw.dependencies,
-        })
+        toml::from_str(content).map_err(ScanTomlError::TomlParse)
     }
 }
 
@@ -170,15 +276,10 @@ pub fn scan_from_config(
     base_dir: &Path,
     config: &WeslToml,
 ) -> Result<ScanResult, ScanTomlError> {
-    let root_str = config.package.root.trim_start_matches("./");
-    let root_path = base_dir.join(root_str);
+    let root_path = &config.package.root;
+    let root_path = base_dir.join(root_path);
 
-    let include_patterns = config
-        .package
-        .include
-        .clone()
-        .unwrap_or_else(|| vec![format!("{}/**/*.w[eg]sl", root_str)]);
-    let matched_files = collect_glob_filtered(base_dir, &include_patterns, |p| p.is_file())?;
+    let matched_files = collect_glob_filtered(base_dir, &config.package.include, Path::is_file)?;
     let exclude_paths = collect_glob_filtered(base_dir, &config.package.exclude, |_| true)?;
 
     let matched_files: HashSet<_> = matched_files
@@ -406,18 +507,68 @@ mod tests {
     }
 
     #[test]
+    fn parse_example_toml() {
+        let toml_str = r#"
+            edition = "2026_pre"
+            package_manager = "npm"
+            root = "./shaders"
+            include = [ "shaders/**/*.wesl", "shaders/**/*.wgsl" ]
+            exclude = [ "**/test" ]
+
+            [dependencies]
+            foolib = {}
+            cute_bevy = { package = "bevy" }
+            mylib = { path = "../mylib" }
+
+            [package]
+        "#;
+
+        let parsed: WeslToml = toml::from_str(toml_str).unwrap();
+
+        assert_eq!(parsed.package.edition, WeslEdition::Unstable2026);
+        assert_eq!(parsed.package.package_manager, PackageManager::Npm);
+        assert_eq!(parsed.package.root, PathBuf::from("./shaders"));
+        assert!(
+            parsed
+                .package
+                .include
+                .contains(&"shaders/**/*.wesl".to_string())
+        );
+
+        match parsed.dependencies {
+            DependenciesConfig::Manual(deps) => {
+                assert!(matches!(
+                    deps.get("foolib").unwrap(),
+                    DependencySpec::Auto { .. }
+                ));
+                println!("x {:?}", deps);
+                println!("x {:?}", deps.get("cute_bevy").unwrap());
+                assert!(matches!(
+                    deps.get("cute_bevy").unwrap(),
+                    DependencySpec::Package { .. }
+                ));
+                assert!(matches!(
+                    deps.get("mylib").unwrap(),
+                    DependencySpec::Path { .. }
+                ));
+            }
+            _ => panic!("expected manual dependencies"),
+        }
+    }
+
+    #[test]
     fn test_config_parsing() {
         // Basic config with defaults
         let basic = WeslToml::parse_str("edition = \"2026_pre\"").unwrap();
-        assert_eq!(basic.package.edition, "2026_pre");
-        assert_eq!(basic.package.root, "./shaders/");
-        // Default exclude should be node_modules
-        assert_eq!(basic.package.exclude, vec!["**/node_modules"]);
+        assert_eq!(basic.package.edition, WeslEdition::Unstable2026);
+        assert_eq!(basic.package.root, default_root());
+        assert_eq!(basic.package.include, default_include());
+        assert_eq!(basic.package.exclude, default_exclude());
 
         // Config with custom root
         let with_root = WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./src/\"").unwrap();
-        assert_eq!(with_root.package.edition, "2026_pre");
-        assert_eq!(with_root.package.root, "./src/");
+        assert_eq!(with_root.package.edition, WeslEdition::Unstable2026);
+        assert_eq!(with_root.package.root, Path::new("./src/"));
 
         // Explicit empty exclude overrides default
         let no_exclude = WeslToml::parse_str("edition = \"2026_pre\"\nexclude = []").unwrap();
@@ -425,16 +576,19 @@ mod tests {
 
         // Missing edition
         let missing = WeslToml::parse_str("root = \"./shaders/\"");
-        assert!(matches!(missing, Err(ScanTomlError::MissingEdition)));
+        assert!(matches!(missing, Err(ScanTomlError::TomlParse(_))));
 
         // Dependencies variants
         let with_deps =
             WeslToml::parse_str("edition = \"2026_pre\"\n\n[dependencies]\nfoo = {}").unwrap();
-        assert!(matches!(with_deps.dependencies, DependencyConfig::Map(_)));
+        assert!(matches!(
+            with_deps.dependencies,
+            DependenciesConfig::Manual(_)
+        ));
 
         let auto_deps =
             WeslToml::parse_str("edition = \"2026_pre\"\ndependencies = \"auto\"").unwrap();
-        assert!(matches!(auto_deps.dependencies, DependencyConfig::Auto(_)));
+        assert!(matches!(auto_deps.dependencies, DependenciesConfig::Auto));
     }
 
     #[test]
