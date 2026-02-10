@@ -533,19 +533,16 @@ mod tests {
 
         match parsed.dependencies {
             DependenciesConfig::Manual(deps) => {
-                assert!(matches!(
-                    deps.get("foolib").unwrap(),
-                    DependencySpec::Auto { .. }
-                ));
+                assert!(matches!(deps.get("foolib").unwrap(), DependencySpec::Auto));
                 println!("x {:?}", deps);
                 println!("x {:?}", deps.get("cute_bevy").unwrap());
                 assert!(matches!(
                     deps.get("cute_bevy").unwrap(),
-                    DependencySpec::Package { .. }
+                    DependencySpec::Package(_)
                 ));
                 assert!(matches!(
                     deps.get("mylib").unwrap(),
-                    DependencySpec::Path { .. }
+                    DependencySpec::Path(_)
                 ));
             }
             _ => panic!("expected manual dependencies"),
