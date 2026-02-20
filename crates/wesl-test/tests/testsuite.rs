@@ -432,11 +432,11 @@ pub fn bevy_case(path: PathBuf) -> Result<(), libtest_mimic::Failed> {
     compiler
         .add_package(&bevy_wgsl::PACKAGE)
         .add_constants([
-            ("MAX_CASCADES_PER_LIGHT", 10.0),
-            ("MAX_DIRECTIONAL_LIGHTS", 10.0),
-            ("PER_OBJECT_BUFFER_BATCH_SIZE", 10.0),
-            ("TONEMAPPING_LUT_TEXTURE_BINDING_INDEX", 10.0),
-            ("TONEMAPPING_LUT_SAMPLER_BINDING_INDEX", 10.0),
+            ("MAX_CASCADES_PER_LIGHT", 10u32.into()),
+            ("MAX_DIRECTIONAL_LIGHTS", 10.into()),
+            ("PER_OBJECT_BUFFER_BATCH_SIZE", 10.into()),
+            ("TONEMAPPING_LUT_TEXTURE_BINDING_INDEX", 10.into()),
+            ("TONEMAPPING_LUT_SAMPLER_BINDING_INDEX", 10.into()),
         ])
         .set_options(CompileOptions {
             strip: false,

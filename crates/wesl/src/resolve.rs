@@ -2,6 +2,7 @@ use crate::{Diagnostic, Error};
 
 use itertools::Itertools;
 use wgsl_parse::syntax::{ModulePath, PathOrigin, TranslationUnit};
+use wgsl_types::inst::LiteralInstance;
 
 use std::{
     borrow::Cow,
@@ -275,10 +276,12 @@ impl<R: Resolver, F: ResolveFn> Resolver for Preprocessor<R, F> {
 /// This resolver is not thread-safe (not [`Send`] or [`Sync`]).
 pub struct Router {
     mount_points: Vec<(ModulePath, Box<dyn Resolver>)>,
-    fallback: Option<(ModulePath, Box<dyn Resolver>)>,
+    fallback: Option<Box<dyn Resolver>>,
 }
 
 /// Dispatches resolution of a module path to sub-resolvers.
+///
+/// See documentation in [`Self::mount_resolver`]
 impl Router {
     /// Create a new resolver.
     pub fn new() -> Self {
@@ -293,32 +296,41 @@ impl Router {
     /// All import paths starting with `prefix` will be dispatched to the resolver with
     /// the suffix of the path. The prefix path must have an `Absolute` or `Package`
     /// origin and the suffix path will be given an `Absolute` origin.
+    ///
+    /// If none of the `prefix`es match, the fallback resolver will be used.
     pub fn mount_resolver(&mut self, prefix: ModulePath, resolver: impl Resolver + 'static) {
         self.mount_points.push((prefix, Box::new(resolver)));
     }
 
     /// Mount a fallback resolver that is used when no other prefix match.
     pub fn mount_fallback_resolver(&mut self, resolver: impl Resolver + 'static) {
-        self.fallback = Some((ModulePath::new_root(), Box::new(resolver)));
+        self.fallback = Some(Box::new(resolver));
     }
 
     fn route(&self, path: &ModulePath) -> Result<(&dyn Resolver, ModulePath), ResolveError> {
-        let (mount_path, resolver) = self
+        if let Some((mount_path, resolver)) = self
             .mount_points
             .iter()
             .filter(|(prefix, _)| path.starts_with(prefix))
             .max_by_key(|(prefix, _)| prefix.components.len())
-            .or(self.fallback.as_ref())
-            .ok_or_else(|| E::ModuleNotFound(path.clone(), "no mount point".to_string()))?;
+        {
+            let components = path
+                .components
+                .iter()
+                .skip(mount_path.components.len())
+                .cloned()
+                .collect_vec();
 
-        let components = path
-            .components
-            .iter()
-            .skip(mount_path.components.len())
-            .cloned()
-            .collect_vec();
-        let suffix = ModulePath::new(PathOrigin::Absolute, components);
-        Ok((resolver, suffix))
+            let suffix = ModulePath::new(PathOrigin::Absolute, components);
+            Ok((resolver, suffix))
+        } else if let Some(resolver) = &self.fallback {
+            Ok((resolver, path.clone()))
+        } else {
+            Err(E::ModuleNotFound(
+                path.clone(),
+                "no mount point".to_string(),
+            ))
+        }
     }
 }
 
@@ -463,7 +475,7 @@ impl Resolver for PkgResolver {
 pub struct StandardResolver {
     pkg: PkgResolver,
     files: FileResolver,
-    constants: HashMap<String, f64>,
+    constants: HashMap<String, LiteralInstance>,
 }
 
 impl StandardResolver {
@@ -487,18 +499,24 @@ impl StandardResolver {
     ///
     /// Numeric constants live WESL's special package named `constants`. This package is
     /// *virtual*, meaning it doesn't exist on the filesystem. Constants can be accessed
-    /// by importing them: `import constants::MY_CONSTANT;`. All constants are of type
-    /// AbstractFloat, which can be implicitly converted to all scalar types.
-    pub fn add_constant(&mut self, name: impl ToString, value: f64) {
+    /// by importing them: `import constants::MY_CONSTANT;`.
+    ///
+    /// The type is specified by the variant of [`LiteralInstance`].\
+    /// If specifying a constant that is used with multiple different types or
+    /// a constant that benefits from precision, like π, use AbstractFloat,
+    /// which can be implicitly converted to all scalar types.
+    ///
+    /// Note: [`LiteralInstance`] implements [`From`] for all standard numeric types
+    pub fn add_constant(&mut self, name: impl ToString, value: LiteralInstance) {
         self.constants.insert(name.to_string(), value);
     }
 
+    /// Generate a module with all declared virtual constants in the resolver
     fn generate_constant_module(&self) -> String {
         self.constants
             .iter()
             .map(|(name, value)| format!("const {name} = {value};"))
-            .format("\n")
-            .to_string()
+            .join("\n")
     }
 }
 
@@ -577,7 +595,7 @@ mod test {
         r.mount_resolver("package::bar".parse().unwrap(), v2);
 
         let mut v3 = VirtualResolver::new();
-        v3.add_module("package::bar".parse().unwrap(), "m6".into());
+        v3.add_module("foo::bar".parse().unwrap(), "m6".into());
         r.mount_fallback_resolver(v3);
 
         assert_eq!(r.resolve_source(&"package".parse().unwrap()).unwrap(), "m1");
@@ -598,5 +616,105 @@ mod test {
             r.resolve_source(&"foo::bar".parse().unwrap()).unwrap(),
             "m6"
         );
+    }
+
+    #[test]
+    /// Test WGSL type casting of virtual constants
+    fn type_virtual_constants() {
+        // standard resolver to register some constants
+        let mut std = StandardResolver::new(".");
+        // AbstractFloat
+        std.add_constant("TAU", std::f64::consts::TAU.into());
+        // f32
+        std.add_constant("LIGHTING_ANGLE", 10.0f32.into());
+        // i32
+        std.add_constant("Z_ROTATION", (-10i32).into());
+        // u32
+        std.add_constant("H", (12u32).into());
+        // bool
+        std.add_constant("BRIGHTEN", (false).into());
+
+        // use virtual resolver for the main module
+        let mut v = VirtualResolver::new();
+        v.add_module(
+            "package::color_math".parse().unwrap(),
+            // the main module imports constants::TAU and uses it in a context that requires f32,
+            // therfor it will be cast from AbstractFloat
+            r#"
+            import constants::{TAU, H, BRIGHTEN};
+
+            fn color_sweep(h: u32) -> f32 {
+                let color = cos(h + vec3(0.0, 1.0, 2.0) * TAU / 3.0);
+                if (BRIGHTEN) {
+                    color += 0.1;
+                }
+
+                return color;
+            }
+
+            @fragment
+            fn fragment() -> @location(0) vec4<f32> {
+                return vec4(color_sweep(H), color_sweep(H + 0.1), color_sweep(H + 0.2), 1.0);
+            }
+            "#
+            .into(),
+        );
+
+        // route package imports whose prefix is "constants" to the StandardResolver
+        // and absolute module paths to the VirtualResolver.
+        let mut r = Router::new();
+        r.mount_resolver(ModulePath::new_root(), v);
+        r.mount_fallback_resolver(std);
+
+        // compile to test imports and casting
+        crate::Wesl::new(".")
+            .set_custom_resolver(r)
+            .compile(&"package::color_math".parse().unwrap())
+            .unwrap();
+    }
+
+    #[test]
+    /// Test resolving virtual constants from `add_constant`
+    fn resolve_virtual_constants() {
+        // todo impl `add_constant` for VirtualResolver then use that
+        let mut sr = StandardResolver::new(".");
+
+        // add math constants
+        sr.add_constant("PI", LiteralInstance::from(std::f64::consts::PI));
+        sr.add_constant("E", LiteralInstance::from(std::f64::consts::E));
+        // add misc constants
+        sr.add_constant("NEG_2", LiteralInstance::from(-2i32));
+        sr.add_constant("ONE", LiteralInstance::from(1u32));
+        sr.add_constant("F32_MAX", LiteralInstance::from(f32::MAX));
+        sr.add_constant("IS_HEAVY", LiteralInstance::from(false));
+        sr.add_constant(
+            "NUM_CONSTS",
+            LiteralInstance::from(sr.constants.len() as i64),
+        );
+
+        // generate the virtual module
+        let generated = sr.generate_constant_module();
+        // test that it contains the consts with correct values
+        assert!(generated.contains(&format!("const PI = {:?};", std::f64::consts::PI)));
+        assert!(generated.contains(&format!("const E = {:?};", std::f64::consts::E)));
+        assert!(generated.contains("const NEG_2 = -2i;"));
+        assert!(generated.contains("const ONE = 1u;"));
+        assert!(generated.contains(&format!("const F32_MAX = {}f;", f32::MAX)));
+        assert!(generated.contains("const IS_HEAVY = false;"));
+        assert!(generated.contains(&format!(
+            "const NUM_CONSTS = {};",
+            (sr.constants.len() as i64) - 1
+        )));
+
+        // resolve the package path with the origin `constants`,
+        // the source of which should be the same as the generated module
+        let src_root = sr.resolve_source(&"constants".parse().unwrap()).unwrap();
+        assert_eq!(src_root, generated);
+
+        // resolving a path with components should return the same
+        let src_comp = sr
+            .resolve_source(&"constants::PI".parse().unwrap())
+            .unwrap();
+        assert_eq!(src_comp, generated);
     }
 }
