@@ -244,7 +244,7 @@ pub enum ScanTomlError {
     #[error("File `{0}` is outside root `{1}`")]
     FileOutsideRoot(PathBuf, PathBuf),
     #[error("I/O error: {0}")]
-    Io(std::io::Error),
+    Io(#[from] std::io::Error),
     #[error("No source files matched the include patterns")]
     NoFilesMatched,
     #[error("Multiple files map to module `{0}`: {1:?}")]
@@ -254,7 +254,7 @@ pub enum ScanTomlError {
 impl WeslToml {
     /// Parse a wesl.toml file from a path.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self, ScanTomlError> {
-        let content = std::fs::read_to_string(path.as_ref()).map_err(ScanTomlError::Io)?;
+        let content = std::fs::read_to_string(path.as_ref())?;
         Self::parse_str(&content)
     }
 
