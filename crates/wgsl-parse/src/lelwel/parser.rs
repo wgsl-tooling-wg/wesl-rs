@@ -28,19 +28,14 @@
 use std::fmt;
 
 use logos::Logos as _;
-// use rowan::GreenNodeBuilder;
 
-use crate::syntax::TranslationUnit;
+use crate::Error;
+use crate::syntax::*;
 
 use super::lexer::Token;
 use super::{ParseEntryPoint, cst_builder::CstBuilder, lexer::lex_with_templates};
 
 include!(concat!(env!("OUT_DIR"), "/generated.rs"));
-
-#[derive(Default)]
-pub struct Context<'a> {
-    marker: std::marker::PhantomData<&'a ()>,
-}
 
 pub struct Diagnostic {
     pub message: String,
@@ -66,41 +61,63 @@ impl fmt::Display for Diagnostic {
     }
 }
 
-// pub(crate) fn to_range(span: Span) -> rowan::TextRange {
-//     let start = rowan::TextSize::try_from(span.start).unwrap();
-//     let end = rowan::TextSize::try_from(span.end).unwrap();
-//     rowan::TextRange::new(start, end)
+// #[must_use]
+// pub fn parse_entrypoint(input: &str, entrypoint: ParseEntryPoint) -> TranslationUnit {
+//     let mut diagnostics = Vec::new();
+//     let parsed = match entrypoint {
+//         ParseEntryPoint::File => Parser::new(input, &mut diagnostics).parse(&mut diagnostics),
+//         ParseEntryPoint::Expression => {
+//             Parser::new(input, &mut diagnostics).parse_expression(&mut diagnostics)
+//         }
+//         ParseEntryPoint::Statement => {
+//             Parser::new(input, &mut diagnostics).parse_statement(&mut diagnostics)
+//         }
+//         ParseEntryPoint::Type => {
+//             Parser::new(input, &mut diagnostics).parse_type_specifier(&mut diagnostics)
+//         }
+//         ParseEntryPoint::Attribute => {
+//             Parser::new(input, &mut diagnostics).parse_attribute(&mut diagnostics)
+//         }
+//     };
+//     CstBuilder {
+//         // builder: GreenNodeBuilder::new(),
+//         token_start_index: 0,
+//         cst: parsed,
+//     }
+//     .build()
+//     // Parse {
+//     //     green_node,
+//     //     errors: diagnostics,
+//     // }
 // }
 
-#[must_use]
-pub fn parse_entrypoint(input: &str, entrypoint: ParseEntryPoint) -> TranslationUnit {
-    let mut diagnostics = Vec::new();
-    let parsed = match entrypoint {
-        ParseEntryPoint::File => Parser::new(input, &mut diagnostics).parse(&mut diagnostics),
-        ParseEntryPoint::Expression => {
-            Parser::new(input, &mut diagnostics).parse_expression(&mut diagnostics)
-        }
-        ParseEntryPoint::Statement => {
-            Parser::new(input, &mut diagnostics).parse_statement(&mut diagnostics)
-        }
-        ParseEntryPoint::Type => {
-            Parser::new(input, &mut diagnostics).parse_type_specifier(&mut diagnostics)
-        }
-        ParseEntryPoint::Attribute => {
-            Parser::new(input, &mut diagnostics).parse_attribute(&mut diagnostics)
-        }
-    };
-    CstBuilder {
-        // builder: GreenNodeBuilder::new(),
-        token_start_index: 0,
-        cst: parsed,
-    }
-    .build()
-    // Parse {
-    //     green_node,
-    //     errors: diagnostics,
-    // }
-}
+// #[must_use]
+// pub fn parse_file(input: &str) -> Result<TranslationUnit, Error> {
+//     let mut diagnostics = Vec::new();
+//     let cst = Parser::new(input, &mut diagnostics).parse(&mut diagnostics);
+
+//     TranslationUnit::from_cst(cst.get(NodeRef(0)))
+
+//     // let res = TranslationUnit::new();
+
+//     // for offset in 0..cst.nodes_count() {
+//     //     let node_ref = NodeRef(offset);
+//     //     let node = cst.get(node_ref);
+
+//     //     println!("{node:?}");
+
+//     //     match node {
+//     //         Node::Rule(rule, cst_index) => {
+//     //             match rule {
+//     //             }
+//     //         },
+//     //         Node::Token(token, cst_index) => todo!(),
+//     //     }
+//     //     // TODO
+//     // }
+
+//     // Ok(res)
+// }
 
 impl Cst<'_> {
     pub const fn nodes_count(&self) -> usize {

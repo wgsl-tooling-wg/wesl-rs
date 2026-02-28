@@ -1,14 +1,16 @@
 //! The parser is mostly copied from <https://github.com/arzg/eldiro/tree/master/crates/parser> with some adaptions and extensions
 
 mod cst_builder;
+mod from_cst;
 mod lexer;
 mod parser;
 mod syntax_kind;
 
+use self::from_cst::FromCst;
 use std::fmt::{self, Debug, Write as _};
 
 // pub use edition::Edition;
-pub use parser::{Diagnostic, parse_entrypoint};
+pub use parser::Diagnostic;
 // use rowan::GreenNode;
 
 // pub struct parse {
@@ -70,7 +72,7 @@ pub use parser::{Diagnostic, parse_entrypoint};
 
 pub use syntax_kind::SyntaxKind;
 
-use crate::syntax::TranslationUnit;
+use crate::{Error, lelwel::parser::NodeRef, syntax::TranslationUnit};
 
 // pub type SyntaxNode = rowan::SyntaxNode<WeslLanguage>;
 // pub type SyntaxToken = rowan::SyntaxToken<WeslLanguage>;
@@ -105,8 +107,18 @@ pub enum ParseEntryPoint {
 }
 
 #[must_use]
-pub fn parse_file(input: &str) -> TranslationUnit {
-    parse_entrypoint(input, ParseEntryPoint::File)
+pub fn parse_file(input: &str) -> Result<TranslationUnit, Error> {
+    let mut diagnostics = Vec::new();
+    let cst = parser::Parser::new(input, &mut diagnostics).parse(&mut diagnostics);
+
+    for offset in 0..cst.nodes_count() {
+        let node_ref = NodeRef(offset);
+        let node = cst.get(node_ref);
+        println!("node: {node:?}");
+    }
+
+    // let root_node = cst.get(parser::NodeRef(0));
+    Ok(TranslationUnit::from_cst(&cst, parser::NodeRef(0)))
 }
 
 // #[cfg(test)]

@@ -47,23 +47,23 @@ impl CstBuilder<'_> {
     //     self.builder.finish()
     // }
 
-    pub fn build(mut self) -> TranslationUnit {
-        let res = TranslationUnit::new();
+    // pub fn build(mut self) -> TranslationUnit {
+    //     let res = TranslationUnit::new();
 
-        for offset in 0..self.cst.nodes_count() {
-            let node_ref = NodeRef(offset);
-            let node = self.cst.get(node_ref);
+    //     for offset in 0..self.cst.nodes_count() {
+    //         let node_ref = NodeRef(offset);
+    //         let node = self.cst.get(node_ref);
 
-            println!("{node}");
+    //         println!("{node}");
 
-            match node {
-                Node::Rule(rule, cst_index) => todo!(),
-                Node::Token(token, cst_index) => todo!(),
-            }
-            // TODO
-        }
-        res
-    }
+    //         match node {
+    //             Node::Rule(rule, cst_index) => todo!(),
+    //             Node::Token(token, cst_index) => todo!(),
+    //         }
+    //         // TODO
+    //     }
+    //     res
+    // }
 
     #[expect(
         clippy::too_many_lines,
