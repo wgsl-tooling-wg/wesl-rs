@@ -105,25 +105,16 @@ extern {
         // extension: wesl-imports
         // https://github.com/wgsl-tooling-wg/wesl-spec/blob/imports-update/Imports.md
         // date: 2025-01-18, hash: 2db8e7f681087db6bdcd4a254963deb5c0159775
-        #[cfg(feature = "imports")]
         "::" => Token::SymColonColon,
-        #[cfg(feature = "imports")]
         "self" => Token::KwSelf,
-        #[cfg(feature = "imports")]
         "super" => Token::KwSuper,
-        #[cfg(feature = "imports")]
         "package" => Token::KwPackage,
-        #[cfg(feature = "imports")]
         "as" => Token::KwAs,
-        #[cfg(feature = "imports")]
         "import" => Token::KwImport,
 
         // naga extensions
-        #[cfg(feature = "naga-ext")]
         TokI64 => Token::I64(<i64>),
-        #[cfg(feature = "naga-ext")]
         TokU64 => Token::U64(<u64>),
-        #[cfg(feature = "naga-ext")]
         TokF64 => Token::F64(<f64>),
     }
 }
@@ -156,13 +147,11 @@ Keyword: String = {
     "true" => <>.to_string(),
     "var" => <>.to_string(),
     "while" => <>.to_string(),
-    #[cfg(feature = "imports")]
+
+    // extension: wesl-imports
     "self" => <>.to_string(),
-    #[cfg(feature = "imports")]
     "super" => <>.to_string(),
-    #[cfg(feature = "imports")]
     "as" => <>.to_string(),
-    #[cfg(feature = "imports")]
     "import" => <>.to_string(),
 };
 
@@ -183,11 +172,6 @@ Keyword: String = {
 // https://www.w3.org/TR/WGSL/#wgsl-module
 
 pub TranslationUnit: TranslationUnit = {
-    #[cfg(not(feature = "imports"))]
-    <global_directives: GlobalDirective*> <global_declarations: GlobalDeclarationNode*> => TranslationUnit {
-        global_directives, global_declarations
-    },
-    #[cfg(feature = "imports")]
     <imports: ImportStatement*> <global_directives: GlobalDirective*> <global_declarations: GlobalDeclarationNode*> => TranslationUnit {
         imports, global_directives, global_declarations
     },
@@ -222,13 +206,12 @@ pub Literal: LiteralExpression = {
     TokU32           => LiteralExpression::U32(<>),
     TokF32           => LiteralExpression::F32(<>),
     TokF16           => LiteralExpression::F16(<>),
-    #[cfg(feature = "naga-ext")]
-    TokI64 => LiteralExpression::I64(<>),
-    #[cfg(feature = "naga-ext")]
-    TokU64 => LiteralExpression::U64(<>),
-    #[cfg(feature = "naga-ext")]
-    TokF64 => LiteralExpression::F64(<>),
     BoolLiteral,
+
+    // naga extensions
+    TokI64 => LiteralExpression::I64(<>),
+    TokU64 => LiteralExpression::U64(<>),
+    TokF64 => LiteralExpression::F64(<>),
 };
 
 BoolLiteral: LiteralExpression = {
@@ -321,11 +304,6 @@ pub GlobalDirective: GlobalDirective = {
 };
 
 EnableDirective: EnableDirective = {
-    #[cfg(not(feature = "attributes"))]
-    "enable" <extensions: EnableExtensionList> ";" => EnableDirective {
-        extensions
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "enable" <extensions: EnableExtensionList> ";" => EnableDirective {
         attributes, extensions
     },
@@ -336,11 +314,6 @@ EnableExtensionList: Vec<String> = {
 };
 
 RequiresDirective: RequiresDirective = {
-    #[cfg(not(feature = "attributes"))]
-    "requires" <extensions: SoftwareExtensionList> ";" => RequiresDirective {
-        extensions
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "requires" <extensions: SoftwareExtensionList> ";" => RequiresDirective {
         attributes, extensions
     },
@@ -351,12 +324,6 @@ SoftwareExtensionList: Vec<String> = {
 };
 
 DiagnosticDirective: DiagnosticDirective = {
-    #[cfg(not(feature = "attributes"))]
-    "diagnostic" <DiagnosticControl> ";" => {
-        let (severity, rule_name) = <>;
-        DiagnosticDirective { severity, rule_name }
-    },
-    #[cfg(feature = "attributes")]
     <AttributeNode*> "diagnostic" <DiagnosticControl> ";" => {
         let (attributes, (severity, rule_name)) = (<>);
         DiagnosticDirective { attributes, severity, rule_name }
@@ -370,11 +337,6 @@ DiagnosticDirective: DiagnosticDirective = {
 // https://www.w3.org/TR/WGSL/#types
 
 StructDecl: Struct = {
-    #[cfg(not(feature = "attributes"))]
-    "struct" <ident: Ident> <members: StructBodyDecl> => Struct {
-        ident, members
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "struct" <ident: Ident> <members: StructBodyDecl> => Struct {
         attributes, ident, members
     },
@@ -393,11 +355,6 @@ StructMember: StructMember = {
 StructMemberNode: StructMemberNode = Spanned<StructMember>;
 
 TypeAliasDecl: TypeAlias = {
-    #[cfg(not(feature = "attributes"))]
-    "alias" <ident: Ident> "=" <ty: TypeSpecifier> => TypeAlias {
-        ident, ty
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "alias" <ident: Ident> "=" <ty: TypeSpecifier> => TypeAlias {
         attributes, ident, ty
     },
@@ -408,11 +365,6 @@ TypeSpecifier: TypeExpression = {
 };
 
 TemplateElaboratedIdent: TypeExpression = {
-    #[cfg(not(feature = "imports"))]
-    <ident: Ident> <template_args: TemplateList?> => TypeExpression {
-        ident, template_args
-    },
-    #[cfg(feature = "imports")]
     <path: ModulePath?> <ident: Ident> <template_args: TemplateList?> => TypeExpression {
         path, ident, template_args
     },
@@ -427,29 +379,6 @@ VariableOrValueStatement: Declaration = {
         decl.initializer = Some(initializer);
         decl
     },
-    #[cfg(not(feature = "attributes"))]
-    "let" <id_ty: OptionallyTypedIdent> "=" <initializer: ExpressionNode> => {
-        let (ident, ty) = id_ty;
-        Declaration {
-            attributes: Vec::new(),
-            kind: DeclarationKind::Let,
-            ident,
-            ty,
-            initializer: Some(initializer),
-        }
-    },
-    #[cfg(not(feature = "attributes"))]
-    "const" <id_ty: OptionallyTypedIdent> "=" <initializer: ExpressionNode> => {
-        let (ident, ty) = id_ty;
-        Declaration {
-            attributes: Vec::new(),
-            kind: DeclarationKind::Const,
-            ident,
-            ty,
-            initializer: Some(initializer),
-        }
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "let" <id_ty: OptionallyTypedIdent> "=" <initializer: ExpressionNode> => {
         let (ident, ty) = id_ty;
         Declaration {
@@ -460,7 +389,6 @@ VariableOrValueStatement: Declaration = {
             initializer: Some(initializer),
         }
     },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "const" <id_ty: OptionallyTypedIdent> "=" <initializer: ExpressionNode> => {
         let (ident, ty) = id_ty;
         Declaration {
@@ -474,20 +402,6 @@ VariableOrValueStatement: Declaration = {
 };
 
 VariableDecl: Declaration = {
-    #[cfg(not(feature = "attributes"))]
-    <l: @L> "var" <template_args: TemplateList?> <r: @R> <id_ty: OptionallyTypedIdent> =>? {
-        let (ident, ty) = id_ty;
-        let address_space = parse_var_template(template_args)
-            .map_err(|e| lalrpop_util::ParseError::User{ error: (l, e, r) })?;
-        Ok(Declaration {
-            attributes: Vec::new(),
-            kind: DeclarationKind::Var(address_space),
-            ident,
-            ty,
-            initializer: None,
-        })
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> <l: @L> "var" <template_args: TemplateList?> <r: @R> <id_ty: OptionallyTypedIdent> =>? {
         let (ident, ty) = id_ty;
         let address_space = parse_var_template(template_args)
@@ -507,13 +421,6 @@ OptionallyTypedIdent: (Ident, Option<TypeExpression>) = {
 };
 
 GlobalVariableDecl: Declaration = {
-    #[cfg(not(feature = "attributes"))]
-    <attributes: AttributeNode*> <mut decl: VariableDecl> <initializer: ("=" <ExpressionNode>)?> => {
-        decl.attributes = attributes;
-        decl.initializer = initializer;
-        decl
-    },
-    #[cfg(feature = "attributes")]
     <mut decl: VariableDecl> <initializer: ("=" <ExpressionNode>)?> => {
         decl.initializer = initializer;
         decl
@@ -521,17 +428,6 @@ GlobalVariableDecl: Declaration = {
 };
 
 GlobalValueDecl: Declaration = {
-    #[cfg(not(feature = "attributes"))]
-    "const" <id_ty: OptionallyTypedIdent> "=" <initializer: ExpressionNode> => {
-        let (ident, ty) = id_ty;
-        Declaration {
-            attributes: Vec::new(),
-            kind: DeclarationKind::Const,
-            ident,
-            ty,
-            initializer: Some(initializer),
-        }
-    },
     <attributes: AttributeNode*> "override" <id_ty: OptionallyTypedIdent> <initializer: ("=" <ExpressionNode>)?> => {
         let (ident, ty) = id_ty;
         Declaration {
@@ -542,7 +438,6 @@ GlobalValueDecl: Declaration = {
             initializer,
         }
     },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "const" <id_ty: OptionallyTypedIdent> "=" <initializer: ExpressionNode> => {
         let (ident, ty) = id_ty;
         Declaration {
@@ -635,16 +530,6 @@ SingularExpression: Expression = {
 // so we only allow attributes on statements that don't start with `(`.
 // see https://github.com/wgsl-tooling-wg/wesl-rs/issues/162
 LhsExpressionNoParen: Expression = {
-    #[cfg(not(feature = "imports"))]
-    <l: @L> <ident: Ident> <r: @R> <components: ComponentOrSwizzleSpecifier?> => {
-        let span = (l..r).into();
-        let expression = Expression::TypeOrIdentifier(TypeExpression { ident, template_args: None });
-        match components {
-            Some(components) => apply_components(expression, span, components),
-            None => expression
-        }
-    },
-    #[cfg(feature = "imports")]
     <l: @L> <path: ModulePath?> <ident: Ident> <r: @R> <components: ComponentOrSwizzleSpecifier?> => {
         let span = (l..r).into();
         let expression = Expression::TypeOrIdentifier(TypeExpression { path, ident, template_args: None });
@@ -813,23 +698,6 @@ CompoundStatement: CompoundStatement = {
     },
 };
 
-#[cfg(not(feature = "attributes"))]
-AssignmentStatement: AssignmentStatement = {
-    <lhs: Spanned<LhsExpression>> "=" <rhs: ExpressionNode> => AssignmentStatement {
-        operator: AssignmentOperator::Equal, lhs, rhs
-    },
-    <lhs: Spanned<LhsExpression>> <operator: CompoundAssignmentOperator> <rhs: ExpressionNode> => AssignmentStatement {
-        operator, lhs, rhs
-    },
-     <l: @R> "_" <r: @R> "=" <rhs: ExpressionNode> => {
-        let lhs = Expression::TypeOrIdentifier(Ident::new("_".to_string()).into());
-        let span = (l..r).into();
-        let lhs = Spanned::new(lhs, span);
-        AssignmentStatement { operator: AssignmentOperator::Equal, lhs, rhs }
-    },
-};
-
-#[cfg(feature = "attributes")]
 AssignmentStatement: AssignmentStatement = {
     <attributes: AttributeNode*> <lhs: Spanned<LhsExpressionNoParen>> "=" <rhs: ExpressionNode> => AssignmentStatement {
         attributes, operator: AssignmentOperator::Equal, lhs, rhs
@@ -865,30 +733,18 @@ CompoundAssignmentOperator: AssignmentOperator = {
 };
 
 IncrementStatement: IncrementStatement = {
-    #[cfg(not(feature = "attributes"))]
-    <expression: Spanned<LhsExpression>> "++" => IncrementStatement {
-        expression
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> <expression: Spanned<LhsExpressionNoParen>> "++" => IncrementStatement {
         attributes, expression
     },
-    #[cfg(feature = "attributes")]
     <expression: Spanned<LhsExpressionParen>> "++" => IncrementStatement {
         attributes: vec![], expression
     },
 };
 
 DecrementStatement: DecrementStatement = {
-    #[cfg(not(feature = "attributes"))]
-    <expression: Spanned<LhsExpression>> "--" => DecrementStatement {
-        expression
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> <expression: Spanned<LhsExpressionNoParen>> "--" => DecrementStatement {
         attributes, expression
     },
-    #[cfg(feature = "attributes")]
     <expression: Spanned<LhsExpressionParen>> "--" => DecrementStatement {
         attributes: vec![], expression
     },
@@ -905,22 +761,12 @@ IfClause: IfClause = "if" <expression: ExpressionNode> <body: CompoundStatement>
 };
 
 ElseIfClause: ElseIfClause = {
-    #[cfg(not(feature = "attributes"))]
-    "else" "if" <expression: ExpressionNode> <body: CompoundStatement> => ElseIfClause {
-        expression, body
-    },
-    #[cfg(feature = "attributes")]
     "else" "if" <expression: ExpressionNode> <body: CompoundStatement> => ElseIfClause {
         attributes: vec![], expression, body
     },
 } ;
 
 ElseClause: ElseClause = {
-    #[cfg(not(feature = "attributes"))]
-    "else" <body: CompoundStatement> => ElseClause {
-        body
-    },
-    #[cfg(feature = "attributes")]
     "else" <body: CompoundStatement> => ElseClause {
         attributes: vec![], body
     },
@@ -945,22 +791,12 @@ SwitchClause: SwitchClause = {
 };
 
 CaseClause: SwitchClause = {
-    #[cfg(not(feature = "attributes"))]
-    "case" <case_selectors: CaseSelectors> ":"? <body: CompoundStatement> => SwitchClause {
-        case_selectors, body
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "case" <case_selectors: CaseSelectors> ":"? <body: CompoundStatement> => SwitchClause {
         attributes, case_selectors, body
     },
 };
 
 DefaultAloneClause: SwitchClause = {
-    #[cfg(not(feature = "attributes"))]
-    "default" ":"? <body: CompoundStatement> => SwitchClause {
-        case_selectors: vec![CaseSelector::Default], body
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "default" ":"? <body: CompoundStatement> => SwitchClause {
         attributes, case_selectors: vec![CaseSelector::Default], body
     },
@@ -1030,38 +866,24 @@ WhileStatement: WhileStatement = {
 };
 
 BreakStatement: BreakStatement = {
-    #[cfg(not(feature = "attributes"))]
-    "break" => BreakStatement {},
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "break" => BreakStatement {
         attributes
     },
 };
 
 BreakIfStatement: BreakIfStatement = {
-    #[cfg(not(feature = "attributes"))]
-    "break" "if" <expression: ExpressionNode> ";" => BreakIfStatement {
-        expression
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "break" "if" <expression: ExpressionNode> ";" => BreakIfStatement {
         attributes, expression
     },
 };
 
 ContinueStatement: ContinueStatement = {
-    #[cfg(not(feature = "attributes"))]
-    "continue" => ContinueStatement {},
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "continue" => ContinueStatement {
         attributes
     },
 };
 
 ContinuingStatement: ContinuingStatement = {
-    #[cfg(not(feature = "attributes"))]
-    "continuing" <ContinuingCompoundStatement>,
-    #[cfg(feature = "attributes")]
     <AttributeNode*> "continuing" <ContinuingCompoundStatement> => {
         let (attributes, mut statement) = (<>);
         statement.attributes = attributes;
@@ -1070,12 +892,6 @@ ContinuingStatement: ContinuingStatement = {
 };
 
 ContinuingCompoundStatement: ContinuingStatement = {
-    #[cfg(not(feature = "attributes"))]
-    <attributes: AttributeNode*> "{" <statements: StatementNode*> <break_if: BreakIfStatement?> "}" => {
-        let body = CompoundStatement { attributes, statements };
-        ContinuingStatement { body, break_if }
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "{" <statements: StatementNode*> <break_if: BreakIfStatement?> "}" => {
         let body = CompoundStatement { attributes, statements };
         ContinuingStatement { attributes: Vec::new(), body, break_if }
@@ -1083,42 +899,24 @@ ContinuingCompoundStatement: ContinuingStatement = {
 };
 
 ReturnStatement: ReturnStatement = {
-    #[cfg(not(feature = "attributes"))]
-    "return" <expression: ExpressionNode?> => ReturnStatement {
-        expression
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "return" <expression: ExpressionNode?> => ReturnStatement {
         attributes, expression
     },
 };
 
 DiscardStatement: DiscardStatement = {
-    #[cfg(not(feature = "attributes"))]
-    "discard" => DiscardStatement {},
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "discard" => DiscardStatement {
         attributes
     },
 };
 
 FuncCallStatement: FunctionCallStatement = {
-    #[cfg(not(feature = "attributes"))]
-    <call: CallPhrase> => FunctionCallStatement {
-        call
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> <call: CallPhrase> => FunctionCallStatement {
         attributes, call
     },
 }
 
 ConstAssertStatement: ConstAssertStatement = {
-    #[cfg(not(feature = "attributes"))]
-    "const_assert" <expression: ExpressionNode> => ConstAssertStatement {
-        expression
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "const_assert" <expression: ExpressionNode> => ConstAssertStatement {
         attributes, expression
     },
@@ -1208,7 +1006,6 @@ DiagnosticControl: (DiagnosticSeverity, String) = {
 // https://github.com/wgsl-tooling-wg/wesl-spec/blob/imports-update/Imports.md
 // date: 2025-01-18, hash: 2db8e7f681087db6bdcd4a254963deb5c0159775
 
-#[cfg(feature = "imports")]
 PathIdent: String = {
     IdentPatternToken => <>,
     ReservedWord => <>,
@@ -1242,19 +1039,12 @@ PathIdent: String = {
     "while" => <>.to_string(),
 };
 
-#[cfg(feature = "imports")]
 pub ImportStatement: ImportStatement = {
-    #[cfg(not(feature = "attributes"))]
-    "import" <path: ModulePath?> <content: ImportContent> ";" => {
-        ImportStatement { path, content }
-    },
-    #[cfg(feature = "attributes")]
     <attributes: AttributeNode*> "import" <path: ModulePath?> <content: ImportContent> ";" => {
         ImportStatement { attributes, path, content }
     },
 };
 
-#[cfg(feature = "imports")]
 PathOrigin: PathOrigin = {
     // NOTE: `self::` is no longer part of the spec.
     "self" "::" => {
@@ -1273,14 +1063,12 @@ PathOrigin: PathOrigin = {
 };
 
 #[inline]
-#[cfg(feature = "imports")]
 ModulePath: ModulePath = {
     <origin: PathOrigin> <components: (<PathIdent> "::")*> => ModulePath {
         origin, components
     },
 };
 
-#[cfg(feature = "imports")]
 Import: Import = {
     <path: (<PathIdent> "::")*> <item: ImportItem> => Import {
         path, content: ImportContent::Item(item)
@@ -1290,20 +1078,17 @@ Import: Import = {
     },
 };
 
-#[cfg(feature = "imports")]
 ImportContent: ImportContent = {
     ImportItem => ImportContent::Item(<>),
     ImportCollection => ImportContent::Collection(<>),
 };
 
-#[cfg(feature = "imports")]
 ImportItem: ImportItem = {
     <ident: PathIdent> <rename: ("as" <PathIdent>)?> => ImportItem {
         ident: Ident::new(ident), rename: rename.map(Ident::new)
     },
 };
 
-#[cfg(feature = "imports")]
 ImportCollection: Vec<Import> = {
     "{" <Comma1<Import>> "}"
 };

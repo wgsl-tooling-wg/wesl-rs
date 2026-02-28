@@ -6,19 +6,9 @@ use crate::{
     syntax::{Expression, GlobalDeclaration, GlobalDirective, Statement, TranslationUnit},
 };
 
-// to reduce compile times we use a prebuilt parser in case all syntax features are enabled (the default).
-#[cfg(all(feature = "attributes", feature = "imports", feature = "naga-ext"))]
 mod wgsl {
-    include!("wgsl_prebuilt.rs");
+    include!("wgsl.rs");
 }
-
-#[cfg(not(all(feature = "attributes", feature = "imports", feature = "naga-ext")))]
-use lalrpop_util::lalrpop_mod;
-#[cfg(not(all(feature = "attributes", feature = "imports", feature = "naga-ext")))]
-lalrpop_mod!(
-    #[allow(clippy::all, reason = "generated code")]
-    wgsl
-);
 
 #[cfg(feature = "imports")]
 pub use wgsl::ImportStatementParser;

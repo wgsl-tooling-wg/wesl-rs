@@ -32,9 +32,6 @@ thiserror = "2.0.12"
 tokrepr = { workspace = true, optional = true }
 wgsl-types = { workspace = true }
 
-[build-dependencies]
-lalrpop = { version = "0.22.1", default-features = false }
-
 [features]
 default = []
 # allow attributes on most declarations and statements.
