@@ -12,10 +12,6 @@ lalrpop_mod!(
     #[allow(clippy::all, reason = "generated code")]
     wgsl
 );
-lalrpop_mod!(
-    #[allow(clippy::all, reason = "generated code")]
-    wgsl_recognize
-);
 
 #[cfg(feature = "imports")]
 pub use wgsl::ImportStatementParser;
@@ -31,15 +27,6 @@ pub use wgsl::{
 pub fn parse_str(source: &str) -> Result<TranslationUnit, Error> {
     let lexer = Lexer::new(source);
     let parser = TranslationUnitParser::new();
-    parser.parse(lexer).map_err(Into::into)
-}
-
-/// Test whether a string represent a valid WGSL module ([`TranslationUnit`]).
-///
-/// Warning: it does not take WESL extensions into account.
-pub fn recognize_str(source: &str) -> Result<(), Error> {
-    let lexer = Lexer::new(source);
-    let parser = wgsl_recognize::TranslationUnitParser::new();
     parser.parse(lexer).map_err(Into::into)
 }
 

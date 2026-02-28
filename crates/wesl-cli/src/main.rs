@@ -1,6 +1,6 @@
 //! The Command-line interface for `wesl-rs`.
 
-use clap::{Args, Parser, Subcommand, ValueEnum, command};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::{
     convert::Infallible,
     error::Error,
@@ -575,8 +575,6 @@ fn run(cli: Cli) -> Result<(), CliError> {
                 CheckKind::Wgsl => {
                     // recognize is a spec-compliant parser, it does not recognize WESL
                     // extensions.
-                    wgsl_parse::recognize_str(&source)
-                        .map_err(|e| Diagnostic::from(e).with_source(source.clone()))?;
                     let mut wgsl = wgsl_parse::parse_str(&source)
                         .map_err(|e| Diagnostic::from(e).with_source(source.clone()))?;
                     wgsl.retarget_idents();
