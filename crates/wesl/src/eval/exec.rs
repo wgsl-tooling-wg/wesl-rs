@@ -755,6 +755,8 @@ pub struct Inputs {
     #[cfg(feature = "naga-ext")]
     pub primitive_index: Option<u32>,
     #[cfg(feature = "naga-ext")]
+    pub barycentric: Option<[f32; 3]>,
+    #[cfg(feature = "naga-ext")]
     pub view_index: Option<u32>,
 
     pub user_defined: HashMap<u32, Instance>,
@@ -782,6 +784,8 @@ impl Inputs {
             num_subgroups: Some(1),
             #[cfg(feature = "naga-ext")]
             primitive_index: Some(0),
+            #[cfg(feature = "naga-ext")]
+            barycentric: Some([0.0, 0.0, 0.0]),
             #[cfg(feature = "naga-ext")]
             view_index: Some(0),
             user_defined: Default::default(),
@@ -816,27 +820,25 @@ pub fn exec_entrypoint(
                 match builtin {
                     BuiltinValue::VertexIndex => inputs.vertex_index.map(Instance::from),
                     BuiltinValue::InstanceIndex => inputs.instance_index.map(Instance::from),
-                    BuiltinValue::Position => {
-                        inputs.position.map(|pos| VecInstance::from(pos).into())
-                    }
+                    BuiltinValue::Position => inputs.position.map(|v| VecInstance::from(v).into()),
                     BuiltinValue::FrontFacing => inputs.front_facing.map(Instance::from),
                     BuiltinValue::SampleIndex => inputs.sample_index.map(Instance::from),
                     BuiltinValue::SampleMask => inputs.sample_mask.map(Instance::from),
                     BuiltinValue::LocalInvocationId => inputs
                         .local_invocation_id
-                        .map(|pos| VecInstance::from(pos).into()),
+                        .map(|v| VecInstance::from(v).into()),
                     BuiltinValue::LocalInvocationIndex => {
                         inputs.local_invocation_index.map(Instance::from)
                     }
                     BuiltinValue::GlobalInvocationId => inputs
                         .global_invocation_id
-                        .map(|pos| VecInstance::from(pos).into()),
+                        .map(|v| VecInstance::from(v).into()),
                     BuiltinValue::WorkgroupId => {
-                        inputs.workgroup_id.map(|pos| VecInstance::from(pos).into())
+                        inputs.workgroup_id.map(|v| VecInstance::from(v).into())
                     }
-                    BuiltinValue::NumWorkgroups => inputs
-                        .num_workgroups
-                        .map(|pos| VecInstance::from(pos).into()),
+                    BuiltinValue::NumWorkgroups => {
+                        inputs.num_workgroups.map(|v| VecInstance::from(v).into())
+                    }
                     BuiltinValue::SubgroupInvocationId => {
                         inputs.subgroup_invocation_id.map(Instance::from)
                     }
@@ -847,6 +849,10 @@ pub fn exec_entrypoint(
                     BuiltinValue::NumSubgroups => inputs.num_subgroups.map(Instance::from),
                     #[cfg(feature = "naga-ext")]
                     BuiltinValue::PrimitiveIndex => inputs.primitive_index.map(Instance::from),
+                    #[cfg(feature = "naga-ext")]
+                    BuiltinValue::Barycentric => {
+                        inputs.barycentric.map(|v| VecInstance::from(v).into())
+                    }
                     #[cfg(feature = "naga-ext")]
                     BuiltinValue::ViewIndex => inputs.view_index.map(Instance::from),
                     BuiltinValue::ClipDistances | BuiltinValue::FragDepth => {
