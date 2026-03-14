@@ -206,6 +206,12 @@ pub enum BuiltinValue {
     #[cfg(feature = "naga-ext")]
     PrimitiveIndex,
     #[cfg(feature = "naga-ext")]
+    Barycentric,
+    /// requires WGSL extension barycentric
+    #[cfg(feature = "naga-ext")]
+    BarycentricNoPerspective,
+    /// requires WGSL extension barycentric
+    #[cfg(feature = "naga-ext")]
     ViewIndex,
 }
 
@@ -690,6 +696,10 @@ impl FromStr for BuiltinValue {
             #[cfg(feature = "naga-ext")]
             "primitive_index" => Ok(Self::PrimitiveIndex),
             #[cfg(feature = "naga-ext")]
+            "barycentric" => Ok(Self::Barycentric),
+            #[cfg(feature = "naga-ext")]
+            "barycentric_no_perspective" => Ok(Self::BarycentricNoPerspective),
+            #[cfg(feature = "naga-ext")]
             "view_index" => Ok(Self::ViewIndex),
             _ => Err(()),
         }
@@ -887,6 +897,10 @@ impl Display for BuiltinValue {
             Self::NumSubgroups => write!(f, "num_subgroups"),
             #[cfg(feature = "naga-ext")]
             Self::PrimitiveIndex => write!(f, "primitive_index"),
+            #[cfg(feature = "naga-ext")]
+            Self::Barycentric => write!(f, "barycentric"),
+            #[cfg(feature = "naga-ext")]
+            Self::BarycentricNoPerspective => write!(f, "barycentric_no_perspective"),
             #[cfg(feature = "naga-ext")]
             Self::ViewIndex => write!(f, "view_index"),
         }

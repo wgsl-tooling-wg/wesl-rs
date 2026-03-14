@@ -44,7 +44,7 @@ generics = ["wgsl-parse/generics"]
 #
 # List of supported naga extensions:
 # * 64-bit types: i64/u64/f64 and li, lu, lf literal suffixes
-# * extra builtins: `subgroup_id`, `num_subgroups`, `primitive_index`, `view_index`
+# * extra builtins: `subgroup_id`, `num_subgroups`, `primitive_index`, `barycentric`, `barycentric_no_perspective`, `view_index`
 # * extra texel formats: see `TexelFormat`
 # * `immediate` address space
 # * `atomic` access mode for textures
