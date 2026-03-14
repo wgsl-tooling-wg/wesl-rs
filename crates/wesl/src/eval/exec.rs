@@ -757,6 +757,8 @@ pub struct Inputs {
     #[cfg(feature = "naga-ext")]
     pub barycentric: Option<[f32; 3]>,
     #[cfg(feature = "naga-ext")]
+    pub barycentric_no_perspective: Option<[f32; 3]>,
+    #[cfg(feature = "naga-ext")]
     pub view_index: Option<u32>,
 
     pub user_defined: HashMap<u32, Instance>,
@@ -786,6 +788,8 @@ impl Inputs {
             primitive_index: Some(0),
             #[cfg(feature = "naga-ext")]
             barycentric: Some([0.0, 0.0, 0.0]),
+            #[cfg(feature = "naga-ext")]
+            barycentric_no_perspective: Some([0.0, 0.0, 0.0]),
             #[cfg(feature = "naga-ext")]
             view_index: Some(0),
             user_defined: Default::default(),
@@ -853,6 +857,10 @@ pub fn exec_entrypoint(
                     BuiltinValue::Barycentric => {
                         inputs.barycentric.map(|v| VecInstance::from(v).into())
                     }
+                    #[cfg(feature = "naga-ext")]
+                    BuiltinValue::BarycentricNoPerspective => inputs
+                        .barycentric_no_perspective
+                        .map(|v| VecInstance::from(v).into()),
                     #[cfg(feature = "naga-ext")]
                     BuiltinValue::ViewIndex => inputs.view_index.map(Instance::from),
                     BuiltinValue::ClipDistances | BuiltinValue::FragDepth => {
