@@ -167,9 +167,11 @@ impl ModulePath {
                 match &self.origin {
                     PathOrigin::Absolute | PathOrigin::Relative(_) => suffix.clone(),
                     PathOrigin::Package(self_pkg) => {
-                        if self_pkg == suffix_pkg {
-                            // Same package - just use the suffix path directly
-                            suffix.clone()
+                        if self_pkg.rsplit('/').next() == suffix_pkg.rsplit('/').next() {
+                            // Same package - just use the suffix path with the package origin
+                            let origin = self.origin.clone();
+                            let components = suffix.components.clone();
+                            Self { origin, components }
                         } else {
                             // Importing a sub-package. This is a hack: we rename the package to
                             // parent/child, which cannot be spelled in code.
@@ -206,7 +208,6 @@ impl ModulePath {
 #[test]
 fn test_module_path_join() {
     use std::str::FromStr;
-    // TODO: move this test and join_paths impl to ModulePath::join_path
     let cases = [
         ("package::m1", "package::foo", "package::foo"),
         ("package::m1", "self::foo", "package::m1::foo"),
@@ -216,6 +217,10 @@ fn test_module_path_join() {
         ("pkg::m1::m2", "super::foo", "pkg::m1::foo"),
         ("pkg::m1", "super::super::foo", "pkg::foo"),
         ("lygia::m1", "lygia::math", "lygia::math"),
+        ("lygia::m1", "pkg/lygia", "lygia"),
+        ("pkg/lygia::m1", "lygia", "pkg/lygia"),
+        ("pkg/lygia::m1", "lygia::math", "pkg/lygia::math"),
+        ("pkg1/lygia::m1", "pkg2/lygia::math", "pkg1/lygia::math"),
         ("super", "super::foo", "super::super::foo"),
         ("super::m1::m2::m3", "super::super::m4", "super::m1::m4"),
         ("super", "self::foo", "super::foo"),
@@ -226,7 +231,7 @@ fn test_module_path_join() {
         let parent = ModulePath::from_str(parent).unwrap();
         let child = ModulePath::from_str(child).unwrap();
         let expect = ModulePath::from_str(expect).unwrap();
-        println!("testing join_paths({parent}, {child}) -> {expect}");
+        println!("testing ModulePath::join_path({parent}, {child}) -> {expect}");
         assert_eq!(parent.join_path(&child), expect);
     }
 }
