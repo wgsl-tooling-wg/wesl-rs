@@ -258,7 +258,7 @@ impl PkgBuilder {
     /// Reads a wesl.toml file and builds a package from its configuration.
     ///
     /// The wesl.toml file should be located in the given directory and contain:
-    /// - `[package]` section with `edition` (required), `root`, `include`, `exclude`
+    /// - `edition` (required), `root`, `include`, `exclude` as top-level keys
     /// - `[dependencies]` section (optional)
     ///
     /// # Example
