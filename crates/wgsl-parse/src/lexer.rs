@@ -58,7 +58,7 @@ fn decr_depth(lex: &mut logos::Lexer<Token>) {
 // TODO: get rid of crate `lexical`
 
 // don't have to be super strict, the lexer regex already did the heavy lifting
-const DEC_FORMAT: u128 = lexical::NumberFormatBuilder::new().build();
+const DEC_FORMAT: u128 = lexical::NumberFormatBuilder::new().build_unchecked();
 
 // don't have to be super strict, the lexer regex already did the heavy lifting
 const HEX_FORMAT: u128 = lexical::NumberFormatBuilder::new()
@@ -66,7 +66,7 @@ const HEX_FORMAT: u128 = lexical::NumberFormatBuilder::new()
     .base_prefix(NonZeroU8::new(b'x'))
     .exponent_base(NonZeroU8::new(16))
     .exponent_radix(NonZeroU8::new(10))
-    .build();
+    .build_unchecked();
 
 static FLOAT_HEX_OPTIONS: LazyLock<lexical::parse_float_options::Options> = LazyLock::new(|| {
     lexical::parse_float_options::OptionsBuilder::new()

@@ -410,9 +410,6 @@ impl Default for PkgResolver {
 
 impl Resolver for PkgResolver {
     fn resolve_source<'a>(&'a self, path: &ModulePath) -> Result<std::borrow::Cow<'a, str>, E> {
-        // This is a hack: when the package name contains `/`, it corresponds to a sub-dependency
-        // of a package dependency. The name is created by the import resolution algorithm.
-        // (see import.rs:join_paths)
         let pkg_path = match &path.origin {
             PathOrigin::Package(pkg) => pkg,
             _ => {
@@ -423,6 +420,9 @@ impl Resolver for PkgResolver {
             }
         };
 
+        // This is a hack: when the package name contains `/`, it corresponds to a sub-dependency
+        // of a package dependency. The name is created by the import resolution algorithm.
+        // (see ModulePath::join_path)
         let pkg_parts = pkg_path.split('/').collect_vec();
 
         let root_pkg = pkg_parts

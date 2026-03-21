@@ -4,7 +4,10 @@ use std::{
 };
 
 use crate::{
-    Diagnostic, Error, ModulePath, SyntaxUtil, resolve::CodegenPkg, validate::validate_wesl,
+    Diagnostic, Error, ModulePath, SyntaxUtil,
+    resolve::CodegenPkg,
+    validate::validate_wesl,
+    wesl_toml::{self, ScanTomlError, WeslToml},
 };
 use quote::{format_ident, quote};
 use wgsl_parse::{
@@ -14,7 +17,7 @@ use wgsl_parse::{
 use wgsl_types::idents::RESERVED_WORDS;
 
 /// WGSL identifier predicate, including reserved words, but excluding keywords.
-fn is_mod_ident(name: &str) -> bool {
+pub(crate) fn is_mod_ident(name: &str) -> bool {
     let mut lex = Lexer::new(name);
     RESERVED_WORDS.contains(&name)
         || matches!(
@@ -24,7 +27,7 @@ fn is_mod_ident(name: &str) -> bool {
 }
 
 // https://github.com/wgsl-tooling-wg/wesl-spec/blob/main/Imports.md#reference-level-explanation
-const RESERVED_MOD_NAMES: &[&str] = &[
+pub(crate) const RESERVED_MOD_NAMES: &[&str] = &[
     // WGSL keywords
     "const_assert",
     "continue",
@@ -123,6 +126,10 @@ pub enum ScanDirectoryError {
     ReservedModName(String),
     #[error("I/O error while scanning package root: {0}")]
     Io(#[from] std::io::Error),
+}
+
+fn cargo_crate_name() -> String {
+    std::env::var("CARGO_PKG_NAME").expect("CARGO_PKG_NAME environment variable is not defined")
 }
 
 impl PkgBuilder {
@@ -241,13 +248,46 @@ impl PkgBuilder {
         // top level module should be named by package builder and not file path
         module.name = self.name;
 
-        let crate_name = std::env::var("CARGO_PKG_NAME")
-            .expect("CARGO_PKG_NAME environment variable is not defined")
-            .to_string();
+        Ok(Pkg {
+            crate_name: cargo_crate_name(),
+            root: module,
+            dependencies: self.dependencies,
+        })
+    }
+
+    /// Reads a wesl.toml file and builds a package from its configuration.
+    ///
+    /// The wesl.toml file should be located in the given directory and contain:
+    /// - `edition` (required), `root`, `include`, `exclude` as top-level keys
+    /// - `[dependencies]` section (optional)
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// wesl::PkgBuilder::new("my_package")
+    ///     .scan_toml(".")  // looks for ./wesl.toml
+    ///     .expect("failed to scan WESL files")
+    ///     .build_artifact()
+    ///     .expect("failed to build artifact");
+    /// ```
+    pub fn scan_toml(self, dir: impl AsRef<Path>) -> Result<Pkg, ScanTomlError> {
+        let dir = dir.as_ref();
+        let toml_path = dir.join("wesl.toml");
+
+        if !toml_path.exists() {
+            return Err(ScanTomlError::TomlNotFound(toml_path));
+        }
+
+        let config = WeslToml::from_file(&toml_path)?;
+        let result = wesl_toml::scan_from_config(&self.name, dir, &config)?;
+
+        for warning in &result.warnings {
+            println!("cargo::warning={warning}");
+        }
 
         Ok(Pkg {
-            crate_name,
-            root: module,
+            crate_name: cargo_crate_name(),
+            root: result.module,
             dependencies: self.dependencies,
         })
     }
