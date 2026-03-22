@@ -35,7 +35,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use serde::{Deserialize, Serialize};
@@ -290,7 +290,6 @@ pub fn scan_from_config(
     let (module, warnings) = build_module_hierarchy(name, &matched_files, &root_path)?;
     Ok(ScanResult { module, warnings })
 }
-
 /// Collect paths matching glob patterns, filtered by a predicate.
 fn collect_glob_filtered(
     base_dir: &Path,
@@ -310,8 +309,7 @@ fn collect_glob_filtered(
             glob::glob(&pattern_str).map_err(|e| ScanTomlError::InvalidGlob(pattern.clone(), e))?;
 
         for path in glob_iter.flatten().filter(|p| filter(p)) {
-            let canonical = path.canonicalize().unwrap_or(path);
-            paths.insert(canonical);
+            paths.insert(normalize_path(&path));
         }
     }
 
@@ -327,6 +325,22 @@ fn is_excluded(file: &Path, exclude_paths: &HashSet<PathBuf>) -> bool {
         || exclude_paths
             .iter()
             .any(|excl| excl.is_dir() && file.starts_with(excl))
+}
+
+/// Normalize a path by resolving `.` and `..` components lexically,
+/// without following symlinks or touching the filesystem.
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for comp in path.components() {
+        match comp {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+            }
+            _ => out.push(comp),
+        }
+    }
+    out
 }
 
 struct FileEntry {
@@ -385,18 +399,12 @@ fn derive_module_paths(
     files: &HashSet<PathBuf>,
     root_path: &Path,
 ) -> Result<(Vec<FileEntry>, Vec<ScanWarning>), ScanTomlError> {
-    let canonical_root = root_path
-        .canonicalize()
-        .unwrap_or_else(|_| root_path.to_path_buf());
+    let normalized_root = normalize_path(root_path);
 
     let mut entries = Vec::new();
     let mut warnings = Vec::new();
     for file_path in files {
-        let canonical_file = file_path
-            .canonicalize()
-            .unwrap_or_else(|_| file_path.clone());
-
-        let relative = canonical_file.strip_prefix(&canonical_root).map_err(|_| {
+        let relative = file_path.strip_prefix(&normalized_root).map_err(|_| {
             ScanTomlError::FileOutsideRoot(file_path.clone(), root_path.to_path_buf())
         })?;
 
