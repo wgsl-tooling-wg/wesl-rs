@@ -272,14 +272,7 @@ pub fn scan_from_config(
     base_dir: &Path,
     config: &WeslToml,
 ) -> Result<ScanResult, ScanTomlError> {
-    // Strip leading "./" so that base_dir.join doesn't produce paths like
-    // "/project/./shaders/" which would break relative-path glob matching.
-    let root = config
-        .package
-        .root
-        .strip_prefix("./")
-        .unwrap_or(&config.package.root);
-    let root_path = base_dir.join(root);
+    let root_path = std::path::absolute(base_dir.join(&config.package.root))?;
 
     let include = compile_patterns(&config.package.include)?;
     let exclude = compile_patterns(&config.package.exclude)?;
