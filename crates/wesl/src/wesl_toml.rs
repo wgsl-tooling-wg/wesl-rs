@@ -314,7 +314,6 @@ fn walk_directory(
     while let Some(dir) = stack.pop() {
         let entries = match std::fs::read_dir(&dir) {
             Ok(rd) => rd,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
             Err(e) => return Err(ScanTomlError::Io(e)),
         };
 
