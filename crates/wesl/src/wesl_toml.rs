@@ -274,7 +274,11 @@ pub fn scan_from_config(
 ) -> Result<ScanResult, ScanTomlError> {
     // Strip leading "./" so that base_dir.join doesn't produce paths like
     // "/project/./shaders/" which would break relative-path glob matching.
-    let root = config.package.root.strip_prefix("./").unwrap_or(&config.package.root);
+    let root = config
+        .package
+        .root
+        .strip_prefix("./")
+        .unwrap_or(&config.package.root);
     let root_path = base_dir.join(root);
 
     let include = compile_patterns(&config.package.include)?;
@@ -348,11 +352,8 @@ fn glob_match(patterns: &[glob::Pattern], path: &Path) -> bool {
         require_literal_separator: false,
         require_literal_leading_dot: false,
     };
-    patterns
-        .iter()
-        .any(|pat| pat.matches_path_with(path, opts))
+    patterns.iter().any(|pat| pat.matches_path_with(path, opts))
 }
-
 
 struct FileEntry {
     path: PathBuf,
