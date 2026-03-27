@@ -113,7 +113,7 @@ pub struct ImportStatement {
 pub enum PathOrigin {
     /// Import relative to the current package root, starting with 'package::'.
     Absolute,
-    /// Import relative to the current module, starting with 'super::'. The  usize is the number of 'super'.
+    /// Import relative to the current module, starting with 'super::'. The usize is the number of 'super's.
     Relative(usize),
     /// Import from a package dependency, starting with the extern package name.
     Package(String),
