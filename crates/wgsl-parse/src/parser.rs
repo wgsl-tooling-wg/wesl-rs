@@ -43,7 +43,8 @@ pub fn parse_tokens(
 ///
 /// Identical to [`TranslationUnit::from_str`].
 pub fn parse_str(source: &str) -> Result<TranslationUnit, Error> {
-    parse!(source, EntryPointTranslationUnit, TranslationUnit)
+    crate::parser2::parse_str(source)
+    // parse!(source, EntryPointTranslationUnit, TranslationUnit)
 }
 
 pub fn recognize_template_list(lexer: impl TokenIterator) -> Result<(), Error> {

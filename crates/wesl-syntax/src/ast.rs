@@ -620,7 +620,7 @@ impl Path {
             .filter_map(|node_or_token| match node_or_token {
                 rowan::NodeOrToken::Token(token) if token.kind() == SyntaxKind::Identifier => {
                     Some(token)
-                },
+                }
                 rowan::NodeOrToken::Node(_) | rowan::NodeOrToken::Token(_) => None,
             })
     }
@@ -648,6 +648,7 @@ ast_node! {
     arrow_token: Option<SyntaxToken Arrow>;
     r#type: Option<TypeSpecifier>;
 }
+impl HasAttributes for ReturnType {}
 
 ast_node! {
     TemplateList:
@@ -1370,7 +1371,7 @@ impl Item {
                     .items()
                     .flat_map(Self::flatten_global_compound_declarations)
                     .collect()
-            },
+            }
             Self::ImportStatement(_)
             | Self::FunctionDeclaration(_)
             | Self::VariableDeclaration(_)
