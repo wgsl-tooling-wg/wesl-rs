@@ -15,7 +15,7 @@ name = "testsuite"
 serde = { version = "1.0.229", features = ["derive"] }
 
 [dev-dependencies]
-bevy-wgsl = { git = "https://github.com/webgpu-tools/bevy-wgsl", rev = "66aa82008b4c372970715017d6b19b38b99fb7b1" }
+bevy-wgsl = { git = "https://github.com/webgpu-tools/bevy-wgsl", rev = "66acc15d173049439fa58a1924e7061c30a347a3" }
 expect-test = "1.5.1"
 libtest-mimic = "0.8.2"
 serde_json = "1.0.151"
