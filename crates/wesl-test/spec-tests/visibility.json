@@ -191,5 +191,17 @@
 		},
 		"expect": "pass",
 		"result": "const package_m1_x = y; const y: u32 = 3; const z = package_m1_x;"
+	},
+	{
+		"name": "dependency-import-own-package-decl",
+		"desc": "a dependency imports its own package-visible declaration",
+		"kind": "modules",
+		"code": "const y = foo::m1::x;",
+		"modules": {
+			"foo::m1": "import package::m2::x as z; public const x = z;",
+			"foo::m2": "const x: u32 = 3;"
+		},
+		"expect": "pass",
+		"result": "const foo_m1_x = foo_m2_x; const foo_m2_x: u32 = 3; const y = foo_m1_x;"
 	}
 ]

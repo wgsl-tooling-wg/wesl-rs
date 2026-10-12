@@ -248,6 +248,9 @@ fn decl_usage_analysis(
         {
             let min_vis = match import_path.origin {
                 PathOrigin::Absolute | PathOrigin::Relative(_) => Visibility::Package,
+                PathOrigin::Package(_) if import_path.origin == module.path.origin => {
+                    Visibility::Package
+                }
                 PathOrigin::Package(_) => Visibility::Public,
             };
             if let Some((decl_ident, decl_vis)) =
