@@ -22,3 +22,13 @@ fn conditional_continuing() {
 
     assert_eq!(module.to_string(), expected.to_string());
 }
+
+#[test]
+fn conditional_for_initializer_and_update() {
+    let mut module: TranslationUnit = "fn enabled() { for (@if(true) var index = 0; index < 4; @if(true) index++) { } } fn disabled() { for (@if(false) var index = 0; false; @if(false) index++) { } }".parse().unwrap();
+    let expected: TranslationUnit = "fn enabled() { for (var index = 0; index < 4; index++) { } } fn disabled() { for (; false; ) { } }".parse().unwrap();
+
+    condcomp(&mut module, &Features::default()).unwrap();
+
+    assert_eq!(module.to_string(), expected.to_string());
+}

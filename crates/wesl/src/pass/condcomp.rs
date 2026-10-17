@@ -358,6 +358,14 @@ fn stmt_eval_if_attrs(statements: &mut Vec<StatementNode>, features: &Features) 
                 rec(&mut stmt.body.statements, feats)?;
             }
             Statement::For(stmt) => {
+                for header_statement in [&mut stmt.initializer, &mut stmt.update] {
+                    let mut prev = NodeEval {
+                        has_condcomp: false,
+                        chain_has_true: false,
+                        is_false: false,
+                    };
+                    eval_opt_attr(header_statement, &mut prev, feats)?;
+                }
                 if let Some(init) = &mut stmt.initializer {
                     rec_eval_inside_stmt(&mut *init, feats)?
                 }
