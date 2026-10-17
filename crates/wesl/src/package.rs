@@ -1,7 +1,7 @@
 //! Shader packaging.
 
 use std::{
-    collections::HashSet,
+    collections::BTreeSet,
     path::{Path, PathBuf},
 };
 
@@ -215,8 +215,8 @@ impl PackageBuilder {
             // check for submodules
             let mut submodules = Vec::new();
             if path_without_ext.is_dir() {
-                // use hashset to avoid duplicate entries
-                let mut unique_submodules = HashSet::new();
+                // use a sorted set to avoid duplicate entries and to keep the scan order deterministic
+                let mut unique_submodules = BTreeSet::new();
                 for entry in std::fs::read_dir(&path_without_ext)? {
                     let Ok(entry) = entry else { continue };
                     let submodule_path = entry.path().with_extension("");
@@ -430,5 +430,26 @@ impl Package {
         .join(format!("{}.rs", self.root.name));
         std::fs::write(&out_dir, code)?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn scan_root_is_deterministic() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/package_scan");
+
+        let pkg = PackageBuilder::new("scan_test").scan_root(&dir).unwrap();
+        let pkg_again = PackageBuilder::new("scan_test").scan_root(&dir).unwrap();
+
+        let names = |module: &PackageModule| -> Vec<String> {
+            module.submodules.iter().map(|m| m.name.clone()).collect()
+        };
+
+        assert_eq!(names(&pkg.root), ["alpha", "middle", "zeta"]);
+        assert_eq!(names(&pkg.root.submodules[1]), ["beta"]);
+        assert_eq!(names(&pkg.root), names(&pkg_again.root));
     }
 }

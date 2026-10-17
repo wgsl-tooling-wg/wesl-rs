@@ -9,7 +9,7 @@ use wgsl_types::inst::LiteralInstance;
 
 use std::{
     borrow::Cow,
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fs,
     path::{self, Path, PathBuf},
 };
@@ -205,14 +205,14 @@ impl Resolver for FileResolver {
 /// runtime-generated files.
 #[derive(Default)]
 pub struct VirtualResolver<'a> {
-    files: HashMap<ModulePath, Cow<'a, str>>,
+    files: BTreeMap<ModulePath, Cow<'a, str>>,
 }
 
 impl<'a> VirtualResolver<'a> {
     /// Create a new resolver.
     pub fn new() -> Self {
         Self {
-            files: HashMap::new(),
+            files: BTreeMap::new(),
         }
     }
 
@@ -842,5 +842,19 @@ mod test {
             .resolve_source(&"constants::PI".parse().unwrap())
             .unwrap();
         assert_eq!(src_comp, generated);
+    }
+
+    #[test]
+    fn virtual_resolver_modules_are_sorted() {
+        let mut resolver = VirtualResolver::new();
+        resolver.add_module("package::zeta".parse().unwrap(), "".into());
+        resolver.add_module("package::alpha".parse().unwrap(), "".into());
+
+        let paths: Vec<String> = resolver
+            .modules()
+            .map(|(path, _)| path.to_string())
+            .collect();
+
+        assert_eq!(paths, ["package::alpha", "package::zeta"]);
     }
 }

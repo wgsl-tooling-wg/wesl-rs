@@ -34,7 +34,7 @@
 //!
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::{Path, PathBuf},
 };
 
@@ -290,8 +290,8 @@ fn walk_directory(
     pkg_root_dir: &Path,
     include: &[glob::Pattern],
     exclude: &[glob::Pattern],
-) -> Result<HashSet<PathBuf>, TomlError> {
-    let mut files = HashSet::new();
+) -> Result<BTreeSet<PathBuf>, TomlError> {
+    let mut files = BTreeSet::new();
     let mut stack = vec![pkg_root_dir.to_path_buf()];
 
     while let Some(dir) = stack.pop() {
@@ -338,7 +338,7 @@ struct FileEntry {
 /// Build a Module hierarchy from a flat list of files.
 fn build_module_hierarchy(
     pkg_name: &str,
-    files: &HashSet<PathBuf>,
+    files: &BTreeSet<PathBuf>,
     pkg_root_path: &Path,
 ) -> Result<(PackageModule, Vec<ScanWarning>), TomlError> {
     let (entries, warnings) = derive_module_paths(files, pkg_root_path)?;
@@ -383,7 +383,7 @@ fn validate_components(components: &[String], file_path: &Path) -> Option<ScanWa
 
 /// Derive module path components from file paths by stripping the package root prefix.
 fn derive_module_paths(
-    files: &HashSet<PathBuf>,
+    files: &BTreeSet<PathBuf>,
     pkg_root_dir: &Path,
 ) -> Result<(Vec<FileEntry>, Vec<ScanWarning>), TomlError> {
     let mut entries = Vec::new();
@@ -417,7 +417,7 @@ fn derive_module_paths(
 struct ModuleNode {
     path: Option<PathBuf>,
     source: String,
-    children: HashMap<String, ModuleNode>,
+    children: BTreeMap<String, ModuleNode>,
 }
 
 impl ModuleNode {
@@ -425,7 +425,7 @@ impl ModuleNode {
         Self {
             path: None,
             source: String::new(),
-            children: HashMap::new(),
+            children: BTreeMap::new(),
         }
     }
 
@@ -666,5 +666,22 @@ mod tests {
         // Should only contain `main`, not `subpkg/inner`
         assert_eq!(result.module.submodules.len(), 1);
         assert_eq!(result.module.submodules[0].name, "main");
+    }
+
+    #[test]
+    fn test_scan_order_is_deterministic() {
+        let base = fixtures_dir().join("order");
+        let config = WeslToml::parse_str("edition = \"2026_pre\"\nroot = \"./shaders/\"").unwrap();
+
+        let first = scan_from_config("my_pkg", &base, &config).unwrap();
+        let second = scan_from_config("my_pkg", &base, &config).unwrap();
+
+        let names = |module: &PackageModule| -> Vec<String> {
+            module.submodules.iter().map(|m| m.name.clone()).collect()
+        };
+
+        assert_eq!(names(&first.module), ["alpha", "mid", "zeta"]);
+        assert_eq!(names(&first.module.submodules[1]), ["beta"]);
+        assert_eq!(names(&first.module), names(&second.module));
     }
 }
